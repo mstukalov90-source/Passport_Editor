@@ -1,0 +1,134 @@
+# =====================
+# ВИРТУАЛЬНОЕ ОКРУЖЕНИЕ
+# =====================
+venv/
+env/
+.venv/
+.env/
+ENV/
+
+# =====================
+# POSTGRESQL (ОЧЕНЬ ВАЖНО!)
+# =====================
+# Локальная папка с данными Postgres (если запускаете через Docker)
+postgres-data/
+pgdata/
+*.sql
+*.sql.gz
+*.dump
+
+# =====================
+# DJANGO СТАНДАРТНОЕ
+# =====================
+# Логи
+*.log
+*.pid
+
+# База данных SQLite (не используется, но на всякий случай)
+db.sqlite3
+db.sqlite3-journal
+
+# Кэш и скомпилированные файлы
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Настройки с секретами (НЕ ЗАЛИВАТЬ!)
+local_settings.py
+secrets.json
+config/secrets.json
+
+# Медиа и статика
+media/
+staticfiles/
+static_collected/
+uploads/
+
+# Сборка и дистрибутивы
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# =====================
+# ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ
+# =====================
+.env
+.env.dev
+.env.prod
+.env.local
+
+# =====================
+# IDE И РЕДАКТОРЫ
+# =====================
+# PyCharm
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+.history/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# MacOS (у вас MacBook)
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# =====================
+# ТЕСТЫ И ОТЧЁТЫ
+# =====================
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+htmlcov/
+.tox/
+.nox/
+
+# =====================
+# JUPYTER (если используете)
+# =====================
+.ipynb_checkpoints/
+*.ipynb
+
+# =====================
+# ЛОГИ БД И МИГРАЦИИ
+# =====================
+# Миграции лучше коммитить, но кэш миграций — нет
+migrations/__pycache__/
+
+# =====================
+# DOCKER (если используете)
+# =====================
+docker-data/
+*.pid
+# Docker
+docker-data/
+postgres-data/
+pgdata/
+*.pid
