@@ -3,6 +3,7 @@ import uuid
 import zipfile
 from pathlib import Path
 
+import psycopg2
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.contrib.auth.decorators import login_required
@@ -12,6 +13,72 @@ from django.views.decorators.http import require_POST
 from osgeo import ogr, osr
 
 from .forms import EntryPointForm
+
+
+def _quote_ident(identifier):
+    return '"' + str(identifier).replace('"', '""') + '"'
+
+
+def _resolve_column_name(cursor, table_name, preferred_name):
+    cursor.execute(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = %s
+          AND lower(column_name) = lower(%s)
+        LIMIT 1
+        """,
+        [table_name, preferred_name],
+    )
+    row = cursor.fetchone()
+    return row[0] if row else preferred_name
+
+
+def _get_current_user_owner_id(username):
+    db = settings.EXTERNAL_USERS_DB
+    users_table = getattr(settings, 'EXTERNAL_USERS_TABLE', 'users')
+    login_field_pref = getattr(settings, 'EXTERNAL_USERS_LOGIN_FIELD', 'login')
+    owner_field_pref = getattr(settings, 'EXTERNAL_USERS_OWNER_FIELD', 'OwnerLegalPersonId')
+
+    with psycopg2.connect(
+        dbname=db['NAME'],
+        user=db['USER'],
+        password=db['PASSWORD'],
+        host=db['HOST'],
+        port=db['PORT'],
+    ) as conn:
+        with conn.cursor() as cursor:
+            login_field = _resolve_column_name(cursor, users_table, login_field_pref)
+            owner_field = _resolve_column_name(cursor, users_table, owner_field_pref)
+            query = (
+                f"SELECT {_quote_ident(owner_field)} FROM {_quote_ident(users_table)} "
+                f"WHERE {_quote_ident(login_field)} = %s LIMIT 1"
+            )
+            cursor.execute(query, [username])
+            row = cursor.fetchone()
+            return row[0] if row else None
+
+
+def _get_owned_objects(owner_legal_person_id):
+    table = settings.GIS_OBJECT_TABLE
+    rootid_field = settings.GIS_OBJECT_ROOTID_FIELD
+    name_field = settings.GIS_OBJECT_NAME_FIELD
+    owner_field_pref = getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
+
+    with connection.cursor() as cursor:
+        owner_field = _resolve_column_name(cursor, table, owner_field_pref)
+        query = (
+            f"SELECT {_quote_ident(rootid_field)}::text, {_quote_ident(name_field)}::text "
+            f"FROM {_quote_ident(table)} "
+            f"WHERE {_quote_ident(owner_field)} = %s "
+            f"ORDER BY {_quote_ident(name_field)} ASC NULLS LAST, {_quote_ident(rootid_field)} ASC "
+            f"LIMIT 500"
+        )
+        cursor.execute(query, [owner_legal_person_id])
+        rows = cursor.fetchall()
+
+    return [{'rootid': row[0], 'name': row[1] or ''} for row in rows]
 
 
 def _build_where_clause(entry_point, rootid_field, name_field):
@@ -142,7 +209,29 @@ def home(request):
     else:
         form = EntryPointForm()
 
-    return render(request, 'pass_viewer/home.html', {'form': form})
+    owner_id = None
+    owned_objects = []
+    owned_objects_error = None
+    try:
+        owner_id = _get_current_user_owner_id(request.user.username)
+        if owner_id is not None:
+            owned_objects = _get_owned_objects(owner_id)
+    except Exception:
+        owned_objects_error = (
+            'Не удалось получить список объектов пользователя. '
+            'Проверьте поле OwnerLegalPersonId в users_db и geodb.'
+        )
+
+    return render(
+        request,
+        'pass_viewer/home.html',
+        {
+            'form': form,
+            'owner_id': owner_id,
+            'owned_objects': owned_objects,
+            'owned_objects_error': owned_objects_error,
+        },
+    )
 
 
 @login_required
@@ -203,3 +292,18 @@ def export_geometry(request):
         )
 
     return JsonResponse({'ok': True, 'geojson_url': geojson_url, 'shapefile_url': shapefile_url})
+
+
+@login_required
+@require_POST
+def open_owned_object(request):
+    rootid = (request.POST.get('rootid') or '').strip()
+    name = (request.POST.get('name') or '').strip()
+    if not rootid and not name:
+        return redirect('home')
+
+    request.session['entry_point'] = {
+        'rootid': rootid,
+        'name': '' if rootid else name,
+    }
+    return redirect('main')

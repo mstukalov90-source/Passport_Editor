@@ -3,16 +3,148 @@
 {% block title %}&#1055;&#1072;&#1088;&#1072;&#1084;&#1077;&#1090;&#1088;&#1099; &#1074;&#1093;&#1086;&#1076;&#1072;{% endblock %}
 
 {% block content %}
-    <h1>&#1042;&#1074;&#1077;&#1076;&#1080;&#1090;&#1077; &#1087;&#1072;&#1088;&#1072;&#1084;&#1077;&#1090;&#1088;&#1099;</h1>
-    <p>&#1059;&#1082;&#1072;&#1078;&#1080;&#1090;&#1077; &#1086;&#1076;&#1080;&#1085; &#1087;&#1072;&#1088;&#1072;&#1084;&#1077;&#1090;&#1088;: <strong>rootid</strong> &#1080;&#1083;&#1080; <strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;</strong>.</p>
-    <form method="post">
-        {% csrf_token %}
-        {{ form.non_field_errors }}
-        {{ form.as_p }}
-        <button type="submit">&#1055;&#1077;&#1088;&#1077;&#1081;&#1090;&#1080; &#1085;&#1072; &#1086;&#1089;&#1085;&#1086;&#1074;&#1085;&#1091;&#1102; &#1089;&#1090;&#1088;&#1072;&#1085;&#1080;&#1094;&#1091;</button>
-    </form>
+    <h2 style="font-size: 18px; margin: 0 0 10px;">
+        &#1054;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099; &#1087;&#1086; OwnerLegalPersonId
+    </h2>
+    {% if owner_id %}
+        <p class="note" style="margin-top: 0;">
+            OwnerLegalPersonId: <strong>{{ owner_id }}</strong>
+        </p>
+    {% endif %}
+    {% if owned_objects_error %}
+        <p class="note" style="color: #b42318;">{{ owned_objects_error }}</p>
+    {% elif owned_objects %}
+        <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+            <input
+                type="text"
+                id="owned-filter-rootid"
+                placeholder="&#1060;&#1080;&#1083;&#1100;&#1090;&#1088; &#1087;&#1086; rootid"
+                style="max-width: 180px;"
+            >
+            <input
+                type="text"
+                id="owned-filter-name"
+                placeholder="&#1060;&#1080;&#1083;&#1100;&#1090;&#1088; &#1087;&#1086; name"
+                style="flex: 1; min-width: 220px;"
+            >
+            <button type="button" id="owned-filter-clear" style="background: #e5e7eb; color: #111;">
+                &#1057;&#1073;&#1088;&#1086;&#1089;
+            </button>
+        </div>
+        <div style="max-height: 260px; overflow: auto; border: 1px solid #e3e6ec; border-radius: 8px;">
+            {% for item in owned_objects %}
+                <form
+                    method="post"
+                    action="{% url 'open_owned_object' %}"
+                    style="margin: 0;"
+                    class="owned-item"
+                    data-rootid="{{ item.rootid|lower }}"
+                    data-name="{{ item.name|default:''|lower }}"
+                >
+                    {% csrf_token %}
+                    <input type="hidden" name="rootid" value="{{ item.rootid }}">
+                    <input type="hidden" name="name" value="{{ item.name }}">
+                    <button
+                        type="submit"
+                        style="width: 100%; text-align: left; border: none; border-bottom: 1px solid #eef1f6; background: #fff; color: #20242b; padding: 10px 12px; cursor: pointer;"
+                    >
+                        <strong>rootid:</strong> {{ item.rootid }}<br>
+                        <span style="font-size: 13px; color: #4a5565;"><strong>name:</strong> {{ item.name|default:"-" }}</span>
+                    </button>
+                </form>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="note">&#1053;&#1077;&#1090; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1086;&#1074; &#1076;&#1083;&#1103; &#1090;&#1077;&#1082;&#1091;&#1097;&#1077;&#1075;&#1086; OwnerLegalPersonId.</p>
+    {% endif %}
+
+    <div style="margin-top: 14px;">
+        <button type="button" id="manual-open-btn">
+            &#1042;&#1074;&#1077;&#1089;&#1090;&#1080; rootid / &#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; &#1074;&#1088;&#1091;&#1095;&#1085;&#1091;&#1102;
+        </button>
+    </div>
+
+    <div
+        id="manual-modal"
+        style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1000; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 18px;">&#1056;&#1091;&#1095;&#1085;&#1086;&#1081; &#1074;&#1074;&#1086;&#1076;</h3>
+                <button type="button" id="manual-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+            </div>
+            <p class="note" style="margin-top: 0;">
+                &#1059;&#1082;&#1072;&#1078;&#1080;&#1090;&#1077; &#1086;&#1076;&#1080;&#1085; &#1087;&#1072;&#1088;&#1072;&#1084;&#1077;&#1090;&#1088;: <strong>rootid</strong> &#1080;&#1083;&#1080; <strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;</strong>.
+            </p>
+            <form method="post">
+                {% csrf_token %}
+                {{ form.non_field_errors }}
+                {{ form.as_p }}
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                    <button type="submit">&#1054;&#1090;&#1082;&#1088;&#1099;&#1090;&#1100; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;</button>
+                    <button type="button" id="manual-cancel-btn" style="background: #e5e7eb; color: #111;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <form method="post" action="{% url 'logout' %}" style="margin-top: 12px;">
         {% csrf_token %}
         <button type="submit">&#1042;&#1099;&#1081;&#1090;&#1080;</button>
     </form>
+
+    <script>
+        const manualModal = document.getElementById('manual-modal');
+        const manualOpenBtn = document.getElementById('manual-open-btn');
+        const manualCloseBtn = document.getElementById('manual-close-btn');
+        const manualCancelBtn = document.getElementById('manual-cancel-btn');
+        const filterRootidEl = document.getElementById('owned-filter-rootid');
+        const filterNameEl = document.getElementById('owned-filter-name');
+        const filterClearEl = document.getElementById('owned-filter-clear');
+        const ownedItems = Array.from(document.querySelectorAll('.owned-item'));
+
+        function closeManualModal() {
+            manualModal.style.display = 'none';
+        }
+
+        manualOpenBtn.addEventListener('click', () => {
+            manualModal.style.display = 'flex';
+        });
+        manualCloseBtn.addEventListener('click', closeManualModal);
+        manualCancelBtn.addEventListener('click', closeManualModal);
+
+        manualModal.addEventListener('click', (event) => {
+            if (event.target === manualModal) {
+                closeManualModal();
+            }
+        });
+
+        function applyOwnedFilters() {
+            const rootidNeedle = (filterRootidEl?.value || '').trim().toLowerCase();
+            const nameNeedle = (filterNameEl?.value || '').trim().toLowerCase();
+            ownedItems.forEach((item) => {
+                const rootidValue = item.dataset.rootid || '';
+                const nameValue = item.dataset.name || '';
+                const rootidMatch = !rootidNeedle || rootidValue.includes(rootidNeedle);
+                const nameMatch = !nameNeedle || nameValue.includes(nameNeedle);
+                item.style.display = rootidMatch && nameMatch ? '' : 'none';
+            });
+        }
+
+        if (filterRootidEl && filterNameEl) {
+            filterRootidEl.addEventListener('input', applyOwnedFilters);
+            filterNameEl.addEventListener('input', applyOwnedFilters);
+        }
+        if (filterClearEl) {
+            filterClearEl.addEventListener('click', () => {
+                if (filterRootidEl) {
+                    filterRootidEl.value = '';
+                }
+                if (filterNameEl) {
+                    filterNameEl.value = '';
+                }
+                applyOwnedFilters();
+            });
+        }
+    </script>
 {% endblock %}

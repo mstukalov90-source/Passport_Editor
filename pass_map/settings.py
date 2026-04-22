@@ -145,12 +145,16 @@ EXTERNAL_USERS_DB = {
     'HOST': os.getenv('EXTERNAL_USERS_DB_HOST', 'localhost'),
     'PORT': os.getenv('EXTERNAL_USERS_DB_PORT', '5432'),
 }
+EXTERNAL_USERS_TABLE = os.getenv('EXTERNAL_USERS_TABLE', 'users')
+EXTERNAL_USERS_LOGIN_FIELD = os.getenv('EXTERNAL_USERS_LOGIN_FIELD', 'login')
+EXTERNAL_USERS_OWNER_FIELD = os.getenv('EXTERNAL_USERS_OWNER_FIELD', 'OwnerLegalPersonId')
 
 # PostGIS object source settings for map rendering.
 GIS_OBJECT_TABLE = 'pass_objects'
 GIS_OBJECT_ROOTID_FIELD = 'rootid'
 GIS_OBJECT_NAME_FIELD = 'name'
 GIS_OBJECT_GEOM_FIELD = 'geom'
+GIS_OBJECT_OWNER_FIELD = 'OwnerLegalPersonId'
 
 # GeoDjango library paths (macOS Homebrew).
 GDAL_LIBRARY_PATH = os.getenv('GDAL_LIBRARY_PATH', '/opt/homebrew/lib/libgdal.dylib')

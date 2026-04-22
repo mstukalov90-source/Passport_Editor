@@ -35,10 +35,16 @@
     </div>
 
     <div id="map" style="height: 72vh; min-height: 520px; margin: 16px 0; border-radius: 10px; border: 1px solid #e3e6ec;"></div>
-    <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;">
-        <button type="button" id="edit-geometry-btn">&#1053;&#1072;&#1095;&#1072;&#1090;&#1100; &#1088;&#1077;&#1076;&#1072;&#1082;&#1090;&#1080;&#1088;&#1086;&#1074;&#1072;&#1085;&#1080;&#1077;</button>
-        <button type="button" id="cancel-edit-btn" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
-        <button type="button" id="save-geometry-btn" style="display:none;">&#1042;&#1099;&#1075;&#1088;&#1091;&#1079;&#1080;&#1090;&#1100; &#1092;&#1072;&#1081;&#1083;&#1099;</button>
+    <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;">
+        <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1053;&#1072;&#1095;&#1072;&#1090;&#1100; &#1088;&#1077;&#1076;&#1072;&#1082;&#1090;&#1080;&#1088;&#1086;&#1074;&#1072;&#1085;&#1080;&#1077;</button>
+        <button type="button" id="add-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent" disabled>&#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1087;&#1086;&#1083;&#1080;&#1075;&#1086;&#1085;</button>
+        <label for="snap-toggle" class="snap-switch" title="&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077; &#1074;&#1077;&#1088;&#1096;&#1080;&#1085; &#1082; &#1075;&#1088;&#1072;&#1085;&#1080;&#1094;&#1072;&#1084; &#1089;&#1086;&#1089;&#1077;&#1076;&#1085;&#1080;&#1093; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1086;&#1074;">
+            <input type="checkbox" id="snap-toggle" checked>
+            <span class="snap-switch__track"></span>
+            <span class="snap-switch__label">&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077; 5 &#1084;</span>
+        </label>
+        <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
+        <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">&#1042;&#1099;&#1075;&#1088;&#1091;&#1079;&#1080;&#1090;&#1100; &#1092;&#1072;&#1081;&#1083;&#1099;</button>
         <label for="basemap-select">&#1055;&#1086;&#1076;&#1083;&#1086;&#1078;&#1082;&#1072;:</label>
         <select id="basemap-select">
             <option value="topo">&#1058;&#1086;&#1087;&#1086;&#1075;&#1088;&#1072;&#1092;&#1080;&#1095;&#1077;&#1089;&#1082;&#1072;&#1103;</option>
@@ -48,6 +54,101 @@
     <p id="edit-status" class="note" style="margin-top: 0;"></p>
     <p id="export-links" class="note"></p>
     <a class="button-link" href="{% url 'home' %}">&#1048;&#1079;&#1084;&#1077;&#1085;&#1080;&#1090;&#1100; &#1087;&#1072;&#1088;&#1072;&#1084;&#1077;&#1090;&#1088;</a>
+
+    <style>
+        #map.edit-mode .leaflet-editing-icon {
+            width: 8px !important;
+            height: 8px !important;
+            margin-left: -4px !important;
+            margin-top: -4px !important;
+            border-radius: 50% !important;
+            border: 1px solid #111 !important;
+            background: #1f2937 !important;
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55) !important;
+        }
+        /* Middle markers often overlap and clutter editing view. */
+        #map.edit-mode .leaflet-middle-icon {
+            display: none !important;
+        }
+        .map-toolbar-btn {
+            border: 1px solid transparent;
+            border-radius: 9px;
+            padding: 10px 14px;
+            font-weight: 600;
+            transition: transform 0.08s ease, box-shadow 0.12s ease, filter 0.12s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+        }
+        .map-toolbar-btn:hover {
+            filter: brightness(1.03);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.16);
+        }
+        .map-toolbar-btn:active {
+            transform: translateY(1px);
+        }
+        .map-toolbar-btn--primary {
+            background: linear-gradient(180deg, #2f80ed 0%, #1f6feb 100%);
+            color: #fff;
+        }
+        .map-toolbar-btn--success {
+            background: linear-gradient(180deg, #16a34a 0%, #15803d 100%);
+            color: #fff;
+        }
+        .map-toolbar-btn--accent {
+            background: linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%);
+            color: #fff;
+        }
+        .map-toolbar-btn--muted {
+            background: #e5e7eb;
+            color: #111827;
+            border-color: #d1d5db;
+            box-shadow: none;
+        }
+        .snap-switch {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            user-select: none;
+            cursor: pointer;
+            padding: 7px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 999px;
+            background: #fff;
+        }
+        .snap-switch input {
+            display: none;
+        }
+        .snap-switch__track {
+            position: relative;
+            width: 36px;
+            height: 20px;
+            border-radius: 999px;
+            background: #cbd5e1;
+            transition: background 0.15s ease;
+        }
+        .snap-switch__track::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            transition: transform 0.15s ease;
+        }
+        .snap-switch input:checked + .snap-switch__track {
+            background: #2563eb;
+        }
+        .snap-switch input:checked + .snap-switch__track::after {
+            transform: translateX(16px);
+        }
+        .snap-switch__label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #111827;
+        }
+    </style>
 
     <link
         rel="stylesheet"
@@ -65,6 +166,7 @@
         href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"
     >
     <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/leaflet-geometryutil@0.10.3/src/leaflet.geometryutil.js"></script>
     {{ selected_geometry_json|default_if_none:"null"|json_script:"selected-geometry-data" }}
     {{ touches_geometry_json|default_if_none:"null"|json_script:"touches-geometry-data" }}
     {{ nearby_geometry_json|default_if_none:"null"|json_script:"nearby-geometry-data" }}
@@ -94,6 +196,15 @@
                     {type: 'Feature', properties: {}, geometry: geojsonObject}
                 ]
             };
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         function toEditableFeatureCollection(geojsonObject) {
@@ -129,21 +240,34 @@
         }
 
         const editButton = document.getElementById('edit-geometry-btn');
+        const addPolygonButton = document.getElementById('add-polygon-btn');
         const cancelEditButton = document.getElementById('cancel-edit-btn');
         const saveButton = document.getElementById('save-geometry-btn');
         const basemapSelect = document.getElementById('basemap-select');
+        const snapToggle = document.getElementById('snap-toggle');
         const statusEl = document.getElementById('edit-status');
         const exportLinksEl = document.getElementById('export-links');
+        const mapEl = document.getElementById('map');
+        const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
+        const selectedName = "{{ selected_name|default:''|escapejs }}";
         const map = L.map('map').setView([55.75, 37.61], 10);
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
         const editableGroup = new L.FeatureGroup().addTo(map);
         let selectedLayer = null;
+        let touchesLayer = null;
+        let nearbyLayer = null;
         let drawControl = null;
         let editToolbar = null;
         let isEditing = false;
         let selectedEditableGeo = null;
+        let snapLines = [];
+        let snapSegmentsCount = 0;
+        const SNAP_DISTANCE_METERS = 5;
+        let snappingEnabled = true;
+        let snapStatusTimeout = null;
+        let polygonDrawer = null;
 
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -166,7 +290,7 @@
 
         const touchesGeo = normalizeGeoJson(touchesGeometry);
         if (touchesGeo) {
-            const touchesLayer = L.geoJSON(touchesGeo, {
+            touchesLayer = L.geoJSON(touchesGeo, {
                 style: {color: '#ff9800', weight: 2, fillOpacity: 0.1}
             }).addTo(map);
             overlays['\u0413\u0440\u0430\u043d\u0438\u0447\u0430\u0449\u0438\u0435 \u043e\u0431\u044a\u0435\u043a\u0442\u044b'] = touchesLayer;
@@ -174,7 +298,7 @@
 
         const nearbyGeo = normalizeGeoJson(nearbyGeometry);
         if (nearbyGeo) {
-            const nearbyLayer = L.geoJSON(nearbyGeo, {
+            nearbyLayer = L.geoJSON(nearbyGeo, {
                 style: {color: '#1565c0', weight: 2, fillOpacity: 0.08}
             }).addTo(map);
             overlays['\u041e\u0431\u044a\u0435\u043a\u0442\u044b \u0432 10 \u043c'] = nearbyLayer;
@@ -186,6 +310,12 @@
             selectedLayer = L.geoJSON(selectedGeo, {
                 style: {color: '#ff0000', weight: 3, fillOpacity: 0.25}
             }).addTo(map);
+            const popupHtml =
+                '<div style="min-width: 220px;">' +
+                '<div><strong>rootid:</strong> ' + escapeHtml(selectedRootid || '-') + '</div>' +
+                '<div style="margin-top: 6px;"><strong>name:</strong> ' + escapeHtml(selectedName || '-') + '</div>' +
+                '</div>';
+            selectedLayer.eachLayer((layer) => layer.bindPopup(popupHtml));
             overlays['\u0412\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0439 \u043e\u0431\u044a\u0435\u043a\u0442'] = selectedLayer;
             map.fitBounds(selectedLayer.getBounds(), {padding: [30, 30], maxZoom: 19});
         } else {
@@ -210,16 +340,175 @@
                 }
             }
         });
+        snapToggle.addEventListener('change', () => {
+            snappingEnabled = snapToggle.checked;
+            if (isEditing) {
+                statusEl.textContent = snappingEnabled
+                    ? '\u041f\u0440\u0438\u043b\u0438\u043f\u0430\u043d\u0438\u0435 \u0432\u043a\u043b\u044e\u0447\u0435\u043d\u043e (5 \u043c).'
+                    : '\u041f\u0440\u0438\u043b\u0438\u043f\u0430\u043d\u0438\u0435 \u0432\u044b\u043a\u043b\u044e\u0447\u0435\u043d\u043e.';
+            }
+        });
 
         L.control.layers(null, overlays, {collapsed: false}).addTo(map);
 
         function setEditMode(enabled) {
             isEditing = enabled;
+            mapEl.classList.toggle('edit-mode', enabled);
             editButton.textContent = enabled
                 ? '\u0420\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f \u0432\u043a\u043b\u044e\u0447\u0451\u043d'
                 : '\u041d\u0430\u0447\u0430\u0442\u044c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435';
+            addPolygonButton.disabled = !enabled;
             cancelEditButton.style.display = enabled ? 'inline-block' : 'none';
             saveButton.style.display = enabled ? 'inline-block' : 'none';
+        }
+
+        function collectGeoJsonSnapLines(geojsonObject, out) {
+            const normalized = normalizeGeoJson(geojsonObject);
+            if (!normalized || !normalized.features) {
+                return;
+            }
+
+            const pushRing = (ring) => {
+                if (!ring || ring.length < 2) {
+                    return;
+                }
+                const latlngs = ring.map((c) => L.latLng(c[1], c[0]));
+                snapSegmentsCount += Math.max(0, latlngs.length - 1);
+                out.push(L.polyline(latlngs, {interactive: false}));
+            };
+
+            const pushLine = (lineCoords) => {
+                if (!lineCoords || lineCoords.length < 2) {
+                    return;
+                }
+                const latlngs = lineCoords.map((c) => L.latLng(c[1], c[0]));
+                snapSegmentsCount += Math.max(0, latlngs.length - 1);
+                out.push(L.polyline(latlngs, {interactive: false}));
+            };
+
+            const collectFromGeometry = (geometry) => {
+                if (!geometry) {
+                    return;
+                }
+                if (geometry.type === 'Polygon') {
+                    geometry.coordinates.forEach((ring) => pushRing(ring));
+                    return;
+                }
+                if (geometry.type === 'MultiPolygon') {
+                    geometry.coordinates.forEach((poly) => poly.forEach((ring) => pushRing(ring)));
+                    return;
+                }
+                if (geometry.type === 'LineString') {
+                    pushLine(geometry.coordinates);
+                    return;
+                }
+                if (geometry.type === 'MultiLineString') {
+                    geometry.coordinates.forEach((line) => pushLine(line));
+                    return;
+                }
+                if (geometry.type === 'GeometryCollection') {
+                    (geometry.geometries || []).forEach((g) => collectFromGeometry(g));
+                }
+            };
+
+            normalized.features.forEach((feature) => {
+                collectFromGeometry(feature.geometry);
+            });
+        }
+
+        function nearestPointOnSegment(pointLatLng, aLatLng, bLatLng) {
+            const p = toMercator(pointLatLng);
+            const a = toMercator(aLatLng);
+            const b = toMercator(bLatLng);
+            const vx = b.x - a.x;
+            const vy = b.y - a.y;
+            const len2 = vx * vx + vy * vy;
+            if (!len2) {
+                return aLatLng;
+            }
+            let t = ((p.x - a.x) * vx + (p.y - a.y) * vy) / len2;
+            t = Math.max(0, Math.min(1, t));
+            const proj = L.point(a.x + t * vx, a.y + t * vy);
+            return L.CRS.EPSG3857.unproject(proj);
+        }
+
+        function findSnapTarget(latlng) {
+            if (!snappingEnabled) {
+                return null;
+            }
+            if (!snapLines.length || !L.GeometryUtil || !L.GeometryUtil.closest) {
+                return null;
+            }
+            let best = null;
+            let bestDistance = Infinity;
+            snapLines.forEach((line) => {
+                const candidate = L.GeometryUtil.closest(map, line, latlng, false);
+                if (!candidate) {
+                    return;
+                }
+                const distance = map.distance(latlng, candidate);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    best = candidate;
+                }
+            });
+            return bestDistance <= SNAP_DISTANCE_METERS
+                ? {point: best, distance: bestDistance}
+                : null;
+        }
+
+        function showSnapStatus(message) {
+            statusEl.textContent = message;
+            if (snapStatusTimeout) {
+                clearTimeout(snapStatusTimeout);
+            }
+            snapStatusTimeout = setTimeout(() => {
+                if (isEditing) {
+                    statusEl.textContent = snappingEnabled
+                        ? '\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0443\u0439\u0442\u0435 \u043a\u043e\u043d\u0442\u0443\u0440. \u041f\u0440\u0438\u043b\u0438\u043f\u0430\u043d\u0438\u0435 5 \u043c \u0432\u043a\u043b\u044e\u0447\u0435\u043d\u043e.'
+                        : '\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0443\u0439\u0442\u0435 \u043a\u043e\u043d\u0442\u0443\u0440. \u041f\u0440\u0438\u043b\u0438\u043f\u0430\u043d\u0438\u0435 \u0432\u044b\u043a\u043b\u044e\u0447\u0435\u043d\u043e.';
+                }
+            }, 1200);
+        }
+
+        function attachSnappingToEditableMarkers(retryCount = 0) {
+            let attachedMarkers = 0;
+            editableGroup.eachLayer((layer) => {
+                const markerGroup = layer?.editing?._markerGroup;
+                if (!markerGroup) {
+                    return;
+                }
+                markerGroup.eachLayer((marker) => {
+                    attachedMarkers += 1;
+                    marker.off('dragstart._snap');
+                    marker.on('dragstart._snap', () => {
+                        marker._snappedDuringDrag = false;
+                    });
+
+                    marker.off('drag._snap');
+                    marker.on('drag._snap', (event) => {
+                        const target = findSnapTarget(event.target.getLatLng());
+                        if (target) {
+                            event.target.setLatLng(target.point);
+                            event.target._snappedDuringDrag = true;
+                            showSnapStatus('\u041f\u0440\u0438\u043b\u0438\u043f\u0430\u043d\u0438\u0435: ' + target.distance.toFixed(2) + ' \u043c');
+                        }
+                    });
+
+                    marker.off('dragend._snap');
+                    marker.on('dragend._snap', (event) => {
+                        const target = findSnapTarget(event.target.getLatLng());
+                        if (target) {
+                            event.target.setLatLng(target.point);
+                        }
+                    });
+                });
+            });
+
+            // Leaflet.Draw may create edit markers asynchronously.
+            if (!attachedMarkers && retryCount < 12) {
+                setTimeout(() => attachSnappingToEditableMarkers(retryCount + 1), 80);
+            }
         }
 
         editButton.addEventListener('click', () => {
@@ -253,16 +542,70 @@
             map.addControl(drawControl);
             editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
             editToolbar.enable();
+            snapLines = [];
+            snapSegmentsCount = 0;
+            collectGeoJsonSnapLines(touchesGeo, snapLines);
+            collectGeoJsonSnapLines(nearbyGeo, snapLines);
+            attachSnappingToEditableMarkers(0);
             setEditMode(true);
             exportLinksEl.innerHTML = '';
-            statusEl.textContent = '\u041f\u0435\u0440\u0435\u0442\u0430\u0449\u0438\u0442\u0435 \u0432\u0435\u0440\u0448\u0438\u043d\u044b \u043a\u043e\u043d\u0442\u0443\u0440\u0430. \u0414\u043b\u044f \u043e\u0442\u043c\u0435\u043d\u044b \u043d\u0430\u0436\u043c\u0438\u0442\u0435 "\u041e\u0442\u043c\u0435\u043d\u0430".';
+            statusEl.textContent = snapSegmentsCount
+                ? '\u041f\u0435\u0440\u0435\u0442\u0430\u0449\u0438\u0442\u0435 \u0432\u0435\u0440\u0448\u0438\u043d\u044b. \u0421\u0435\u0433\u043c\u0435\u043d\u0442\u043e\u0432 \u0434\u043b\u044f snap: ' + snapSegmentsCount + '.'
+                : '\u041d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0445 \u0441\u0435\u0433\u043c\u0435\u043d\u0442\u043e\u0432 \u0434\u043b\u044f snap.';
+        });
+
+        addPolygonButton.addEventListener('click', () => {
+            if (!isEditing) {
+                statusEl.textContent = '\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0432\u043a\u043b\u044e\u0447\u0438\u0442\u0435 \u0440\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f.';
+                return;
+            }
+            if (editToolbar) {
+                editToolbar.disable();
+            }
+            if (polygonDrawer) {
+                polygonDrawer.disable();
+            }
+            polygonDrawer = new L.Draw.Polygon(map, {
+                allowIntersection: false,
+                showArea: true,
+                shapeOptions: {
+                    color: '#ff0000',
+                    weight: 3,
+                    fillOpacity: 0.25,
+                },
+            });
+            polygonDrawer.enable();
+            statusEl.textContent = '\u041d\u0430\u0440\u0438\u0441\u0443\u0439\u0442\u0435 \u043d\u043e\u0432\u044b\u0439 \u043f\u043e\u043b\u0438\u0433\u043e\u043d \u043d\u0430 \u043a\u0430\u0440\u0442\u0435 \u0438 \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u0435 \u0434\u0432\u043e\u0439\u043d\u044b\u043c \u043a\u043b\u0438\u043a\u043e\u043c.';
+        });
+
+        map.on(L.Draw.Event.CREATED, (event) => {
+            if (event.layerType !== 'polygon') {
+                return;
+            }
+            editableGroup.addLayer(event.layer);
+            if (polygonDrawer) {
+                polygonDrawer.disable();
+                polygonDrawer = null;
+            }
+            if (editToolbar) {
+                editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
+                editToolbar.enable();
+            }
+            attachSnappingToEditableMarkers(0);
+            statusEl.textContent = '\u041f\u043e\u043b\u0438\u0433\u043e\u043d \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d. \u041c\u043e\u0436\u043d\u043e \u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0430\u0442\u044c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c.';
         });
 
         cancelEditButton.addEventListener('click', () => {
             if (editToolbar) {
                 editToolbar.disable();
             }
+            if (polygonDrawer) {
+                polygonDrawer.disable();
+                polygonDrawer = null;
+            }
             editableGroup.clearLayers();
+            snapLines = [];
+            snapSegmentsCount = 0;
             if (selectedLayer && !map.hasLayer(selectedLayer)) {
                 map.addLayer(selectedLayer);
             }
@@ -323,6 +666,8 @@
                 }
                 setEditMode(false);
                 editableGroup.clearLayers();
+                snapLines = [];
+                snapSegmentsCount = 0;
                 if (selectedLayer && !map.hasLayer(selectedLayer)) {
                     map.addLayer(selectedLayer);
                 }
