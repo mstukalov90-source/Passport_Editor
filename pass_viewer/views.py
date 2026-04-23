@@ -82,9 +82,14 @@ def _get_owned_objects(owner_legal_person_id):
 
 
 def _build_where_clause(entry_point, rootid_field, name_field):
-    if entry_point.get('rootid'):
-        return f"{rootid_field} = %s", [entry_point['rootid']]
-    return f"{name_field} ILIKE %s", [entry_point['name']]
+    raw_rootid = (entry_point.get('rootid') or '').strip()
+    if raw_rootid.lower() in {'none', 'null'}:
+        raw_rootid = ''
+
+    if raw_rootid:
+        # Compare as text so rootid can be safely passed from UI.
+        return f"{rootid_field}::text = %s", [raw_rootid]
+    return f"{name_field} ILIKE %s", [(entry_point.get('name') or '').strip()]
 
 
 def _get_map_layers(entry_point):
@@ -106,20 +111,27 @@ def _get_map_layers(entry_point):
         f" SELECT ctid, {geom_field} AS geom FROM {table}"
         f" WHERE {where_clause} LIMIT 1"
         "), neighbors AS ("
-        f" SELECT t.{geom_field} AS geom FROM {table} t, selected s"
+        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name FROM {table} t, selected s"
         " WHERE t.ctid <> s.ctid AND ST_Touches("
         f"   t.{geom_field},"
         "   s.geom"
         " )"
         ") "
-        "SELECT ST_AsGeoJSON(ST_Collect(geom)) FROM neighbors"
+        "SELECT jsonb_build_object("
+        " 'type', 'FeatureCollection',"
+        " 'features', COALESCE(jsonb_agg(jsonb_build_object("
+        "   'type', 'Feature',"
+        "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
+        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text)"
+        " )), '[]'::jsonb)"
+        ")::text FROM neighbors"
     )
     nearby_sql = (
         "WITH selected AS ("
         f" SELECT ctid, {geom_field} AS geom FROM {table}"
         f" WHERE {where_clause} LIMIT 1"
         "), nearby AS ("
-        f" SELECT t.{geom_field} AS geom FROM {table} t, selected s"
+        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name FROM {table} t, selected s"
         " WHERE t.ctid <> s.ctid AND ST_DWithin("
         f"   t.{geom_field}::geography,"
         "   s.geom::geography, 10"
@@ -128,7 +140,14 @@ def _get_map_layers(entry_point):
         "   s.geom"
         " )"
         ") "
-        "SELECT ST_AsGeoJSON(ST_Collect(geom)) FROM nearby"
+        "SELECT jsonb_build_object("
+        " 'type', 'FeatureCollection',"
+        " 'features', COALESCE(jsonb_agg(jsonb_build_object("
+        "   'type', 'Feature',"
+        "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
+        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text)"
+        " )), '[]'::jsonb)"
+        ")::text FROM nearby"
     )
 
     with connection.cursor() as cursor:
@@ -155,14 +174,23 @@ def _get_map_layers(entry_point):
     }
 
 
-def _export_geometry_files(geometry):
+def _export_geometry_files(geometry, properties=None):
+    properties = properties or {}
+    export_properties = {
+        'name': (properties.get('name') or ''),
+        'OwnerLegalPersonId': (
+            None if properties.get('OwnerLegalPersonId') is None else str(properties.get('OwnerLegalPersonId'))
+        ),
+        'request_id': (properties.get('request_id') or ''),
+    }
+
     export_root = Path(settings.MEDIA_ROOT) / 'exports'
     export_root.mkdir(parents=True, exist_ok=True)
     export_id = uuid.uuid4().hex
     export_dir = export_root / export_id
     export_dir.mkdir(parents=True, exist_ok=True)
 
-    feature = {'type': 'Feature', 'properties': {}, 'geometry': geometry}
+    feature = {'type': 'Feature', 'properties': export_properties, 'geometry': geometry}
     feature_collection = {'type': 'FeatureCollection', 'features': [feature]}
     geojson_path = export_dir / 'edited_object.geojson'
     geojson_path.write_text(json.dumps(feature_collection, ensure_ascii=False), encoding='utf-8')
@@ -174,9 +202,15 @@ def _export_geometry_files(geometry):
     spatial_ref.ImportFromEPSG(4326)
     layer = datasource.CreateLayer('edited_object', spatial_ref, ogr.wkbUnknown)
     layer.CreateField(ogr.FieldDefn('id', ogr.OFTInteger))
+    layer.CreateField(ogr.FieldDefn('name', ogr.OFTString))
+    layer.CreateField(ogr.FieldDefn('owner_id', ogr.OFTString))
+    layer.CreateField(ogr.FieldDefn('request_id', ogr.OFTString))
     definition = layer.GetLayerDefn()
     ogr_feature = ogr.Feature(definition)
     ogr_feature.SetField('id', 1)
+    ogr_feature.SetField('name', export_properties.get('name') or '')
+    ogr_feature.SetField('owner_id', export_properties.get('OwnerLegalPersonId') or '')
+    ogr_feature.SetField('request_id', export_properties.get('request_id') or '')
     ogr_geometry = ogr.CreateGeometryFromJson(json.dumps(geometry))
     ogr_feature.SetGeometry(ogr_geometry)
     layer.CreateFeature(ogr_feature)
@@ -194,6 +228,120 @@ def _export_geometry_files(geometry):
     geojson_url = f"{base_url}/exports/{export_id}/edited_object.geojson"
     shapefile_url = f"{base_url}/exports/{export_id}/edited_object_shp.zip"
     return geojson_url, shapefile_url
+
+
+def _get_new_object_relations(geometry):
+    table = settings.GIS_OBJECT_TABLE
+    geom_field = settings.GIS_OBJECT_GEOM_FIELD
+    rootid_field = settings.GIS_OBJECT_ROOTID_FIELD
+    name_field = settings.GIS_OBJECT_NAME_FIELD
+    geometry_json = json.dumps(geometry)
+
+    intersects_sql = (
+        "WITH input AS ("
+        " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+        "), rel AS ("
+        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name FROM {table} t, input i"
+        f" WHERE ST_Intersects(t.{geom_field}, i.geom)"
+        ") "
+        "SELECT jsonb_build_object("
+        " 'type', 'FeatureCollection',"
+        " 'features', COALESCE(jsonb_agg(jsonb_build_object("
+        "   'type', 'Feature',"
+        "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
+        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text)"
+        " )), '[]'::jsonb)"
+        ")::text FROM rel"
+    )
+    touches_sql = (
+        "WITH input AS ("
+        " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+        "), rel AS ("
+        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name FROM {table} t, input i"
+        f" WHERE ST_Touches(t.{geom_field}, i.geom)"
+        ") "
+        "SELECT jsonb_build_object("
+        " 'type', 'FeatureCollection',"
+        " 'features', COALESCE(jsonb_agg(jsonb_build_object("
+        "   'type', 'Feature',"
+        "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
+        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text)"
+        " )), '[]'::jsonb)"
+        ")::text FROM rel"
+    )
+    nearby_sql = (
+        "WITH input AS ("
+        " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+        "), rel AS ("
+        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name FROM {table} t, input i"
+        f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
+        f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
+        f"   AND NOT ST_Intersects(t.{geom_field}, i.geom)"
+        ") "
+        "SELECT jsonb_build_object("
+        " 'type', 'FeatureCollection',"
+        " 'features', COALESCE(jsonb_agg(jsonb_build_object("
+        "   'type', 'Feature',"
+        "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
+        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text)"
+        " )), '[]'::jsonb)"
+        ")::text FROM rel"
+    )
+
+    with connection.cursor() as cursor:
+        cursor.execute(intersects_sql, [geometry_json])
+        intersects_row = cursor.fetchone()
+        cursor.execute(touches_sql, [geometry_json])
+        touches_row = cursor.fetchone()
+        cursor.execute(nearby_sql, [geometry_json])
+        nearby_row = cursor.fetchone()
+
+    return {
+        'intersects': intersects_row[0] if intersects_row else None,
+        'touches': touches_row[0] if touches_row else None,
+        'nearby': nearby_row[0] if nearby_row else None,
+    }
+
+
+def _ensure_request_id_column(cursor, table_name, request_id_field):
+    cursor.execute(
+        f"ALTER TABLE {_quote_ident(table_name)} "
+        f"ADD COLUMN IF NOT EXISTS {_quote_ident(request_id_field)} text"
+    )
+
+
+def _create_new_object(username, geometry, name, request_id):
+    owner_id = _get_current_user_owner_id(username)
+    if owner_id is None:
+        raise ValueError('Не найден OwnerLegalPersonId пользователя в users_db.')
+
+    table = settings.GIS_OBJECT_TABLE
+    rootid_field_pref = settings.GIS_OBJECT_ROOTID_FIELD
+    name_field_pref = settings.GIS_OBJECT_NAME_FIELD
+    geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
+    owner_field_pref = getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
+    request_id_field_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
+
+    with connection.cursor() as cursor:
+        rootid_field = _resolve_column_name(cursor, table, rootid_field_pref)
+        name_field = _resolve_column_name(cursor, table, name_field_pref)
+        geom_field = _resolve_column_name(cursor, table, geom_field_pref)
+        owner_field = _resolve_column_name(cursor, table, owner_field_pref)
+        request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
+
+        _ensure_request_id_column(cursor, table, request_id_field)
+
+        insert_query = (
+            f"INSERT INTO {_quote_ident(table)} ("
+            f"{_quote_ident(rootid_field)}, "
+            f"{_quote_ident(name_field)}, "
+            f"{_quote_ident(owner_field)}, "
+            f"{_quote_ident(request_id_field)}, "
+            f"{_quote_ident(geom_field)}"
+            ") VALUES (%s, %s, %s, %s, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))"
+        )
+        cursor.execute(insert_query, [None, name, owner_id, request_id, json.dumps(geometry)])
+    return owner_id
 
 
 @login_required
@@ -296,9 +444,71 @@ def export_geometry(request):
 
 @login_required
 @require_POST
+def export_new_object_geometry(request):
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'ok': False, 'error': 'Некорректный JSON.'}, status=400)
+
+    geometry = payload.get('geometry')
+    if not isinstance(geometry, dict):
+        return JsonResponse({'ok': False, 'error': 'Геометрия не передана.'}, status=400)
+    properties = payload.get('properties') or {}
+    if not isinstance(properties, dict):
+        properties = {}
+
+    try:
+        geojson_url, shapefile_url = _export_geometry_files(geometry, properties=properties)
+    except Exception:
+        return JsonResponse(
+            {'ok': False, 'error': 'Ошибка формирования файлов экспорта.'},
+            status=500,
+        )
+
+    return JsonResponse({'ok': True, 'geojson_url': geojson_url, 'shapefile_url': shapefile_url})
+
+
+@login_required
+@require_POST
+def save_new_object(request):
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'ok': False, 'error': 'Некорректный JSON.'}, status=400)
+
+    geometry = payload.get('geometry')
+    if not isinstance(geometry, dict):
+        return JsonResponse({'ok': False, 'error': 'Геометрия не передана.'}, status=400)
+
+    name = (payload.get('name') or '').strip()
+    request_id = (payload.get('request_id') or '').strip()
+    if not name:
+        return JsonResponse({'ok': False, 'error': 'Укажите название (name).'}, status=400)
+    if not request_id:
+        return JsonResponse({'ok': False, 'error': 'Укажите номер заявки (request_id).'}, status=400)
+
+    try:
+        owner_id = _create_new_object(
+            username=request.user.username,
+            geometry=geometry,
+            name=name,
+            request_id=request_id,
+        )
+    except ValueError as exc:
+        return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Не удалось сохранить объект в geodb.'}, status=500)
+
+    return JsonResponse({'ok': True, 'owner_id': owner_id})
+
+
+@login_required
+@require_POST
 def open_owned_object(request):
     rootid = (request.POST.get('rootid') or '').strip()
     name = (request.POST.get('name') or '').strip()
+    if rootid.lower() in {'none', 'null'}:
+        rootid = ''
     if not rootid and not name:
         return redirect('home')
 
@@ -307,3 +517,31 @@ def open_owned_object(request):
         'name': '' if rootid else name,
     }
     return redirect('main')
+
+
+@login_required
+def add_object(request):
+    return render(request, 'pass_viewer/add_object.html')
+
+
+@login_required
+@require_POST
+def check_new_object_relations(request):
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'ok': False, 'error': 'Некорректный JSON.'}, status=400)
+
+    geometry = payload.get('geometry')
+    if not isinstance(geometry, dict):
+        return JsonResponse({'ok': False, 'error': 'Геометрия не передана.'}, status=400)
+
+    try:
+        layers = _get_new_object_relations(geometry)
+    except Exception:
+        return JsonResponse(
+            {'ok': False, 'error': 'Не удалось получить связанные объекты из PostGIS.'},
+            status=500,
+        )
+
+    return JsonResponse({'ok': True, 'layers': layers})

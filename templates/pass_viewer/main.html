@@ -95,6 +95,16 @@
             background: linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%);
             color: #fff;
         }
+
+        .map-toolbar-btn:disabled {
+            background: #e5e7eb !important;
+            color: #6b7280 !important;
+            border-color: #d1d5db !important;
+            box-shadow: none !important;
+            cursor: not-allowed !important;
+            filter: none !important;
+            transform: none !important;
+        }
         .map-toolbar-btn--muted {
             background: #e5e7eb;
             color: #111827;
@@ -229,6 +239,24 @@
                 .replace(/'/g, '&#39;');
         }
 
+        function buildObjectPopup(properties, fallbackRootid = '-', fallbackName = '-') {
+            const rootid = properties?.rootid ?? fallbackRootid;
+            const name = properties?.name ?? fallbackName;
+            return (
+                '<div style="min-width: 220px;">' +
+                '<div><strong>rootid:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
+                '<div style="margin-top: 6px;"><strong>name:</strong> ' + escapeHtml(name || '-') + '</div>' +
+                '</div>'
+            );
+        }
+
+        function bindPopupToLayer(layer, popupHtml) {
+            if (!layer) {
+                return;
+            }
+            layer.eachLayer((item) => item.bindPopup(popupHtml));
+        }
+
         function toEditableFeatureCollection(geojsonObject) {
             const normalized = normalizeGeoJson(geojsonObject);
             if (!normalized) {
@@ -322,7 +350,10 @@
         const touchesGeo = normalizeGeoJson(touchesGeometry);
         if (touchesGeo) {
             touchesLayer = L.geoJSON(touchesGeo, {
-                style: {color: '#ff9800', weight: 2, fillOpacity: 0.1}
+                style: {color: '#ff9800', weight: 2, fillOpacity: 0.1},
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup(buildObjectPopup(feature.properties || {}));
+                }
             }).addTo(map);
             overlays['\u0413\u0440\u0430\u043d\u0438\u0447\u0430\u0449\u0438\u0435 \u043e\u0431\u044a\u0435\u043a\u0442\u044b'] = touchesLayer;
         }
@@ -330,7 +361,10 @@
         const nearbyGeo = normalizeGeoJson(nearbyGeometry);
         if (nearbyGeo) {
             nearbyLayer = L.geoJSON(nearbyGeo, {
-                style: {color: '#1565c0', weight: 2, fillOpacity: 0.08}
+                style: {color: '#1565c0', weight: 2, fillOpacity: 0.08},
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup(buildObjectPopup(feature.properties || {}));
+                }
             }).addTo(map);
             overlays['\u041e\u0431\u044a\u0435\u043a\u0442\u044b \u0432 10 \u043c'] = nearbyLayer;
         }
@@ -341,12 +375,8 @@
             selectedLayer = L.geoJSON(selectedGeo, {
                 style: {color: '#ff0000', weight: 3, fillOpacity: 0.25}
             }).addTo(map);
-            const popupHtml =
-                '<div style="min-width: 220px;">' +
-                '<div><strong>rootid:</strong> ' + escapeHtml(selectedRootid || '-') + '</div>' +
-                '<div style="margin-top: 6px;"><strong>name:</strong> ' + escapeHtml(selectedName || '-') + '</div>' +
-                '</div>';
-            selectedLayer.eachLayer((layer) => layer.bindPopup(popupHtml));
+            const popupHtml = buildObjectPopup({}, selectedRootid || '-', selectedName || '-');
+            bindPopupToLayer(selectedLayer, popupHtml);
             overlays['\u0412\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0439 \u043e\u0431\u044a\u0435\u043a\u0442'] = selectedLayer;
             map.fitBounds(selectedLayer.getBounds(), {padding: [30, 30], maxZoom: 19});
         } else {
@@ -564,7 +594,10 @@
             const editableLayer = L.geoJSON(selectedEditableGeo, {
                 style: {color: '#ff0000', weight: 3, fillOpacity: 0.25}
             });
-            editableLayer.eachLayer((layer) => editableGroup.addLayer(layer));
+            editableLayer.eachLayer((layer) => {
+                layer.bindPopup(buildObjectPopup({}, selectedRootid || '-', selectedName || '-'));
+                editableGroup.addLayer(layer);
+            });
             map.removeLayer(selectedLayer);
             if (drawControl) {
                 map.removeControl(drawControl);
@@ -620,6 +653,7 @@
                 return;
             }
             editableGroup.addLayer(event.layer);
+            event.layer.bindPopup(buildObjectPopup({}, selectedRootid || '-', selectedName || '-'));
             if (polygonDrawer) {
                 polygonDrawer.disable();
                 polygonDrawer = null;

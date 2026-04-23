@@ -38,17 +38,17 @@
                     action="{% url 'open_owned_object' %}"
                     style="margin: 0;"
                     class="owned-item"
-                    data-rootid="{{ item.rootid|lower }}"
+                    data-rootid="{{ item.rootid|default_if_none:''|lower }}"
                     data-name="{{ item.name|default:''|lower }}"
                 >
                     {% csrf_token %}
-                    <input type="hidden" name="rootid" value="{{ item.rootid }}">
+                    <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
                     <input type="hidden" name="name" value="{{ item.name }}">
                     <button
                         type="submit"
                         style="width: 100%; text-align: left; border: none; border-bottom: 1px solid #eef1f6; background: #fff; color: #20242b; padding: 10px 12px; cursor: pointer;"
                     >
-                        <strong>rootid:</strong> {{ item.rootid }}<br>
+                        <strong>rootid:</strong> {{ item.rootid|default:"-" }}<br>
                         <span style="font-size: 13px; color: #4a5565;"><strong>name:</strong> {{ item.name|default:"-" }}</span>
                     </button>
                 </form>
@@ -58,10 +58,13 @@
         <p class="note">&#1053;&#1077;&#1090; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1086;&#1074; &#1076;&#1083;&#1103; &#1090;&#1077;&#1082;&#1091;&#1097;&#1077;&#1075;&#1086; OwnerLegalPersonId.</p>
     {% endif %}
 
-    <div style="margin-top: 14px;">
+    <div style="margin-top: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
         <button type="button" id="manual-open-btn">
             &#1042;&#1074;&#1077;&#1089;&#1090;&#1080; rootid / &#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; &#1074;&#1088;&#1091;&#1095;&#1085;&#1091;&#1102;
         </button>
+        <a class="button-link" href="{% url 'add_object' %}">
+            &#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;
+        </a>
     </div>
 
     <div
