@@ -43,11 +43,27 @@
     <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;">
         <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1053;&#1072;&#1095;&#1072;&#1090;&#1100; &#1088;&#1077;&#1076;&#1072;&#1082;&#1090;&#1080;&#1088;&#1086;&#1074;&#1072;&#1085;&#1080;&#1077;</button>
         <button type="button" id="add-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent" disabled>&#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1087;&#1086;&#1083;&#1080;&#1075;&#1086;&#1085;</button>
+        <label for="snap-toggle" class="snap-switch" title="&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077; &#1074;&#1082;&#1083;&#1102;&#1095;&#1077;&#1085;&#1086;/&#1074;&#1099;&#1082;&#1083;&#1102;&#1095;&#1077;&#1085;&#1086;">
+            <input type="checkbox" id="snap-toggle" checked>
+            <span class="snap-switch__track"></span>
+            <span class="snap-switch__label">&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077;</span>
+        </label>
         <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
         <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">&#1042;&#1099;&#1075;&#1088;&#1091;&#1079;&#1080;&#1090;&#1100; &#1092;&#1072;&#1081;&#1083;&#1099;</button>
     </div>
     <p id="edit-status" class="note" style="margin-top: 0;"></p>
+    <p id="snap-debug" class="note" style="display:none; margin-top: 4px; color: #334155; min-height: 18px;">Snap debug: waiting events...</p>
+    <p id="snap-debug-fixed" class="note" style="display:none; margin-top: 2px; color: #0f172a; min-height: 18px;">Snap debug fixed (dragend): waiting dragend...</p>
     <p id="export-links" class="note"></p>
+    <div id="snap-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3 style="margin: 0 0 10px;">Уведомление о замыкании</h3>
+            <p id="snap-modal-text" class="note" style="margin: 0 0 12px;"></p>
+            <div style="display:flex; justify-content:flex-end;">
+                <button type="button" id="snap-modal-ok" class="map-toolbar-btn map-toolbar-btn--primary">Ок</button>
+            </div>
+        </div>
+    </div>
     <style>
         #map.edit-mode .leaflet-editing-icon {
             width: 8px !important;
@@ -106,6 +122,51 @@
             border-color: #d1d5db;
             box-shadow: none;
         }
+        .snap-switch {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            user-select: none;
+            cursor: pointer;
+            padding: 7px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 999px;
+            background: #fff;
+        }
+        .snap-switch input {
+            display: none;
+        }
+        .snap-switch__track {
+            position: relative;
+            width: 36px;
+            height: 20px;
+            border-radius: 999px;
+            background: #cbd5e1;
+            transition: background 0.15s ease;
+        }
+        .snap-switch__track::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            transition: transform 0.15s ease;
+        }
+        .snap-switch input:checked + .snap-switch__track {
+            background: #2563eb;
+        }
+        .snap-switch input:checked + .snap-switch__track::after {
+            transform: translateX(16px);
+        }
+        .snap-switch__label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #111827;
+        }
         .map-basemap-control {
             display: flex;
             gap: 6px;
@@ -129,6 +190,24 @@
             border-color: #2563eb;
             background: #e8f0ff;
             color: #1d4ed8;
+        }
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1200;
+            padding: 16px;
+        }
+        .modal-card {
+            width: 100%;
+            max-width: 460px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+            padding: 16px;
         }
     </style>
 
@@ -240,10 +319,16 @@
 
         const editButton = document.getElementById('edit-geometry-btn');
         const addPolygonButton = document.getElementById('add-polygon-btn');
+        const snapToggle = document.getElementById('snap-toggle');
         const cancelEditButton = document.getElementById('cancel-edit-btn');
         const saveButton = document.getElementById('save-geometry-btn');
         const statusEl = document.getElementById('edit-status');
+        const snapDebugEl = document.getElementById('snap-debug');
+        const snapDebugFixedEl = document.getElementById('snap-debug-fixed');
         const exportLinksEl = document.getElementById('export-links');
+        const snapModal = document.getElementById('snap-modal');
+        const snapModalText = document.getElementById('snap-modal-text');
+        const snapModalOk = document.getElementById('snap-modal-ok');
         const mapEl = document.getElementById('map');
         const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
         const selectedName = "{{ selected_name|default:''|escapejs }}";
@@ -260,6 +345,12 @@
         let isEditing = false;
         let selectedEditableGeo = null;
         let polygonDrawer = null;
+        let snappingEnabled = true;
+        const SNAP_DISTANCE_METERS = 5;
+        let snapGuideLines = [];
+        let snapBindingTimer = null;
+        let snapToggleLocked = false;
+        let snapModalResolver = null;
 
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -350,7 +441,393 @@
         map.getContainer().querySelectorAll('.map-basemap-btn').forEach((btn) => {
             btn.addEventListener('click', () => setBasemap(btn.dataset.map));
         });
+        snapToggle.addEventListener('change', () => {
+            if (snapToggleLocked) {
+                return;
+            }
+            snappingEnabled = snapToggle.checked;
+            if (!isEditing) {
+                return;
+            }
+            if (snappingEnabled) {
+                rebuildSnapGuideLines();
+                startSnapBindingLoop();
+                statusEl.textContent = 'Прилипание включено.';
+            } else {
+                stopSnapBindingLoop();
+                detachPromptSnapHandlers();
+                statusEl.textContent = 'Прилипание выключено.';
+            }
+        });
+
+        function lockSnapToggle() {
+            if (snapToggleLocked) {
+                return;
+            }
+            snapToggleLocked = true;
+            snapToggle.disabled = true;
+            const switchContainer = snapToggle.closest('.snap-switch');
+            if (switchContainer) {
+                switchContainer.style.opacity = '0.65';
+                switchContainer.style.cursor = 'not-allowed';
+            }
+        }
+
+        function showSnapModal(distanceMeters) {
+            return new Promise((resolve) => {
+                snapModalResolver = resolve;
+                snapModalText.textContent =
+                    'Вершина на расстоянии ' + distanceMeters.toFixed(2) +
+                    ' м от другого объекта, будет выполнено замыкание.';
+                snapModal.style.display = 'flex';
+                snapDebugEl.textContent = 'Snap debug: modal opened, distance=' + distanceMeters.toFixed(2) + ' м.';
+                setTimeout(() => snapModalOk.focus(), 0);
+            });
+        }
+
+        function closeSnapModal() {
+            snapModal.style.display = 'none';
+            if (snapModalResolver) {
+                const resolve = snapModalResolver;
+                snapModalResolver = null;
+                resolve();
+            }
+        }
+
+        snapModalOk.addEventListener('click', closeSnapModal);
+        snapModal.addEventListener('click', (event) => {
+            if (event.target === snapModal) {
+                closeSnapModal();
+            }
+        });
         L.control.layers(null, overlays, {collapsed: false}).addTo(map);
+
+        function collectSnapGuideLines(geojsonObject, output) {
+            const normalized = normalizeGeoJson(geojsonObject);
+            if (!normalized || !normalized.features) {
+                if (normalized && normalized.type === 'Feature') {
+                    return collectSnapGuideLines({type: 'FeatureCollection', features: [normalized]}, output);
+                }
+                return;
+            }
+            const addRing = (ring) => {
+                if (!ring || ring.length < 2) {
+                    return;
+                }
+                output.push(ring.map((c) => L.latLng(c[1], c[0])));
+            };
+            const collectGeometry = (geometry) => {
+                if (!geometry) {
+                    return;
+                }
+                if (geometry.type === 'Polygon') {
+                    geometry.coordinates.forEach(addRing);
+                } else if (geometry.type === 'MultiPolygon') {
+                    geometry.coordinates.forEach((poly) => poly.forEach(addRing));
+                } else if (geometry.type === 'LineString') {
+                    addRing(geometry.coordinates);
+                } else if (geometry.type === 'MultiLineString') {
+                    geometry.coordinates.forEach(addRing);
+                } else if (geometry.type === 'GeometryCollection') {
+                    (geometry.geometries || []).forEach(collectGeometry);
+                }
+            };
+            normalized.features.forEach((feature) => {
+                collectGeometry(feature.geometry);
+            });
+        }
+
+        function rebuildSnapGuideLines() {
+            snapGuideLines = [];
+            collectSnapGuideLines(touchesGeo, snapGuideLines);
+            collectSnapGuideLines(nearbyGeo, snapGuideLines);
+        }
+
+        function nearestPointOnSegment(pointLatLng, aLatLng, bLatLng) {
+            const p = L.CRS.EPSG3857.project(pointLatLng);
+            const a = L.CRS.EPSG3857.project(aLatLng);
+            const b = L.CRS.EPSG3857.project(bLatLng);
+            const vx = b.x - a.x;
+            const vy = b.y - a.y;
+            const len2 = vx * vx + vy * vy;
+            if (!len2) {
+                return aLatLng;
+            }
+            let t = ((p.x - a.x) * vx + (p.y - a.y) * vy) / len2;
+            t = Math.max(0, Math.min(1, t));
+            const proj = L.point(a.x + t * vx, a.y + t * vy);
+            return L.CRS.EPSG3857.unproject(proj);
+        }
+
+        function findNearestSnapTarget(latlng) {
+            if (!snappingEnabled || !snapGuideLines.length) {
+                return null;
+            }
+            const nearestAny = findNearestCandidate(latlng);
+            if (!nearestAny || nearestAny.distance > SNAP_DISTANCE_METERS) {
+                return null;
+            }
+            return nearestAny;
+        }
+
+        function findNearestCandidate(latlng) {
+            if (!snapGuideLines.length) {
+                return null;
+            }
+            let bestPoint = null;
+            let bestDistance = Infinity;
+            snapGuideLines.forEach((lineLatLngs) => {
+                if (!lineLatLngs || lineLatLngs.length < 2) {
+                    return;
+                }
+                for (let i = 0; i < lineLatLngs.length - 1; i += 1) {
+                    const candidate = nearestPointOnSegment(latlng, lineLatLngs[i], lineLatLngs[i + 1]);
+                    const distance = map.distance(latlng, candidate);
+                    if (distance < bestDistance) {
+                        bestDistance = distance;
+                        bestPoint = candidate;
+                    }
+                }
+            });
+            if (!bestPoint) {
+                return null;
+            }
+            return {point: bestPoint, distance: bestDistance};
+        }
+
+        function applySnappedVertex(marker, snappedPoint) {
+            marker.setLatLng(snappedPoint);
+            if (marker._origLatLng) {
+                marker._origLatLng.lat = snappedPoint.lat;
+                marker._origLatLng.lng = snappedPoint.lng;
+            }
+            if (marker._latlng) {
+                marker._latlng.lat = snappedPoint.lat;
+                marker._latlng.lng = snappedPoint.lng;
+            }
+            editableGroup.eachLayer((layer) => {
+                if (layer?.editing && typeof layer.editing.updateMarkers === 'function') {
+                    try {
+                        layer.editing.updateMarkers();
+                    } catch (e) {
+                        // keep layer refresh best-effort
+                    }
+                }
+                if (typeof layer.redraw === 'function') {
+                    layer.redraw();
+                }
+            });
+        }
+
+        function attachPromptSnapHandlers(retryCount = 0) {
+            let attachedMarkers = 0;
+            let markerGroupsFound = 0;
+
+            function collectMarkerGroups(layer) {
+                const groups = [];
+                const directGroup = layer?.editing?._markerGroup;
+                if (directGroup) {
+                    groups.push(directGroup);
+                }
+                const verticesHandlers = layer?.editing?._verticesHandlers;
+                if (Array.isArray(verticesHandlers)) {
+                    verticesHandlers.forEach((handler) => {
+                        if (handler?._markerGroup) {
+                            groups.push(handler._markerGroup);
+                        }
+                    });
+                }
+                return groups;
+            }
+
+            editableGroup.eachLayer((layer) => {
+                if (layer?.editing && typeof layer.editing.enable === 'function') {
+                    try {
+                        layer.editing.enable();
+                    } catch (e) {
+                        // keep trying next retries
+                    }
+                }
+                const markerGroups = collectMarkerGroups(layer);
+                if (!markerGroups.length) {
+                    return;
+                }
+                markerGroups.forEach((markerGroup) => {
+                    markerGroupsFound += 1;
+                    markerGroup.eachLayer((marker) => {
+                        attachedMarkers += 1;
+                        if (marker._promptSnapHandler) {
+                            marker.off('dragstart', marker._promptSnapHandler.dragstart);
+                            marker.off('drag', marker._promptSnapHandler.drag);
+                            marker.off('dragend', marker._promptSnapHandler.dragend);
+                            marker.off('mouseup', marker._promptSnapHandler.mouseup);
+                            marker.off('touchend', marker._promptSnapHandler.touchend);
+                        }
+                        const dragStartHandler = (event) => {
+                            if (marker._snapRadiusCircle) {
+                                map.removeLayer(marker._snapRadiusCircle);
+                            }
+                            marker._snapRadiusCircle = L.circle(event.target.getLatLng(), {
+                                radius: SNAP_DISTANCE_METERS,
+                                color: '#2563eb',
+                                weight: 1,
+                                fillColor: '#60a5fa',
+                                fillOpacity: 0.08,
+                                interactive: false,
+                            }).addTo(map);
+                        };
+                        const dragHandler = (event) => {
+                            const center = event.target.getLatLng();
+                            if (marker._snapRadiusCircle) {
+                                marker._snapRadiusCircle.setLatLng(center);
+                            }
+                            if (!snappingEnabled) {
+                                marker._lastNearestCandidate = null;
+                                snapDebugEl.textContent = 'Snap debug: snapping disabled.';
+                                return;
+                            }
+                            const nearestAny = findNearestCandidate(center);
+                            marker._lastNearestCandidate = nearestAny || null;
+                            if (!nearestAny) {
+                                snapDebugEl.textContent = 'Snap debug: направляющих нет.';
+                                return;
+                            }
+                            snapDebugEl.textContent =
+                                'Snap debug: nearest=' + nearestAny.distance.toFixed(2) +
+                                ' м, threshold=5 м, enabled=' + (snappingEnabled ? 'on' : 'off');
+                        };
+                        const finalizeSnapAfterDrag = async (event, source = 'dragend') => {
+                            const now = Date.now();
+                            if (marker._lastSnapFinalizeAt && (now - marker._lastSnapFinalizeAt) < 80) {
+                                return;
+                            }
+                            marker._lastSnapFinalizeAt = now;
+                            if (!snappingEnabled) {
+                                marker._lastNearestCandidate = null;
+                                snapDebugEl.textContent = 'Snap debug: finalize skipped, snapping disabled.';
+                                snapDebugFixedEl.textContent = 'Snap debug fixed (dragend): snapping disabled.';
+                                return;
+                            }
+                            if (marker._snapRadiusCircle) {
+                                map.removeLayer(marker._snapRadiusCircle);
+                                marker._snapRadiusCircle = null;
+                            }
+                            const currentLatLng = event.target.getLatLng();
+                            const recomputed = findNearestSnapTarget(currentLatLng);
+                            const fromDrag = marker._lastNearestCandidate;
+                            const target = recomputed || (
+                                fromDrag && fromDrag.distance <= SNAP_DISTANCE_METERS ? fromDrag : null
+                            );
+                            const recomputedAny = findNearestCandidate(currentLatLng);
+                            const dragEndDebug =
+                                'Snap debug: finalize source=' + source + ', enabled=' + (snappingEnabled ? 'on' : 'off') +
+                                ', recomputed=' + (recomputed ? recomputed.distance.toFixed(2) : 'null') +
+                                ', recomputedAny=' + (recomputedAny ? recomputedAny.distance.toFixed(2) : 'null') +
+                                ', fromDrag=' + (fromDrag ? fromDrag.distance.toFixed(2) : 'null') +
+                                ', target=' + (target ? target.distance.toFixed(2) : 'null');
+                            console.debug('[snap]', dragEndDebug);
+                            snapDebugEl.textContent = dragEndDebug;
+                            snapDebugFixedEl.textContent = dragEndDebug;
+                            marker._lastNearestCandidate = null;
+                            if (!target) {
+                                if (isEditing && snappingEnabled) {
+                                    statusEl.textContent = 'Кандидат для замыкания не найден (дальше 5 м).';
+                                }
+                                const nearestAny = findNearestCandidate(currentLatLng);
+                                snapDebugEl.textContent = nearestAny
+                                    ? ('Snap debug: без замыкания, nearest=' + nearestAny.distance.toFixed(2) + ' м.')
+                                    : 'Snap debug: без замыкания, направляющих нет.';
+                                return;
+                            }
+                            await showSnapModal(target.distance);
+                            applySnappedVertex(event.target, target.point);
+                            console.debug('[snap]', 'Snap applied at ' + target.distance.toFixed(2) + ' m.');
+                            statusEl.textContent = 'Замыкание выполнено: ' + target.distance.toFixed(2) + ' м.';
+                            snapDebugEl.textContent = 'Snap debug: замыкание выполнено на ' + target.distance.toFixed(2) + ' м.';
+                        };
+                        const dragEndHandler = async (event) => finalizeSnapAfterDrag(event, 'dragend');
+                        const mouseUpHandler = async (event) => {
+                            if (!marker._lastNearestCandidate) {
+                                return;
+                            }
+                            await finalizeSnapAfterDrag(event, 'mouseup');
+                        };
+                        const touchEndHandler = async (event) => {
+                            if (!marker._lastNearestCandidate) {
+                                return;
+                            }
+                            await finalizeSnapAfterDrag(event, 'touchend');
+                        };
+                        marker.on('dragstart', dragStartHandler);
+                        marker.on('drag', dragHandler);
+                        marker.on('dragend', dragEndHandler);
+                        marker.on('mouseup', mouseUpHandler);
+                        marker.on('touchend', touchEndHandler);
+                        marker._promptSnapHandler = {
+                            dragstart: dragStartHandler,
+                            drag: dragHandler,
+                            dragend: dragEndHandler,
+                            mouseup: mouseUpHandler,
+                            touchend: touchEndHandler,
+                        };
+                    });
+                });
+            });
+            snapDebugEl.textContent =
+                'Snap debug: markerGroups=' + markerGroupsFound +
+                ', handlers attached=' + attachedMarkers +
+                ', retry=' + retryCount + '.';
+            if (!attachedMarkers && retryCount < 40) {
+                setTimeout(() => attachPromptSnapHandlers(retryCount + 1), 100);
+            }
+        }
+
+        function detachPromptSnapHandlers() {
+            editableGroup.eachLayer((layer) => {
+                const markerGroup = layer?.editing?._markerGroup;
+                if (!markerGroup) {
+                    return;
+                }
+                markerGroup.eachLayer((marker) => {
+                    if (marker._promptSnapHandler) {
+                        marker.off('dragstart', marker._promptSnapHandler.dragstart);
+                        marker.off('drag', marker._promptSnapHandler.drag);
+                        marker.off('dragend', marker._promptSnapHandler.dragend);
+                        marker.off('mouseup', marker._promptSnapHandler.mouseup);
+                        marker.off('touchend', marker._promptSnapHandler.touchend);
+                        marker._promptSnapHandler = null;
+                    }
+                    if (marker._snapRadiusCircle) {
+                        map.removeLayer(marker._snapRadiusCircle);
+                        marker._snapRadiusCircle = null;
+                    }
+                });
+            });
+        }
+
+        function startSnapBindingLoop() {
+            if (snapBindingTimer) {
+                clearInterval(snapBindingTimer);
+            }
+            snapDebugFixedEl.textContent = 'Snap debug fixed (dragend): waiting dragend...';
+            attachPromptSnapHandlers(0);
+            snapBindingTimer = setInterval(() => {
+                if (isEditing) {
+                    attachPromptSnapHandlers(0);
+                }
+            }, 400);
+        }
+
+        function stopSnapBindingLoop() {
+            if (snapBindingTimer) {
+                clearInterval(snapBindingTimer);
+                snapBindingTimer = null;
+            }
+            detachPromptSnapHandlers();
+        }
+
+        map.on('draw:editstart', () => attachPromptSnapHandlers(0));
+        map.on('draw:editvertex', () => attachPromptSnapHandlers(0));
 
         function setEditMode(enabled) {
             isEditing = enabled;
@@ -397,7 +874,10 @@
             map.addControl(drawControl);
             editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
             editToolbar.enable();
+            lockSnapToggle();
             setEditMode(true);
+            rebuildSnapGuideLines();
+            startSnapBindingLoop();
             exportLinksEl.innerHTML = '';
             statusEl.textContent = '\u0420\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f \u0432\u043a\u043b\u044e\u0447\u0451\u043d.';
         });
@@ -440,6 +920,7 @@
                 editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
                 editToolbar.enable();
             }
+            startSnapBindingLoop();
             statusEl.textContent = '\u041f\u043e\u043b\u0438\u0433\u043e\u043d \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d. \u041c\u043e\u0436\u043d\u043e \u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0430\u0442\u044c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c.';
         });
 
@@ -455,6 +936,7 @@
             if (selectedLayer && !map.hasLayer(selectedLayer)) {
                 map.addLayer(selectedLayer);
             }
+            stopSnapBindingLoop();
             setEditMode(false);
             statusEl.textContent = '\u0418\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u044f \u043e\u0442\u043c\u0435\u043d\u0435\u043d\u044b.';
         });
@@ -515,6 +997,7 @@
                 if (selectedLayer && !map.hasLayer(selectedLayer)) {
                     map.addLayer(selectedLayer);
                 }
+                stopSnapBindingLoop();
                 statusEl.textContent = '\u0424\u0430\u0439\u043b\u044b \u0443\u0441\u043f\u0435\u0448\u043d\u043e \u0441\u0444\u043e\u0440\u043c\u0438\u0440\u043e\u0432\u0430\u043d\u044b \u0432 WGS84.';
                 exportLinksEl.innerHTML =
                     '<a class="button-link" href="' + result.geojson_url + '" download>\u0421\u043a\u0430\u0447\u0430\u0442\u044c GeoJSON</a> ' +
