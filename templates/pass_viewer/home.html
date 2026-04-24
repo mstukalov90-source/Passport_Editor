@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 
 {% block title %}&#1055;&#1072;&#1088;&#1072;&#1084;&#1077;&#1090;&#1088;&#1099; &#1074;&#1093;&#1086;&#1076;&#1072;{% endblock %}
+{% block container_class %}container--wide{% endblock %}
 
 {% block content %}
     <h2 style="font-size: 18px; margin: 0 0 10px;">
@@ -18,6 +19,16 @@
             border: 1px solid #dbe2ea;
             border-radius: 12px;
             background: #fff;
+        }
+        .owned-lists-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            width: 100%;
+        }
+        .owned-list-title {
+            margin: 0 0 8px;
+            font-size: 16px;
         }
         .owned-list-item {
             display: flex;
@@ -41,6 +52,9 @@
             line-height: 1.35;
         }
         @media (max-width: 900px) {
+            .owned-lists-grid {
+                grid-template-columns: 1fr;
+            }
             .owned-list-wrap {
                 max-height: 52vh;
             }
@@ -70,50 +84,79 @@
                 &#1057;&#1073;&#1088;&#1086;&#1089;
             </button>
         </div>
-        <div class="owned-list-wrap">
-            {% for item in owned_objects %}
-                <div
-                    class="owned-list-item owned-item"
-                    data-rootid="{{ item.rootid|default_if_none:''|lower }}"
-                    data-name="{{ item.name|default:''|lower }}"
-                >
-                    <form
-                        method="post"
-                        action="{% url 'open_owned_object' %}"
-                        style="margin: 0; flex: 1;"
-                    >
-                        {% csrf_token %}
-                        <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
-                        <input type="hidden" name="name" value="{{ item.name }}">
-                        <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
-                        <button
-                            type="submit"
-                            class="owned-list-open-btn"
-                        >
-                            {% if item.rootid %}
-                                <strong>rootid:</strong> {{ item.rootid }}<br>
-                                <span style="font-size: 13px; color: #4a5565;"><strong>name:</strong> {{ item.name|default:"-" }}</span>
-                            {% else %}
-                                <strong>request_id:</strong> {{ item.request_id|default:"-" }}<br>
-                                <span style="font-size: 13px; color: #4a5565;"><strong>name:</strong> {{ item.name|default:"-" }}</span>
-                            {% endif %}
-                        </button>
-                    </form>
-                    {% if not item.rootid and item.request_id %}
-                        <form method="post" action="{% url 'delete_owned_object' %}" style="margin: 0; align-self: center;">
-                            {% csrf_token %}
-                            <input type="hidden" name="object_key" value="{{ item.object_key }}">
-                            <button
-                                type="submit"
-                                style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 8px; padding: 8px 10px;"
-                                onclick="return confirm('Удалить объект request_id={{ item.request_id|default:'-' }}?');"
+        <div class="owned-lists-grid">
+            <div>
+                <h3 class="owned-list-title">Актуальные паспорта</h3>
+                <div class="owned-list-wrap">
+                    {% for item in owned_objects %}
+                        {% if item.rootid %}
+                            <div
+                                class="owned-list-item owned-item"
+                                data-rootid="{{ item.rootid|default_if_none:''|lower }}"
+                                data-name="{{ item.name|default:''|lower }}"
                             >
-                                Удалить
-                            </button>
-                        </form>
-                    {% endif %}
+                                <form
+                                    method="post"
+                                    action="{% url 'open_owned_object' %}"
+                                    style="margin: 0; flex: 1;"
+                                >
+                                    {% csrf_token %}
+                                    <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
+                                    <input type="hidden" name="name" value="{{ item.name }}">
+                                    <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
+                                    <button type="submit" class="owned-list-open-btn">
+                                        <strong>rootid:</strong> {{ item.rootid }}<br>
+                                        <span style="font-size: 13px; color: #4a5565;"><strong>name:</strong> {{ item.name|default:"-" }}</span>
+                                    </button>
+                                </form>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
                 </div>
-            {% endfor %}
+            </div>
+
+            <div>
+                <h3 class="owned-list-title">Заявки</h3>
+                <div class="owned-list-wrap">
+                    {% for item in owned_objects %}
+                        {% if not item.rootid %}
+                            <div
+                                class="owned-list-item owned-item"
+                                data-rootid="{{ item.rootid|default_if_none:''|lower }}"
+                                data-name="{{ item.name|default:''|lower }}"
+                            >
+                                <form
+                                    method="post"
+                                    action="{% url 'open_owned_object' %}"
+                                    style="margin: 0; flex: 1;"
+                                >
+                                    {% csrf_token %}
+                                    <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
+                                    <input type="hidden" name="name" value="{{ item.name }}">
+                                    <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
+                                    <button type="submit" class="owned-list-open-btn">
+                                        <strong>request_id:</strong> {{ item.request_id|default:"-" }}<br>
+                                        <span style="font-size: 13px; color: #4a5565;"><strong>name:</strong> {{ item.name|default:"-" }}</span>
+                                    </button>
+                                </form>
+                                {% if item.request_id %}
+                                    <form method="post" action="{% url 'delete_owned_object' %}" style="margin: 0; align-self: center;">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="object_key" value="{{ item.object_key }}">
+                                        <button
+                                            type="submit"
+                                            style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 8px; padding: 8px 10px;"
+                                            onclick="return confirm('Удалить объект request_id={{ item.request_id|default:'-' }}?');"
+                                        >
+                                            Удалить
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
         </div>
     {% else %}
         <p class="note">&#1053;&#1077;&#1090; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1086;&#1074; &#1076;&#1083;&#1103; &#1090;&#1077;&#1082;&#1091;&#1097;&#1077;&#1075;&#1086; OwnerLegalPersonId.</p>

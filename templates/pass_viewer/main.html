@@ -281,6 +281,8 @@
     {{ intersects_geometry_json|default_if_none:"null"|json_script:"intersects-geometry-data" }}
     {{ touches_geometry_json|default_if_none:"null"|json_script:"touches-geometry-data" }}
     {{ nearby_geometry_json|default_if_none:"null"|json_script:"nearby-geometry-data" }}
+    {{ dgi_geometry_json|default_if_none:"null"|json_script:"dgi-geometry-data" }}
+    {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
     <script>
         function getCookie(name) {
             const cookieValue = document.cookie
@@ -407,6 +409,8 @@
         const intersectsGroup = new L.FeatureGroup().addTo(map);
         const touchesGroup = new L.FeatureGroup().addTo(map);
         const nearbyGroup = new L.FeatureGroup().addTo(map);
+        const dgiSignalGroup = L.featureGroup().addTo(map);
+        const odhSignalGroup = L.featureGroup().addTo(map);
         let drawControl = null;
         let editToolbar = null;
         let isEditing = false;
@@ -452,6 +456,8 @@
         const intersectsGeometry = parseGeometryData('intersects-geometry-data');
         const touchesGeometry = parseGeometryData('touches-geometry-data');
         const nearbyGeometry = parseGeometryData('nearby-geometry-data');
+        const dgiGeometry = parseGeometryData('dgi-geometry-data');
+        const odhGeometry = parseGeometryData('odh-geometry-data');
 
         const withCount = (label, count) => `${label} (${count})`;
         const countGroupFeatures = (group) => {
@@ -483,6 +489,94 @@
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false});
             objectLayersControl.addTo(map);
         }
+
+        function addSignalTapeLayer(targetGroup, geojsonObject, sourceLabel) {
+            targetGroup.clearLayers();
+            const geo = normalizeGeoJson(geojsonObject);
+            if (!geo) {
+                return;
+            }
+            const ensureSignalPattern = (patternId, colorHex) => {
+                const svg = map.getPanes().overlayPane.querySelector('svg');
+                if (!svg) {
+                    return null;
+                }
+                let defs = svg.querySelector('defs');
+                if (!defs) {
+                    defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                    svg.insertBefore(defs, svg.firstChild);
+                }
+                if (!svg.querySelector('#' + patternId)) {
+                    const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+                    pattern.setAttribute('id', patternId);
+                    pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+                    pattern.setAttribute('width', '24');
+                    pattern.setAttribute('height', '24');
+                    pattern.setAttribute('patternTransform', 'rotate(45)');
+
+                    const whiteRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    whiteRect.setAttribute('x', '0');
+                    whiteRect.setAttribute('y', '0');
+                    whiteRect.setAttribute('width', '24');
+                    whiteRect.setAttribute('height', '24');
+                    whiteRect.setAttribute('fill', '#ffffff');
+
+                    const redRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    redRect.setAttribute('x', '0');
+                    redRect.setAttribute('y', '0');
+                    redRect.setAttribute('width', '12');
+                    redRect.setAttribute('height', '24');
+                    redRect.setAttribute('fill', colorHex);
+
+                    pattern.appendChild(whiteRect);
+                    pattern.appendChild(redRect);
+                    defs.appendChild(pattern);
+                }
+                return patternId;
+            };
+            const isDgi = sourceLabel === 'ДГИ';
+            const isOdh = sourceLabel === 'ОДХ';
+            if (!isDgi && !isOdh) {
+                L.geoJSON(geo, {
+                    interactive: false,
+                    style: {color: '#ffffff', weight: 7, opacity: 0.95, fillOpacity: 0}
+                }).addTo(targetGroup);
+            }
+            L.geoJSON(geo, {
+                style: {
+                    color: isOdh ? '#16a34a' : '#dc2626',
+                    weight: 4,
+                    opacity: 0.95,
+                    dashArray: '10 8',
+                    fillOpacity: 0,
+                },
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup('<strong>' + sourceLabel + '</strong>');
+                    if (isDgi || isOdh) {
+                        layer.on('add', () => {
+                            const patternId = ensureSignalPattern(
+                                isDgi ? 'dgi-signal-tape-pattern' : 'odh-signal-tape-pattern',
+                                isDgi ? '#dc2626' : '#16a34a'
+                            );
+                            const el = layer.getElement && layer.getElement();
+                            if (!patternId || !el) {
+                                return;
+                            }
+                            el.setAttribute('fill', 'url(#' + patternId + ')');
+                            el.setAttribute('fill-opacity', '0.25');
+                            el.setAttribute('stroke', isDgi ? '#dc2626' : '#16a34a');
+                            el.setAttribute('stroke-width', '2');
+                            el.setAttribute('stroke-dasharray', '10 8');
+                        });
+                    }
+                }
+            }).addTo(targetGroup);
+        }
+        function renderReferenceSignalLayers(dgiGeo, odhGeo) {
+            addSignalTapeLayer(dgiSignalGroup, dgiGeo, 'ДГИ');
+            addSignalTapeLayer(odhSignalGroup, odhGeo, 'ОДХ');
+        }
+        renderReferenceSignalLayers(dgiGeometry, odhGeometry);
 
         const intersectsGeo = normalizeGeoJson(intersectsGeometry);
         if (intersectsGeo) {
@@ -629,6 +723,8 @@
                 intersects: normalizeGeoJson(layers.intersects),
                 touches: normalizeGeoJson(layers.touches),
                 nearby: normalizeGeoJson(layers.nearby),
+                dgi: normalizeGeoJson(layers.dgi),
+                odh: normalizeGeoJson(layers.odh),
             };
             const selectedRootidText = (selectedRootid || '').trim();
             const excludeSelectedRootid = (geojson) => {
@@ -649,6 +745,7 @@
             parsed.intersects = excludeSelectedRootid(parsed.intersects);
             parsed.touches = excludeSelectedRootid(parsed.touches);
             parsed.nearby = excludeSelectedRootid(parsed.nearby);
+            renderReferenceSignalLayers(parsed.dgi, parsed.odh);
             if (parsed.intersects) {
                 L.geoJSON(parsed.intersects, {
                     style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
@@ -1315,11 +1412,15 @@
         }
 
         function openSaveModal() {
-            newObjectNameInput.value = '';
+            newObjectNameInput.value = (selectedName || '').trim();
             newObjectRequestIdInput.value = '';
             saveModalErrorEl.textContent = '';
             saveModal.style.display = 'flex';
-            setTimeout(() => newObjectNameInput.focus(), 0);
+            if (newObjectNameInput.value) {
+                setTimeout(() => newObjectRequestIdInput.focus(), 0);
+            } else {
+                setTimeout(() => newObjectNameInput.focus(), 0);
+            }
         }
 
         function closeSaveModal() {

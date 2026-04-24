@@ -368,11 +368,14 @@ def _get_new_object_relations(geometry):
         touches_row = cursor.fetchone()
         cursor.execute(nearby_sql, [geometry_json])
         nearby_row = cursor.fetchone()
+    ref_layers = _get_reference_layers(geometry=geometry, distance_meters=100)
 
     return {
         'intersects': intersects_row[0] if intersects_row else None,
         'touches': touches_row[0] if touches_row else None,
         'nearby': nearby_row[0] if nearby_row else None,
+        'dgi': ref_layers['dgi'],
+        'odh': ref_layers['odh'],
     }
 
 
@@ -415,6 +418,65 @@ def _create_new_object(username, geometry, name, request_id):
         )
         cursor.execute(insert_query, [None, name, owner_id, request_id, json.dumps(geometry)])
     return owner_id
+
+
+def _get_reference_layer_geojson(table_name, source_label, geometry=None, distance_meters=100):
+    geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
+    with connection.cursor() as cursor:
+        geom_field = _resolve_column_name(cursor, table_name, geom_field_pref)
+        if geometry is None:
+            query = (
+                "SELECT jsonb_build_object("
+                " 'type', 'FeatureCollection',"
+                " 'features', COALESCE(jsonb_agg(jsonb_build_object("
+                "   'type', 'Feature',"
+                "   'geometry', ST_AsGeoJSON("
+                f"     {_quote_ident(geom_field)}"
+                "   )::jsonb,"
+                "   'properties', jsonb_build_object('source', %s)"
+                " )), '[]'::jsonb)"
+                ")::text "
+                f"FROM {_quote_ident(table_name)}"
+            )
+            cursor.execute(query, [source_label])
+        else:
+            geometry_json = geometry if isinstance(geometry, str) else json.dumps(geometry)
+            query = (
+                "WITH input AS ("
+                " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+                "), rel AS ("
+                f" SELECT t.{_quote_ident(geom_field)} AS geom FROM {_quote_ident(table_name)} t, input i"
+                " WHERE ST_DWithin("
+                f"   t.{_quote_ident(geom_field)}::geography,"
+                "   ST_Boundary(i.geom)::geography,"
+                "   %s"
+                " )"
+                ") "
+                "SELECT jsonb_build_object("
+                " 'type', 'FeatureCollection',"
+                " 'features', COALESCE(jsonb_agg(jsonb_build_object("
+                "   'type', 'Feature',"
+                "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
+                "   'properties', jsonb_build_object('source', %s)"
+                " )), '[]'::jsonb)"
+                ")::text FROM rel"
+            )
+            cursor.execute(query, [geometry_json, distance_meters, source_label])
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+
+def _get_reference_layers(geometry=None, distance_meters=100):
+    layers = {'dgi': None, 'odh': None}
+    try:
+        layers['dgi'] = _get_reference_layer_geojson('dgi', 'ДГИ', geometry=geometry, distance_meters=distance_meters)
+    except Exception:
+        layers['dgi'] = None
+    try:
+        layers['odh'] = _get_reference_layer_geojson('odh', 'ОДХ', geometry=geometry, distance_meters=distance_meters)
+    except Exception:
+        layers['odh'] = None
+    return layers
 
 
 @login_required
@@ -472,6 +534,11 @@ def main(request):
             'Проверьте настройки таблицы/полей в settings.py.'
         )
 
+    reference_layers = _get_reference_layers(
+        geometry=layers['selected'] if layers else None,
+        distance_meters=100,
+    )
+
     return render(
         request,
         'pass_viewer/main.html',
@@ -484,6 +551,8 @@ def main(request):
             'intersects_geometry_json': layers['intersects'] if layers else None,
             'touches_geometry_json': layers['touches'] if layers else None,
             'nearby_geometry_json': layers['nearby'] if layers else None,
+            'dgi_geometry_json': reference_layers['dgi'],
+            'odh_geometry_json': reference_layers['odh'],
             'query_error': query_error,
         },
     )
@@ -629,7 +698,15 @@ def delete_owned_object(request):
 
 @login_required
 def add_object(request):
-    return render(request, 'pass_viewer/add_object.html')
+    reference_layers = _get_reference_layers(geometry=None, distance_meters=100)
+    return render(
+        request,
+        'pass_viewer/add_object.html',
+        {
+            'dgi_geometry_json': reference_layers['dgi'],
+            'odh_geometry_json': reference_layers['odh'],
+        },
+    )
 
 
 @login_required
