@@ -655,6 +655,10 @@
                         const dragStartHandler = (event) => {
                             if (marker._snapRadiusCircle) {
                                 map.removeLayer(marker._snapRadiusCircle);
+                                marker._snapRadiusCircle = null;
+                            }
+                            if (!snappingEnabled) {
+                                return;
                             }
                             marker._snapRadiusCircle = L.circle(event.target.getLatLng(), {
                                 radius: SNAP_DISTANCE_METERS,
