@@ -85,6 +85,7 @@
                         {% csrf_token %}
                         <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
                         <input type="hidden" name="name" value="{{ item.name }}">
+                        <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
                         <button
                             type="submit"
                             class="owned-list-open-btn"

@@ -94,14 +94,17 @@ def _get_owned_objects(owner_legal_person_id):
     ]
 
 
-def _build_where_clause(entry_point, rootid_field, name_field):
+def _build_where_clause(entry_point, rootid_field, name_field, request_id_field=None):
     raw_rootid = (entry_point.get('rootid') or '').strip()
     if raw_rootid.lower() in {'none', 'null'}:
         raw_rootid = ''
+    raw_request_id = (entry_point.get('request_id') or '').strip()
 
     if raw_rootid:
         # Compare as text so rootid can be safely passed from UI.
         return f"{rootid_field}::text = %s", [raw_rootid]
+    if request_id_field and raw_request_id:
+        return f"{request_id_field}::text = %s", [raw_request_id]
     return f"{name_field} ILIKE %s", [(entry_point.get('name') or '').strip()]
 
 
@@ -110,8 +113,9 @@ def _get_map_layers(entry_point):
     rootid_field = settings.GIS_OBJECT_ROOTID_FIELD
     name_field = settings.GIS_OBJECT_NAME_FIELD
     geom_field = settings.GIS_OBJECT_GEOM_FIELD
+    request_id_field = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
 
-    where_clause, where_params = _build_where_clause(entry_point, rootid_field, name_field)
+    where_clause, where_params = _build_where_clause(entry_point, rootid_field, name_field, request_id_field)
     selected_sql = (
         "WITH selected AS ("
         f" SELECT ctid, {rootid_field} AS rootid, {name_field} AS name, {geom_field} AS geom FROM {table}"
@@ -577,13 +581,15 @@ def save_new_object(request):
 def open_owned_object(request):
     rootid = (request.POST.get('rootid') or '').strip()
     name = (request.POST.get('name') or '').strip()
+    request_id = (request.POST.get('request_id') or '').strip()
     if rootid.lower() in {'none', 'null'}:
         rootid = ''
-    if not rootid and not name:
+    if not rootid and not name and not request_id:
         return redirect('home')
 
     request.session['entry_point'] = {
         'rootid': rootid,
+        'request_id': request_id if not rootid else '',
         'name': '' if rootid else name,
     }
     return redirect('main')
