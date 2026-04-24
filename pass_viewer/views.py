@@ -106,6 +106,29 @@ def _get_map_layers(entry_point):
         ") "
         "SELECT ST_AsGeoJSON(geom), rootid::text, name::text FROM selected"
     )
+    intersects_sql = (
+        "WITH selected AS ("
+        f" SELECT ctid, {geom_field} AS geom FROM {table}"
+        f" WHERE {where_clause} LIMIT 1"
+        "), rel AS ("
+        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name FROM {table} t, selected s"
+        " WHERE t.ctid <> s.ctid AND ST_Intersects("
+        f"   t.{geom_field},"
+        "   s.geom"
+        " ) AND NOT ST_Touches("
+        f"   t.{geom_field},"
+        "   s.geom"
+        " )"
+        ") "
+        "SELECT jsonb_build_object("
+        " 'type', 'FeatureCollection',"
+        " 'features', COALESCE(jsonb_agg(jsonb_build_object("
+        "   'type', 'Feature',"
+        "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
+        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text)"
+        " )), '[]'::jsonb)"
+        ")::text FROM rel"
+    )
     touches_sql = (
         "WITH selected AS ("
         f" SELECT ctid, {geom_field} AS geom FROM {table}"
@@ -138,6 +161,9 @@ def _get_map_layers(entry_point):
         " ) AND NOT ST_Touches("
         f"   t.{geom_field},"
         "   s.geom"
+        " ) AND NOT ST_Intersects("
+        f"   t.{geom_field},"
+        "   s.geom"
         " )"
         ") "
         "SELECT jsonb_build_object("
@@ -159,6 +185,9 @@ def _get_map_layers(entry_point):
         if not selected_geometry:
             return None
 
+        cursor.execute(intersects_sql, where_params)
+        intersects_row = cursor.fetchone()
+
         cursor.execute(touches_sql, where_params)
         touches_row = cursor.fetchone()
 
@@ -169,6 +198,7 @@ def _get_map_layers(entry_point):
         'selected': selected_geometry,
         'selected_rootid': selected_rootid,
         'selected_name': selected_name,
+        'intersects': intersects_row[0] if intersects_row else None,
         'touches': touches_row[0] if touches_row else None,
         'nearby': nearby_row[0] if nearby_row else None,
     }
@@ -408,6 +438,7 @@ def main(request):
             'selected_geometry_json': layers['selected'] if layers else None,
             'selected_rootid': layers['selected_rootid'] if layers else None,
             'selected_name': layers['selected_name'] if layers else None,
+            'intersects_geometry_json': layers['intersects'] if layers else None,
             'touches_geometry_json': layers['touches'] if layers else None,
             'nearby_geometry_json': layers['nearby'] if layers else None,
             'query_error': query_error,

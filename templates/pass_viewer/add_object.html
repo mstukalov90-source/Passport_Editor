@@ -339,7 +339,9 @@
         let isEditing = false;
         const mapEl = document.getElementById('map');
         const editableGroup = new L.FeatureGroup().addTo(map);
-        const relationGroup = new L.FeatureGroup().addTo(map);
+        const relationIntersectsGroup = new L.FeatureGroup().addTo(map);
+        const relationTouchesGroup = new L.FeatureGroup().addTo(map);
+        const relationNearbyGroup = new L.FeatureGroup().addTo(map);
         let drawControl = null;
         let editToolbar = null;
         let polygonDrawer = null;
@@ -347,6 +349,38 @@
         let snapDistanceMeters = 5;
         let snapGuideLines = [];
         let snapBindingTimer = null;
+        let objectLayersControl = null;
+
+        const countGroupFeatures = (group) => {
+            let count = 0;
+            group.eachLayer((layer) => {
+                if (typeof layer.toGeoJSON !== 'function') {
+                    return;
+                }
+                const geo = layer.toGeoJSON();
+                if (geo?.type === 'FeatureCollection' && Array.isArray(geo.features)) {
+                    count += geo.features.length;
+                } else if (geo?.type === 'Feature') {
+                    count += 1;
+                } else if (geo?.type) {
+                    count += 1;
+                }
+            });
+            return count;
+        };
+
+        function refreshObjectLayersControl() {
+            if (objectLayersControl) {
+                map.removeControl(objectLayersControl);
+            }
+            const overlays = {};
+            overlays[`Новый объект (${countGroupFeatures(editableGroup)})`] = editableGroup;
+            overlays[`Пересекается (${countGroupFeatures(relationIntersectsGroup)})`] = relationIntersectsGroup;
+            overlays[`Граничит (${countGroupFeatures(relationTouchesGroup)})`] = relationTouchesGroup;
+            overlays[`В радиусе 10 м (${countGroupFeatures(relationNearbyGroup)})`] = relationNearbyGroup;
+            objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topleft'});
+            objectLayersControl.addTo(map);
+        }
 
         function askSnapRadiusMeters(currentValue) {
             const raw = window.prompt('Введите радиус прилипания в метрах:', String(currentValue));
@@ -446,11 +480,15 @@
         }
 
         function clearRelationLayers() {
-            relationGroup.clearLayers();
+            relationIntersectsGroup.clearLayers();
+            relationTouchesGroup.clearLayers();
+            relationNearbyGroup.clearLayers();
+            refreshObjectLayersControl();
         }
 
         function updateRelationsButtonState() {
             checkRelationsButton.disabled = !buildCurrentGeometry();
+            refreshObjectLayersControl();
         }
 
         function collectSnapGuideLines(geojsonObject, output) {
@@ -490,10 +528,12 @@
 
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
-            relationGroup.eachLayer((layer) => {
-                if (typeof layer.toGeoJSON === 'function') {
-                    collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
-                }
+            [relationIntersectsGroup, relationTouchesGroup, relationNearbyGroup].forEach((group) => {
+                group.eachLayer((layer) => {
+                    if (typeof layer.toGeoJSON === 'function') {
+                        collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
+                    }
+                });
             });
         }
 
@@ -841,7 +881,7 @@
                     onEachFeature: (feature, layer) => {
                         layer.bindPopup(buildObjectPopup(feature.properties || {}));
                     }
-                }).addTo(relationGroup);
+                }).addTo(relationIntersectsGroup);
             }
             if (parsed.touches) {
                 L.geoJSON(parsed.touches, {
@@ -849,7 +889,7 @@
                     onEachFeature: (feature, layer) => {
                         layer.bindPopup(buildObjectPopup(feature.properties || {}));
                     }
-                }).addTo(relationGroup);
+                }).addTo(relationTouchesGroup);
             }
             if (parsed.nearby) {
                 L.geoJSON(parsed.nearby, {
@@ -857,8 +897,9 @@
                     onEachFeature: (feature, layer) => {
                         layer.bindPopup(buildObjectPopup(feature.properties || {}));
                     }
-                }).addTo(relationGroup);
+                }).addTo(relationNearbyGroup);
             }
+            refreshObjectLayersControl();
             rebuildSnapGuideLines();
             if (isEditing) {
                 attachPromptSnapHandlers(0);
