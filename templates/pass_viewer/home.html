@@ -33,25 +33,47 @@
         </div>
         <div style="max-height: 260px; overflow: auto; border: 1px solid #e3e6ec; border-radius: 8px;">
             {% for item in owned_objects %}
-                <form
-                    method="post"
-                    action="{% url 'open_owned_object' %}"
-                    style="margin: 0;"
+                <div
+                    style="display: flex; gap: 8px; align-items: stretch; border-bottom: 1px solid #eef1f6; padding: 8px 10px;"
                     class="owned-item"
                     data-rootid="{{ item.rootid|default_if_none:''|lower }}"
                     data-name="{{ item.name|default:''|lower }}"
                 >
-                    {% csrf_token %}
-                    <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
-                    <input type="hidden" name="name" value="{{ item.name }}">
-                    <button
-                        type="submit"
-                        style="width: 100%; text-align: left; border: none; border-bottom: 1px solid #eef1f6; background: #fff; color: #20242b; padding: 10px 12px; cursor: pointer;"
+                    <form
+                        method="post"
+                        action="{% url 'open_owned_object' %}"
+                        style="margin: 0; flex: 1;"
                     >
-                        <strong>rootid:</strong> {{ item.rootid|default:"-" }}<br>
-                        <span style="font-size: 13px; color: #4a5565;"><strong>name:</strong> {{ item.name|default:"-" }}</span>
-                    </button>
-                </form>
+                        {% csrf_token %}
+                        <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
+                        <input type="hidden" name="name" value="{{ item.name }}">
+                        <button
+                            type="submit"
+                            style="width: 100%; text-align: left; border: none; background: #fff; color: #20242b; padding: 4px 2px; cursor: pointer;"
+                        >
+                            {% if item.rootid %}
+                                <strong>rootid:</strong> {{ item.rootid }}<br>
+                                <span style="font-size: 13px; color: #4a5565;"><strong>name:</strong> {{ item.name|default:"-" }}</span>
+                            {% else %}
+                                <strong>request_id:</strong> {{ item.request_id|default:"-" }}<br>
+                                <span style="font-size: 13px; color: #4a5565;"><strong>name:</strong> {{ item.name|default:"-" }}</span>
+                            {% endif %}
+                        </button>
+                    </form>
+                    {% if not item.rootid and item.request_id %}
+                        <form method="post" action="{% url 'delete_owned_object' %}" style="margin: 0; align-self: center;">
+                            {% csrf_token %}
+                            <input type="hidden" name="object_key" value="{{ item.object_key }}">
+                            <button
+                                type="submit"
+                                style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 8px; padding: 8px 10px;"
+                                onclick="return confirm('Удалить объект request_id={{ item.request_id|default:'-' }}?');"
+                            >
+                                Удалить
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
             {% endfor %}
         </div>
     {% else %}

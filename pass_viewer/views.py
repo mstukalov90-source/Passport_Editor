@@ -65,11 +65,14 @@ def _get_owned_objects(owner_legal_person_id):
     rootid_field = settings.GIS_OBJECT_ROOTID_FIELD
     name_field = settings.GIS_OBJECT_NAME_FIELD
     owner_field_pref = getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
+    request_id_field_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
 
     with connection.cursor() as cursor:
         owner_field = _resolve_column_name(cursor, table, owner_field_pref)
+        request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
         query = (
-            f"SELECT {_quote_ident(rootid_field)}::text, {_quote_ident(name_field)}::text "
+            f"SELECT ctid::text, {_quote_ident(rootid_field)}::text, {_quote_ident(name_field)}::text, "
+            f"{_quote_ident(request_id_field)}::text "
             f"FROM {_quote_ident(table)} "
             f"WHERE {_quote_ident(owner_field)} = %s "
             f"ORDER BY {_quote_ident(name_field)} ASC NULLS LAST, {_quote_ident(rootid_field)} ASC "
@@ -78,7 +81,15 @@ def _get_owned_objects(owner_legal_person_id):
         cursor.execute(query, [owner_legal_person_id])
         rows = cursor.fetchall()
 
-    return [{'rootid': row[0], 'name': row[1] or ''} for row in rows]
+    return [
+        {
+            'object_key': row[0],
+            'rootid': row[1],
+            'name': row[2] or '',
+            'request_id': row[3] or '',
+        }
+        for row in rows
+    ]
 
 
 def _build_where_clause(entry_point, rootid_field, name_field):
@@ -270,9 +281,15 @@ def _get_new_object_relations(geometry):
     intersects_sql = (
         "WITH input AS ("
         " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+        "), input_parts AS ("
+        " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), rel AS ("
         f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name FROM {table} t, input i"
         f" WHERE ST_Intersects(t.{geom_field}, i.geom)"
+        "   AND NOT EXISTS ("
+        "       SELECT 1 FROM input_parts p"
+        f"       WHERE ST_Equals(t.{geom_field}, p.geom)"
+        "   )"
         ") "
         "SELECT jsonb_build_object("
         " 'type', 'FeatureCollection',"
@@ -286,9 +303,15 @@ def _get_new_object_relations(geometry):
     touches_sql = (
         "WITH input AS ("
         " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+        "), input_parts AS ("
+        " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), rel AS ("
         f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name FROM {table} t, input i"
         f" WHERE ST_Touches(t.{geom_field}, i.geom)"
+        "   AND NOT EXISTS ("
+        "       SELECT 1 FROM input_parts p"
+        f"       WHERE ST_Equals(t.{geom_field}, p.geom)"
+        "   )"
         ") "
         "SELECT jsonb_build_object("
         " 'type', 'FeatureCollection',"
@@ -302,11 +325,17 @@ def _get_new_object_relations(geometry):
     nearby_sql = (
         "WITH input AS ("
         " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+        "), input_parts AS ("
+        " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), rel AS ("
         f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name FROM {table} t, input i"
         f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
         f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
         f"   AND NOT ST_Intersects(t.{geom_field}, i.geom)"
+        "   AND NOT EXISTS ("
+        "       SELECT 1 FROM input_parts p"
+        f"       WHERE ST_Equals(t.{geom_field}, p.geom)"
+        "   )"
         ") "
         "SELECT jsonb_build_object("
         " 'type', 'FeatureCollection',"
@@ -548,6 +577,38 @@ def open_owned_object(request):
         'name': '' if rootid else name,
     }
     return redirect('main')
+
+
+@login_required
+@require_POST
+def delete_owned_object(request):
+    object_key = (request.POST.get('object_key') or '').strip()
+    if not object_key:
+        return redirect('home')
+
+    owner_id = _get_current_user_owner_id(request.user.username)
+    if owner_id is None:
+        return redirect('home')
+
+    table = settings.GIS_OBJECT_TABLE
+    rootid_field_pref = settings.GIS_OBJECT_ROOTID_FIELD
+    owner_field_pref = getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
+    request_id_field_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
+
+    with connection.cursor() as cursor:
+        owner_field = _resolve_column_name(cursor, table, owner_field_pref)
+        rootid_field = _resolve_column_name(cursor, table, rootid_field_pref)
+        request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
+        delete_query = (
+            f"DELETE FROM {_quote_ident(table)} "
+            f"WHERE ctid = %s::tid "
+            f"  AND {_quote_ident(owner_field)} = %s "
+            f"  AND {_quote_ident(rootid_field)} IS NULL "
+            f"  AND {_quote_ident(request_id_field)} IS NOT NULL"
+        )
+        cursor.execute(delete_query, [object_key, owner_id])
+
+    return redirect('home')
 
 
 @login_required

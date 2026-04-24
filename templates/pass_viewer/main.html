@@ -60,6 +60,20 @@
     <p id="snap-debug" class="note" style="display:none; margin-top: 4px; color: #334155; min-height: 18px;">Snap debug: waiting events...</p>
     <p id="snap-debug-fixed" class="note" style="display:none; margin-top: 2px; color: #0f172a; min-height: 18px;">Snap debug fixed (dragend): waiting dragend...</p>
     <p id="export-links" class="note"></p>
+
+    <div id="save-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3 style="margin: 0 0 10px;">Новый объект</h3>
+            <label class="modal-label" for="new-object-name">Название (name)</label>
+            <input id="new-object-name" class="modal-input" type="text" maxlength="255" />
+            <label class="modal-label" for="new-object-request-id">Номер заявки (request_id)</label>
+            <input id="new-object-request-id" class="modal-input" type="text" maxlength="100" />
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+                <button type="button" id="save-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
+                <button type="button" id="save-modal-submit" class="map-toolbar-btn map-toolbar-btn--success">Сохранить</button>
+            </div>
+        </div>
+    </div>
     <style>
         #map.edit-mode .leaflet-editing-icon {
             width: 8px !important;
@@ -205,6 +219,20 @@
             box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
             padding: 16px;
         }
+        .modal-label {
+            display: block;
+            font-size: 13px;
+            color: #334155;
+            margin: 10px 0 6px;
+        }
+        .modal-input {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
     </style>
 
     <link
@@ -331,6 +359,11 @@
         const snapDebugEl = document.getElementById('snap-debug');
         const snapDebugFixedEl = document.getElementById('snap-debug-fixed');
         const exportLinksEl = document.getElementById('export-links');
+        const saveModal = document.getElementById('save-modal');
+        const saveModalCancel = document.getElementById('save-modal-cancel');
+        const saveModalSubmit = document.getElementById('save-modal-submit');
+        const newObjectNameInput = document.getElementById('new-object-name');
+        const newObjectRequestIdInput = document.getElementById('new-object-request-id');
         const mapEl = document.getElementById('map');
         const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
         const selectedName = "{{ selected_name|default:''|escapejs }}";
@@ -408,7 +441,7 @@
                 map.removeControl(objectLayersControl);
             }
             const overlays = {};
-            overlays[withCount('Новый объект', countGroupFeatures(selectedGroup))] = selectedGroup;
+            overlays[withCount('Выбранный объект', countGroupFeatures(selectedGroup))] = selectedGroup;
             overlays[withCount('Пересекается', countGroupFeatures(intersectsGroup))] = intersectsGroup;
             overlays[withCount('Граничит', countGroupFeatures(touchesGroup))] = touchesGroup;
             overlays[withCount('В радиусе 10 м', countGroupFeatures(nearbyGroup))] = nearbyGroup;
@@ -562,6 +595,25 @@
                 touches: normalizeGeoJson(layers.touches),
                 nearby: normalizeGeoJson(layers.nearby),
             };
+            const selectedRootidText = (selectedRootid || '').trim();
+            const excludeSelectedRootid = (geojson) => {
+                if (!geojson || geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
+                    return geojson;
+                }
+                if (!selectedRootidText) {
+                    return geojson;
+                }
+                return {
+                    ...geojson,
+                    features: geojson.features.filter((feature) => {
+                        const rootid = String(feature?.properties?.rootid ?? '').trim();
+                        return rootid !== selectedRootidText;
+                    }),
+                };
+            };
+            parsed.intersects = excludeSelectedRootid(parsed.intersects);
+            parsed.touches = excludeSelectedRootid(parsed.touches);
+            parsed.nearby = excludeSelectedRootid(parsed.nearby);
             if (parsed.intersects) {
                 L.geoJSON(parsed.intersects, {
                     style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
@@ -1132,6 +1184,116 @@
             };
         }
 
+        function openSaveModal() {
+            newObjectNameInput.value = '';
+            newObjectRequestIdInput.value = '';
+            saveModal.style.display = 'flex';
+            setTimeout(() => newObjectNameInput.focus(), 0);
+        }
+
+        function closeSaveModal() {
+            saveModal.style.display = 'none';
+        }
+
+        async function saveObjectToDb(geometryToSave, name, requestId) {
+            const response = await fetch("{% url 'save_new_object' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken') || ''
+                },
+                body: JSON.stringify({
+                    geometry: geometryToSave,
+                    name: name,
+                    request_id: requestId
+                })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.error || 'Не удалось сохранить объект.');
+            }
+            return result;
+        }
+
+        async function exportObjectFiles(geometryToExport, properties) {
+            const response = await fetch("{% url 'export_new_object_geometry' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken') || ''
+                },
+                body: JSON.stringify({
+                    geometry: geometryToExport,
+                    properties: properties || {}
+                })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.error || 'Не удалось сформировать файлы.');
+            }
+            return result;
+        }
+
+        async function runSaveAndExportFlow() {
+            if (!isEditing) {
+                statusEl.textContent = '\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0432\u043a\u043b\u044e\u0447\u0438\u0442\u0435 \u0440\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f.';
+                return;
+            }
+            const editedGeojson = editableGroup.toGeoJSON();
+            if (!editedGeojson.features.length) {
+                statusEl.textContent = 'Нет геометрии для сохранения.';
+                return;
+            }
+            const geometryToSave = buildExportGeometry(editedGeojson);
+            if (!geometryToSave) {
+                statusEl.textContent = 'Не удалось собрать геометрию для сохранения.';
+                return;
+            }
+
+            const name = (newObjectNameInput.value || '').trim();
+            const requestId = (newObjectRequestIdInput.value || '').trim();
+            if (!name || !requestId) {
+                statusEl.textContent = 'Заполните название и номер заявки.';
+                return;
+            }
+
+            saveModalSubmit.disabled = true;
+            saveButton.disabled = true;
+            statusEl.textContent = 'Сохраняем объект в geodb...';
+            try {
+                const saveResult = await saveObjectToDb(geometryToSave, name, requestId);
+                statusEl.textContent = 'Объект сохранён в geodb. Формируем файлы...';
+                const exportResult = await exportObjectFiles(geometryToSave, {
+                    name: name,
+                    OwnerLegalPersonId: saveResult.owner_id,
+                    request_id: requestId
+                });
+                closeSaveModal();
+                statusEl.textContent =
+                    'Объект сохранён в geodb. rootid = NULL, OwnerLegalPersonId = ' + saveResult.owner_id + '. Файлы сформированы.';
+                exportLinksEl.innerHTML =
+                    '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
+                    '<a class="button-link" href="' + exportResult.shapefile_url + '">Скачать SHP (ZIP)</a>';
+            } catch (error) {
+                statusEl.textContent = error.message || 'Ошибка сохранения объекта.';
+            } finally {
+                saveModalSubmit.disabled = false;
+                saveButton.disabled = false;
+            }
+        }
+
+        saveModalCancel.addEventListener('click', () => {
+            closeSaveModal();
+        });
+        saveModalSubmit.addEventListener('click', () => {
+            runSaveAndExportFlow();
+        });
+        saveModal.addEventListener('click', (event) => {
+            if (event.target === saveModal) {
+                closeSaveModal();
+            }
+        });
+
         saveButton.addEventListener('click', async () => {
             if (!isEditing) {
                 statusEl.textContent = '\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0432\u043a\u043b\u044e\u0447\u0438\u0442\u0435 \u0440\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f.';
@@ -1139,43 +1301,10 @@
             }
             const editedGeojson = editableGroup.toGeoJSON();
             if (!editedGeojson.features.length) {
-                statusEl.textContent = '\u041f\u043e\u0441\u043b\u0435 \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f \u043d\u0435 \u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c \u0433\u0435\u043e\u043c\u0435\u0442\u0440\u0438\u0438 \u0434\u043b\u044f \u044d\u043a\u0441\u043f\u043e\u0440\u0442\u0430.';
+                statusEl.textContent = 'Нет геометрии для выгрузки.';
                 return;
             }
-            const geometryToExport = buildExportGeometry(editedGeojson);
-            if (!geometryToExport) {
-                statusEl.textContent = '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0431\u0440\u0430\u0442\u044c \u0433\u0435\u043e\u043c\u0435\u0442\u0440\u0438\u044e \u0434\u043b\u044f \u044d\u043a\u0441\u043f\u043e\u0440\u0442\u0430.';
-                return;
-            }
-            try {
-                const response = await fetch("{% url 'export_geometry' %}", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    body: JSON.stringify({geometry: geometryToExport})
-                });
-                const result = await response.json();
-                if (!response.ok || !result.ok) {
-                    throw new Error(result.error || '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u0444\u043e\u0440\u043c\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0444\u0430\u0439\u043b\u044b.');
-                }
-                if (editToolbar) {
-                    editToolbar.disable();
-                }
-                setEditMode(false);
-                editableGroup.clearLayers();
-                if (selectedLayer && !map.hasLayer(selectedLayer)) {
-                    map.addLayer(selectedLayer);
-                }
-                stopSnapBindingLoop();
-                statusEl.textContent = '\u0424\u0430\u0439\u043b\u044b \u0443\u0441\u043f\u0435\u0448\u043d\u043e \u0441\u0444\u043e\u0440\u043c\u0438\u0440\u043e\u0432\u0430\u043d\u044b \u0432 WGS84.';
-                exportLinksEl.innerHTML =
-                    '<a class="button-link" href="' + result.geojson_url + '" download>\u0421\u043a\u0430\u0447\u0430\u0442\u044c GeoJSON</a> ' +
-                    '<a class="button-link" href="' + result.shapefile_url + '">\u0421\u043a\u0430\u0447\u0430\u0442\u044c SHP (ZIP)</a>';
-            } catch (error) {
-                statusEl.textContent = error.message;
-            }
+            openSaveModal();
         });
 
         updateRelationsButtonState();
