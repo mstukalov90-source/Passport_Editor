@@ -11,6 +11,45 @@
             OwnerLegalPersonId: <strong>{{ owner_id }}</strong>
         </p>
     {% endif %}
+    <style>
+        .owned-list-wrap {
+            max-height: min(62vh, 720px);
+            overflow: auto;
+            border: 1px solid #dbe2ea;
+            border-radius: 12px;
+            background: #fff;
+        }
+        .owned-list-item {
+            display: flex;
+            gap: 10px;
+            align-items: stretch;
+            border-bottom: 1px solid #eef1f6;
+            padding: 10px 12px;
+        }
+        .owned-list-item:last-child {
+            border-bottom: none;
+        }
+        .owned-list-open-btn {
+            width: 100%;
+            text-align: left;
+            border: none;
+            background: #fff;
+            color: #20242b;
+            padding: 6px 4px;
+            cursor: pointer;
+            font-size: 15px;
+            line-height: 1.35;
+        }
+        @media (max-width: 900px) {
+            .owned-list-wrap {
+                max-height: 52vh;
+            }
+            .owned-list-open-btn {
+                font-size: 14px;
+            }
+        }
+    </style>
+
     {% if owned_objects_error %}
         <p class="note" style="color: #b42318;">{{ owned_objects_error }}</p>
     {% elif owned_objects %}
@@ -31,11 +70,10 @@
                 &#1057;&#1073;&#1088;&#1086;&#1089;
             </button>
         </div>
-        <div style="max-height: 260px; overflow: auto; border: 1px solid #e3e6ec; border-radius: 8px;">
+        <div class="owned-list-wrap">
             {% for item in owned_objects %}
                 <div
-                    style="display: flex; gap: 8px; align-items: stretch; border-bottom: 1px solid #eef1f6; padding: 8px 10px;"
-                    class="owned-item"
+                    class="owned-list-item owned-item"
                     data-rootid="{{ item.rootid|default_if_none:''|lower }}"
                     data-name="{{ item.name|default:''|lower }}"
                 >
@@ -49,7 +87,7 @@
                         <input type="hidden" name="name" value="{{ item.name }}">
                         <button
                             type="submit"
-                            style="width: 100%; text-align: left; border: none; background: #fff; color: #20242b; padding: 4px 2px; cursor: pointer;"
+                            class="owned-list-open-btn"
                         >
                             {% if item.rootid %}
                                 <strong>rootid:</strong> {{ item.rootid }}<br>

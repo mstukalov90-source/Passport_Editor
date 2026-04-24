@@ -267,19 +267,21 @@
     >
     <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
     <script>
-        const map = L.map('map').setView([55.75, 37.61], 12);
+        const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
 
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
+            maxNativeZoom: 19,
+            maxZoom: 30,
             attribution: '&copy; OpenStreetMap contributors'
         });
         const satelliteLayer = L.tileLayer(
             'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
             {
-                maxZoom: 19,
+                maxNativeZoom: 19,
+                maxZoom: 30,
                 attribution: 'Tiles &copy; Esri'
             }
         );

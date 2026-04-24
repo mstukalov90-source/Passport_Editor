@@ -367,7 +367,7 @@
         const mapEl = document.getElementById('map');
         const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
         const selectedName = "{{ selected_name|default:''|escapejs }}";
-        const map = L.map('map').setView([55.75, 37.61], 10);
+        const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 10);
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
@@ -391,13 +391,15 @@
         let objectLayersControl = null;
 
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
+            maxNativeZoom: 19,
+            maxZoom: 30,
             attribution: '&copy; OpenStreetMap contributors'
         });
         const satelliteLayer = L.tileLayer(
             'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
             {
-                maxZoom: 19,
+                maxNativeZoom: 19,
+                maxZoom: 30,
                 attribution: 'Tiles &copy; Esri'
             }
         );
@@ -487,7 +489,7 @@
             }).addTo(selectedGroup);
             const popupHtml = buildObjectPopup({}, selectedRootid || '-', selectedName || '-');
             bindPopupToLayer(selectedLayer, popupHtml);
-            map.fitBounds(selectedLayer.getBounds(), {padding: [30, 30], maxZoom: 19});
+            map.fitBounds(selectedLayer.getBounds(), {padding: [30, 30], maxZoom: 30});
         } else {
             statusEl.textContent = '\u0412\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0439 \u043e\u0431\u044a\u0435\u043a\u0442 \u043d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0442\u0440\u0438\u0441\u043e\u0432\u0430\u0442\u044c \u043d\u0430 \u043a\u0430\u0440\u0442\u0435.';
         }
