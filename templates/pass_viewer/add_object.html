@@ -18,6 +18,12 @@
     <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;">
         <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1053;&#1072;&#1095;&#1072;&#1090;&#1100; &#1088;&#1077;&#1076;&#1072;&#1082;&#1090;&#1080;&#1088;&#1086;&#1074;&#1072;&#1085;&#1080;&#1077;</button>
         <button type="button" id="add-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent">&#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1087;&#1086;&#1083;&#1080;&#1075;&#1086;&#1085;</button>
+        <label for="draw-mode-freehand" class="snap-switch" title="Режим добавления: вершины или кисть">
+            <input type="checkbox" id="draw-mode-freehand">
+            <span class="draw-mode-label draw-mode-label--left">Вершины</span>
+            <span class="snap-switch__track"></span>
+            <span class="draw-mode-label draw-mode-label--right">Кисть</span>
+        </label>
         <label for="snap-toggle" class="snap-switch" title="&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077; &#1074;&#1082;&#1083;&#1102;&#1095;&#1077;&#1085;&#1086;/&#1074;&#1099;&#1082;&#1083;&#1102;&#1095;&#1077;&#1085;&#1086;">
             <input type="checkbox" id="snap-toggle">
             <span class="snap-switch__track"></span>
@@ -43,10 +49,11 @@
     <div id="save-modal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3 style="margin: 0 0 10px;">&#1053;&#1086;&#1074;&#1099;&#1081; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;</h3>
-            <label class="modal-label" for="new-object-name">&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; (name)</label>
+            <label class="modal-label" for="new-object-name">&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; (name, &#1085;&#1077;&#1086;&#1073;&#1103;&#1079;&#1072;&#1090;&#1077;&#1083;&#1100;&#1085;&#1086;)</label>
             <input id="new-object-name" class="modal-input" type="text" maxlength="255" />
             <label class="modal-label" for="new-object-request-id">&#1053;&#1086;&#1084;&#1077;&#1088; &#1079;&#1072;&#1103;&#1074;&#1082;&#1080; (request_id)</label>
-            <input id="new-object-request-id" class="modal-input" type="text" maxlength="100" />
+            <input id="new-object-request-id" class="modal-input" type="text" maxlength="100" inputmode="numeric" pattern="[0-9]*" />
+            <p id="save-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
                 <button type="button" id="save-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
                 <button type="button" id="save-modal-submit" class="map-toolbar-btn map-toolbar-btn--success">&#1057;&#1086;&#1093;&#1088;&#1072;&#1085;&#1080;&#1090;&#1100;</button>
@@ -145,15 +152,34 @@
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
             transition: transform 0.15s ease;
         }
-        .snap-switch input:checked + .snap-switch__track {
+        .snap-switch input:checked + .draw-mode-label--left + .snap-switch__track {
             background: #2563eb;
         }
-        .snap-switch input:checked + .snap-switch__track::after {
+        .snap-switch input:checked + .draw-mode-label--left + .snap-switch__track::after {
             transform: translateX(16px);
         }
         .snap-switch__label {
             font-size: 13px;
             font-weight: 600;
+            color: #111827;
+        }
+        .draw-mode-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            transition: color 0.15s ease;
+        }
+        .snap-switch--locked {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+        #draw-mode-freehand + .draw-mode-label--left {
+            color: #111827;
+        }
+        #draw-mode-freehand:checked + .draw-mode-label--left {
+            color: #64748b;
+        }
+        #draw-mode-freehand:checked + .draw-mode-label--left + .snap-switch__track + .draw-mode-label--right {
             color: #111827;
         }
         .map-basemap-control {
@@ -325,6 +351,7 @@
 
         const editButton = document.getElementById('edit-geometry-btn');
         const addPolygonButton = document.getElementById('add-polygon-btn');
+        const drawModeFreehandToggle = document.getElementById('draw-mode-freehand');
         const snapToggle = document.getElementById('snap-toggle');
         const checkRelationsButton = document.getElementById('check-relations-btn');
         const cancelEditButton = document.getElementById('cancel-edit-btn');
@@ -338,6 +365,7 @@
         const saveModalSubmit = document.getElementById('save-modal-submit');
         const newObjectNameInput = document.getElementById('new-object-name');
         const newObjectRequestIdInput = document.getElementById('new-object-request-id');
+        const saveModalErrorEl = document.getElementById('save-modal-error');
         let isEditing = false;
         const mapEl = document.getElementById('map');
         const editableGroup = new L.FeatureGroup().addTo(map);
@@ -347,6 +375,11 @@
         let drawControl = null;
         let editToolbar = null;
         let polygonDrawer = null;
+        let freehandMode = false;
+        let freehandDrawing = false;
+        let freehandLatLngs = [];
+        let freehandPreviewLine = null;
+        let drawModeToggleLocked = false;
         let snappingEnabled = false;
         let snapDistanceMeters = 5;
         let snapGuideLines = [];
@@ -951,9 +984,43 @@
             saveButton.style.display = enabled ? 'inline-block' : 'none';
             editButton.textContent = enabled ? 'Режим редактирования включён' : 'Начать редактирование';
             addPolygonButton.disabled = !enabled;
+            if (!enabled) {
+                drawModeToggleLocked = false;
+            }
+            drawModeFreehandToggle.disabled = !enabled || drawModeToggleLocked;
+            drawModeFreehandToggle.closest('.snap-switch')?.classList.toggle('snap-switch--locked', drawModeToggleLocked);
             statusEl.textContent = enabled
                 ? 'Режим редактирования включён. Можно добавлять и изменять полигоны.'
                 : 'Режим редактирования выключен.';
+        }
+
+        function stopFreehandMode() {
+            freehandMode = false;
+            freehandDrawing = false;
+            freehandLatLngs = [];
+            if (freehandPreviewLine) {
+                map.removeLayer(freehandPreviewLine);
+                freehandPreviewLine = null;
+            }
+            map.dragging.enable();
+            map.getContainer().style.cursor = '';
+        }
+
+        function finishCreatedPolygon(layer) {
+            editableGroup.addLayer(layer);
+            layer.bindPopup(buildObjectPopup({}, 'Новый объект', 'Новый объект'));
+            if (polygonDrawer) {
+                polygonDrawer.disable();
+                polygonDrawer = null;
+            }
+            if (isEditing) {
+                editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
+                editToolbar.enable();
+            }
+            startSnapBindingLoop();
+            statusEl.textContent = 'Полигон добавлен. Можно продолжать редактирование.';
+            updateRelationsButtonState();
+            checkRelations();
         }
 
         editButton.addEventListener('click', () => {
@@ -987,6 +1054,7 @@
                 polygonDrawer.disable();
                 polygonDrawer = null;
             }
+            stopFreehandMode();
             if (editToolbar) {
                 editToolbar.disable();
             }
@@ -999,9 +1067,23 @@
                 statusEl.textContent = 'Сначала включите режим редактирования.';
                 return;
             }
+            drawModeToggleLocked = true;
+            drawModeFreehandToggle.disabled = true;
+            drawModeFreehandToggle.closest('.snap-switch')?.classList.add('snap-switch--locked');
             if (editToolbar) {
                 editToolbar.disable();
             }
+            if (drawModeFreehandToggle.checked) {
+                if (polygonDrawer) {
+                    polygonDrawer.disable();
+                    polygonDrawer = null;
+                }
+                freehandMode = true;
+                map.getContainer().style.cursor = 'crosshair';
+                statusEl.textContent = 'Режим кисти: зажмите левую кнопку мыши и обведите контур.';
+                return;
+            }
+            stopFreehandMode();
             if (polygonDrawer) {
                 polygonDrawer.disable();
             }
@@ -1017,25 +1099,70 @@
             polygonDrawer.enable();
             statusEl.textContent = 'Добавьте новый полигон на карту.';
         });
+        drawModeFreehandToggle.addEventListener('change', () => {
+            if (!drawModeFreehandToggle.checked) {
+                stopFreehandMode();
+            } else if (polygonDrawer) {
+                polygonDrawer.disable();
+                polygonDrawer = null;
+            }
+        });
 
         map.on(L.Draw.Event.CREATED, (event) => {
             if (event.layerType !== 'polygon') {
                 return;
             }
-            editableGroup.addLayer(event.layer);
-            event.layer.bindPopup(buildObjectPopup({}, 'Новый объект', 'Новый объект'));
-            if (polygonDrawer) {
-                polygonDrawer.disable();
-                polygonDrawer = null;
+            finishCreatedPolygon(event.layer);
+        });
+
+        map.on('mousedown', (event) => {
+            if (!freehandMode || !isEditing) {
+                return;
             }
-            if (isEditing) {
-                editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
-                editToolbar.enable();
+            freehandDrawing = true;
+            freehandLatLngs = [event.latlng];
+            if (freehandPreviewLine) {
+                map.removeLayer(freehandPreviewLine);
             }
-            startSnapBindingLoop();
-            statusEl.textContent = 'Полигон добавлен. Можно продолжать редактирование.';
-            updateRelationsButtonState();
-            checkRelations();
+            freehandPreviewLine = L.polyline(freehandLatLngs, {
+                color: '#ef4444',
+                weight: 3,
+                opacity: 0.85,
+                interactive: false,
+            }).addTo(map);
+            map.dragging.disable();
+        });
+        map.on('mousemove', (event) => {
+            if (!freehandMode || !freehandDrawing) {
+                return;
+            }
+            freehandLatLngs.push(event.latlng);
+            if (freehandPreviewLine) {
+                freehandPreviewLine.setLatLngs(freehandLatLngs);
+            }
+        });
+        map.on('mouseup', () => {
+            if (!freehandMode || !freehandDrawing) {
+                return;
+            }
+            freehandDrawing = false;
+            map.dragging.enable();
+            if (freehandPreviewLine) {
+                map.removeLayer(freehandPreviewLine);
+                freehandPreviewLine = null;
+            }
+            if (freehandLatLngs.length < 3) {
+                freehandLatLngs = [];
+                statusEl.textContent = 'Для кисти нужно провести контур минимум из 3 точек.';
+                return;
+            }
+            const polygon = L.polygon(freehandLatLngs, {
+                color: '#ff0000',
+                weight: 3,
+                fillOpacity: 0.25,
+            });
+            freehandLatLngs = [];
+            finishCreatedPolygon(polygon);
         });
 
         map.on(L.Draw.Event.EDITED, () => {
@@ -1067,6 +1194,7 @@
         function openSaveModal() {
             newObjectNameInput.value = '';
             newObjectRequestIdInput.value = '';
+            saveModalErrorEl.textContent = '';
             saveModal.style.display = 'flex';
             setTimeout(() => newObjectNameInput.focus(), 0);
         }
@@ -1132,10 +1260,15 @@
 
             const name = (newObjectNameInput.value || '').trim();
             const requestId = (newObjectRequestIdInput.value || '').trim();
-            if (!name || !requestId) {
-                statusEl.textContent = 'Заполните название и номер заявки.';
+            if (!requestId) {
+                saveModalErrorEl.textContent = 'Укажите номер заявки (request_id).';
                 return;
             }
+            if (!/^\d+$/.test(requestId)) {
+                saveModalErrorEl.textContent = 'Номер заявки (request_id) должен содержать только цифры.';
+                return;
+            }
+            saveModalErrorEl.textContent = '';
 
             saveModalSubmit.disabled = true;
             saveButton.disabled = true;
@@ -1155,7 +1288,7 @@
                     '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
                     '<a class="button-link" href="' + exportResult.shapefile_url + '">Скачать SHP (ZIP)</a>';
             } catch (error) {
-                statusEl.textContent = error.message || 'Ошибка сохранения объекта.';
+                saveModalErrorEl.textContent = error.message || 'Ошибка сохранения объекта.';
             } finally {
                 saveModalSubmit.disabled = false;
                 saveButton.disabled = false;

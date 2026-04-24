@@ -1,6 +1,8 @@
 import json
+import re
 import uuid
 import zipfile
+from datetime import date
 from pathlib import Path
 
 import psycopg2
@@ -231,17 +233,25 @@ def _export_geometry_files(geometry, properties=None):
     export_dir = export_root / export_id
     export_dir.mkdir(parents=True, exist_ok=True)
 
+    request_id_raw = str(export_properties.get('request_id') or '').strip()
+    request_id_safe = re.sub(r'[^A-Za-z0-9._-]+', '_', request_id_raw).strip('._-')
+    if not request_id_safe:
+        request_id_safe = 'request'
+    request_id_safe = request_id_safe[:80]
+    export_date = date.today().strftime('%Y%m%d')
+    base_filename = f"{request_id_safe}_{export_date}"
+
     feature = {'type': 'Feature', 'properties': export_properties, 'geometry': geometry}
     feature_collection = {'type': 'FeatureCollection', 'features': [feature]}
-    geojson_path = export_dir / 'edited_object.geojson'
+    geojson_path = export_dir / f'{base_filename}.geojson'
     geojson_path.write_text(json.dumps(feature_collection, ensure_ascii=False), encoding='utf-8')
 
-    shp_path = export_dir / 'edited_object.shp'
+    shp_path = export_dir / f'{base_filename}.shp'
     driver = ogr.GetDriverByName('ESRI Shapefile')
     datasource = driver.CreateDataSource(str(shp_path))
     spatial_ref = osr.SpatialReference()
     spatial_ref.ImportFromEPSG(4326)
-    layer = datasource.CreateLayer('edited_object', spatial_ref, ogr.wkbUnknown)
+    layer = datasource.CreateLayer(base_filename[:30], spatial_ref, ogr.wkbUnknown)
     layer.CreateField(ogr.FieldDefn('id', ogr.OFTInteger))
     layer.CreateField(ogr.FieldDefn('name', ogr.OFTString))
     layer.CreateField(ogr.FieldDefn('owner_id', ogr.OFTString))
@@ -258,16 +268,16 @@ def _export_geometry_files(geometry, properties=None):
     ogr_feature = None
     datasource = None
 
-    zip_path = export_dir / 'edited_object_shp.zip'
+    zip_path = export_dir / f'{base_filename}_shp.zip'
     with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         for ext in ('shp', 'shx', 'dbf', 'prj', 'cpg'):
-            part = export_dir / f'edited_object.{ext}'
+            part = export_dir / f'{base_filename}.{ext}'
             if part.exists():
                 archive.write(part, arcname=part.name)
 
     base_url = settings.MEDIA_URL.rstrip('/')
-    geojson_url = f"{base_url}/exports/{export_id}/edited_object.geojson"
-    shapefile_url = f"{base_url}/exports/{export_id}/edited_object_shp.zip"
+    geojson_url = f"{base_url}/exports/{export_id}/{base_filename}.geojson"
+    shapefile_url = f"{base_url}/exports/{export_id}/{base_filename}_shp.zip"
     return geojson_url, shapefile_url
 
 
@@ -542,10 +552,10 @@ def save_new_object(request):
 
     name = (payload.get('name') or '').strip()
     request_id = (payload.get('request_id') or '').strip()
-    if not name:
-        return JsonResponse({'ok': False, 'error': 'Укажите название (name).'}, status=400)
     if not request_id:
         return JsonResponse({'ok': False, 'error': 'Укажите номер заявки (request_id).'}, status=400)
+    if not request_id.isdigit():
+        return JsonResponse({'ok': False, 'error': 'Номер заявки (request_id) должен содержать только цифры.'}, status=400)
 
     try:
         owner_id = _create_new_object(
