@@ -44,7 +44,7 @@
         <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1053;&#1072;&#1095;&#1072;&#1090;&#1100; &#1088;&#1077;&#1076;&#1072;&#1082;&#1090;&#1080;&#1088;&#1086;&#1074;&#1072;&#1085;&#1080;&#1077;</button>
         <button type="button" id="add-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent" disabled>&#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1087;&#1086;&#1083;&#1080;&#1075;&#1086;&#1085;</button>
         <label for="snap-toggle" class="snap-switch" title="&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077; &#1074;&#1082;&#1083;&#1102;&#1095;&#1077;&#1085;&#1086;/&#1074;&#1099;&#1082;&#1083;&#1102;&#1095;&#1077;&#1085;&#1086;">
-            <input type="checkbox" id="snap-toggle" checked>
+            <input type="checkbox" id="snap-toggle">
             <span class="snap-switch__track"></span>
             <span class="snap-switch__label">&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077;</span>
         </label>
@@ -55,15 +55,6 @@
     <p id="snap-debug" class="note" style="display:none; margin-top: 4px; color: #334155; min-height: 18px;">Snap debug: waiting events...</p>
     <p id="snap-debug-fixed" class="note" style="display:none; margin-top: 2px; color: #0f172a; min-height: 18px;">Snap debug fixed (dragend): waiting dragend...</p>
     <p id="export-links" class="note"></p>
-    <div id="snap-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-card">
-            <h3 style="margin: 0 0 10px;">Уведомление о замыкании</h3>
-            <p id="snap-modal-text" class="note" style="margin: 0 0 12px;"></p>
-            <div style="display:flex; justify-content:flex-end;">
-                <button type="button" id="snap-modal-ok" class="map-toolbar-btn map-toolbar-btn--primary">Ок</button>
-            </div>
-        </div>
-    </div>
     <style>
         #map.edit-mode .leaflet-editing-icon {
             width: 8px !important;
@@ -326,9 +317,6 @@
         const snapDebugEl = document.getElementById('snap-debug');
         const snapDebugFixedEl = document.getElementById('snap-debug-fixed');
         const exportLinksEl = document.getElementById('export-links');
-        const snapModal = document.getElementById('snap-modal');
-        const snapModalText = document.getElementById('snap-modal-text');
-        const snapModalOk = document.getElementById('snap-modal-ok');
         const mapEl = document.getElementById('map');
         const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
         const selectedName = "{{ selected_name|default:''|escapejs }}";
@@ -345,12 +333,10 @@
         let isEditing = false;
         let selectedEditableGeo = null;
         let polygonDrawer = null;
-        let snappingEnabled = true;
-        const SNAP_DISTANCE_METERS = 5;
+        let snappingEnabled = false;
+        let snapDistanceMeters = 5;
         let snapGuideLines = [];
         let snapBindingTimer = null;
-        let snapToggleLocked = false;
-        let snapModalResolver = null;
 
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -441,65 +427,44 @@
         map.getContainer().querySelectorAll('.map-basemap-btn').forEach((btn) => {
             btn.addEventListener('click', () => setBasemap(btn.dataset.map));
         });
+        function askSnapRadiusMeters(currentValue) {
+            const raw = window.prompt('Введите радиус прилипания в метрах:', String(currentValue));
+            if (raw === null) {
+                return null;
+            }
+            const parsed = Number(raw.replace(',', '.').trim());
+            if (!Number.isFinite(parsed) || parsed <= 0) {
+                window.alert('Радиус должен быть положительным числом.');
+                return null;
+            }
+            return parsed;
+        }
+
         snapToggle.addEventListener('change', () => {
-            if (snapToggleLocked) {
-                return;
-            }
             snappingEnabled = snapToggle.checked;
-            if (!isEditing) {
-                return;
-            }
             if (snappingEnabled) {
+                const pickedRadius = askSnapRadiusMeters(snapDistanceMeters);
+                if (pickedRadius === null) {
+                    snappingEnabled = false;
+                    snapToggle.checked = false;
+                    statusEl.textContent = 'Прилипание не включено: радиус не задан.';
+                    return;
+                }
+                snapDistanceMeters = pickedRadius;
                 rebuildSnapGuideLines();
-                startSnapBindingLoop();
-                statusEl.textContent = 'Прилипание включено.';
+                if (isEditing) {
+                    startSnapBindingLoop();
+                }
+                statusEl.textContent = 'Прилипание включено. Радиус: ' + snapDistanceMeters.toFixed(2) + ' м.';
             } else {
-                stopSnapBindingLoop();
-                detachPromptSnapHandlers();
+                if (isEditing) {
+                    stopSnapBindingLoop();
+                    detachPromptSnapHandlers();
+                }
                 statusEl.textContent = 'Прилипание выключено.';
             }
         });
 
-        function lockSnapToggle() {
-            if (snapToggleLocked) {
-                return;
-            }
-            snapToggleLocked = true;
-            snapToggle.disabled = true;
-            const switchContainer = snapToggle.closest('.snap-switch');
-            if (switchContainer) {
-                switchContainer.style.opacity = '0.65';
-                switchContainer.style.cursor = 'not-allowed';
-            }
-        }
-
-        function showSnapModal(distanceMeters) {
-            return new Promise((resolve) => {
-                snapModalResolver = resolve;
-                snapModalText.textContent =
-                    'Вершина на расстоянии ' + distanceMeters.toFixed(2) +
-                    ' м от другого объекта, будет выполнено замыкание.';
-                snapModal.style.display = 'flex';
-                snapDebugEl.textContent = 'Snap debug: modal opened, distance=' + distanceMeters.toFixed(2) + ' м.';
-                setTimeout(() => snapModalOk.focus(), 0);
-            });
-        }
-
-        function closeSnapModal() {
-            snapModal.style.display = 'none';
-            if (snapModalResolver) {
-                const resolve = snapModalResolver;
-                snapModalResolver = null;
-                resolve();
-            }
-        }
-
-        snapModalOk.addEventListener('click', closeSnapModal);
-        snapModal.addEventListener('click', (event) => {
-            if (event.target === snapModal) {
-                closeSnapModal();
-            }
-        });
         L.control.layers(null, overlays, {collapsed: false}).addTo(map);
 
         function collectSnapGuideLines(geojsonObject, output) {
@@ -564,7 +529,7 @@
                 return null;
             }
             const nearestAny = findNearestCandidate(latlng);
-            if (!nearestAny || nearestAny.distance > SNAP_DISTANCE_METERS) {
+            if (!nearestAny || nearestAny.distance > snapDistanceMeters) {
                 return null;
             }
             return nearestAny;
@@ -668,11 +633,15 @@
                                 map.removeLayer(marker._snapRadiusCircle);
                                 marker._snapRadiusCircle = null;
                             }
+                            if (marker._snapTargetLine) {
+                                map.removeLayer(marker._snapTargetLine);
+                                marker._snapTargetLine = null;
+                            }
                             if (!snappingEnabled) {
                                 return;
                             }
                             marker._snapRadiusCircle = L.circle(event.target.getLatLng(), {
-                                radius: SNAP_DISTANCE_METERS,
+                                radius: snapDistanceMeters,
                                 color: '#2563eb',
                                 weight: 1,
                                 fillColor: '#60a5fa',
@@ -687,18 +656,44 @@
                             }
                             if (!snappingEnabled) {
                                 marker._lastNearestCandidate = null;
+                                if (marker._snapTargetLine) {
+                                    map.removeLayer(marker._snapTargetLine);
+                                    marker._snapTargetLine = null;
+                                }
                                 snapDebugEl.textContent = 'Snap debug: snapping disabled.';
                                 return;
                             }
                             const nearestAny = findNearestCandidate(center);
                             marker._lastNearestCandidate = nearestAny || null;
                             if (!nearestAny) {
+                                if (marker._snapTargetLine) {
+                                    map.removeLayer(marker._snapTargetLine);
+                                    marker._snapTargetLine = null;
+                                }
                                 snapDebugEl.textContent = 'Snap debug: направляющих нет.';
                                 return;
                             }
+                            const canSnap = nearestAny.distance <= snapDistanceMeters;
+                            if (canSnap) {
+                                const lineLatLngs = [center, nearestAny.point];
+                                if (marker._snapTargetLine) {
+                                    marker._snapTargetLine.setLatLngs(lineLatLngs);
+                                } else {
+                                    marker._snapTargetLine = L.polyline(lineLatLngs, {
+                                        color: '#0ea5e9',
+                                        weight: 2,
+                                        opacity: 0.9,
+                                        dashArray: '6 4',
+                                        interactive: false,
+                                    }).addTo(map);
+                                }
+                            } else if (marker._snapTargetLine) {
+                                map.removeLayer(marker._snapTargetLine);
+                                marker._snapTargetLine = null;
+                            }
                             snapDebugEl.textContent =
                                 'Snap debug: nearest=' + nearestAny.distance.toFixed(2) +
-                                ' м, threshold=5 м, enabled=' + (snappingEnabled ? 'on' : 'off');
+                                ' м, threshold=' + snapDistanceMeters.toFixed(2) + ' м, enabled=' + (snappingEnabled ? 'on' : 'off');
                         };
                         const finalizeSnapAfterDrag = async (event, source = 'dragend') => {
                             const now = Date.now();
@@ -708,6 +703,10 @@
                             marker._lastSnapFinalizeAt = now;
                             if (!snappingEnabled) {
                                 marker._lastNearestCandidate = null;
+                                if (marker._snapTargetLine) {
+                                    map.removeLayer(marker._snapTargetLine);
+                                    marker._snapTargetLine = null;
+                                }
                                 snapDebugEl.textContent = 'Snap debug: finalize skipped, snapping disabled.';
                                 snapDebugFixedEl.textContent = 'Snap debug fixed (dragend): snapping disabled.';
                                 return;
@@ -716,12 +715,15 @@
                                 map.removeLayer(marker._snapRadiusCircle);
                                 marker._snapRadiusCircle = null;
                             }
+                            if (marker._snapTargetLine) {
+                                map.removeLayer(marker._snapTargetLine);
+                                marker._snapTargetLine = null;
+                            }
                             const currentLatLng = event.target.getLatLng();
                             const recomputed = findNearestSnapTarget(currentLatLng);
                             const fromDrag = marker._lastNearestCandidate;
-                            const target = recomputed || (
-                                fromDrag && fromDrag.distance <= SNAP_DISTANCE_METERS ? fromDrag : null
-                            );
+                            // Always snap to the nearest candidate at release moment.
+                            const target = recomputed;
                             const recomputedAny = findNearestCandidate(currentLatLng);
                             const dragEndDebug =
                                 'Snap debug: finalize source=' + source + ', enabled=' + (snappingEnabled ? 'on' : 'off') +
@@ -735,7 +737,7 @@
                             marker._lastNearestCandidate = null;
                             if (!target) {
                                 if (isEditing && snappingEnabled) {
-                                    statusEl.textContent = 'Кандидат для замыкания не найден (дальше 5 м).';
+                                    statusEl.textContent = 'Кандидат для замыкания не найден (дальше ' + snapDistanceMeters.toFixed(2) + ' м).';
                                 }
                                 const nearestAny = findNearestCandidate(currentLatLng);
                                 snapDebugEl.textContent = nearestAny
@@ -743,7 +745,6 @@
                                     : 'Snap debug: без замыкания, направляющих нет.';
                                 return;
                             }
-                            await showSnapModal(target.distance);
                             applySnappedVertex(event.target, target.point);
                             console.debug('[snap]', 'Snap applied at ' + target.distance.toFixed(2) + ' m.');
                             statusEl.textContent = 'Замыкание выполнено: ' + target.distance.toFixed(2) + ' м.';
@@ -804,6 +805,10 @@
                     if (marker._snapRadiusCircle) {
                         map.removeLayer(marker._snapRadiusCircle);
                         marker._snapRadiusCircle = null;
+                    }
+                    if (marker._snapTargetLine) {
+                        map.removeLayer(marker._snapTargetLine);
+                        marker._snapTargetLine = null;
                     }
                 });
             });
@@ -878,7 +883,6 @@
             map.addControl(drawControl);
             editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
             editToolbar.enable();
-            lockSnapToggle();
             setEditMode(true);
             rebuildSnapGuideLines();
             startSnapBindingLoop();
