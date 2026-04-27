@@ -5,7 +5,6 @@ import zipfile
 from datetime import date
 from pathlib import Path
 
-import psycopg2
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.contrib.auth.decorators import login_required
@@ -15,6 +14,7 @@ from django.views.decorators.http import require_POST
 from osgeo import ogr, osr
 
 from .forms import EntryPointForm
+from .models import ExternalUser
 
 
 def _quote_ident(identifier):
@@ -38,28 +38,8 @@ def _resolve_column_name(cursor, table_name, preferred_name):
 
 
 def _get_current_user_owner_id(username):
-    db = settings.EXTERNAL_USERS_DB
-    users_table = getattr(settings, 'EXTERNAL_USERS_TABLE', 'users')
-    login_field_pref = getattr(settings, 'EXTERNAL_USERS_LOGIN_FIELD', 'login')
-    owner_field_pref = getattr(settings, 'EXTERNAL_USERS_OWNER_FIELD', 'OwnerLegalPersonId')
-
-    with psycopg2.connect(
-        dbname=db['NAME'],
-        user=db['USER'],
-        password=db['PASSWORD'],
-        host=db['HOST'],
-        port=db['PORT'],
-    ) as conn:
-        with conn.cursor() as cursor:
-            login_field = _resolve_column_name(cursor, users_table, login_field_pref)
-            owner_field = _resolve_column_name(cursor, users_table, owner_field_pref)
-            query = (
-                f"SELECT {_quote_ident(owner_field)} FROM {_quote_ident(users_table)} "
-                f"WHERE {_quote_ident(login_field)} = %s LIMIT 1"
-            )
-            cursor.execute(query, [username])
-            row = cursor.fetchone()
-            return row[0] if row else None
+    user = ExternalUser.objects.filter(login=username).only('owner_legal_person_id').first()
+    return user.owner_legal_person_id if user else None
 
 
 def _get_owned_objects(owner_legal_person_id):
@@ -389,7 +369,7 @@ def _ensure_request_id_column(cursor, table_name, request_id_field):
 def _create_new_object(username, geometry, name, request_id):
     owner_id = _get_current_user_owner_id(username)
     if owner_id is None:
-        raise ValueError('Не найден OwnerLegalPersonId пользователя в users_db.')
+        raise ValueError('Не найден OwnerLegalPersonId пользователя в таблице users.')
 
     table = settings.GIS_OBJECT_TABLE
     rootid_field_pref = settings.GIS_OBJECT_ROOTID_FIELD
@@ -502,7 +482,7 @@ def home(request):
     except Exception:
         owned_objects_error = (
             'Не удалось получить список объектов пользователя. '
-            'Проверьте поле OwnerLegalPersonId в users_db и geodb.'
+            'Проверьте поле OwnerLegalPersonId в таблице users.'
         )
 
     return render(
@@ -698,13 +678,12 @@ def delete_owned_object(request):
 
 @login_required
 def add_object(request):
-    reference_layers = _get_reference_layers(geometry=None, distance_meters=100)
     return render(
         request,
         'pass_viewer/add_object.html',
         {
-            'dgi_geometry_json': reference_layers['dgi'],
-            'odh_geometry_json': reference_layers['odh'],
+            'dgi_geometry_json': None,
+            'odh_geometry_json': None,
         },
     )
 

@@ -138,17 +138,6 @@ AUTHENTICATION_BACKENDS = [
     'pass_viewer.auth_backends.DockerUsersTableBackend',
 ]
 
-EXTERNAL_USERS_DB = {
-    'NAME': os.getenv('EXTERNAL_USERS_DB_NAME', 'users_db'),
-    'USER': os.getenv('EXTERNAL_USERS_DB_USER', 'postgres'),
-    'PASSWORD': os.getenv('EXTERNAL_USERS_DB_PASSWORD', 'postgres'),
-    'HOST': os.getenv('EXTERNAL_USERS_DB_HOST', 'localhost'),
-    'PORT': os.getenv('EXTERNAL_USERS_DB_PORT', '5432'),
-}
-EXTERNAL_USERS_TABLE = os.getenv('EXTERNAL_USERS_TABLE', 'users')
-EXTERNAL_USERS_LOGIN_FIELD = os.getenv('EXTERNAL_USERS_LOGIN_FIELD', 'login')
-EXTERNAL_USERS_OWNER_FIELD = os.getenv('EXTERNAL_USERS_OWNER_FIELD', 'OwnerLegalPersonId')
-
 # PostGIS object source settings for map rendering.
 GIS_OBJECT_TABLE = 'pass_objects'
 GIS_OBJECT_ROOTID_FIELD = 'rootid'

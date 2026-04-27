@@ -1,8 +1,7 @@
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import BaseBackend
 
-import psycopg2
+from .models import ExternalUser
 
 
 class DockerUsersTableBackend(BaseBackend):
@@ -10,21 +9,7 @@ class DockerUsersTableBackend(BaseBackend):
         if not username or not password:
             return None
 
-        db = settings.EXTERNAL_USERS_DB
-        with psycopg2.connect(
-            dbname=db['NAME'],
-            user=db['USER'],
-            password=db['PASSWORD'],
-            host=db['HOST'],
-            port=db['PORT'],
-        ) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT 1 FROM users WHERE login = %s AND password = %s LIMIT 1",
-                    [username, password],
-                )
-                exists = cursor.fetchone() is not None
-
+        exists = ExternalUser.objects.filter(login=username, password=password).exists()
         if not exists:
             return None
 
