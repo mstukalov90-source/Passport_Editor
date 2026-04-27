@@ -5,11 +5,11 @@
 
 {% block content %}
     <h2 style="font-size: 18px; margin: 0 0 10px;">
-        &#1054;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099; &#1087;&#1086; OwnerLegalPersonId
+        &#1054;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099; &#1087;&#1086; &#8470; &#1041;&#1072;&#1083;&#1072;&#1085;&#1089;&#1086;&#1076;&#1077;&#1088;&#1078;&#1072;&#1090;&#1077;&#1083;&#1103;
     </h2>
     {% if owner_id %}
         <p class="note" style="margin-top: 0;">
-            OwnerLegalPersonId: <strong>{{ owner_id }}</strong>
+            &#8470; &#1041;&#1072;&#1083;&#1072;&#1085;&#1089;&#1086;&#1076;&#1077;&#1088;&#1078;&#1072;&#1090;&#1077;&#1083;&#1103;: <strong>{{ owner_id }}</strong>
         </p>
     {% endif %}
     <style>
@@ -105,8 +105,8 @@
                                     <input type="hidden" name="name" value="{{ item.name }}">
                                     <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
                                     <button type="submit" class="owned-list-open-btn">
-                                        <strong>rootid:</strong> {{ item.rootid }}<br>
-                                        <span style="font-size: 13px; color: #4a5565;"><strong>name:</strong> {{ item.name|default:"-" }}</span>
+                                        <strong>&#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.rootid }}<br>
+                                        <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                 </form>
                             </div>
@@ -135,8 +135,8 @@
                                     <input type="hidden" name="name" value="{{ item.name }}">
                                     <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
                                     <button type="submit" class="owned-list-open-btn">
-                                        <strong>request_id:</strong> {{ item.request_id|default:"-" }}<br>
-                                        <span style="font-size: 13px; color: #4a5565;"><strong>name:</strong> {{ item.name|default:"-" }}</span>
+                                        <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}<br>
+                                        <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                 </form>
                                 {% if item.request_id %}
@@ -181,7 +181,7 @@
 
     <div style="margin-top: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
         <button type="button" id="manual-open-btn">
-            &#1042;&#1074;&#1077;&#1089;&#1090;&#1080; rootid / &#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; &#1074;&#1088;&#1091;&#1095;&#1085;&#1091;&#1102;
+            &#1042;&#1074;&#1077;&#1089;&#1090;&#1080; &#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072; / &#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; &#1074;&#1088;&#1091;&#1095;&#1085;&#1091;&#1102;
         </button>
         <a class="button-link" href="{% url 'add_object' %}">
             &#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;
@@ -198,7 +198,7 @@
                 <button type="button" id="manual-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <p class="note" style="margin-top: 0;">
-                &#1059;&#1082;&#1072;&#1078;&#1080;&#1090;&#1077; &#1086;&#1076;&#1080;&#1085; &#1087;&#1072;&#1088;&#1072;&#1084;&#1077;&#1090;&#1088;: <strong>rootid</strong> &#1080;&#1083;&#1080; <strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;</strong>.
+                &#1059;&#1082;&#1072;&#1078;&#1080;&#1090;&#1077; &#1086;&#1076;&#1080;&#1085; &#1087;&#1072;&#1088;&#1072;&#1084;&#1077;&#1090;&#1088;: <strong>&#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;</strong> &#1080;&#1083;&#1080; <strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;</strong>.
             </p>
             <form method="post">
                 {% csrf_token %}

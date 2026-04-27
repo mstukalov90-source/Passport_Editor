@@ -7,8 +7,8 @@
     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
         <div>
             <h1 style="margin-bottom: 8px;">&#1044;&#1086;&#1073;&#1072;&#1074;&#1083;&#1077;&#1085;&#1080;&#1077; &#1076;&#1086;&#1089;&#1100;&#1077;&#1084;&#1072;</h1>
-            <p style="margin: 0;"><strong>request_id:</strong> {{ request_id|default:"-" }}</p>
-            <p style="margin: 4px 0 0;"><strong>name:</strong> {{ name|default:"-" }}</p>
+            <p style="margin: 0;"><strong>№ Заявки:</strong> {{ request_id|default:"-" }}</p>
+            <p style="margin: 4px 0 0;"><strong>Название:</strong> {{ name|default:"-" }}</p>
         </div>
         <a class="button-link" href="{% url 'home' %}">&#1042;&#1077;&#1088;&#1085;&#1091;&#1090;&#1100;&#1089;&#1103; &#1082; &#1089;&#1087;&#1080;&#1089;&#1082;&#1091;</a>
     </div>
@@ -504,19 +504,22 @@
             const rootid = properties?.rootid ?? '-';
             const name = properties?.name ?? '-';
             const requestId = properties?.request_id ?? '-';
-            const isRequestObject = !rootid || String(rootid).toLowerCase() === 'null' || String(rootid).toLowerCase() === 'none';
-            if (isRequestObject) {
+            const rootidText = String(rootid ?? '').trim().toLowerCase();
+            const requestIdText = String(requestId ?? '').trim().toLowerCase();
+            const isMissingRootid = !rootidText || rootidText === 'null' || rootidText === 'none' || rootidText === '-';
+            const hasRequestId = !!requestIdText && requestIdText !== 'null' && requestIdText !== 'none' && requestIdText !== '-';
+            if (isMissingRootid && hasRequestId) {
                 return (
                     '<div style="min-width: 220px;">' +
-                    '<div><strong>request_id:</strong> ' + String(requestId || '-') + '</div>' +
-                    '<div style="margin-top: 6px;"><strong>name:</strong> ' + String(name || '-') + '</div>' +
+                    '<div><strong>№ Заявки:</strong> ' + String(requestId || '-') + '</div>' +
+                    '<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name || '-') + '</div>' +
                     '</div>'
                 );
             }
             return (
                 '<div style="min-width: 220px;">' +
-                '<div><strong>rootid:</strong> ' + String(rootid || '-') + '</div>' +
-                '<div style="margin-top: 6px;"><strong>name:</strong> ' + String(name || '-') + '</div>' +
+                '<div><strong>№ Паспорта:</strong> ' + String(rootid || '-') + '</div>' +
+                '<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name || '-') + '</div>' +
                 '</div>'
             );
         }
@@ -534,8 +537,8 @@
                     const requestId = feature?.properties?.request_id ?? '-';
                     layer.bindPopup(
                         '<div style="min-width: 220px;">' +
-                        '<div><strong>recap_id:</strong> ' + String(recapId) + '</div>' +
-                        '<div style="margin-top: 6px;"><strong>request_id:</strong> ' + String(requestId) + '</div>' +
+                        '<div><strong>№ Досъёмки:</strong> ' + String(recapId) + '</div>' +
+                        '<div style="margin-top: 6px;"><strong>№ Заявки:</strong> ' + String(requestId) + '</div>' +
                         '</div>'
                     );
                 }

@@ -161,10 +161,10 @@ def _get_map_layers(entry_point):
     where_clause, where_params = _build_where_clause(entry_point, rootid_field, name_field, request_id_field)
     selected_sql = (
         "WITH selected AS ("
-        f" SELECT ctid, {rootid_field} AS rootid, {name_field} AS name, {geom_field} AS geom FROM {table}"
+        f" SELECT ctid, {rootid_field} AS rootid, {name_field} AS name, {request_id_field} AS request_id, {geom_field} AS geom FROM {table}"
         f" WHERE {where_clause} LIMIT 1"
         ") "
-        "SELECT ST_AsGeoJSON(geom), rootid::text, name::text FROM selected"
+        "SELECT ST_AsGeoJSON(geom), rootid::text, name::text, request_id::text FROM selected"
     )
     intersects_sql = (
         "WITH selected AS ("
@@ -242,6 +242,7 @@ def _get_map_layers(entry_point):
         selected_geometry = selected_row[0] if selected_row else None
         selected_rootid = selected_row[1] if selected_row else None
         selected_name = selected_row[2] if selected_row else None
+        selected_request_id = selected_row[3] if selected_row else None
         if not selected_geometry:
             return None
 
@@ -258,6 +259,7 @@ def _get_map_layers(entry_point):
         'selected': selected_geometry,
         'selected_rootid': selected_rootid,
         'selected_name': selected_name,
+        'selected_request_id': selected_request_id,
         'intersects': intersects_row[0] if intersects_row else None,
         'touches': touches_row[0] if touches_row else None,
         'nearby': nearby_row[0] if nearby_row else None,
@@ -702,6 +704,7 @@ def main(request):
             'selected_geometry_json': layers['selected'] if layers else None,
             'selected_rootid': layers['selected_rootid'] if layers else None,
             'selected_name': layers['selected_name'] if layers else None,
+            'selected_request_id': layers['selected_request_id'] if layers else None,
             'intersects_geometry_json': layers['intersects'] if layers else None,
             'touches_geometry_json': layers['touches'] if layers else None,
             'nearby_geometry_json': layers['nearby'] if layers else None,

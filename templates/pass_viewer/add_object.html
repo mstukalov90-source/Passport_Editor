@@ -596,8 +596,8 @@
                     const requestId = feature?.properties?.request_id ?? '-';
                     layer.bindPopup(
                         '<div style="min-width: 220px;">' +
-                        '<div><strong>recap_id:</strong> ' + escapeHtml(recapId) + '</div>' +
-                        '<div style="margin-top: 6px;"><strong>request_id:</strong> ' + escapeHtml(requestId) + '</div>' +
+                        '<div><strong>№ Досъёмки:</strong> ' + escapeHtml(recapId) + '</div>' +
+                        '<div style="margin-top: 6px;"><strong>№ Заявки:</strong> ' + escapeHtml(requestId) + '</div>' +
                         '</div>'
                     );
                 }
@@ -619,19 +619,22 @@
             const rootid = properties?.rootid ?? fallbackRootid;
             const name = properties?.name ?? fallbackName;
             const requestId = properties?.request_id ?? '-';
-            const isRequestObject = !rootid || String(rootid).toLowerCase() === 'null' || String(rootid).toLowerCase() === 'none';
-            if (isRequestObject) {
+            const rootidText = String(rootid ?? '').trim().toLowerCase();
+            const requestIdText = String(requestId ?? '').trim().toLowerCase();
+            const isMissingRootid = !rootidText || rootidText === 'null' || rootidText === 'none' || rootidText === '-';
+            const hasRequestId = !!requestIdText && requestIdText !== 'null' && requestIdText !== 'none' && requestIdText !== '-';
+            if (isMissingRootid && hasRequestId) {
                 return (
                     '<div style="min-width: 220px;">' +
-                    '<div><strong>request_id:</strong> ' + escapeHtml(requestId || '-') + '</div>' +
-                    '<div style="margin-top: 6px;"><strong>name:</strong> ' + escapeHtml(name || '-') + '</div>' +
+                    '<div><strong>№ Заявки:</strong> ' + escapeHtml(requestId || '-') + '</div>' +
+                    '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
                     '</div>'
                 );
             }
             return (
                 '<div style="min-width: 220px;">' +
-                '<div><strong>rootid:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
-                '<div style="margin-top: 6px;"><strong>name:</strong> ' + escapeHtml(name || '-') + '</div>' +
+                '<div><strong>№ Паспорта:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
+                '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
                 '</div>'
             );
         }

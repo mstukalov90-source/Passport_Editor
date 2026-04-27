@@ -4,7 +4,7 @@ from django import forms
 class EntryPointForm(forms.Form):
     rootid = forms.CharField(
         required=False,
-        label='RootID',
+        label='№ Паспорта',
         max_length=100,
     )
     name = forms.CharField(
@@ -19,9 +19,9 @@ class EntryPointForm(forms.Form):
         name = (cleaned_data.get('name') or '').strip()
 
         if not rootid and not name:
-            raise forms.ValidationError('Укажите rootid или Название.')
+            raise forms.ValidationError('Укажите № Паспорта или Название.')
         if rootid and name:
-            raise forms.ValidationError('Заполните только одно поле: rootid или Название.')
+            raise forms.ValidationError('Заполните только одно поле: № Паспорта или Название.')
 
         cleaned_data['rootid'] = rootid
         cleaned_data['name'] = name
