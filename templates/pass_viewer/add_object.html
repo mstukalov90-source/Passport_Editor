@@ -40,6 +40,7 @@
         <span class="map-legend__item"><span class="map-legend__swatch map-legend__swatch--nearby"></span>&#1042; &#1088;&#1072;&#1076;&#1080;&#1091;&#1089;&#1077; 10 &#1084;</span>
         <span class="map-legend__item"><span class="map-legend__swatch" style="border: 2px dashed #dc2626; background: repeating-linear-gradient(45deg, #dc2626 0 6px, #ffffff 6px 12px);"></span>&#1044;&#1043;&#1048;</span>
         <span class="map-legend__item"><span class="map-legend__swatch" style="border: 2px dashed #16a34a; background: repeating-linear-gradient(45deg, #16a34a 0 6px, #ffffff 6px 12px);"></span>&#1054;&#1044;&#1061;</span>
+        <span class="map-legend__item"><span class="map-legend__swatch" style="border-color:#7c3aed; background: rgba(124, 58, 237, 0.25);"></span>&#1044;&#1086;&#1089;&#1100;&#1077;&#1084;&#1099;</span>
     </div>
     <p id="edit-status" class="note" style="margin-top: 0;">
         &#1044;&#1072;&#1083;&#1100;&#1085;&#1077;&#1081;&#1096;&#1080;&#1081; &#1092;&#1091;&#1085;&#1082;&#1094;&#1080;&#1086;&#1085;&#1072;&#1083; &#1076;&#1086;&#1073;&#1072;&#1074;&#1083;&#1077;&#1085;&#1080;&#1103; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1072; &#1085;&#1072;&#1089;&#1090;&#1088;&#1086;&#1080;&#1084; &#1089;&#1083;&#1077;&#1076;&#1091;&#1102;&#1097;&#1080;&#1084; &#1096;&#1072;&#1075;&#1086;&#1084;.
@@ -302,6 +303,7 @@
     <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
     {{ dgi_geometry_json|default_if_none:"null"|json_script:"dgi-geometry-data" }}
     {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
+    {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
     <script>
         const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
         map.attributionControl.setPrefix(
@@ -383,6 +385,7 @@
         const relationNearbyGroup = new L.FeatureGroup().addTo(map);
         const dgiSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
+        const recapsGroup = L.featureGroup().addTo(map);
         let drawControl = null;
         let editToolbar = null;
         let polygonDrawer = null;
@@ -429,6 +432,7 @@
             overlays[`В радиусе 10 м (${countGroupFeatures(relationNearbyGroup)})`] = relationNearbyGroup;
             overlays['ДГИ'] = dgiSignalGroup;
             overlays['ОДХ'] = odhSignalGroup;
+            overlays['Досьёмы'] = recapsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topleft'});
             objectLayersControl.addTo(map);
         }
@@ -579,6 +583,26 @@
             addSignalTapeLayer(dgiSignalGroup, dgiGeo, 'ДГИ');
             addSignalTapeLayer(odhSignalGroup, odhGeo, 'ОДХ');
         }
+        function renderRecapsLayer(recapsGeo) {
+            recapsGroup.clearLayers();
+            const geo = normalizeGeoJson(recapsGeo);
+            if (!geo) {
+                return;
+            }
+            L.geoJSON(geo, {
+                style: {color: '#7c3aed', weight: 2, fillColor: '#7c3aed', fillOpacity: 0.25},
+                onEachFeature: (feature, layer) => {
+                    const recapId = feature?.properties?.recap_id ?? '-';
+                    const requestId = feature?.properties?.request_id ?? '-';
+                    layer.bindPopup(
+                        '<div style="min-width: 220px;">' +
+                        '<div><strong>recap_id:</strong> ' + escapeHtml(recapId) + '</div>' +
+                        '<div style="margin-top: 6px;"><strong>request_id:</strong> ' + escapeHtml(requestId) + '</div>' +
+                        '</div>'
+                    );
+                }
+            }).addTo(recapsGroup);
+        }
         // Do not render DGI/ODH on initial page load.
         // They are requested and shown only after the user creates the first object.
 
@@ -594,6 +618,16 @@
         function buildObjectPopup(properties, fallbackRootid = '-', fallbackName = '-') {
             const rootid = properties?.rootid ?? fallbackRootid;
             const name = properties?.name ?? fallbackName;
+            const requestId = properties?.request_id ?? '-';
+            const isRequestObject = !rootid || String(rootid).toLowerCase() === 'null' || String(rootid).toLowerCase() === 'none';
+            if (isRequestObject) {
+                return (
+                    '<div style="min-width: 220px;">' +
+                    '<div><strong>request_id:</strong> ' + escapeHtml(requestId || '-') + '</div>' +
+                    '<div style="margin-top: 6px;"><strong>name:</strong> ' + escapeHtml(name || '-') + '</div>' +
+                    '</div>'
+                );
+            }
             return (
                 '<div style="min-width: 220px;">' +
                 '<div><strong>rootid:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
@@ -669,7 +703,7 @@
 
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
-            [relationIntersectsGroup, relationTouchesGroup, relationNearbyGroup, dgiSignalGroup, odhSignalGroup].forEach((group) => {
+            [relationIntersectsGroup, relationTouchesGroup, relationNearbyGroup, dgiSignalGroup, odhSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
@@ -1125,6 +1159,7 @@
                 nearby: normalizeGeoJson(layers.nearby),
                 dgi: normalizeGeoJson(layers.dgi),
                 odh: normalizeGeoJson(layers.odh),
+                recaps: normalizeGeoJson(layers.recaps),
             };
 
             if (parsed.intersects) {
@@ -1152,6 +1187,7 @@
                 }).addTo(relationNearbyGroup);
             }
             renderReferenceSignalLayers(parsed.dgi, parsed.odh);
+            renderRecapsLayer(parsed.recaps);
             refreshObjectLayersControl();
             rebuildSnapGuideLines();
             if (isEditing) {

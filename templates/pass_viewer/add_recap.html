@@ -1,0 +1,999 @@
+{% extends 'base.html' %}
+
+{% block title %}&#1044;&#1086;&#1073;&#1072;&#1074;&#1083;&#1077;&#1085;&#1080;&#1077; &#1076;&#1086;&#1089;&#1100;&#1077;&#1084;&#1072;{% endblock %}
+{% block container_class %}container--wide{% endblock %}
+
+{% block content %}
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+        <div>
+            <h1 style="margin-bottom: 8px;">&#1044;&#1086;&#1073;&#1072;&#1074;&#1083;&#1077;&#1085;&#1080;&#1077; &#1076;&#1086;&#1089;&#1100;&#1077;&#1084;&#1072;</h1>
+            <p style="margin: 0;"><strong>request_id:</strong> {{ request_id|default:"-" }}</p>
+            <p style="margin: 4px 0 0;"><strong>name:</strong> {{ name|default:"-" }}</p>
+        </div>
+        <a class="button-link" href="{% url 'home' %}">&#1042;&#1077;&#1088;&#1085;&#1091;&#1090;&#1100;&#1089;&#1103; &#1082; &#1089;&#1087;&#1080;&#1089;&#1082;&#1091;</a>
+    </div>
+
+    <div style="display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin: 8px 0 12px;">
+        <strong>&#1051;&#1077;&#1075;&#1077;&#1085;&#1076;&#1072;:</strong>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="width: 14px; height: 14px; border: 2px solid #ef4444; background: rgba(239, 68, 68, 0.2); border-radius: 2px; display: inline-block;"></span>
+            &#1042;&#1099;&#1073;&#1088;&#1072;&#1085;&#1085;&#1099;&#1081; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090; (&#1090;&#1086;&#1083;&#1100;&#1082;&#1086; &#1087;&#1088;&#1086;&#1089;&#1084;&#1086;&#1090;&#1088;)
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="width: 14px; height: 14px; border: 2px solid #2563eb; background: rgba(37, 99, 235, 0.2); border-radius: 2px; display: inline-block;"></span>
+            &#1053;&#1086;&#1074;&#1099;&#1081; &#1076;&#1086;&#1089;&#1100;&#1077;&#1084;
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="width: 14px; height: 14px; border: 2px solid #0284c7; background: rgba(56, 189, 248, 0.35); border-radius: 2px; display: inline-block;"></span>
+            &#1055;&#1077;&#1088;&#1077;&#1089;&#1077;&#1082;&#1072;&#1102;&#1097;&#1080;&#1077;&#1089;&#1103; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099;
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="width: 14px; height: 14px; border: 2px solid #ff9800; background: rgba(255, 152, 0, 0.1); border-radius: 2px; display: inline-block;"></span>
+            &#1043;&#1088;&#1072;&#1085;&#1080;&#1095;&#1072;&#1097;&#1080;&#1077; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099;
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="width: 14px; height: 14px; border: 2px solid #16a34a; background: rgba(34, 197, 94, 0.3); border-radius: 2px; display: inline-block;"></span>
+            &#1054;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099; &#1074; &#1088;&#1072;&#1076;&#1080;&#1091;&#1089;&#1077; 10 &#1084;
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="width: 14px; height: 14px; border: 2px dashed #dc2626; background: repeating-linear-gradient(45deg, #dc2626 0 6px, #ffffff 6px 12px); border-radius: 2px; display: inline-block;"></span>
+            &#1044;&#1043;&#1048;
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="width: 14px; height: 14px; border: 2px dashed #16a34a; background: repeating-linear-gradient(45deg, #16a34a 0 6px, #ffffff 6px 12px); border-radius: 2px; display: inline-block;"></span>
+            &#1054;&#1044;&#1061;
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="width: 14px; height: 14px; border: 2px solid #7c3aed; background: rgba(124, 58, 237, 0.25); border-radius: 2px; display: inline-block;"></span>
+            &#1044;&#1086;&#1089;&#1100;&#1077;&#1084;&#1099;
+        </span>
+    </div>
+
+    <div id="map" style="height: 72vh; min-height: 520px; margin: 16px 0; border-radius: 10px; border: 1px solid #e3e6ec;"></div>
+    <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;">
+        <button type="button" id="add-dossier-btn" class="map-toolbar-btn map-toolbar-btn--accent">&#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1076;&#1086;&#1089;&#1100;&#1077;&#1084;</button>
+        <label for="draw-mode-freehand" class="snap-switch" title="Режим добавления: вершины или кисть">
+            <input type="checkbox" id="draw-mode-freehand">
+            <span class="draw-mode-label draw-mode-label--left">Вершины</span>
+            <span class="snap-switch__track"></span>
+            <span class="draw-mode-label draw-mode-label--right">Кисть</span>
+        </label>
+        <label for="snap-toggle" class="snap-switch" title="Прилипание включено/выключено">
+            <input type="checkbox" id="snap-toggle">
+            <span class="snap-switch__track"></span>
+            <span class="snap-switch__label">Прилипание</span>
+        </label>
+        <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1054;&#1073;&#1085;&#1086;&#1074;&#1080;&#1090;&#1100; &#1089;&#1074;&#1103;&#1079;&#1080;</button>
+        <button type="button" id="cancel-draw-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
+        <button type="button" id="save-dossier-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">&#1057;&#1086;&#1093;&#1088;&#1072;&#1085;&#1080;&#1090;&#1100; &#1076;&#1086;&#1089;&#1100;&#1077;&#1084;</button>
+    </div>
+    <p id="edit-status" class="note"></p>
+    <p id="snap-debug" class="note" style="display:none; margin-top: 2px; color: #334155; min-height: 18px;">Snap debug: waiting events...</p>
+    <p id="export-links" class="note"></p>
+
+    <div id="save-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3 style="margin: 0 0 10px;">Новый досьём</h3>
+            <label class="modal-label" for="new-recap-id">Номер досьё (recap_id)</label>
+            <input id="new-recap-id" class="modal-input" type="text" maxlength="100" inputmode="numeric" pattern="[0-9]*" />
+            <p id="save-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+                <button type="button" id="save-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
+                <button type="button" id="save-modal-submit" class="map-toolbar-btn map-toolbar-btn--success">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        #map .leaflet-editing-icon {
+            width: 8px !important;
+            height: 8px !important;
+            margin-left: -4px !important;
+            margin-top: -4px !important;
+            border-radius: 50% !important;
+            border: 1px solid #111 !important;
+            background: #1f2937 !important;
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55) !important;
+        }
+        #map .leaflet-middle-icon {
+            display: none !important;
+        }
+        .map-toolbar-btn {
+            border: 1px solid transparent;
+            border-radius: 9px;
+            padding: 10px 14px;
+            font-weight: 600;
+        }
+        .map-toolbar-btn--accent {
+            background: linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%);
+            color: #fff;
+        }
+        .map-toolbar-btn--success {
+            background: linear-gradient(180deg, #16a34a 0%, #15803d 100%);
+            color: #fff;
+        }
+        .map-toolbar-btn--primary {
+            background: linear-gradient(180deg, #2f80ed 0%, #1f6feb 100%);
+            color: #fff;
+        }
+        .map-toolbar-btn--muted {
+            background: #e5e7eb;
+            color: #111827;
+            border-color: #d1d5db;
+        }
+        .snap-switch {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            user-select: none;
+            cursor: pointer;
+            padding: 7px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 999px;
+            background: #fff;
+        }
+        .snap-switch input { display: none; }
+        .snap-switch__track {
+            position: relative;
+            width: 36px;
+            height: 20px;
+            border-radius: 999px;
+            background: #cbd5e1;
+            transition: background 0.15s ease;
+        }
+        .snap-switch__track::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            transition: transform 0.15s ease;
+        }
+        .snap-switch input:checked + .snap-switch__track,
+        .snap-switch input:checked + .draw-mode-label--left + .snap-switch__track { background: #2563eb; }
+        .snap-switch input:checked + .snap-switch__track::after,
+        .snap-switch input:checked + .draw-mode-label--left + .snap-switch__track::after { transform: translateX(16px); }
+        .draw-mode-label { font-size: 12px; font-weight: 700; color: #64748b; }
+        #draw-mode-freehand + .draw-mode-label--left { color: #111827; }
+        #draw-mode-freehand:checked + .draw-mode-label--left { color: #64748b; }
+        #draw-mode-freehand:checked + .draw-mode-label--left + .snap-switch__track + .draw-mode-label--right { color: #111827; }
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1200;
+            padding: 16px;
+        }
+        .modal-card {
+            width: 100%;
+            max-width: 460px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+            padding: 16px;
+        }
+        .modal-label {
+            display: block;
+            font-size: 13px;
+            color: #334155;
+            margin: 10px 0 6px;
+        }
+        .modal-input {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .map-basemap-control {
+            display: flex;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            padding: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+        }
+        .map-basemap-btn {
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 6px 10px;
+            background: #fff;
+            color: #111827;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .map-basemap-btn.is-active {
+            border-color: #2563eb;
+            background: #e8f0ff;
+            color: #1d4ed8;
+        }
+    </style>
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""
+    >
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""
+    ></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+    {{ selected_geometry_json|default_if_none:"null"|json_script:"selected-geometry-data" }}
+    {{ intersects_geometry_json|default_if_none:"null"|json_script:"intersects-geometry-data" }}
+    {{ touches_geometry_json|default_if_none:"null"|json_script:"touches-geometry-data" }}
+    {{ nearby_geometry_json|default_if_none:"null"|json_script:"nearby-geometry-data" }}
+    {{ dgi_geometry_json|default_if_none:"null"|json_script:"dgi-geometry-data" }}
+    {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
+    {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
+
+    <script>
+        const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
+        const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxNativeZoom: 19,
+            maxZoom: 30,
+            attribution: '&copy; OpenStreetMap contributors'
+        });
+        const satelliteLayer = L.tileLayer(
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            {
+                maxNativeZoom: 19,
+                maxZoom: 30,
+                attribution: 'Tiles &copy; Esri'
+            }
+        );
+        topoLayer.addTo(map);
+        const basemapControl = L.control({position: 'topright'});
+        basemapControl.onAdd = function () {
+            const container = L.DomUtil.create('div', 'map-basemap-control');
+            container.innerHTML =
+                '<button type="button" class="map-basemap-btn is-active" data-map="topo">Схема</button>' +
+                '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>';
+            L.DomEvent.disableClickPropagation(container);
+            return container;
+        };
+        basemapControl.addTo(map);
+        function setBasemap(mode) {
+            const isTopo = mode === 'topo';
+            if (isTopo) {
+                if (!map.hasLayer(topoLayer)) {
+                    map.addLayer(topoLayer);
+                }
+                if (map.hasLayer(satelliteLayer)) {
+                    map.removeLayer(satelliteLayer);
+                }
+            } else {
+                if (!map.hasLayer(satelliteLayer)) {
+                    map.addLayer(satelliteLayer);
+                }
+                if (map.hasLayer(topoLayer)) {
+                    map.removeLayer(topoLayer);
+                }
+            }
+            document.querySelectorAll('.map-basemap-btn').forEach((btn) => {
+                btn.classList.toggle('is-active', btn.dataset.map === mode);
+            });
+        }
+        map.getContainer().querySelectorAll('.map-basemap-btn').forEach((btn) => {
+            btn.addEventListener('click', () => setBasemap(btn.dataset.map));
+        });
+        map.attributionControl.setPrefix(
+            '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
+        );
+
+        function getCookie(name) {
+            const cookieValue = document.cookie
+                .split('; ')
+                .find((row) => row.startsWith(name + '='));
+            return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : null;
+        }
+
+        const selectedGeometryRaw = JSON.parse(document.getElementById('selected-geometry-data').textContent);
+        const selectedGeometry = typeof selectedGeometryRaw === 'string' ? JSON.parse(selectedGeometryRaw) : selectedGeometryRaw;
+        const requestId = "{{ request_id|default:''|escapejs }}";
+        const objectName = "{{ name|default:''|escapejs }}";
+
+        const statusEl = document.getElementById('edit-status');
+        const exportLinksEl = document.getElementById('export-links');
+        const addDossierButton = document.getElementById('add-dossier-btn');
+        const checkRelationsButton = document.getElementById('check-relations-btn');
+        const cancelDrawButton = document.getElementById('cancel-draw-btn');
+        const saveDossierButton = document.getElementById('save-dossier-btn');
+        const drawModeFreehandToggle = document.getElementById('draw-mode-freehand');
+        const snapToggle = document.getElementById('snap-toggle');
+        const snapDebugEl = document.getElementById('snap-debug');
+        const saveModal = document.getElementById('save-modal');
+        const saveModalCancel = document.getElementById('save-modal-cancel');
+        const saveModalSubmit = document.getElementById('save-modal-submit');
+        const newRecapIdInput = document.getElementById('new-recap-id');
+        const saveModalErrorEl = document.getElementById('save-modal-error');
+
+        const selectedGroup = new L.FeatureGroup().addTo(map);
+        const selectedLayer = L.geoJSON(selectedGeometry, {
+            style: {color: '#ef4444', weight: 3, fillOpacity: 0.2}
+        }).addTo(selectedGroup);
+        const dossierGroup = new L.FeatureGroup().addTo(map);
+        const intersectsGroup = new L.FeatureGroup().addTo(map);
+        const touchesGroup = new L.FeatureGroup().addTo(map);
+        const nearbyGroup = new L.FeatureGroup().addTo(map);
+        const dgiSignalGroup = L.featureGroup().addTo(map);
+        const odhSignalGroup = L.featureGroup().addTo(map);
+        const recapsGroup = L.featureGroup().addTo(map);
+        let objectLayersControl = null;
+        const bounds = selectedLayer.getBounds();
+        if (bounds.isValid()) {
+            map.fitBounds(bounds.pad(0.4));
+        }
+
+        let polygonDrawer = null;
+        let freehandMode = false;
+        let freehandDrawing = false;
+        let freehandLatLngs = [];
+        let freehandPreviewLine = null;
+        let snappingEnabled = false;
+        let snapDistanceMeters = 5;
+        let snapGuideLines = [];
+        let drawSnapRadiusCircle = null;
+        let drawSnapTargetLine = null;
+
+        function normalizeGeoJson(raw) {
+            if (!raw) {
+                return null;
+            }
+            if (typeof raw === 'string') {
+                try {
+                    return JSON.parse(raw);
+                } catch (e) {
+                    return null;
+                }
+            }
+            return raw;
+        }
+
+        const withCount = (label, count) => `${label} (${count})`;
+        const countGroupFeatures = (group) => {
+            let count = 0;
+            group.eachLayer((layer) => {
+                if (typeof layer.toGeoJSON !== 'function') {
+                    return;
+                }
+                const geo = layer.toGeoJSON();
+                if (geo?.type === 'FeatureCollection' && Array.isArray(geo.features)) {
+                    count += geo.features.length;
+                } else if (geo?.type === 'Feature') {
+                    count += 1;
+                } else if (geo?.type) {
+                    count += 1;
+                }
+            });
+            return count;
+        };
+
+        function refreshObjectLayersControl() {
+            if (objectLayersControl) {
+                map.removeControl(objectLayersControl);
+            }
+            const overlays = {};
+            overlays[withCount('Выбранный объект', countGroupFeatures(selectedGroup))] = selectedGroup;
+            overlays[withCount('Новый досьём', countGroupFeatures(dossierGroup))] = dossierGroup;
+            overlays[withCount('Пересекается', countGroupFeatures(intersectsGroup))] = intersectsGroup;
+            overlays[withCount('Граничит', countGroupFeatures(touchesGroup))] = touchesGroup;
+            overlays[withCount('В радиусе 10 м', countGroupFeatures(nearbyGroup))] = nearbyGroup;
+            overlays['ДГИ'] = dgiSignalGroup;
+            overlays['ОДХ'] = odhSignalGroup;
+            overlays['Досьёмы'] = recapsGroup;
+            objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topleft'});
+            objectLayersControl.addTo(map);
+        }
+
+        function filterByRequestedName(geojsonObject) {
+            const geo = normalizeGeoJson(geojsonObject);
+            if (!geo || geo.type !== 'FeatureCollection' || !Array.isArray(geo.features)) {
+                return geo;
+            }
+            const requestedName = (objectName || '').trim().toLowerCase();
+            if (!requestedName) {
+                return geo;
+            }
+            return {
+                ...geo,
+                features: geo.features.filter((feature) => {
+                    const featureName = String(feature?.properties?.name || '').trim().toLowerCase();
+                    return featureName !== requestedName;
+                }),
+            };
+        }
+
+        function addSignalTapeLayer(targetGroup, geojsonObject, sourceLabel) {
+            targetGroup.clearLayers();
+            const geo = normalizeGeoJson(geojsonObject);
+            if (!geo) {
+                return;
+            }
+            const ensureSignalPattern = (patternId, colorHex) => {
+                const svg = map.getPanes().overlayPane.querySelector('svg');
+                if (!svg) {
+                    return null;
+                }
+                let defs = svg.querySelector('defs');
+                if (!defs) {
+                    defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                    svg.insertBefore(defs, svg.firstChild);
+                }
+                if (!svg.querySelector('#' + patternId)) {
+                    const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+                    pattern.setAttribute('id', patternId);
+                    pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+                    pattern.setAttribute('width', '24');
+                    pattern.setAttribute('height', '24');
+                    pattern.setAttribute('patternTransform', 'rotate(45)');
+
+                    const whiteRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    whiteRect.setAttribute('x', '0');
+                    whiteRect.setAttribute('y', '0');
+                    whiteRect.setAttribute('width', '24');
+                    whiteRect.setAttribute('height', '24');
+                    whiteRect.setAttribute('fill', '#ffffff');
+
+                    const redRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    redRect.setAttribute('x', '0');
+                    redRect.setAttribute('y', '0');
+                    redRect.setAttribute('width', '12');
+                    redRect.setAttribute('height', '24');
+                    redRect.setAttribute('fill', colorHex);
+
+                    pattern.appendChild(whiteRect);
+                    pattern.appendChild(redRect);
+                    defs.appendChild(pattern);
+                }
+                return patternId;
+            };
+            const isDgi = sourceLabel === 'ДГИ';
+            const isOdh = sourceLabel === 'ОДХ';
+            if (!isDgi && !isOdh) {
+                L.geoJSON(geo, {
+                    interactive: false,
+                    style: {color: '#ffffff', weight: 7, opacity: 0.95, fillOpacity: 0}
+                }).addTo(targetGroup);
+            }
+            L.geoJSON(geo, {
+                style: {
+                    color: isOdh ? '#16a34a' : '#dc2626',
+                    weight: 4,
+                    opacity: 0.95,
+                    dashArray: '10 8',
+                    fillOpacity: 0,
+                },
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup('<strong>' + sourceLabel + '</strong>');
+                    if (isDgi || isOdh) {
+                        layer.on('add', () => {
+                            const patternId = ensureSignalPattern(
+                                isDgi ? 'dgi-signal-tape-pattern' : 'odh-signal-tape-pattern',
+                                isDgi ? '#dc2626' : '#16a34a'
+                            );
+                            const el = layer.getElement && layer.getElement();
+                            if (!patternId || !el) {
+                                return;
+                            }
+                            el.setAttribute('fill', 'url(#' + patternId + ')');
+                            el.setAttribute('fill-opacity', '0.25');
+                            el.setAttribute('stroke', isDgi ? '#dc2626' : '#16a34a');
+                            el.setAttribute('stroke-width', '2');
+                            el.setAttribute('stroke-dasharray', '10 8');
+                        });
+                    }
+                }
+            }).addTo(targetGroup);
+        }
+
+        function buildObjectPopup(properties) {
+            const rootid = properties?.rootid ?? '-';
+            const name = properties?.name ?? '-';
+            const requestId = properties?.request_id ?? '-';
+            const isRequestObject = !rootid || String(rootid).toLowerCase() === 'null' || String(rootid).toLowerCase() === 'none';
+            if (isRequestObject) {
+                return (
+                    '<div style="min-width: 220px;">' +
+                    '<div><strong>request_id:</strong> ' + String(requestId || '-') + '</div>' +
+                    '<div style="margin-top: 6px;"><strong>name:</strong> ' + String(name || '-') + '</div>' +
+                    '</div>'
+                );
+            }
+            return (
+                '<div style="min-width: 220px;">' +
+                '<div><strong>rootid:</strong> ' + String(rootid || '-') + '</div>' +
+                '<div style="margin-top: 6px;"><strong>name:</strong> ' + String(name || '-') + '</div>' +
+                '</div>'
+            );
+        }
+
+        function renderRecapsLayer(recapsGeo) {
+            recapsGroup.clearLayers();
+            const geo = normalizeGeoJson(recapsGeo);
+            if (!geo) {
+                return;
+            }
+            L.geoJSON(geo, {
+                style: {color: '#7c3aed', weight: 2, fillColor: '#7c3aed', fillOpacity: 0.25},
+                onEachFeature: (feature, layer) => {
+                    const recapId = feature?.properties?.recap_id ?? '-';
+                    const requestId = feature?.properties?.request_id ?? '-';
+                    layer.bindPopup(
+                        '<div style="min-width: 220px;">' +
+                        '<div><strong>recap_id:</strong> ' + String(recapId) + '</div>' +
+                        '<div style="margin-top: 6px;"><strong>request_id:</strong> ' + String(requestId) + '</div>' +
+                        '</div>'
+                    );
+                }
+            }).addTo(recapsGroup);
+        }
+
+        function collectSnapGuideLines(geojsonObject, output) {
+            const normalized = normalizeGeoJson(geojsonObject);
+            if (!normalized) {
+                return;
+            }
+            let features = [];
+            if (normalized.type === 'FeatureCollection') {
+                features = normalized.features || [];
+            } else if (normalized.type === 'Feature') {
+                features = [normalized];
+            } else if (normalized.type) {
+                // Raw geometry object (Polygon/MultiPolygon/etc.)
+                features = [{type: 'Feature', geometry: normalized, properties: {}}];
+            }
+            const addRing = (ring) => {
+                if (!ring || ring.length < 2) {
+                    return;
+                }
+                output.push(ring.map((c) => L.latLng(c[1], c[0])));
+            };
+            const collectGeometry = (geometry) => {
+                if (!geometry) return;
+                if (geometry.type === 'Polygon') geometry.coordinates.forEach(addRing);
+                else if (geometry.type === 'MultiPolygon') geometry.coordinates.forEach((poly) => poly.forEach(addRing));
+                else if (geometry.type === 'LineString') addRing(geometry.coordinates);
+                else if (geometry.type === 'MultiLineString') geometry.coordinates.forEach(addRing);
+                else if (geometry.type === 'GeometryCollection') (geometry.geometries || []).forEach(collectGeometry);
+            };
+            features.forEach((f) => collectGeometry(f.geometry));
+        }
+
+        function rebuildSnapGuideLines() {
+            snapGuideLines = [];
+            collectSnapGuideLines(selectedGeometry, snapGuideLines);
+            [dossierGroup, intersectsGroup, touchesGroup, nearbyGroup, dgiSignalGroup, odhSignalGroup, recapsGroup].forEach((group) => {
+                group.eachLayer((layer) => {
+                    if (typeof layer.toGeoJSON === 'function') collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
+                });
+            });
+        }
+
+        function nearestPointOnSegment(pointLatLng, aLatLng, bLatLng) {
+            const p = L.CRS.EPSG3857.project(pointLatLng);
+            const a = L.CRS.EPSG3857.project(aLatLng);
+            const b = L.CRS.EPSG3857.project(bLatLng);
+            const vx = b.x - a.x;
+            const vy = b.y - a.y;
+            const len2 = vx * vx + vy * vy;
+            if (!len2) return aLatLng;
+            let t = ((p.x - a.x) * vx + (p.y - a.y) * vy) / len2;
+            t = Math.max(0, Math.min(1, t));
+            return L.CRS.EPSG3857.unproject(L.point(a.x + t * vx, a.y + t * vy));
+        }
+
+        function findNearestCandidate(latlng) {
+            if (!snapGuideLines.length) return null;
+            let bestPoint = null;
+            let bestDistance = Infinity;
+            snapGuideLines.forEach((lineLatLngs) => {
+                if (!lineLatLngs || !lineLatLngs.length) return;
+                for (let i = 0; i < lineLatLngs.length; i += 1) {
+                    const d = map.distance(latlng, lineLatLngs[i]);
+                    if (d < bestDistance) { bestDistance = d; bestPoint = lineLatLngs[i]; }
+                }
+                if (lineLatLngs.length >= 2) {
+                    for (let i = 0; i < lineLatLngs.length - 1; i += 1) {
+                        const c = nearestPointOnSegment(latlng, lineLatLngs[i], lineLatLngs[i + 1]);
+                        const d = map.distance(latlng, c);
+                        if (d < bestDistance) { bestDistance = d; bestPoint = c; }
+                    }
+                }
+            });
+            return bestPoint ? {point: bestPoint, distance: bestDistance} : null;
+        }
+
+        function findNearestSnapTarget(latlng) {
+            if (!snappingEnabled || !snapGuideLines.length) return null;
+            const nearest = findNearestCandidate(latlng);
+            if (!nearest || nearest.distance > snapDistanceMeters) return null;
+            return nearest;
+        }
+
+        function clearDrawSnapPreview() {
+            if (drawSnapRadiusCircle) { map.removeLayer(drawSnapRadiusCircle); drawSnapRadiusCircle = null; }
+            if (drawSnapTargetLine) { map.removeLayer(drawSnapTargetLine); drawSnapTargetLine = null; }
+        }
+
+        function updateDrawSnapPreview(latlng) {
+            if (!snappingEnabled || !polygonDrawer || freehandMode) { clearDrawSnapPreview(); return; }
+            if (!drawSnapRadiusCircle) {
+                drawSnapRadiusCircle = L.circle(latlng, {
+                    radius: snapDistanceMeters, color: '#2563eb', weight: 1, fillColor: '#60a5fa', fillOpacity: 0.08, interactive: false
+                }).addTo(map);
+            } else {
+                drawSnapRadiusCircle.setLatLng(latlng);
+                drawSnapRadiusCircle.setRadius(snapDistanceMeters);
+            }
+            const nearest = findNearestCandidate(latlng);
+            if (!nearest || nearest.distance > snapDistanceMeters) {
+                if (drawSnapTargetLine) { map.removeLayer(drawSnapTargetLine); drawSnapTargetLine = null; }
+                return;
+            }
+            const line = [latlng, nearest.point];
+            if (drawSnapTargetLine) drawSnapTargetLine.setLatLngs(line);
+            else {
+                drawSnapTargetLine = L.polyline(line, {color: '#0ea5e9', weight: 2, opacity: 0.9, dashArray: '6 4', interactive: false}).addTo(map);
+            }
+        }
+
+        function snapLastDrawVertexIfNeeded(event) {
+            if (!snappingEnabled || !event || !event.layers || typeof event.layers.eachLayer !== 'function') return;
+            const markers = [];
+            event.layers.eachLayer((layer) => { if (layer && typeof layer.getLatLng === 'function') markers.push(layer); });
+            if (!markers.length) return;
+            const lastMarker = markers[markers.length - 1];
+            const target = findNearestSnapTarget(lastMarker.getLatLng());
+            if (!target) return;
+            lastMarker.setLatLng(target.point);
+            if (polygonDrawer && polygonDrawer._poly && typeof polygonDrawer._poly.setLatLngs === 'function') {
+                polygonDrawer._poly.setLatLngs(markers.map((m) => m.getLatLng()));
+            }
+            snapDebugEl.textContent = 'Snap debug: вершина привязана на ' + target.distance.toFixed(2) + ' м.';
+        }
+
+        function renderRelationLayers(layers) {
+            intersectsGroup.clearLayers();
+            touchesGroup.clearLayers();
+            nearbyGroup.clearLayers();
+            const parsed = {
+                intersects: filterByRequestedName(layers.intersects),
+                touches: filterByRequestedName(layers.touches),
+                nearby: filterByRequestedName(layers.nearby),
+                dgi: normalizeGeoJson(layers.dgi),
+                odh: normalizeGeoJson(layers.odh),
+                recaps: normalizeGeoJson(layers.recaps),
+            };
+            if (parsed.intersects) {
+                L.geoJSON(parsed.intersects, {
+                    style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
+                    onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
+                }).addTo(intersectsGroup);
+            }
+            if (parsed.touches) {
+                L.geoJSON(parsed.touches, {
+                    style: {color: '#d97706', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.33},
+                    onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
+                }).addTo(touchesGroup);
+            }
+            if (parsed.nearby) {
+                L.geoJSON(parsed.nearby, {
+                    style: {color: '#16a34a', weight: 2, fillColor: '#22c55e', fillOpacity: 0.3},
+                    onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
+                }).addTo(nearbyGroup);
+            }
+            addSignalTapeLayer(dgiSignalGroup, parsed.dgi, 'ДГИ');
+            addSignalTapeLayer(odhSignalGroup, parsed.odh, 'ОДХ');
+            renderRecapsLayer(parsed.recaps);
+            rebuildSnapGuideLines();
+            refreshObjectLayersControl();
+        }
+
+        renderRelationLayers({
+            intersects: JSON.parse(document.getElementById('intersects-geometry-data').textContent),
+            touches: JSON.parse(document.getElementById('touches-geometry-data').textContent),
+            nearby: JSON.parse(document.getElementById('nearby-geometry-data').textContent),
+            dgi: JSON.parse(document.getElementById('dgi-geometry-data').textContent),
+            odh: JSON.parse(document.getElementById('odh-geometry-data').textContent),
+            recaps: JSON.parse(document.getElementById('recaps-geometry-data').textContent),
+        });
+
+        function buildCurrentGeometry() {
+            const geo = dossierGroup.toGeoJSON();
+            if (geo.features && geo.features.length) {
+                return geo.features[0].geometry;
+            }
+            return selectedGeometry;
+        }
+
+        function openDrawMode() {
+            if (polygonDrawer) {
+                polygonDrawer.disable();
+            }
+            stopFreehandMode();
+            if (drawModeFreehandToggle.checked) {
+                polygonDrawer = null;
+                freehandMode = true;
+                map.getContainer().style.cursor = 'crosshair';
+                cancelDrawButton.style.display = 'inline-block';
+                saveDossierButton.style.display = 'inline-block';
+                exportLinksEl.innerHTML = '';
+                statusEl.textContent = 'Режим кисти: зажмите левую кнопку мыши и обведите контур.';
+                rebuildSnapGuideLines();
+                return;
+            }
+            polygonDrawer = new L.Draw.Polygon(map, {
+                allowIntersection: false,
+                showArea: true,
+                shapeOptions: {
+                    color: '#2563eb',
+                    weight: 3,
+                    fillOpacity: 0.2,
+                },
+            });
+            polygonDrawer.enable();
+            cancelDrawButton.style.display = 'inline-block';
+            saveDossierButton.style.display = 'inline-block';
+            exportLinksEl.innerHTML = '';
+            statusEl.textContent = 'Нарисуйте новый полигон досьё.';
+            rebuildSnapGuideLines();
+        }
+
+        addDossierButton.addEventListener('click', openDrawMode);
+
+        cancelDrawButton.addEventListener('click', () => {
+            if (polygonDrawer) {
+                polygonDrawer.disable();
+                polygonDrawer = null;
+            }
+            stopFreehandMode();
+            clearDrawSnapPreview();
+            dossierGroup.clearLayers();
+            statusEl.textContent = 'Добавление досьё отменено.';
+        });
+
+        map.on(L.Draw.Event.CREATED, (event) => {
+            if (event.layerType !== 'polygon') {
+                return;
+            }
+            dossierGroup.clearLayers();
+            dossierGroup.addLayer(event.layer);
+            if (freehandMode || drawModeFreehandToggle.checked) {
+                drawModeFreehandToggle.checked = false;
+                stopFreehandMode();
+            }
+            clearDrawSnapPreview();
+            statusEl.textContent = 'Полигон досьё добавлен. Можно сохранить.';
+            rebuildSnapGuideLines();
+            refreshObjectLayersControl();
+        });
+
+        map.on(L.Draw.Event.DRAWVERTEX, (event) => {
+            snapLastDrawVertexIfNeeded(event);
+        });
+
+        function stopFreehandMode() {
+            freehandMode = false;
+            freehandDrawing = false;
+            freehandLatLngs = [];
+            if (freehandPreviewLine) {
+                map.removeLayer(freehandPreviewLine);
+                freehandPreviewLine = null;
+            }
+            map.dragging.enable();
+            map.getContainer().style.cursor = '';
+        }
+
+        drawModeFreehandToggle.addEventListener('change', () => {
+            if (!drawModeFreehandToggle.checked) {
+                stopFreehandMode();
+            } else if (polygonDrawer) {
+                polygonDrawer.disable();
+                polygonDrawer = null;
+            }
+        });
+
+        snapToggle.addEventListener('change', () => {
+            snappingEnabled = snapToggle.checked;
+            if (snappingEnabled) {
+                const raw = window.prompt('Введите радиус прилипания в метрах:', String(snapDistanceMeters));
+                if (raw === null) {
+                    snappingEnabled = false;
+                    snapToggle.checked = false;
+                    statusEl.textContent = 'Прилипание не включено: радиус не задан.';
+                    return;
+                }
+                const parsed = Number(raw.replace(',', '.').trim());
+                if (!Number.isFinite(parsed) || parsed <= 0) {
+                    snappingEnabled = false;
+                    snapToggle.checked = false;
+                    statusEl.textContent = 'Прилипание не включено: неверный радиус.';
+                    return;
+                }
+                snapDistanceMeters = parsed;
+                rebuildSnapGuideLines();
+                statusEl.textContent = 'Прилипание включено. Радиус: ' + snapDistanceMeters.toFixed(2) + ' м.';
+            } else {
+                clearDrawSnapPreview();
+                statusEl.textContent = 'Прилипание выключено.';
+            }
+        });
+
+        map.on('mousedown', (event) => {
+            if (!freehandMode) return;
+            freehandDrawing = true;
+            freehandLatLngs = [event.latlng];
+            if (freehandPreviewLine) map.removeLayer(freehandPreviewLine);
+            freehandPreviewLine = L.polyline(freehandLatLngs, {color: '#2563eb', weight: 3, opacity: 0.85, interactive: false}).addTo(map);
+            map.dragging.disable();
+        });
+        map.on('mousemove', (event) => {
+            if (polygonDrawer && !freehandMode) updateDrawSnapPreview(event.latlng);
+            else clearDrawSnapPreview();
+            if (!freehandMode || !freehandDrawing) return;
+            freehandLatLngs.push(event.latlng);
+            if (freehandPreviewLine) freehandPreviewLine.setLatLngs(freehandLatLngs);
+        });
+        map.on('mouseup', () => {
+            if (!freehandMode || !freehandDrawing) return;
+            freehandDrawing = false;
+            map.dragging.enable();
+            if (freehandPreviewLine) {
+                map.removeLayer(freehandPreviewLine);
+                freehandPreviewLine = null;
+            }
+            if (freehandLatLngs.length < 3) {
+                freehandLatLngs = [];
+                statusEl.textContent = 'Для кисти нужно провести контур минимум из 3 точек.';
+                return;
+            }
+            const polygon = L.polygon(freehandLatLngs, {color: '#2563eb', weight: 3, fillOpacity: 0.2});
+            freehandLatLngs = [];
+            dossierGroup.clearLayers();
+            dossierGroup.addLayer(polygon);
+            drawModeFreehandToggle.checked = false;
+            stopFreehandMode();
+            clearDrawSnapPreview();
+            statusEl.textContent = 'Полигон досьё добавлен. Можно сохранить.';
+            rebuildSnapGuideLines();
+        });
+
+        async function checkRelations() {
+            const geometry = buildCurrentGeometry();
+            if (!geometry) {
+                statusEl.textContent = 'Нет геометрии для проверки связей.';
+                return;
+            }
+            checkRelationsButton.disabled = true;
+            statusEl.textContent = 'Обновляем связи...';
+            try {
+                const response = await fetch("{% url 'check_new_object_relations' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || ''
+                    },
+                    body: JSON.stringify({geometry})
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Ошибка обновления связей.');
+                }
+                renderRelationLayers(data.layers || {});
+                statusEl.textContent = 'Связи обновлены.';
+            } catch (error) {
+                statusEl.textContent = error.message || 'Не удалось обновить связи.';
+            } finally {
+                checkRelationsButton.disabled = false;
+            }
+        }
+
+        function openSaveModal() {
+            newRecapIdInput.value = '';
+            saveModalErrorEl.textContent = '';
+            saveModal.style.display = 'flex';
+            setTimeout(() => newRecapIdInput.focus(), 0);
+        }
+
+        function closeSaveModal() {
+            saveModal.style.display = 'none';
+        }
+
+        async function saveDossier() {
+            const geo = dossierGroup.toGeoJSON();
+            if (!geo.features.length) {
+                statusEl.textContent = 'Сначала нарисуйте полигон досьё.';
+                return;
+            }
+            const geometry = geo.features[0].geometry;
+            const recapId = (newRecapIdInput.value || '').trim();
+            if (!recapId) {
+                saveModalErrorEl.textContent = 'Укажите номер досьё (recap_id).';
+                return;
+            }
+            if (!/^\d+$/.test(recapId)) {
+                saveModalErrorEl.textContent = 'Номер досьё (recap_id) должен содержать только цифры.';
+                return;
+            }
+            saveModalErrorEl.textContent = '';
+            saveModalSubmit.disabled = true;
+            saveDossierButton.disabled = true;
+            statusEl.textContent = 'Сохраняем досьё...';
+            try {
+                const saveResponse = await fetch("{% url 'save_recap_object' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || '',
+                    },
+                    body: JSON.stringify({
+                        geometry: geometry,
+                        name: objectName,
+                        request_id: requestId,
+                        recap_id: recapId,
+                    }),
+                });
+                const saveResult = await saveResponse.json();
+                if (!saveResponse.ok || !saveResult.ok) {
+                    throw new Error(saveResult.error || 'Не удалось сохранить досьё.');
+                }
+
+                const exportResponse = await fetch("{% url 'export_new_object_geometry' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || '',
+                    },
+                    body: JSON.stringify({
+                        geometry: geometry,
+                        properties: {
+                            name: objectName,
+                            OwnerLegalPersonId: saveResult.owner_id,
+                            request_id: recapId,
+                        },
+                    }),
+                });
+                const exportResult = await exportResponse.json();
+                if (!exportResponse.ok || !exportResult.ok) {
+                    throw new Error(exportResult.error || 'Не удалось сформировать файлы.');
+                }
+
+                closeSaveModal();
+                exportLinksEl.innerHTML =
+                    '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
+                    '<a class="button-link" href="' + exportResult.shapefile_url + '">Скачать SHP (ZIP)</a>';
+                statusEl.textContent = 'Досьё сохранено в recaps и выгружено.';
+            } catch (error) {
+                saveModalErrorEl.textContent = error.message || 'Ошибка сохранения досьё.';
+            } finally {
+                saveModalSubmit.disabled = false;
+                saveDossierButton.disabled = false;
+            }
+        }
+
+        saveDossierButton.addEventListener('click', openSaveModal);
+        saveModalCancel.addEventListener('click', closeSaveModal);
+        saveModalSubmit.addEventListener('click', saveDossier);
+        saveModal.addEventListener('click', (event) => {
+            if (event.target === saveModal) {
+                closeSaveModal();
+            }
+        });
+        checkRelationsButton.addEventListener('click', checkRelations);
+        refreshObjectLayersControl();
+    </script>
+{% endblock %}

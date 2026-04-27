@@ -49,6 +49,10 @@
             <span style="width: 14px; height: 14px; border: 2px dashed #16a34a; background: repeating-linear-gradient(45deg, #16a34a 0 6px, #ffffff 6px 12px); border-radius: 2px; display: inline-block;"></span>
             &#1054;&#1044;&#1061;
         </span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="width: 14px; height: 14px; border: 2px solid #7c3aed; background: rgba(124, 58, 237, 0.25); border-radius: 2px; display: inline-block;"></span>
+            &#1044;&#1086;&#1089;&#1100;&#1077;&#1084;&#1099;
+        </span>
     </div>
 
     <div id="map" style="height: 72vh; min-height: 520px; margin: 16px 0; border-radius: 10px; border: 1px solid #e3e6ec;"></div>
@@ -297,6 +301,7 @@
     {{ nearby_geometry_json|default_if_none:"null"|json_script:"nearby-geometry-data" }}
     {{ dgi_geometry_json|default_if_none:"null"|json_script:"dgi-geometry-data" }}
     {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
+    {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
     <script>
         function getCookie(name) {
             const cookieValue = document.cookie
@@ -341,9 +346,19 @@
                 .replace(/'/g, '&#39;');
         }
 
-        function buildObjectPopup(properties, fallbackRootid = '-', fallbackName = '-') {
+        function buildObjectPopup(properties, fallbackRootid = '-', fallbackName = '-', fallbackRequestId = '-') {
             const rootid = properties?.rootid ?? fallbackRootid;
             const name = properties?.name ?? fallbackName;
+            const requestId = properties?.request_id ?? fallbackRequestId;
+            const isRequestObject = !rootid || String(rootid).toLowerCase() === 'null' || String(rootid).toLowerCase() === 'none';
+            if (isRequestObject) {
+                return (
+                    '<div style="min-width: 220px;">' +
+                    '<div><strong>request_id:</strong> ' + escapeHtml(requestId || '-') + '</div>' +
+                    '<div style="margin-top: 6px;"><strong>name:</strong> ' + escapeHtml(name || '-') + '</div>' +
+                    '</div>'
+                );
+            }
             return (
                 '<div style="min-width: 220px;">' +
                 '<div><strong>rootid:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
@@ -411,6 +426,7 @@
         const mapEl = document.getElementById('map');
         const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
         const selectedName = "{{ selected_name|default:''|escapejs }}";
+        const selectedRequestId = "{{ selected_request_id|default:''|escapejs }}";
         const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 10);
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
@@ -425,6 +441,7 @@
         const nearbyGroup = new L.FeatureGroup().addTo(map);
         const dgiSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
+        const recapsGroup = L.featureGroup().addTo(map);
         let drawControl = null;
         let editToolbar = null;
         let isEditing = false;
@@ -505,6 +522,7 @@
             overlays[withCount('В радиусе 10 м', countGroupFeatures(nearbyGroup))] = nearbyGroup;
             overlays['ДГИ'] = dgiSignalGroup;
             overlays['ОДХ'] = odhSignalGroup;
+            overlays['Досьёмы'] = recapsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false});
             objectLayersControl.addTo(map);
         }
@@ -595,7 +613,28 @@
             addSignalTapeLayer(dgiSignalGroup, dgiGeo, 'ДГИ');
             addSignalTapeLayer(odhSignalGroup, odhGeo, 'ОДХ');
         }
+        function renderRecapsLayer(recapsGeo) {
+            recapsGroup.clearLayers();
+            const geo = normalizeGeoJson(recapsGeo);
+            if (!geo) {
+                return;
+            }
+            L.geoJSON(geo, {
+                style: {color: '#7c3aed', weight: 2, fillColor: '#7c3aed', fillOpacity: 0.25},
+                onEachFeature: (feature, layer) => {
+                    const recapId = feature?.properties?.recap_id ?? '-';
+                    const requestId = feature?.properties?.request_id ?? '-';
+                    layer.bindPopup(
+                        '<div style="min-width: 220px;">' +
+                        '<div><strong>recap_id:</strong> ' + escapeHtml(recapId) + '</div>' +
+                        '<div style="margin-top: 6px;"><strong>request_id:</strong> ' + escapeHtml(requestId) + '</div>' +
+                        '</div>'
+                    );
+                }
+            }).addTo(recapsGroup);
+        }
         renderReferenceSignalLayers(dgiGeometry, odhGeometry);
+        renderRecapsLayer(parseGeometryData('recaps-geometry-data'));
 
         const intersectsGeo = normalizeGeoJson(intersectsGeometry);
         if (intersectsGeo) {
@@ -633,7 +672,7 @@
             selectedLayer = L.geoJSON(selectedGeo, {
                 style: {color: '#ff0000', weight: 3, fillOpacity: 0.25}
             }).addTo(selectedGroup);
-            const popupHtml = buildObjectPopup({}, selectedRootid || '-', selectedName || '-');
+            const popupHtml = buildObjectPopup({}, selectedRootid || '-', selectedName || '-', selectedRequestId || '-');
             bindPopupToLayer(selectedLayer, popupHtml);
             map.fitBounds(selectedLayer.getBounds(), {padding: [30, 30], maxZoom: 30});
         } else {
@@ -745,6 +784,7 @@
                 nearby: normalizeGeoJson(layers.nearby),
                 dgi: normalizeGeoJson(layers.dgi),
                 odh: normalizeGeoJson(layers.odh),
+                recaps: normalizeGeoJson(layers.recaps),
             };
             const selectedRootidText = (selectedRootid || '').trim();
             const excludeSelectedRootid = (geojson) => {
@@ -766,6 +806,7 @@
             parsed.touches = excludeSelectedRootid(parsed.touches);
             parsed.nearby = excludeSelectedRootid(parsed.nearby);
             renderReferenceSignalLayers(parsed.dgi, parsed.odh);
+            renderRecapsLayer(parsed.recaps);
             if (parsed.intersects) {
                 L.geoJSON(parsed.intersects, {
                     style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
@@ -864,7 +905,7 @@
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
             collectSnapGuideLines(selectedGeo, snapGuideLines);
-            [intersectsGroup, touchesGroup, nearbyGroup, dgiSignalGroup, odhSignalGroup].forEach((group) => {
+            [intersectsGroup, touchesGroup, nearbyGroup, dgiSignalGroup, odhSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
@@ -1376,7 +1417,7 @@
 
         function finishCreatedPolygon(layer) {
             editableGroup.addLayer(layer);
-            layer.bindPopup(buildObjectPopup({}, selectedRootid || '-', selectedName || '-'));
+            layer.bindPopup(buildObjectPopup({}, selectedRootid || '-', selectedName || '-', selectedRequestId || '-'));
             if (polygonDrawer) {
                 polygonDrawer.disable();
                 polygonDrawer = null;
@@ -1415,7 +1456,7 @@
                 style: {color: '#ff0000', weight: 3, fillOpacity: 0.25}
             });
             editableLayer.eachLayer((layer) => {
-                layer.bindPopup(buildObjectPopup({}, selectedRootid || '-', selectedName || '-'));
+                layer.bindPopup(buildObjectPopup({}, selectedRootid || '-', selectedName || '-', selectedRequestId || '-'));
                 editableGroup.addLayer(layer);
             });
             map.removeLayer(selectedLayer);
