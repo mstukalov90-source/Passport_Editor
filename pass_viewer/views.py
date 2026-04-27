@@ -11,10 +11,12 @@ from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.db import connection
 from django.views.decorators.http import require_POST
-from osgeo import ogr, osr
+from osgeo import gdal, ogr, osr
 
 from .forms import EntryPointForm
 from .models import ExternalUser
+
+gdal.UseExceptions()
 
 
 def _quote_ident(identifier):
@@ -231,11 +233,17 @@ def _export_geometry_files(geometry, properties=None):
     geojson_path.write_text(json.dumps(feature_collection, ensure_ascii=False), encoding='utf-8')
 
     shp_path = export_dir / f'{base_filename}.shp'
+    gdal.SetConfigOption('SHAPE_ENCODING', 'UTF-8')
     driver = ogr.GetDriverByName('ESRI Shapefile')
     datasource = driver.CreateDataSource(str(shp_path))
     spatial_ref = osr.SpatialReference()
     spatial_ref.ImportFromEPSG(4326)
-    layer = datasource.CreateLayer(base_filename[:30], spatial_ref, ogr.wkbUnknown)
+    layer = datasource.CreateLayer(
+        base_filename[:30],
+        spatial_ref,
+        ogr.wkbUnknown,
+        options=['ENCODING=UTF-8'],
+    )
     layer.CreateField(ogr.FieldDefn('id', ogr.OFTInteger))
     layer.CreateField(ogr.FieldDefn('name', ogr.OFTString))
     layer.CreateField(ogr.FieldDefn('owner_id', ogr.OFTString))
@@ -430,6 +438,9 @@ def _get_reference_layer_geojson(table_name, source_label, geometry=None, distan
                 f"   t.{_quote_ident(geom_field)}::geography,"
                 "   ST_Boundary(i.geom)::geography,"
                 "   %s"
+                " ) OR ST_Intersects("
+                f"   t.{_quote_ident(geom_field)},"
+                "   i.geom"
                 " )"
                 ") "
                 "SELECT jsonb_build_object("
