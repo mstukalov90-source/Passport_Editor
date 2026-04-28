@@ -512,19 +512,31 @@
                         const name = feature?.properties?.name ?? '-';
                         const customerLegalPersonId = feature?.properties?.customer_legal_person_id ?? '-';
                         const departmentLegalPersonId = feature?.properties?.department_legal_person_id ?? '-';
+                        const customerLegalPersonName = feature?.properties?.customer_legal_person_name ?? '-';
+                        const departmentLegalPersonName = feature?.properties?.department_legal_person_name ?? '-';
                         const customerText = String(customerLegalPersonId ?? '').trim();
                         const departmentText = String(departmentLegalPersonId ?? '').trim();
+                        const customerNameText = String(customerLegalPersonName ?? '').trim();
+                        const departmentNameText = String(departmentLegalPersonName ?? '').trim();
                         const rootidText = String(rootid ?? '').trim();
                         const nameText = String(name ?? '').trim();
                         const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
                         const hasDepartment = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
+                        const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
+                        const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
+                        const customerDisplay = hasCustomerName
+                            ? (String(customerLegalPersonId || '-') + ' (' + String(customerLegalPersonName) + ')')
+                            : String(customerLegalPersonId || '-');
+                        const departmentDisplay = hasDepartmentName
+                            ? (String(departmentLegalPersonId || '-') + ' (' + String(departmentLegalPersonName) + ')')
+                            : String(departmentLegalPersonId || '-');
                         layer.bindPopup(
                             '<div style="min-width: 220px;">' +
                             '<div><strong>ОДХ</strong></div>' +
                             (!rootidText || ['null', 'none', '-'].includes(rootidText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Паспорт №:</strong> ' + String(rootid) + '</div>')) +
                             (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
-                            (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(customerLegalPersonId) + '</div>') : '') +
-                            (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + String(departmentLegalPersonId) + '</div>') : '') +
+                            (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(customerDisplay) + '</div>') : '') +
+                            (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + String(departmentDisplay) + '</div>') : '') +
                             '</div>'
                         );
                     } else {
@@ -557,17 +569,29 @@
             const requestId = properties?.request_id ?? '-';
             const customerLegalPersonId = properties?.customer_legal_person_id ?? '-';
             const departmentLegalPersonId = properties?.department_legal_person_id ?? '-';
+            const customerLegalPersonName = properties?.customer_legal_person_name ?? '-';
+            const departmentLegalPersonName = properties?.department_legal_person_name ?? '-';
             const rootidText = String(rootid ?? '').trim().toLowerCase();
             const requestIdText = String(requestId ?? '').trim().toLowerCase();
             const isMissingRootid = !rootidText || rootidText === 'null' || rootidText === 'none' || rootidText === '-';
             const hasRequestId = !!requestIdText && requestIdText !== 'null' && requestIdText !== 'none' && requestIdText !== '-';
             const customerText = String(customerLegalPersonId ?? '').trim();
             const departmentText = String(departmentLegalPersonId ?? '').trim();
+            const customerNameText = String(customerLegalPersonName ?? '').trim();
+            const departmentNameText = String(departmentLegalPersonName ?? '').trim();
             const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
             const hasDepartment = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
+            const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
+            const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
+            const customerDisplay = hasCustomerName
+                ? (String(customerLegalPersonId || '-') + ' (' + String(customerLegalPersonName) + ')')
+                : String(customerLegalPersonId || '-');
+            const departmentDisplay = hasDepartmentName
+                ? (String(departmentLegalPersonId || '-') + ' (' + String(departmentLegalPersonName) + ')')
+                : String(departmentLegalPersonId || '-');
             const ownerLines =
-                (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(customerLegalPersonId) + '</div>') : '') +
-                (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + String(departmentLegalPersonId) + '</div>') : '');
+                (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(customerDisplay) + '</div>') : '') +
+                (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + String(departmentDisplay) + '</div>') : '');
             if (isMissingRootid && hasRequestId) {
                 return (
                     '<div style="min-width: 220px;">' +
@@ -599,14 +623,19 @@
                     const requestId = feature?.properties?.request_id ?? '-';
                     const name = feature?.properties?.name ?? '-';
                     const ownerLegalPersonId = feature?.properties?.owner_legal_person_id ?? '-';
+                    const ownerLegalPersonName = feature?.properties?.owner_legal_person_name ?? '-';
                     const nameText = String(name ?? '').trim();
                     const ownerText = String(ownerLegalPersonId ?? '').trim();
+                    const ownerNameText = String(ownerLegalPersonName ?? '').trim();
+                    const ownerDisplay = ownerNameText && !['null', 'none', '-'].includes(ownerNameText.toLowerCase())
+                        ? (String(ownerLegalPersonId || '-') + ' (' + String(ownerLegalPersonName) + ')')
+                        : String(ownerLegalPersonId || '-');
                     layer.bindPopup(
                         '<div style="min-width: 220px;">' +
                         '<div><strong>№ Досъёмки:</strong> ' + String(recapId) + '</div>' +
                         '<div style="margin-top: 6px;"><strong>№ Заявки:</strong> ' + String(requestId) + '</div>' +
                         (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
-                        (!ownerText || ['null', 'none', '-'].includes(ownerText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(ownerLegalPersonId) + '</div>')) +
+                        (!ownerText || ['null', 'none', '-'].includes(ownerText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(ownerDisplay) + '</div>')) +
                         '</div>'
                     );
                 }

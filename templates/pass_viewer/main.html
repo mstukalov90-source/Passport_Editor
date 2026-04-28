@@ -356,24 +356,38 @@
             fallbackName = '-',
             fallbackRequestId = '-',
             fallbackCustomerLegalPersonId = '-',
-            fallbackDepartmentLegalPersonId = '-'
+            fallbackDepartmentLegalPersonId = '-',
+            fallbackCustomerLegalPersonName = '-',
+            fallbackDepartmentLegalPersonName = '-'
         ) {
             const rootid = properties?.rootid ?? fallbackRootid;
             const name = properties?.name ?? fallbackName;
             const requestId = properties?.request_id ?? fallbackRequestId;
             const customerLegalPersonId = properties?.customer_legal_person_id ?? fallbackCustomerLegalPersonId;
             const departmentLegalPersonId = properties?.department_legal_person_id ?? fallbackDepartmentLegalPersonId;
+            const customerLegalPersonName = properties?.customer_legal_person_name ?? fallbackCustomerLegalPersonName;
+            const departmentLegalPersonName = properties?.department_legal_person_name ?? fallbackDepartmentLegalPersonName;
             const rootidText = String(rootid ?? '').trim().toLowerCase();
             const requestIdText = String(requestId ?? '').trim().toLowerCase();
             const isMissingRootid = !rootidText || rootidText === 'null' || rootidText === 'none' || rootidText === '-';
             const hasRequestId = !!requestIdText && requestIdText !== 'null' && requestIdText !== 'none' && requestIdText !== '-';
             const customerText = String(customerLegalPersonId ?? '').trim();
             const departmentText = String(departmentLegalPersonId ?? '').trim();
+            const customerNameText = String(customerLegalPersonName ?? '').trim();
+            const departmentNameText = String(departmentLegalPersonName ?? '').trim();
             const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
             const hasDepartment = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
+            const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
+            const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
+            const customerDisplay = hasCustomerName
+                ? (String(customerLegalPersonId || '-') + ' (' + String(customerLegalPersonName) + ')')
+                : String(customerLegalPersonId || '-');
+            const departmentDisplay = hasDepartmentName
+                ? (String(departmentLegalPersonId || '-') + ' (' + String(departmentLegalPersonName) + ')')
+                : String(departmentLegalPersonId || '-');
             const ownerLines =
-                (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(customerLegalPersonId) + '</div>') : '') +
-                (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentLegalPersonId) + '</div>') : '');
+                (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(customerDisplay) + '</div>') : '') +
+                (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>') : '');
             if (isMissingRootid && hasRequestId) {
                 return (
                     '<div style="min-width: 220px;">' +
@@ -454,6 +468,8 @@
         const selectedRequestId = "{{ selected_request_id|default:''|escapejs }}";
         const selectedCustomerLegalPersonId = "{{ selected_customer_legal_person_id|default:''|escapejs }}";
         const selectedDepartmentLegalPersonId = "{{ selected_department_legal_person_id|default:''|escapejs }}";
+        const selectedCustomerLegalPersonName = "{{ selected_customer_legal_person_name|default:''|escapejs }}";
+        const selectedDepartmentLegalPersonName = "{{ selected_department_legal_person_name|default:''|escapejs }}";
         const selectedSourceLabel = "{{ selected_source_label|default:'ДТ'|escapejs }}";
         const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 10);
         map.attributionControl.setPrefix(
@@ -640,19 +656,31 @@
                         const name = feature?.properties?.name ?? '-';
                         const customerLegalPersonId = feature?.properties?.customer_legal_person_id ?? '-';
                         const departmentLegalPersonId = feature?.properties?.department_legal_person_id ?? '-';
+                        const customerLegalPersonName = feature?.properties?.customer_legal_person_name ?? '-';
+                        const departmentLegalPersonName = feature?.properties?.department_legal_person_name ?? '-';
                         const customerText = String(customerLegalPersonId ?? '').trim();
                         const departmentText = String(departmentLegalPersonId ?? '').trim();
+                        const customerNameText = String(customerLegalPersonName ?? '').trim();
+                        const departmentNameText = String(departmentLegalPersonName ?? '').trim();
                         const rootidText = String(rootid ?? '').trim();
                         const nameText = String(name ?? '').trim();
                         const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
                         const hasDepartment = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
+                        const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
+                        const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
+                        const customerDisplay = hasCustomerName
+                            ? (String(customerLegalPersonId || '-') + ' (' + String(customerLegalPersonName) + ')')
+                            : String(customerLegalPersonId || '-');
+                        const departmentDisplay = hasDepartmentName
+                            ? (String(departmentLegalPersonId || '-') + ' (' + String(departmentLegalPersonName) + ')')
+                            : String(departmentLegalPersonId || '-');
                         layer.bindPopup(
                             '<div style="min-width: 220px;">' +
                             '<div><strong>ОДХ</strong></div>' +
                             (!rootidText || ['null', 'none', '-'].includes(rootidText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Паспорт №:</strong> ' + escapeHtml(rootid) + '</div>')) +
                             (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
-                            (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(customerLegalPersonId) + '</div>') : '') +
-                            (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentLegalPersonId) + '</div>') : '') +
+                            (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(customerDisplay) + '</div>') : '') +
+                            (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>') : '') +
                             '</div>'
                         );
                     } else {
@@ -695,14 +723,19 @@
                     const requestId = feature?.properties?.request_id ?? '-';
                     const name = feature?.properties?.name ?? '-';
                     const ownerLegalPersonId = feature?.properties?.owner_legal_person_id ?? '-';
+                    const ownerLegalPersonName = feature?.properties?.owner_legal_person_name ?? '-';
                     const nameText = String(name ?? '').trim();
                     const ownerText = String(ownerLegalPersonId ?? '').trim();
+                    const ownerNameText = String(ownerLegalPersonName ?? '').trim();
+                    const ownerDisplay = ownerNameText && !['null', 'none', '-'].includes(ownerNameText.toLowerCase())
+                        ? (String(ownerLegalPersonId || '-') + ' (' + String(ownerLegalPersonName) + ')')
+                        : String(ownerLegalPersonId || '-');
                     layer.bindPopup(
                         '<div style="min-width: 220px;">' +
                         '<div><strong>№ Досъёмки:</strong> ' + escapeHtml(recapId) + '</div>' +
                         '<div style="margin-top: 6px;"><strong>№ Заявки:</strong> ' + escapeHtml(requestId) + '</div>' +
                         (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
-                        (!ownerText || ['null', 'none', '-'].includes(ownerText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(ownerLegalPersonId) + '</div>')) +
+                        (!ownerText || ['null', 'none', '-'].includes(ownerText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(ownerDisplay) + '</div>')) +
                         '</div>'
                     );
                 }
@@ -774,7 +807,9 @@
                 selectedName || '-',
                 selectedRequestId || '-',
                 selectedCustomerLegalPersonId || '-',
-                selectedDepartmentLegalPersonId || '-'
+                selectedDepartmentLegalPersonId || '-',
+                selectedCustomerLegalPersonName || '-',
+                selectedDepartmentLegalPersonName || '-'
             );
             bindPopupToLayer(selectedLayer, popupHtml);
             map.fitBounds(selectedLayer.getBounds(), {padding: [30, 30], maxZoom: 30});
@@ -1545,7 +1580,9 @@
                     selectedName || '-',
                     selectedRequestId || '-',
                     selectedCustomerLegalPersonId || '-',
-                    selectedDepartmentLegalPersonId || '-'
+                    selectedDepartmentLegalPersonId || '-',
+                    selectedCustomerLegalPersonName || '-',
+                    selectedDepartmentLegalPersonName || '-'
                 )
             );
             if (polygonDrawer) {
@@ -1593,7 +1630,9 @@
                         selectedName || '-',
                         selectedRequestId || '-',
                         selectedCustomerLegalPersonId || '-',
-                        selectedDepartmentLegalPersonId || '-'
+                        selectedDepartmentLegalPersonId || '-',
+                        selectedCustomerLegalPersonName || '-',
+                        selectedDepartmentLegalPersonName || '-'
                     )
                 );
                 editableGroup.addLayer(layer);
