@@ -40,7 +40,7 @@
             &#1044;&#1043;&#1048;
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
-            <span style="width: 14px; height: 14px; border: 2px dashed #16a34a; background: repeating-linear-gradient(45deg, #16a34a 0 6px, #ffffff 6px 12px); border-radius: 2px; display: inline-block;"></span>
+            <span style="width: 14px; height: 14px; border: 2px solid #00bfff; background: transparent; border-radius: 2px; display: inline-block;"></span>
             &#1054;&#1044;&#1061;
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
@@ -484,19 +484,56 @@
             }
             L.geoJSON(geo, {
                 style: {
-                    color: isOdh ? '#16a34a' : '#dc2626',
+                    color: isOdh ? '#00bfff' : '#dc2626',
                     weight: 4,
                     opacity: 0.95,
-                    dashArray: '10 8',
+                    dashArray: isOdh ? null : '10 8',
                     fillOpacity: 0,
                 },
                 onEachFeature: (feature, layer) => {
-                    layer.bindPopup('<strong>' + sourceLabel + '</strong>');
-                    if (isDgi || isOdh) {
+                    if (isDgi) {
+                        const descr = feature?.properties?.descr ?? '-';
+                        const address = feature?.properties?.address ?? '-';
+                        const vri = feature?.properties?.vri ?? '-';
+                        const descrText = String(descr ?? '').trim();
+                        const addressText = String(address ?? '').trim();
+                        const vriText = String(vri ?? '').trim();
+                        layer.bindPopup(
+                            '<div style="min-width: 220px;">' +
+                            '<div><strong>ДГИ</strong></div>' +
+                            (!descrText || ['null', 'none', '-'].includes(descrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Кадастровый номер:</strong> ' + String(descr) + '</div>')) +
+                            (!addressText || ['null', 'none', '-'].includes(addressText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Адрес:</strong> ' + String(address) + '</div>')) +
+                            (!vriText || ['null', 'none', '-'].includes(vriText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Назначение:</strong> ' + String(vri) + '</div>')) +
+                            '</div>'
+                        );
+                    } else if (isOdh) {
+                        const rootid = feature?.properties?.rootid ?? '-';
+                        const name = feature?.properties?.name ?? '-';
+                        const customerLegalPersonId = feature?.properties?.customer_legal_person_id ?? '-';
+                        const departmentLegalPersonId = feature?.properties?.department_legal_person_id ?? '-';
+                        const customerText = String(customerLegalPersonId ?? '').trim();
+                        const departmentText = String(departmentLegalPersonId ?? '').trim();
+                        const rootidText = String(rootid ?? '').trim();
+                        const nameText = String(name ?? '').trim();
+                        const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
+                        const hasDepartment = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
+                        layer.bindPopup(
+                            '<div style="min-width: 220px;">' +
+                            '<div><strong>ОДХ</strong></div>' +
+                            (!rootidText || ['null', 'none', '-'].includes(rootidText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Паспорт №:</strong> ' + String(rootid) + '</div>')) +
+                            (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
+                            (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(customerLegalPersonId) + '</div>') : '') +
+                            (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + String(departmentLegalPersonId) + '</div>') : '') +
+                            '</div>'
+                        );
+                    } else {
+                        layer.bindPopup('<strong>' + sourceLabel + '</strong>');
+                    }
+                    if (isDgi) {
                         layer.on('add', () => {
                             const patternId = ensureSignalPattern(
-                                isDgi ? 'dgi-signal-tape-pattern' : 'odh-signal-tape-pattern',
-                                isDgi ? '#dc2626' : '#16a34a'
+                                'dgi-signal-tape-pattern',
+                                '#dc2626'
                             );
                             const el = layer.getElement && layer.getElement();
                             if (!patternId || !el) {
@@ -504,7 +541,7 @@
                             }
                             el.setAttribute('fill', 'url(#' + patternId + ')');
                             el.setAttribute('fill-opacity', '0.25');
-                            el.setAttribute('stroke', isDgi ? '#dc2626' : '#16a34a');
+                            el.setAttribute('stroke', '#dc2626');
                             el.setAttribute('stroke-width', '2');
                             el.setAttribute('stroke-dasharray', '10 8');
                         });
@@ -517,15 +554,25 @@
             const rootid = properties?.rootid ?? '-';
             const name = properties?.name ?? '-';
             const requestId = properties?.request_id ?? '-';
+            const customerLegalPersonId = properties?.customer_legal_person_id ?? '-';
+            const departmentLegalPersonId = properties?.department_legal_person_id ?? '-';
             const rootidText = String(rootid ?? '').trim().toLowerCase();
             const requestIdText = String(requestId ?? '').trim().toLowerCase();
             const isMissingRootid = !rootidText || rootidText === 'null' || rootidText === 'none' || rootidText === '-';
             const hasRequestId = !!requestIdText && requestIdText !== 'null' && requestIdText !== 'none' && requestIdText !== '-';
+            const customerText = String(customerLegalPersonId ?? '').trim();
+            const departmentText = String(departmentLegalPersonId ?? '').trim();
+            const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
+            const hasDepartment = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
+            const ownerLines =
+                (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(customerLegalPersonId) + '</div>') : '') +
+                (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + String(departmentLegalPersonId) + '</div>') : '');
             if (isMissingRootid && hasRequestId) {
                 return (
                     '<div style="min-width: 220px;">' +
                     '<div><strong>№ Заявки:</strong> ' + String(requestId || '-') + '</div>' +
                     '<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name || '-') + '</div>' +
+                    ownerLines +
                     '</div>'
                 );
             }
@@ -533,6 +580,7 @@
                 '<div style="min-width: 220px;">' +
                 '<div><strong>№ Паспорта:</strong> ' + String(rootid || '-') + '</div>' +
                 '<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name || '-') + '</div>' +
+                ownerLines +
                 '</div>'
             );
         }
@@ -548,10 +596,16 @@
                 onEachFeature: (feature, layer) => {
                     const recapId = feature?.properties?.recap_id ?? '-';
                     const requestId = feature?.properties?.request_id ?? '-';
+                    const name = feature?.properties?.name ?? '-';
+                    const ownerLegalPersonId = feature?.properties?.owner_legal_person_id ?? '-';
+                    const nameText = String(name ?? '').trim();
+                    const ownerText = String(ownerLegalPersonId ?? '').trim();
                     layer.bindPopup(
                         '<div style="min-width: 220px;">' +
                         '<div><strong>№ Досъёмки:</strong> ' + String(recapId) + '</div>' +
                         '<div style="margin-top: 6px;"><strong>№ Заявки:</strong> ' + String(requestId) + '</div>' +
+                        (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
+                        (!ownerText || ['null', 'none', '-'].includes(ownerText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(ownerLegalPersonId) + '</div>')) +
                         '</div>'
                     );
                 }

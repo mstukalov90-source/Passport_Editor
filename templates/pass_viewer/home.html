@@ -120,6 +120,7 @@
                                     <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
                                     <input type="hidden" name="name" value="{{ item.name }}">
                                     <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
+                                    <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
                                     <button type="submit" class="owned-list-open-btn">
                                         <strong>&#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.rootid }}<br>
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
@@ -153,6 +154,7 @@
                                     <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
                                     <input type="hidden" name="name" value="{{ item.name }}">
                                     <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
+                                    <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
                                     <button type="submit" class="owned-list-open-btn">
                                         <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}<br>
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
@@ -182,6 +184,7 @@
                                     <form method="post" action="{% url 'delete_owned_object' %}" style="margin: 0; align-self: center;">
                                         {% csrf_token %}
                                         <input type="hidden" name="object_key" value="{{ item.object_key }}">
+                                        <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
                                         <button
                                             type="submit"
                                             style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 8px; padding: 8px 10px;"

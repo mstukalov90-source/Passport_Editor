@@ -133,6 +133,15 @@ def _get_owned_objects(owner_legal_person_id):
     )
 
 
+def _normalize_source_label(value):
+    source = str(value or '').strip().upper()
+    return 'ОДХ' if source == 'ОДХ' else 'ДТ'
+
+
+def _get_source_table(source_label):
+    return getattr(settings, 'GIS_ODH_TABLE', 'odh') if _normalize_source_label(source_label) == 'ОДХ' else settings.GIS_OBJECT_TABLE
+
+
 def _get_recap_counts_by_request_ids(request_ids):
     normalized_ids = [str(value).strip() for value in request_ids if str(value).strip()]
     if not normalized_ids:
@@ -209,26 +218,48 @@ def _build_where_clause(entry_point, rootid_field, name_field, request_id_field=
 
 
 def _get_map_layers(entry_point):
-    table = settings.GIS_OBJECT_TABLE
+    source_label = _normalize_source_label(entry_point.get('source_label'))
+    table = _get_source_table(source_label)
     rootid_field = settings.GIS_OBJECT_ROOTID_FIELD
     name_field = settings.GIS_OBJECT_NAME_FIELD
     geom_field = settings.GIS_OBJECT_GEOM_FIELD
     request_id_field = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
+    customer_field_pref = getattr(settings, 'GIS_OBJECT_CUSTOMER_FIELD', 'CustomerLegalPersonId')
+    department_field_pref = getattr(settings, 'GIS_OBJECT_DEPARTMENT_FIELD', 'DepartmentLegalPersonId')
+
+    customer_select_expr = "NULL::text AS customer_legal_person_id"
+    department_select_expr = "NULL::text AS department_legal_person_id"
+    customer_prop_expr = "NULL::text"
+    department_prop_expr = "NULL::text"
+    with connection.cursor() as cursor:
+        if _column_exists(cursor, table, customer_field_pref):
+            customer_field = _resolve_column_name(cursor, table, customer_field_pref)
+            customer_select_expr = f"{_quote_ident(customer_field)}::text AS customer_legal_person_id"
+            customer_prop_expr = "customer_legal_person_id::text"
+        if _column_exists(cursor, table, department_field_pref):
+            department_field = _resolve_column_name(cursor, table, department_field_pref)
+            department_select_expr = f"{_quote_ident(department_field)}::text AS department_legal_person_id"
+            department_prop_expr = "department_legal_person_id::text"
 
     where_clause, where_params = _build_where_clause(entry_point, rootid_field, name_field, request_id_field)
     selected_sql = (
         "WITH selected AS ("
-        f" SELECT ctid, {rootid_field} AS rootid, {name_field} AS name, {request_id_field} AS request_id, {geom_field} AS geom FROM {table}"
+        f" SELECT ctid, {rootid_field} AS rootid, {name_field} AS name, {request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr}, {geom_field} AS geom FROM {table}"
         f" WHERE {where_clause} LIMIT 1"
         ") "
-        "SELECT ST_AsGeoJSON(geom), rootid::text, name::text, request_id::text FROM selected"
+        "SELECT ST_AsGeoJSON(geom), rootid::text, name::text, request_id::text, "
+        "customer_legal_person_id::text, department_legal_person_id::text "
+        "FROM selected"
     )
     intersects_sql = (
         "WITH selected AS ("
         f" SELECT ctid, {geom_field} AS geom FROM {table}"
         f" WHERE {where_clause} LIMIT 1"
         "), rel AS ("
-        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, selected s"
+        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr} "
+        f"FROM {table} t, selected s"
         " WHERE t.ctid <> s.ctid AND ST_Intersects("
         f"   t.{geom_field},"
         "   s.geom"
@@ -242,7 +273,13 @@ def _get_map_layers(entry_point):
         " 'features', COALESCE(jsonb_agg(jsonb_build_object("
         "   'type', 'Feature',"
         "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
-        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text, 'request_id', request_id::text)"
+        "   'properties', jsonb_build_object("
+        "       'rootid', rootid::text,"
+        "       'name', name::text,"
+        "       'request_id', request_id::text,"
+        f"      'customer_legal_person_id', {customer_prop_expr},"
+        f"      'department_legal_person_id', {department_prop_expr}"
+        "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
     )
@@ -251,7 +288,9 @@ def _get_map_layers(entry_point):
         f" SELECT ctid, {geom_field} AS geom FROM {table}"
         f" WHERE {where_clause} LIMIT 1"
         "), neighbors AS ("
-        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, selected s"
+        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr} "
+        f"FROM {table} t, selected s"
         " WHERE t.ctid <> s.ctid AND ST_Touches("
         f"   t.{geom_field},"
         "   s.geom"
@@ -262,7 +301,13 @@ def _get_map_layers(entry_point):
         " 'features', COALESCE(jsonb_agg(jsonb_build_object("
         "   'type', 'Feature',"
         "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
-        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text, 'request_id', request_id::text)"
+        "   'properties', jsonb_build_object("
+        "       'rootid', rootid::text,"
+        "       'name', name::text,"
+        "       'request_id', request_id::text,"
+        f"      'customer_legal_person_id', {customer_prop_expr},"
+        f"      'department_legal_person_id', {department_prop_expr}"
+        "   )"
         " )), '[]'::jsonb)"
         ")::text FROM neighbors"
     )
@@ -271,7 +316,9 @@ def _get_map_layers(entry_point):
         f" SELECT ctid, {geom_field} AS geom FROM {table}"
         f" WHERE {where_clause} LIMIT 1"
         "), nearby AS ("
-        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, selected s"
+        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr} "
+        f"FROM {table} t, selected s"
         " WHERE t.ctid <> s.ctid AND ST_DWithin("
         f"   t.{geom_field}::geography,"
         "   s.geom::geography, 10"
@@ -288,7 +335,13 @@ def _get_map_layers(entry_point):
         " 'features', COALESCE(jsonb_agg(jsonb_build_object("
         "   'type', 'Feature',"
         "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
-        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text, 'request_id', request_id::text)"
+        "   'properties', jsonb_build_object("
+        "       'rootid', rootid::text,"
+        "       'name', name::text,"
+        "       'request_id', request_id::text,"
+        f"      'customer_legal_person_id', {customer_prop_expr},"
+        f"      'department_legal_person_id', {department_prop_expr}"
+        "   )"
         " )), '[]'::jsonb)"
         ")::text FROM nearby"
     )
@@ -297,7 +350,9 @@ def _get_map_layers(entry_point):
         f" SELECT ctid, {geom_field} AS geom FROM {table}"
         f" WHERE {where_clause} LIMIT 1"
         "), ix AS ("
-        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, selected s"
+        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr} "
+        f"FROM {table} t, selected s"
         " WHERE t.ctid <> s.ctid AND ST_Intersects("
         f"   t.{geom_field},"
         "   s.geom"
@@ -306,13 +361,17 @@ def _get_map_layers(entry_point):
         "   s.geom"
         f" ) AND t.{request_id_field} IS NOT NULL"
         "), tg AS ("
-        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, selected s"
+        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr} "
+        f"FROM {table} t, selected s"
         " WHERE t.ctid <> s.ctid AND ST_Touches("
         f"   t.{geom_field},"
         "   s.geom"
         f" ) AND t.{request_id_field} IS NOT NULL"
         "), nr AS ("
-        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, selected s"
+        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr} "
+        f"FROM {table} t, selected s"
         " WHERE t.ctid <> s.ctid AND ST_DWithin("
         f"   t.{geom_field}::geography,"
         "   s.geom::geography, 10"
@@ -324,18 +383,24 @@ def _get_map_layers(entry_point):
         "   s.geom"
         f" ) AND t.{request_id_field} IS NOT NULL"
         "), rel AS ("
-        " SELECT ctid, geom, rootid, name, request_id FROM ix"
+        " SELECT ctid, geom, rootid, name, request_id, customer_legal_person_id, department_legal_person_id FROM ix"
         " UNION"
-        " SELECT ctid, geom, rootid, name, request_id FROM tg"
+        " SELECT ctid, geom, rootid, name, request_id, customer_legal_person_id, department_legal_person_id FROM tg"
         " UNION"
-        " SELECT ctid, geom, rootid, name, request_id FROM nr"
+        " SELECT ctid, geom, rootid, name, request_id, customer_legal_person_id, department_legal_person_id FROM nr"
         ") "
         "SELECT jsonb_build_object("
         " 'type', 'FeatureCollection',"
         " 'features', COALESCE(jsonb_agg(jsonb_build_object("
         "   'type', 'Feature',"
         "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
-        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text, 'request_id', request_id::text)"
+        "   'properties', jsonb_build_object("
+        "       'rootid', rootid::text,"
+        "       'name', name::text,"
+        "       'request_id', request_id::text,"
+        f"      'customer_legal_person_id', {customer_prop_expr},"
+        f"      'department_legal_person_id', {department_prop_expr}"
+        "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
     )
@@ -347,6 +412,8 @@ def _get_map_layers(entry_point):
         selected_rootid = selected_row[1] if selected_row else None
         selected_name = selected_row[2] if selected_row else None
         selected_request_id = selected_row[3] if selected_row else None
+        selected_customer_legal_person_id = selected_row[4] if selected_row else None
+        selected_department_legal_person_id = selected_row[5] if selected_row else None
         if not selected_geometry:
             return None
 
@@ -367,6 +434,9 @@ def _get_map_layers(entry_point):
         'selected_rootid': selected_rootid,
         'selected_name': selected_name,
         'selected_request_id': selected_request_id,
+        'selected_customer_legal_person_id': selected_customer_legal_person_id,
+        'selected_department_legal_person_id': selected_department_legal_person_id,
+        'selected_source_label': source_label,
         'intersects': intersects_row[0] if intersects_row else None,
         'touches': touches_row[0] if touches_row else None,
         'nearby': nearby_row[0] if nearby_row else None,
@@ -450,7 +520,21 @@ def _get_new_object_relations(geometry):
     rootid_field = settings.GIS_OBJECT_ROOTID_FIELD
     name_field = settings.GIS_OBJECT_NAME_FIELD
     request_id_field = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
+    customer_field_pref = getattr(settings, 'GIS_OBJECT_CUSTOMER_FIELD', 'CustomerLegalPersonId')
+    department_field_pref = getattr(settings, 'GIS_OBJECT_DEPARTMENT_FIELD', 'DepartmentLegalPersonId')
     geometry_json = json.dumps(geometry)
+
+    customer_select_expr = "NULL::text AS customer_legal_person_id"
+    department_select_expr = "NULL::text AS department_legal_person_id"
+    customer_prop_expr = "customer_legal_person_id::text"
+    department_prop_expr = "department_legal_person_id::text"
+    with connection.cursor() as cursor:
+        if _column_exists(cursor, table, customer_field_pref):
+            customer_field = _resolve_column_name(cursor, table, customer_field_pref)
+            customer_select_expr = f"{_quote_ident(customer_field)}::text AS customer_legal_person_id"
+        if _column_exists(cursor, table, department_field_pref):
+            department_field = _resolve_column_name(cursor, table, department_field_pref)
+            department_select_expr = f"{_quote_ident(department_field)}::text AS department_legal_person_id"
 
     intersects_sql = (
         "WITH input AS ("
@@ -458,7 +542,9 @@ def _get_new_object_relations(geometry):
         "), input_parts AS ("
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), rel AS ("
-        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, input i"
+        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr} "
+        f"FROM {table} t, input i"
         f" WHERE ST_Intersects(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
         "       SELECT 1 FROM input_parts p"
@@ -470,7 +556,13 @@ def _get_new_object_relations(geometry):
         " 'features', COALESCE(jsonb_agg(jsonb_build_object("
         "   'type', 'Feature',"
         "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
-        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text, 'request_id', request_id::text)"
+        "   'properties', jsonb_build_object("
+        "       'rootid', rootid::text,"
+        "       'name', name::text,"
+        "       'request_id', request_id::text,"
+        f"      'customer_legal_person_id', {customer_prop_expr},"
+        f"      'department_legal_person_id', {department_prop_expr}"
+        "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
     )
@@ -480,7 +572,9 @@ def _get_new_object_relations(geometry):
         "), input_parts AS ("
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), rel AS ("
-        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, input i"
+        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr} "
+        f"FROM {table} t, input i"
         f" WHERE ST_Touches(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
         "       SELECT 1 FROM input_parts p"
@@ -492,7 +586,13 @@ def _get_new_object_relations(geometry):
         " 'features', COALESCE(jsonb_agg(jsonb_build_object("
         "   'type', 'Feature',"
         "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
-        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text, 'request_id', request_id::text)"
+        "   'properties', jsonb_build_object("
+        "       'rootid', rootid::text,"
+        "       'name', name::text,"
+        "       'request_id', request_id::text,"
+        f"      'customer_legal_person_id', {customer_prop_expr},"
+        f"      'department_legal_person_id', {department_prop_expr}"
+        "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
     )
@@ -502,7 +602,9 @@ def _get_new_object_relations(geometry):
         "), input_parts AS ("
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), rel AS ("
-        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, input i"
+        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr} "
+        f"FROM {table} t, input i"
         f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
         f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
         f"   AND NOT ST_Intersects(t.{geom_field}, i.geom)"
@@ -516,7 +618,13 @@ def _get_new_object_relations(geometry):
         " 'features', COALESCE(jsonb_agg(jsonb_build_object("
         "   'type', 'Feature',"
         "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
-        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text, 'request_id', request_id::text)"
+        "   'properties', jsonb_build_object("
+        "       'rootid', rootid::text,"
+        "       'name', name::text,"
+        "       'request_id', request_id::text,"
+        f"      'customer_legal_person_id', {customer_prop_expr},"
+        f"      'department_legal_person_id', {department_prop_expr}"
+        "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
     )
@@ -526,7 +634,9 @@ def _get_new_object_relations(geometry):
         "), input_parts AS ("
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), ix AS ("
-        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, input i"
+        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr} "
+        f"FROM {table} t, input i"
         f" WHERE ST_Intersects(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
         "       SELECT 1 FROM input_parts p"
@@ -534,7 +644,9 @@ def _get_new_object_relations(geometry):
         "   )"
         f"   AND t.{request_id_field} IS NOT NULL"
         "), tg AS ("
-        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, input i"
+        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr} "
+        f"FROM {table} t, input i"
         f" WHERE ST_Touches(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
         "       SELECT 1 FROM input_parts p"
@@ -542,7 +654,9 @@ def _get_new_object_relations(geometry):
         "   )"
         f"   AND t.{request_id_field} IS NOT NULL"
         "), nr AS ("
-        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, input i"
+        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
+        f"{customer_select_expr}, {department_select_expr} "
+        f"FROM {table} t, input i"
         f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
         f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
         f"   AND NOT ST_Intersects(t.{geom_field}, i.geom)"
@@ -552,18 +666,24 @@ def _get_new_object_relations(geometry):
         "   )"
         f"   AND t.{request_id_field} IS NOT NULL"
         "), rel AS ("
-        " SELECT ctid, geom, rootid, name, request_id FROM ix"
+        " SELECT ctid, geom, rootid, name, request_id, customer_legal_person_id, department_legal_person_id FROM ix"
         " UNION"
-        " SELECT ctid, geom, rootid, name, request_id FROM tg"
+        " SELECT ctid, geom, rootid, name, request_id, customer_legal_person_id, department_legal_person_id FROM tg"
         " UNION"
-        " SELECT ctid, geom, rootid, name, request_id FROM nr"
+        " SELECT ctid, geom, rootid, name, request_id, customer_legal_person_id, department_legal_person_id FROM nr"
         ") "
         "SELECT jsonb_build_object("
         " 'type', 'FeatureCollection',"
         " 'features', COALESCE(jsonb_agg(jsonb_build_object("
         "   'type', 'Feature',"
         "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
-        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text, 'request_id', request_id::text)"
+        "   'properties', jsonb_build_object("
+        "       'rootid', rootid::text,"
+        "       'name', name::text,"
+        "       'request_id', request_id::text,"
+        f"      'customer_legal_person_id', {customer_prop_expr},"
+        f"      'department_legal_person_id', {department_prop_expr}"
+        "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
     )
@@ -597,16 +717,21 @@ def _ensure_request_id_column(cursor, table_name, request_id_field):
     )
 
 
-def _create_new_object(username, geometry, name, request_id):
+def _create_new_object(username, geometry, name, request_id, source_label='ДТ'):
     owner_id = _get_current_user_owner_id(username)
     if owner_id is None:
         raise ValueError('Не найден OwnerLegalPersonId пользователя в таблице users.')
 
-    table = settings.GIS_OBJECT_TABLE
+    normalized_source = _normalize_source_label(source_label)
+    table = _get_source_table(normalized_source)
     rootid_field_pref = settings.GIS_OBJECT_ROOTID_FIELD
     name_field_pref = settings.GIS_OBJECT_NAME_FIELD
     geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
-    owner_field_pref = getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
+    owner_field_pref = (
+        getattr(settings, 'GIS_ODH_CUSTOMER_FIELD', 'CustomerLegalPersonId')
+        if normalized_source == 'ОДХ'
+        else getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
+    )
     request_id_field_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
 
     with connection.cursor() as cursor:
@@ -678,8 +803,50 @@ def _check_recap_uniqueness(recap_id):
 
 def _get_reference_layer_geojson(table_name, source_label, geometry=None, distance_meters=100):
     geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
+    customer_field_pref = getattr(settings, 'GIS_OBJECT_CUSTOMER_FIELD', 'CustomerLegalPersonId')
+    department_field_pref = getattr(settings, 'GIS_OBJECT_DEPARTMENT_FIELD', 'DepartmentLegalPersonId')
     with connection.cursor() as cursor:
         geom_field = _resolve_column_name(cursor, table_name, geom_field_pref)
+        rootid_field_pref = settings.GIS_OBJECT_ROOTID_FIELD
+        name_field_pref = settings.GIS_OBJECT_NAME_FIELD
+        descr_field_pref = 'descr'
+        address_field_pref = 'address'
+        vri_field_pref = 'vri'
+        rootid_select_expr = "NULL::text AS rootid"
+        name_select_expr = "NULL::text AS name"
+        descr_select_expr = "NULL::text AS descr"
+        address_select_expr = "NULL::text AS address"
+        vri_select_expr = "NULL::text AS vri"
+        rootid_prop_expr = "rootid::text"
+        name_prop_expr = "name::text"
+        descr_prop_expr = "descr::text"
+        address_prop_expr = "address::text"
+        vri_prop_expr = "vri::text"
+        customer_select_expr = "NULL::text AS customer_legal_person_id"
+        department_select_expr = "NULL::text AS department_legal_person_id"
+        customer_prop_expr = "customer_legal_person_id::text"
+        department_prop_expr = "department_legal_person_id::text"
+        if _column_exists(cursor, table_name, rootid_field_pref):
+            rootid_field = _resolve_column_name(cursor, table_name, rootid_field_pref)
+            rootid_select_expr = f"t.{_quote_ident(rootid_field)}::text AS rootid"
+        if _column_exists(cursor, table_name, name_field_pref):
+            name_field = _resolve_column_name(cursor, table_name, name_field_pref)
+            name_select_expr = f"t.{_quote_ident(name_field)}::text AS name"
+        if _column_exists(cursor, table_name, descr_field_pref):
+            descr_field = _resolve_column_name(cursor, table_name, descr_field_pref)
+            descr_select_expr = f"t.{_quote_ident(descr_field)}::text AS descr"
+        if _column_exists(cursor, table_name, address_field_pref):
+            address_field = _resolve_column_name(cursor, table_name, address_field_pref)
+            address_select_expr = f"t.{_quote_ident(address_field)}::text AS address"
+        if _column_exists(cursor, table_name, vri_field_pref):
+            vri_field = _resolve_column_name(cursor, table_name, vri_field_pref)
+            vri_select_expr = f"t.{_quote_ident(vri_field)}::text AS vri"
+        if _column_exists(cursor, table_name, customer_field_pref):
+            customer_field = _resolve_column_name(cursor, table_name, customer_field_pref)
+            customer_select_expr = f"t.{_quote_ident(customer_field)}::text AS customer_legal_person_id"
+        if _column_exists(cursor, table_name, department_field_pref):
+            department_field = _resolve_column_name(cursor, table_name, department_field_pref)
+            department_select_expr = f"t.{_quote_ident(department_field)}::text AS department_legal_person_id"
         if geometry is None:
             query = (
                 "SELECT jsonb_build_object("
@@ -689,10 +856,21 @@ def _get_reference_layer_geojson(table_name, source_label, geometry=None, distan
                 "   'geometry', ST_AsGeoJSON("
                 f"     {_quote_ident(geom_field)}"
                 "   )::jsonb,"
-                "   'properties', jsonb_build_object('source', %s)"
+                "   'properties', jsonb_build_object("
+                "       'source', %s,"
+                f"      'rootid', {rootid_prop_expr},"
+                f"      'name', {name_prop_expr},"
+                f"      'descr', {descr_prop_expr},"
+                f"      'address', {address_prop_expr},"
+                f"      'vri', {vri_prop_expr},"
+                f"      'customer_legal_person_id', {customer_prop_expr},"
+                f"      'department_legal_person_id', {department_prop_expr}"
+                "   )"
                 " )), '[]'::jsonb)"
                 ")::text "
-                f"FROM {_quote_ident(table_name)}"
+                f"FROM (SELECT t.{_quote_ident(geom_field)} AS {_quote_ident(geom_field)}, "
+                f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {customer_select_expr}, {department_select_expr} "
+                f"FROM {_quote_ident(table_name)} t) rel"
             )
             cursor.execute(query, [source_label])
         else:
@@ -701,7 +879,9 @@ def _get_reference_layer_geojson(table_name, source_label, geometry=None, distan
                 "WITH input AS ("
                 " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
                 "), rel AS ("
-                f" SELECT t.{_quote_ident(geom_field)} AS geom FROM {_quote_ident(table_name)} t, input i"
+                f" SELECT t.{_quote_ident(geom_field)} AS geom, "
+                f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {customer_select_expr}, {department_select_expr} "
+                f"FROM {_quote_ident(table_name)} t, input i"
                 " WHERE ST_DWithin("
                 f"   t.{_quote_ident(geom_field)}::geography,"
                 "   ST_Boundary(i.geom)::geography,"
@@ -716,7 +896,16 @@ def _get_reference_layer_geojson(table_name, source_label, geometry=None, distan
                 " 'features', COALESCE(jsonb_agg(jsonb_build_object("
                 "   'type', 'Feature',"
                 "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
-                "   'properties', jsonb_build_object('source', %s)"
+                "   'properties', jsonb_build_object("
+                "       'source', %s,"
+                f"      'rootid', {rootid_prop_expr},"
+                f"      'name', {name_prop_expr},"
+                f"      'descr', {descr_prop_expr},"
+                f"      'address', {address_prop_expr},"
+                f"      'vri', {vri_prop_expr},"
+                f"      'customer_legal_person_id', {customer_prop_expr},"
+                f"      'department_legal_person_id', {department_prop_expr}"
+                "   )"
                 " )), '[]'::jsonb)"
                 ")::text FROM rel"
             )
@@ -727,6 +916,16 @@ def _get_reference_layer_geojson(table_name, source_label, geometry=None, distan
 
 def _get_recaps_layer_geojson(geometry=None, distance_meters=100):
     with connection.cursor() as cursor:
+        name_field_pref = settings.GIS_OBJECT_NAME_FIELD
+        owner_field_pref = settings.GIS_OBJECT_OWNER_FIELD
+        name_select_expr = "NULL::text AS name"
+        owner_select_expr = "NULL::text AS owner_legal_person_id"
+        if _column_exists(cursor, 'recaps', name_field_pref):
+            name_field = _resolve_column_name(cursor, 'recaps', name_field_pref)
+            name_select_expr = f"t.{_quote_ident(name_field)}::text AS name"
+        if _column_exists(cursor, 'recaps', owner_field_pref):
+            owner_field = _resolve_column_name(cursor, 'recaps', owner_field_pref)
+            owner_select_expr = f"t.{_quote_ident(owner_field)}::text AS owner_legal_person_id"
         if geometry is None:
             query = (
                 "SELECT jsonb_build_object("
@@ -736,11 +935,13 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100):
                 "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
                 "   'properties', jsonb_build_object("
                 "       'recap_id', recap_id::text,"
-                "       'request_id', request_id::text"
+                "       'request_id', request_id::text,"
+                "       'name', name::text,"
+                "       'owner_legal_person_id', owner_legal_person_id::text"
                 "   )"
                 " )), '[]'::jsonb)"
                 ")::text "
-                "FROM recaps"
+                f"FROM (SELECT t.geom, t.recap_id, t.request_id, {name_select_expr}, {owner_select_expr} FROM recaps t) rel"
             )
             cursor.execute(query)
         else:
@@ -749,7 +950,7 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100):
                 "WITH input AS ("
                 " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
                 "), rel AS ("
-                " SELECT t.geom AS geom, t.recap_id AS recap_id, t.request_id AS request_id"
+                f" SELECT t.geom AS geom, t.recap_id AS recap_id, t.request_id AS request_id, {name_select_expr}, {owner_select_expr}"
                 " FROM recaps t, input i"
                 " WHERE ST_DWithin(t.geom::geography, ST_Boundary(i.geom)::geography, %s)"
                 "    OR ST_Intersects(t.geom, i.geom)"
@@ -761,7 +962,9 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100):
                 "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
                 "   'properties', jsonb_build_object("
                 "       'recap_id', recap_id::text,"
-                "       'request_id', request_id::text"
+                "       'request_id', request_id::text,"
+                "       'name', name::text,"
+                "       'owner_legal_person_id', owner_legal_person_id::text"
                 "   )"
                 " )), '[]'::jsonb)"
                 ")::text "
@@ -796,7 +999,9 @@ def home(request):
         if form.is_valid():
             request.session['entry_point'] = {
                 'rootid': form.cleaned_data.get('rootid', ''),
+                'request_id': '',
                 'name': form.cleaned_data.get('name', ''),
+                'source_label': 'ДТ',
             }
             return redirect('main')
     else:
@@ -863,6 +1068,9 @@ def main(request):
             'selected_rootid': layers['selected_rootid'] if layers else None,
             'selected_name': layers['selected_name'] if layers else None,
             'selected_request_id': layers['selected_request_id'] if layers else None,
+            'selected_customer_legal_person_id': layers['selected_customer_legal_person_id'] if layers else None,
+            'selected_department_legal_person_id': layers['selected_department_legal_person_id'] if layers else None,
+            'selected_source_label': layers['selected_source_label'] if layers else _normalize_source_label(entry_point.get('source_label')),
             'intersects_geometry_json': layers['intersects'] if layers else None,
             'touches_geometry_json': layers['touches'] if layers else None,
             'nearby_geometry_json': layers['nearby'] if layers else None,
@@ -942,6 +1150,7 @@ def save_new_object(request):
 
     name = (payload.get('name') or '').strip()
     request_id = (payload.get('request_id') or '').strip()
+    source_label = _normalize_source_label(payload.get('source_label'))
     if not request_id:
         return JsonResponse({'ok': False, 'error': 'Укажите номер заявки (request_id).'}, status=400)
     if not request_id.isdigit():
@@ -953,6 +1162,7 @@ def save_new_object(request):
             geometry=geometry,
             name=name,
             request_id=request_id,
+            source_label=source_label,
         )
     except ValueError as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
@@ -1022,6 +1232,7 @@ def open_owned_object(request):
         'rootid': rootid,
         'request_id': request_id if not rootid else '',
         'name': '' if rootid else name,
+        'source_label': _normalize_source_label(request.POST.get('source_label')),
     }
     return redirect('main')
 
@@ -1030,6 +1241,7 @@ def open_owned_object(request):
 @require_POST
 def delete_owned_object(request):
     object_key = (request.POST.get('object_key') or '').strip()
+    source_label = _normalize_source_label(request.POST.get('source_label'))
     if not object_key:
         return redirect('home')
 
@@ -1037,23 +1249,37 @@ def delete_owned_object(request):
     if owner_id is None:
         return redirect('home')
 
-    table = settings.GIS_OBJECT_TABLE
+    table = _get_source_table(source_label)
     rootid_field_pref = settings.GIS_OBJECT_ROOTID_FIELD
-    owner_field_pref = getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
+    owner_field_pref = (
+        getattr(settings, 'GIS_ODH_CUSTOMER_FIELD', 'CustomerLegalPersonId')
+        if source_label == 'ОДХ'
+        else getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
+    )
     request_id_field_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
 
     with connection.cursor() as cursor:
         owner_field = _resolve_column_name(cursor, table, owner_field_pref)
-        rootid_field = _resolve_column_name(cursor, table, rootid_field_pref)
-        request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
+        request_id_exists = _column_exists(cursor, table, request_id_field_pref)
+        where_parts = [
+            "ctid = %s::tid",
+            f"{_quote_ident(owner_field)} = %s",
+        ]
+        params = [object_key, owner_id]
+
+        # Keep old protection for DT request objects, but allow ODH objects with rootid.
+        if source_label != 'ОДХ':
+            rootid_field = _resolve_column_name(cursor, table, rootid_field_pref)
+            where_parts.append(f"{_quote_ident(rootid_field)} IS NULL")
+        if request_id_exists:
+            request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
+            where_parts.append(f"{_quote_ident(request_id_field)} IS NOT NULL")
+
         delete_query = (
             f"DELETE FROM {_quote_ident(table)} "
-            f"WHERE ctid = %s::tid "
-            f"  AND {_quote_ident(owner_field)} = %s "
-            f"  AND {_quote_ident(rootid_field)} IS NULL "
-            f"  AND {_quote_ident(request_id_field)} IS NOT NULL"
+            f"WHERE {' AND '.join(where_parts)}"
         )
-        cursor.execute(delete_query, [object_key, owner_id])
+        cursor.execute(delete_query, params)
 
     return redirect('home')
 
