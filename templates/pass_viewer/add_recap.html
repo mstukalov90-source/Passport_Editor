@@ -771,11 +771,41 @@
             touchesGroup.clearLayers();
             nearbyGroup.clearLayers();
             requestObjectsGroup.clearLayers();
+            const ensureSelectedRequestObject = (geojsonObject) => {
+                const selectedRequestId = String(requestId || '').trim();
+                if (!selectedRequestId || !selectedGeometry) {
+                    return normalizeGeoJson(geojsonObject);
+                }
+                const normalized = normalizeGeoJson(geojsonObject);
+                const selectedFeature = {
+                    type: 'Feature',
+                    properties: {
+                        rootid: '-',
+                        name: objectName || '-',
+                        request_id: selectedRequestId,
+                    },
+                    geometry: selectedGeometry,
+                };
+                if (!normalized || normalized.type !== 'FeatureCollection' || !Array.isArray(normalized.features)) {
+                    return {type: 'FeatureCollection', features: [selectedFeature]};
+                }
+                const hasSelected = normalized.features.some((feature) => {
+                    const featureRequestId = String(feature?.properties?.request_id || '').trim();
+                    return featureRequestId === selectedRequestId;
+                });
+                if (hasSelected) {
+                    return normalized;
+                }
+                return {
+                    ...normalized,
+                    features: [...normalized.features, selectedFeature],
+                };
+            };
             const parsed = {
                 intersects: filterByRequestedName(layers.intersects),
                 touches: filterByRequestedName(layers.touches),
                 nearby: filterByRequestedName(layers.nearby),
-                request_objects: normalizeGeoJson(layers.request_objects),
+                request_objects: ensureSelectedRequestObject(layers.request_objects),
                 dgi: normalizeGeoJson(layers.dgi),
                 odh: normalizeGeoJson(layers.odh),
                 recaps: normalizeGeoJson(layers.recaps),
