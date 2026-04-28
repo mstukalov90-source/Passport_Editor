@@ -382,6 +382,7 @@
         const snapDebugEl = document.getElementById('snap-debug');
         const snapDebugFixedEl = document.getElementById('snap-debug-fixed');
         const exportLinksEl = document.getElementById('export-links');
+        const selectedSourceLabel = "{{ selected_source_label|default:'ДТ'|escapejs }}";
         const saveModal = document.getElementById('save-modal');
         const saveModalCancel = document.getElementById('save-modal-cancel');
         const saveModalSubmit = document.getElementById('save-modal-submit');
@@ -1292,7 +1293,10 @@
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCookie('csrftoken') || ''
                     },
-                    body: JSON.stringify({geometry})
+                    body: JSON.stringify({
+                        geometry,
+                        source_label: selectedSourceLabel
+                    })
                 });
                 const data = await response.json();
                 if (!response.ok || !data.ok) {

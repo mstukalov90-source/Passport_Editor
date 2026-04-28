@@ -226,6 +226,8 @@ def _build_where_clause(entry_point, rootid_field, name_field, request_id_field=
 def _get_map_layers(entry_point):
     source_label = _normalize_source_label(entry_point.get('source_label'))
     table = _get_source_table(source_label)
+    dt_table = settings.GIS_OBJECT_TABLE
+    odh_table = getattr(settings, 'GIS_ODH_TABLE', 'odh')
     rootid_field = settings.GIS_OBJECT_ROOTID_FIELD
     name_field = settings.GIS_OBJECT_NAME_FIELD
     geom_field = settings.GIS_OBJECT_GEOM_FIELD
@@ -356,44 +358,53 @@ def _get_map_layers(entry_point):
         f" SELECT ctid, {geom_field} AS geom FROM {table}"
         f" WHERE {where_clause} LIMIT 1"
         "), ix AS ("
-        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr} "
-        f"FROM {table} t, selected s"
-        " WHERE t.ctid <> s.ctid AND ST_Intersects("
-        f"   t.{geom_field},"
-        "   s.geom"
-        " ) AND NOT ST_Touches("
-        f"   t.{geom_field},"
-        "   s.geom"
-        f" ) AND t.{request_id_field} IS NOT NULL"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id"
+        f" FROM {_quote_ident(dt_table)} t, selected s"
+        " WHERE ST_Intersects(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
+        "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
+        f"   AND t.{request_id_field} IS NOT NULL"
+        f"   AND NOT (%s = %s AND t.ctid = s.ctid)"
+        " UNION ALL "
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id"
+        f" FROM {_quote_ident(odh_table)} t, selected s"
+        " WHERE ST_Intersects(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
+        "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
+        f"   AND t.{request_id_field} IS NOT NULL"
+        f"   AND NOT (%s = %s AND t.ctid = s.ctid)"
         "), tg AS ("
-        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr} "
-        f"FROM {table} t, selected s"
-        " WHERE t.ctid <> s.ctid AND ST_Touches("
-        f"   t.{geom_field},"
-        "   s.geom"
-        f" ) AND t.{request_id_field} IS NOT NULL"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id"
+        f" FROM {_quote_ident(dt_table)} t, selected s"
+        " WHERE ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
+        f"   AND t.{request_id_field} IS NOT NULL"
+        f"   AND NOT (%s = %s AND t.ctid = s.ctid)"
+        " UNION ALL "
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id"
+        f" FROM {_quote_ident(odh_table)} t, selected s"
+        " WHERE ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
+        f"   AND t.{request_id_field} IS NOT NULL"
+        f"   AND NOT (%s = %s AND t.ctid = s.ctid)"
         "), nr AS ("
-        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr} "
-        f"FROM {table} t, selected s"
-        " WHERE t.ctid <> s.ctid AND ST_DWithin("
-        f"   t.{geom_field}::geography,"
-        "   s.geom::geography, 10"
-        " ) AND NOT ST_Touches("
-        f"   t.{geom_field},"
-        "   s.geom"
-        " ) AND NOT ST_Intersects("
-        f"   t.{geom_field},"
-        "   s.geom"
-        f" ) AND t.{request_id_field} IS NOT NULL"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id"
+        f" FROM {_quote_ident(dt_table)} t, selected s"
+        " WHERE ST_DWithin(t.{geom_field}::geography, s.geom::geography, 10)".replace("{geom_field}", geom_field) +
+        "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
+        "   AND NOT ST_Intersects(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
+        f"   AND t.{request_id_field} IS NOT NULL"
+        f"   AND NOT (%s = %s AND t.ctid = s.ctid)"
+        " UNION ALL "
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id"
+        f" FROM {_quote_ident(odh_table)} t, selected s"
+        " WHERE ST_DWithin(t.{geom_field}::geography, s.geom::geography, 10)".replace("{geom_field}", geom_field) +
+        "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
+        "   AND NOT ST_Intersects(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
+        f"   AND t.{request_id_field} IS NOT NULL"
+        f"   AND NOT (%s = %s AND t.ctid = s.ctid)"
         "), rel AS ("
-        " SELECT ctid, geom, rootid, name, request_id, customer_legal_person_id, department_legal_person_id FROM ix"
+        " SELECT row_tid, geom, rootid, name, request_id FROM ix"
         " UNION"
-        " SELECT ctid, geom, rootid, name, request_id, customer_legal_person_id, department_legal_person_id FROM tg"
+        " SELECT row_tid, geom, rootid, name, request_id FROM tg"
         " UNION"
-        " SELECT ctid, geom, rootid, name, request_id, customer_legal_person_id, department_legal_person_id FROM nr"
+        " SELECT row_tid, geom, rootid, name, request_id FROM nr"
         ") "
         "SELECT jsonb_build_object("
         " 'type', 'FeatureCollection',"
@@ -404,8 +415,8 @@ def _get_map_layers(entry_point):
         "       'rootid', rootid::text,"
         "       'name', name::text,"
         "       'request_id', request_id::text,"
-        f"      'customer_legal_person_id', {customer_prop_expr},"
-        f"      'department_legal_person_id', {department_prop_expr}"
+        "      'customer_legal_person_id', NULL::text,"
+        "      'department_legal_person_id', NULL::text"
         "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
@@ -432,7 +443,15 @@ def _get_map_layers(entry_point):
         cursor.execute(nearby_sql, where_params)
         nearby_row = cursor.fetchone()
 
-        cursor.execute(requests_sql, where_params)
+        requests_params = where_params + [
+            table, dt_table,
+            table, odh_table,
+            table, dt_table,
+            table, odh_table,
+            table, dt_table,
+            table, odh_table,
+        ]
+        cursor.execute(requests_sql, requests_params)
         requests_row = cursor.fetchone()
 
     return {
@@ -520,8 +539,10 @@ def _export_geometry_files(geometry, properties=None):
     return geojson_url, shapefile_url
 
 
-def _get_new_object_relations(geometry):
-    table = settings.GIS_OBJECT_TABLE
+def _get_new_object_relations(geometry, source_label='ДТ'):
+    table = _get_source_table(source_label)
+    dt_table = settings.GIS_OBJECT_TABLE
+    odh_table = getattr(settings, 'GIS_ODH_TABLE', 'odh')
     geom_field = settings.GIS_OBJECT_GEOM_FIELD
     rootid_field = settings.GIS_OBJECT_ROOTID_FIELD
     name_field = settings.GIS_OBJECT_NAME_FIELD
@@ -640,9 +661,17 @@ def _get_new_object_relations(geometry):
         "), input_parts AS ("
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), ix AS ("
-        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr} "
-        f"FROM {table} t, input i"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id"
+        f" FROM {_quote_ident(dt_table)} t, input i"
+        f" WHERE ST_Intersects(t.{geom_field}, i.geom)"
+        "   AND NOT EXISTS ("
+        "       SELECT 1 FROM input_parts p"
+        f"       WHERE ST_Equals(t.{geom_field}, p.geom)"
+        "   )"
+        f"   AND t.{request_id_field} IS NOT NULL"
+        " UNION ALL "
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id"
+        f" FROM {_quote_ident(odh_table)} t, input i"
         f" WHERE ST_Intersects(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
         "       SELECT 1 FROM input_parts p"
@@ -650,9 +679,17 @@ def _get_new_object_relations(geometry):
         "   )"
         f"   AND t.{request_id_field} IS NOT NULL"
         "), tg AS ("
-        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr} "
-        f"FROM {table} t, input i"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id"
+        f" FROM {_quote_ident(dt_table)} t, input i"
+        f" WHERE ST_Touches(t.{geom_field}, i.geom)"
+        "   AND NOT EXISTS ("
+        "       SELECT 1 FROM input_parts p"
+        f"       WHERE ST_Equals(t.{geom_field}, p.geom)"
+        "   )"
+        f"   AND t.{request_id_field} IS NOT NULL"
+        " UNION ALL "
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id"
+        f" FROM {_quote_ident(odh_table)} t, input i"
         f" WHERE ST_Touches(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
         "       SELECT 1 FROM input_parts p"
@@ -660,9 +697,19 @@ def _get_new_object_relations(geometry):
         "   )"
         f"   AND t.{request_id_field} IS NOT NULL"
         "), nr AS ("
-        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr} "
-        f"FROM {table} t, input i"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id"
+        f" FROM {_quote_ident(dt_table)} t, input i"
+        f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
+        f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
+        f"   AND NOT ST_Intersects(t.{geom_field}, i.geom)"
+        "   AND NOT EXISTS ("
+        "       SELECT 1 FROM input_parts p"
+        f"       WHERE ST_Equals(t.{geom_field}, p.geom)"
+        "   )"
+        f"   AND t.{request_id_field} IS NOT NULL"
+        " UNION ALL "
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id"
+        f" FROM {_quote_ident(odh_table)} t, input i"
         f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
         f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
         f"   AND NOT ST_Intersects(t.{geom_field}, i.geom)"
@@ -672,11 +719,11 @@ def _get_new_object_relations(geometry):
         "   )"
         f"   AND t.{request_id_field} IS NOT NULL"
         "), rel AS ("
-        " SELECT ctid, geom, rootid, name, request_id, customer_legal_person_id, department_legal_person_id FROM ix"
+        " SELECT row_tid, geom, rootid, name, request_id FROM ix"
         " UNION"
-        " SELECT ctid, geom, rootid, name, request_id, customer_legal_person_id, department_legal_person_id FROM tg"
+        " SELECT row_tid, geom, rootid, name, request_id FROM tg"
         " UNION"
-        " SELECT ctid, geom, rootid, name, request_id, customer_legal_person_id, department_legal_person_id FROM nr"
+        " SELECT row_tid, geom, rootid, name, request_id FROM nr"
         ") "
         "SELECT jsonb_build_object("
         " 'type', 'FeatureCollection',"
@@ -687,8 +734,8 @@ def _get_new_object_relations(geometry):
         "       'rootid', rootid::text,"
         "       'name', name::text,"
         "       'request_id', request_id::text,"
-        f"      'customer_legal_person_id', {customer_prop_expr},"
-        f"      'department_legal_person_id', {department_prop_expr}"
+        "      'customer_legal_person_id', NULL::text,"
+        "      'department_legal_person_id', NULL::text"
         "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
@@ -1292,6 +1339,7 @@ def delete_owned_object(request):
 
 @login_required
 def add_object(request):
+    entry_point = request.session.get('entry_point') or {}
     return render(
         request,
         'pass_viewer/add_object.html',
@@ -1300,6 +1348,7 @@ def add_object(request):
             'odh_geometry_json': None,
             'recaps_geometry_json': None,
             'request_objects_geometry_json': None,
+            'selected_source_label': _normalize_source_label(entry_point.get('source_label')),
         },
     )
 
@@ -1328,7 +1377,10 @@ def add_recap(request):
     initial_relations = {'intersects': None, 'touches': None, 'nearby': None, 'request_objects': None}
     if selected_geometry:
         try:
-            initial_relations = _get_new_object_relations(selected_geometry)
+            initial_relations = _get_new_object_relations(
+                selected_geometry,
+                source_label=selected_object.get('source_label') or source_label,
+            )
         except Exception:
             initial_relations = {'intersects': None, 'touches': None, 'nearby': None, 'request_objects': None}
 
@@ -1339,6 +1391,7 @@ def add_recap(request):
             'request_id': selected_object['request_id'] or request_id,
             'name': selected_object['name'] or name,
             'object_key': selected_object['object_key'] or object_key,
+            'selected_source_label': selected_object.get('source_label') or source_label,
             'selected_geometry_json': selected_object['geometry_json'],
             'intersects_geometry_json': initial_relations.get('intersects'),
             'touches_geometry_json': initial_relations.get('touches'),
@@ -1362,9 +1415,10 @@ def check_new_object_relations(request):
     geometry = payload.get('geometry')
     if not isinstance(geometry, dict):
         return JsonResponse({'ok': False, 'error': 'Геометрия не передана.'}, status=400)
+    source_label = _normalize_source_label(payload.get('source_label'))
 
     try:
-        layers = _get_new_object_relations(geometry)
+        layers = _get_new_object_relations(geometry, source_label=source_label)
     except Exception:
         return JsonResponse(
             {'ok': False, 'error': 'Не удалось получить связанные объекты из PostGIS.'},

@@ -316,6 +316,7 @@
         const selectedGeometry = typeof selectedGeometryRaw === 'string' ? JSON.parse(selectedGeometryRaw) : selectedGeometryRaw;
         const requestId = "{{ request_id|default:''|escapejs }}";
         const objectName = "{{ name|default:''|escapejs }}";
+        const selectedSourceLabel = "{{ selected_source_label|default:'ДТ'|escapejs }}";
 
         const statusEl = document.getElementById('edit-status');
         const exportLinksEl = document.getElementById('export-links');
@@ -745,7 +746,7 @@
                 intersects: filterByRequestedName(layers.intersects),
                 touches: filterByRequestedName(layers.touches),
                 nearby: filterByRequestedName(layers.nearby),
-                request_objects: filterByRequestedName(layers.request_objects),
+                request_objects: normalizeGeoJson(layers.request_objects),
                 dgi: normalizeGeoJson(layers.dgi),
                 odh: normalizeGeoJson(layers.odh),
                 recaps: normalizeGeoJson(layers.recaps),
@@ -966,7 +967,10 @@
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCookie('csrftoken') || ''
                     },
-                    body: JSON.stringify({geometry})
+                    body: JSON.stringify({
+                        geometry,
+                        source_label: selectedSourceLabel
+                    })
                 });
                 const data = await response.json();
                 if (!response.ok || !data.ok) {
