@@ -162,15 +162,20 @@ def _get_recap_counts_by_request_ids(request_ids):
     return {row[0]: row[1] for row in rows}
 
 
-def _get_owned_request_object(owner_legal_person_id, object_key):
+def _get_owned_request_object(owner_legal_person_id, object_key, source_label='ДТ'):
     if not owner_legal_person_id or not object_key:
         return None
 
-    table = settings.GIS_OBJECT_TABLE
+    normalized_source = _normalize_source_label(source_label)
+    table = _get_source_table(normalized_source)
     rootid_field_pref = settings.GIS_OBJECT_ROOTID_FIELD
     name_field_pref = settings.GIS_OBJECT_NAME_FIELD
     geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
-    owner_field_pref = getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
+    owner_field_pref = (
+        getattr(settings, 'GIS_ODH_CUSTOMER_FIELD', 'CustomerLegalPersonId')
+        if normalized_source == 'ОДХ'
+        else getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
+    )
     request_id_field_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
 
     with connection.cursor() as cursor:
@@ -200,6 +205,7 @@ def _get_owned_request_object(owner_legal_person_id, object_key):
         'name': row[2] or '',
         'request_id': row[3] or '',
         'geometry_json': row[4],
+        'source_label': normalized_source,
     }
 
 
@@ -1303,8 +1309,9 @@ def add_recap(request):
     request_id = (request.GET.get('request_id') or '').strip()
     name = (request.GET.get('name') or '').strip()
     object_key = (request.GET.get('object_key') or '').strip()
+    source_label = _normalize_source_label(request.GET.get('source_label'))
     owner_id = _get_current_user_owner_id(request.user.username)
-    selected_object = _get_owned_request_object(owner_id, object_key)
+    selected_object = _get_owned_request_object(owner_id, object_key, source_label=source_label)
     if not selected_object:
         return redirect('home')
 
