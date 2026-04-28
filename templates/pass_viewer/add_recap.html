@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}&#1044;&#1086;&#1073;&#1072;&#1074;&#1083;&#1077;&#1085;&#1080;&#1077; &#1076;&#1086;&#1089;&#1100;&#1077;&#1084;&#1072;{% endblock %}
+{% block title %}Добавление досъёмки{% endblock %}
 {% block container_class %}container--wide{% endblock %}
 
 {% block content %}
     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
         <div>
-            <h1 style="margin-bottom: 8px;">&#1044;&#1086;&#1073;&#1072;&#1074;&#1083;&#1077;&#1085;&#1080;&#1077; &#1076;&#1086;&#1089;&#1100;&#1077;&#1084;&#1072;</h1>
+            <h1 style="margin-bottom: 8px;">Добавление досъёмки</h1>
             <p style="margin: 0;"><strong>№ Заявки:</strong> {{ request_id|default:"-" }}</p>
             <p style="margin: 4px 0 0;"><strong>Название:</strong> {{ name|default:"-" }}</p>
         </div>
@@ -45,13 +45,13 @@
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
             <span style="width: 14px; height: 14px; border: 2px solid #7c3aed; background: rgba(124, 58, 237, 0.25); border-radius: 2px; display: inline-block;"></span>
-            &#1044;&#1086;&#1089;&#1100;&#1077;&#1084;&#1099;
+            Заявки на досъёмку
         </span>
     </div>
 
     <div id="map" style="height: 72vh; min-height: 520px; margin: 16px 0; border-radius: 10px; border: 1px solid #e3e6ec;"></div>
     <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;">
-        <button type="button" id="add-dossier-btn" class="map-toolbar-btn map-toolbar-btn--accent">&#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1076;&#1086;&#1089;&#1100;&#1077;&#1084;</button>
+        <button type="button" id="add-dossier-btn" class="map-toolbar-btn map-toolbar-btn--accent">Добавить досъёмку</button>
         <label for="draw-mode-freehand" class="snap-switch" title="Режим добавления: вершины или кисть">
             <input type="checkbox" id="draw-mode-freehand">
             <span class="draw-mode-label draw-mode-label--left">Вершины</span>
@@ -65,7 +65,7 @@
         </label>
         <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1054;&#1073;&#1085;&#1086;&#1074;&#1080;&#1090;&#1100; &#1089;&#1074;&#1103;&#1079;&#1080;</button>
         <button type="button" id="cancel-draw-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
-        <button type="button" id="save-dossier-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">&#1057;&#1086;&#1093;&#1088;&#1072;&#1085;&#1080;&#1090;&#1100; &#1076;&#1086;&#1089;&#1100;&#1077;&#1084;</button>
+        <button type="button" id="save-dossier-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">Сохранить досъёмку</button>
     </div>
     <p id="edit-status" class="note"></p>
     <p id="snap-debug" class="note" style="display:none; margin-top: 2px; color: #334155; min-height: 18px;">Snap debug: waiting events...</p>
@@ -73,8 +73,8 @@
 
     <div id="save-modal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
-            <h3 style="margin: 0 0 10px;">Новый досьём</h3>
-            <label class="modal-label" for="new-recap-id">Номер досьё (recap_id)</label>
+            <h3 style="margin: 0 0 10px;">Новая досъёмка</h3>
+            <label class="modal-label" for="new-recap-id">Номер заявки на досъёмку (recap_id)</label>
             <input id="new-recap-id" class="modal-input" type="text" maxlength="100" inputmode="numeric" pattern="[0-9]*" />
             <p id="save-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
@@ -194,12 +194,15 @@
         }
         .map-basemap-control {
             display: flex;
+            flex-wrap: wrap;
             gap: 6px;
             background: rgba(255, 255, 255, 0.96);
             border: 1px solid #d1d5db;
             border-radius: 10px;
             padding: 6px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+            max-width: 220px;
+            justify-content: flex-end;
         }
         .map-basemap-btn {
             border: 1px solid #d1d5db;
@@ -239,6 +242,7 @@
     {{ dgi_geometry_json|default_if_none:"null"|json_script:"dgi-geometry-data" }}
     {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
     {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
+    {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
 
     <script>
         const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
@@ -261,21 +265,28 @@
             const container = L.DomUtil.create('div', 'map-basemap-control');
             container.innerHTML =
                 '<button type="button" class="map-basemap-btn is-active" data-map="topo">Схема</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>';
+                '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
+                '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
             L.DomEvent.disableClickPropagation(container);
             return container;
         };
         basemapControl.addTo(map);
         function setBasemap(mode) {
-            const isTopo = mode === 'topo';
-            if (isTopo) {
+            if (mode === 'none') {
+                if (map.hasLayer(topoLayer)) {
+                    map.removeLayer(topoLayer);
+                }
+                if (map.hasLayer(satelliteLayer)) {
+                    map.removeLayer(satelliteLayer);
+                }
+            } else if (mode === 'topo') {
                 if (!map.hasLayer(topoLayer)) {
                     map.addLayer(topoLayer);
                 }
                 if (map.hasLayer(satelliteLayer)) {
                     map.removeLayer(satelliteLayer);
                 }
-            } else {
+            } else if (mode === 'sat') {
                 if (!map.hasLayer(satelliteLayer)) {
                     map.addLayer(satelliteLayer);
                 }
@@ -329,6 +340,7 @@
         const intersectsGroup = new L.FeatureGroup().addTo(map);
         const touchesGroup = new L.FeatureGroup().addTo(map);
         const nearbyGroup = new L.FeatureGroup().addTo(map);
+        const requestObjectsGroup = L.featureGroup().addTo(map);
         const dgiSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
         const recapsGroup = L.featureGroup().addTo(map);
@@ -392,9 +404,10 @@
             overlays[withCount('Пересекается', countGroupFeatures(intersectsGroup))] = intersectsGroup;
             overlays[withCount('Граничит', countGroupFeatures(touchesGroup))] = touchesGroup;
             overlays[withCount('В радиусе 10 м', countGroupFeatures(nearbyGroup))] = nearbyGroup;
+            overlays[withCount('Заявки', countGroupFeatures(requestObjectsGroup))] = requestObjectsGroup;
             overlays['ДГИ'] = dgiSignalGroup;
             overlays['ОДХ'] = odhSignalGroup;
-            overlays['Досьёмы'] = recapsGroup;
+            overlays['Заявки на досъёмку'] = recapsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topleft'});
             objectLayersControl.addTo(map);
         }
@@ -579,7 +592,7 @@
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
             collectSnapGuideLines(selectedGeometry, snapGuideLines);
-            [dossierGroup, intersectsGroup, touchesGroup, nearbyGroup, dgiSignalGroup, odhSignalGroup, recapsGroup].forEach((group) => {
+            [dossierGroup, intersectsGroup, touchesGroup, nearbyGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
                 });
@@ -673,10 +686,12 @@
             intersectsGroup.clearLayers();
             touchesGroup.clearLayers();
             nearbyGroup.clearLayers();
+            requestObjectsGroup.clearLayers();
             const parsed = {
                 intersects: filterByRequestedName(layers.intersects),
                 touches: filterByRequestedName(layers.touches),
                 nearby: filterByRequestedName(layers.nearby),
+                request_objects: filterByRequestedName(layers.request_objects),
                 dgi: normalizeGeoJson(layers.dgi),
                 odh: normalizeGeoJson(layers.odh),
                 recaps: normalizeGeoJson(layers.recaps),
@@ -699,6 +714,12 @@
                     onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
                 }).addTo(nearbyGroup);
             }
+            if (parsed.request_objects) {
+                L.geoJSON(parsed.request_objects, {
+                    style: {color: '#c026d3', weight: 2, fillColor: '#f0abfc', fillOpacity: 0.28},
+                    onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
+                }).addTo(requestObjectsGroup);
+            }
             addSignalTapeLayer(dgiSignalGroup, parsed.dgi, 'ДГИ');
             addSignalTapeLayer(odhSignalGroup, parsed.odh, 'ОДХ');
             renderRecapsLayer(parsed.recaps);
@@ -710,6 +731,7 @@
             intersects: JSON.parse(document.getElementById('intersects-geometry-data').textContent),
             touches: JSON.parse(document.getElementById('touches-geometry-data').textContent),
             nearby: JSON.parse(document.getElementById('nearby-geometry-data').textContent),
+            request_objects: JSON.parse(document.getElementById('request-objects-geometry-data').textContent),
             dgi: JSON.parse(document.getElementById('dgi-geometry-data').textContent),
             odh: JSON.parse(document.getElementById('odh-geometry-data').textContent),
             recaps: JSON.parse(document.getElementById('recaps-geometry-data').textContent),

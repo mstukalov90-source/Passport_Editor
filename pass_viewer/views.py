@@ -235,6 +235,53 @@ def _get_map_layers(entry_point):
         " )), '[]'::jsonb)"
         ")::text FROM nearby"
     )
+    requests_sql = (
+        "WITH selected AS ("
+        f" SELECT ctid, {geom_field} AS geom FROM {table}"
+        f" WHERE {where_clause} LIMIT 1"
+        "), ix AS ("
+        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, selected s"
+        " WHERE t.ctid <> s.ctid AND ST_Intersects("
+        f"   t.{geom_field},"
+        "   s.geom"
+        " ) AND NOT ST_Touches("
+        f"   t.{geom_field},"
+        "   s.geom"
+        f" ) AND t.{request_id_field} IS NOT NULL"
+        "), tg AS ("
+        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, selected s"
+        " WHERE t.ctid <> s.ctid AND ST_Touches("
+        f"   t.{geom_field},"
+        "   s.geom"
+        f" ) AND t.{request_id_field} IS NOT NULL"
+        "), nr AS ("
+        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, selected s"
+        " WHERE t.ctid <> s.ctid AND ST_DWithin("
+        f"   t.{geom_field}::geography,"
+        "   s.geom::geography, 10"
+        " ) AND NOT ST_Touches("
+        f"   t.{geom_field},"
+        "   s.geom"
+        " ) AND NOT ST_Intersects("
+        f"   t.{geom_field},"
+        "   s.geom"
+        f" ) AND t.{request_id_field} IS NOT NULL"
+        "), rel AS ("
+        " SELECT ctid, geom, rootid, name, request_id FROM ix"
+        " UNION"
+        " SELECT ctid, geom, rootid, name, request_id FROM tg"
+        " UNION"
+        " SELECT ctid, geom, rootid, name, request_id FROM nr"
+        ") "
+        "SELECT jsonb_build_object("
+        " 'type', 'FeatureCollection',"
+        " 'features', COALESCE(jsonb_agg(jsonb_build_object("
+        "   'type', 'Feature',"
+        "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
+        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text, 'request_id', request_id::text)"
+        " )), '[]'::jsonb)"
+        ")::text FROM rel"
+    )
 
     with connection.cursor() as cursor:
         cursor.execute(selected_sql, where_params)
@@ -255,6 +302,9 @@ def _get_map_layers(entry_point):
         cursor.execute(nearby_sql, where_params)
         nearby_row = cursor.fetchone()
 
+        cursor.execute(requests_sql, where_params)
+        requests_row = cursor.fetchone()
+
     return {
         'selected': selected_geometry,
         'selected_rootid': selected_rootid,
@@ -263,6 +313,7 @@ def _get_map_layers(entry_point):
         'intersects': intersects_row[0] if intersects_row else None,
         'touches': touches_row[0] if touches_row else None,
         'nearby': nearby_row[0] if nearby_row else None,
+        'request_objects': requests_row[0] if requests_row else None,
     }
 
 
@@ -412,6 +463,53 @@ def _get_new_object_relations(geometry):
         " )), '[]'::jsonb)"
         ")::text FROM rel"
     )
+    request_objects_sql = (
+        "WITH input AS ("
+        " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+        "), input_parts AS ("
+        " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
+        "), ix AS ("
+        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, input i"
+        f" WHERE ST_Intersects(t.{geom_field}, i.geom)"
+        "   AND NOT EXISTS ("
+        "       SELECT 1 FROM input_parts p"
+        f"       WHERE ST_Equals(t.{geom_field}, p.geom)"
+        "   )"
+        f"   AND t.{request_id_field} IS NOT NULL"
+        "), tg AS ("
+        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, input i"
+        f" WHERE ST_Touches(t.{geom_field}, i.geom)"
+        "   AND NOT EXISTS ("
+        "       SELECT 1 FROM input_parts p"
+        f"       WHERE ST_Equals(t.{geom_field}, p.geom)"
+        "   )"
+        f"   AND t.{request_id_field} IS NOT NULL"
+        "), nr AS ("
+        f" SELECT t.ctid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id FROM {table} t, input i"
+        f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
+        f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
+        f"   AND NOT ST_Intersects(t.{geom_field}, i.geom)"
+        "   AND NOT EXISTS ("
+        "       SELECT 1 FROM input_parts p"
+        f"       WHERE ST_Equals(t.{geom_field}, p.geom)"
+        "   )"
+        f"   AND t.{request_id_field} IS NOT NULL"
+        "), rel AS ("
+        " SELECT ctid, geom, rootid, name, request_id FROM ix"
+        " UNION"
+        " SELECT ctid, geom, rootid, name, request_id FROM tg"
+        " UNION"
+        " SELECT ctid, geom, rootid, name, request_id FROM nr"
+        ") "
+        "SELECT jsonb_build_object("
+        " 'type', 'FeatureCollection',"
+        " 'features', COALESCE(jsonb_agg(jsonb_build_object("
+        "   'type', 'Feature',"
+        "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
+        "   'properties', jsonb_build_object('rootid', rootid::text, 'name', name::text, 'request_id', request_id::text)"
+        " )), '[]'::jsonb)"
+        ")::text FROM rel"
+    )
 
     with connection.cursor() as cursor:
         cursor.execute(intersects_sql, [geometry_json])
@@ -420,12 +518,15 @@ def _get_new_object_relations(geometry):
         touches_row = cursor.fetchone()
         cursor.execute(nearby_sql, [geometry_json])
         nearby_row = cursor.fetchone()
+        cursor.execute(request_objects_sql, [geometry_json])
+        request_objects_row = cursor.fetchone()
     ref_layers = _get_reference_layers(geometry=geometry, distance_meters=100)
 
     return {
         'intersects': intersects_row[0] if intersects_row else None,
         'touches': touches_row[0] if touches_row else None,
         'nearby': nearby_row[0] if nearby_row else None,
+        'request_objects': request_objects_row[0] if request_objects_row else None,
         'dgi': ref_layers['dgi'],
         'odh': ref_layers['odh'],
         'recaps': ref_layers['recaps'],
@@ -708,6 +809,7 @@ def main(request):
             'intersects_geometry_json': layers['intersects'] if layers else None,
             'touches_geometry_json': layers['touches'] if layers else None,
             'nearby_geometry_json': layers['nearby'] if layers else None,
+            'request_objects_geometry_json': layers['request_objects'] if layers else None,
             'dgi_geometry_json': reference_layers['dgi'],
             'odh_geometry_json': reference_layers['odh'],
             'recaps_geometry_json': reference_layers['recaps'],
@@ -908,6 +1010,7 @@ def add_object(request):
             'dgi_geometry_json': None,
             'odh_geometry_json': None,
             'recaps_geometry_json': None,
+            'request_objects_geometry_json': None,
         },
     )
 
@@ -932,12 +1035,12 @@ def add_recap(request):
         geometry=selected_object['geometry_json'],
         distance_meters=100,
     )
-    initial_relations = {'intersects': None, 'touches': None, 'nearby': None}
+    initial_relations = {'intersects': None, 'touches': None, 'nearby': None, 'request_objects': None}
     if selected_geometry:
         try:
             initial_relations = _get_new_object_relations(selected_geometry)
         except Exception:
-            initial_relations = {'intersects': None, 'touches': None, 'nearby': None}
+            initial_relations = {'intersects': None, 'touches': None, 'nearby': None, 'request_objects': None}
 
     return render(
         request,
@@ -950,6 +1053,7 @@ def add_recap(request):
             'intersects_geometry_json': initial_relations.get('intersects'),
             'touches_geometry_json': initial_relations.get('touches'),
             'nearby_geometry_json': initial_relations.get('nearby'),
+            'request_objects_geometry_json': initial_relations.get('request_objects'),
             'dgi_geometry_json': reference_layers['dgi'],
             'odh_geometry_json': reference_layers['odh'],
             'recaps_geometry_json': reference_layers['recaps'],

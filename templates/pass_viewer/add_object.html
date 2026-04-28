@@ -40,7 +40,7 @@
         <span class="map-legend__item"><span class="map-legend__swatch map-legend__swatch--nearby"></span>&#1042; &#1088;&#1072;&#1076;&#1080;&#1091;&#1089;&#1077; 10 &#1084;</span>
         <span class="map-legend__item"><span class="map-legend__swatch" style="border: 2px dashed #dc2626; background: repeating-linear-gradient(45deg, #dc2626 0 6px, #ffffff 6px 12px);"></span>&#1044;&#1043;&#1048;</span>
         <span class="map-legend__item"><span class="map-legend__swatch" style="border: 2px dashed #16a34a; background: repeating-linear-gradient(45deg, #16a34a 0 6px, #ffffff 6px 12px);"></span>&#1054;&#1044;&#1061;</span>
-        <span class="map-legend__item"><span class="map-legend__swatch" style="border-color:#7c3aed; background: rgba(124, 58, 237, 0.25);"></span>&#1044;&#1086;&#1089;&#1100;&#1077;&#1084;&#1099;</span>
+        <span class="map-legend__item"><span class="map-legend__swatch" style="border-color:#7c3aed; background: rgba(124, 58, 237, 0.25);"></span>Заявки на досъёмку</span>
     </div>
     <p id="edit-status" class="note" style="margin-top: 0;">
         &#1044;&#1072;&#1083;&#1100;&#1085;&#1077;&#1081;&#1096;&#1080;&#1081; &#1092;&#1091;&#1085;&#1082;&#1094;&#1080;&#1086;&#1085;&#1072;&#1083; &#1076;&#1086;&#1073;&#1072;&#1074;&#1083;&#1077;&#1085;&#1080;&#1103; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1072; &#1085;&#1072;&#1089;&#1090;&#1088;&#1086;&#1080;&#1084; &#1089;&#1083;&#1077;&#1076;&#1091;&#1102;&#1097;&#1080;&#1084; &#1096;&#1072;&#1075;&#1086;&#1084;.
@@ -193,12 +193,15 @@
         }
         .map-basemap-control {
             display: flex;
+            flex-wrap: wrap;
             gap: 6px;
             background: rgba(255, 255, 255, 0.96);
             border: 1px solid #d1d5db;
             border-radius: 10px;
             padding: 6px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+            max-width: 220px;
+            justify-content: flex-end;
         }
         .map-basemap-btn {
             border: 1px solid #d1d5db;
@@ -304,6 +307,7 @@
     {{ dgi_geometry_json|default_if_none:"null"|json_script:"dgi-geometry-data" }}
     {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
     {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
+    {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
     <script>
         const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
         map.attributionControl.setPrefix(
@@ -330,22 +334,29 @@
             const container = L.DomUtil.create('div', 'map-basemap-control');
             container.innerHTML =
                 '<button type="button" class="map-basemap-btn is-active" data-map="topo">Схема</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>';
+                '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
+                '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
             L.DomEvent.disableClickPropagation(container);
             return container;
         };
         basemapControl.addTo(map);
 
         function setBasemap(mode) {
-            const isTopo = mode === 'topo';
-            if (isTopo) {
+            if (mode === 'none') {
+                if (map.hasLayer(topoLayer)) {
+                    map.removeLayer(topoLayer);
+                }
+                if (map.hasLayer(satelliteLayer)) {
+                    map.removeLayer(satelliteLayer);
+                }
+            } else if (mode === 'topo') {
                 if (!map.hasLayer(topoLayer)) {
                     map.addLayer(topoLayer);
                 }
                 if (map.hasLayer(satelliteLayer)) {
                     map.removeLayer(satelliteLayer);
                 }
-            } else {
+            } else if (mode === 'sat') {
                 if (!map.hasLayer(satelliteLayer)) {
                     map.addLayer(satelliteLayer);
                 }
@@ -383,6 +394,7 @@
         const relationIntersectsGroup = new L.FeatureGroup().addTo(map);
         const relationTouchesGroup = new L.FeatureGroup().addTo(map);
         const relationNearbyGroup = new L.FeatureGroup().addTo(map);
+        const relationRequestObjectsGroup = new L.FeatureGroup().addTo(map);
         const dgiSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
         const recapsGroup = L.featureGroup().addTo(map);
@@ -430,9 +442,10 @@
             overlays[`Пересекается (${countGroupFeatures(relationIntersectsGroup)})`] = relationIntersectsGroup;
             overlays[`Граничит (${countGroupFeatures(relationTouchesGroup)})`] = relationTouchesGroup;
             overlays[`В радиусе 10 м (${countGroupFeatures(relationNearbyGroup)})`] = relationNearbyGroup;
+            overlays[`Заявки (${countGroupFeatures(relationRequestObjectsGroup)})`] = relationRequestObjectsGroup;
             overlays['ДГИ'] = dgiSignalGroup;
             overlays['ОДХ'] = odhSignalGroup;
-            overlays['Досьёмы'] = recapsGroup;
+            overlays['Заявки на досъёмку'] = recapsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topleft'});
             objectLayersControl.addTo(map);
         }
@@ -661,6 +674,7 @@
             relationIntersectsGroup.clearLayers();
             relationTouchesGroup.clearLayers();
             relationNearbyGroup.clearLayers();
+            relationRequestObjectsGroup.clearLayers();
             refreshObjectLayersControl();
         }
 
@@ -706,7 +720,7 @@
 
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
-            [relationIntersectsGroup, relationTouchesGroup, relationNearbyGroup, dgiSignalGroup, odhSignalGroup, recapsGroup].forEach((group) => {
+            [relationIntersectsGroup, relationTouchesGroup, relationNearbyGroup, relationRequestObjectsGroup, dgiSignalGroup, odhSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
@@ -1160,6 +1174,7 @@
                 intersects: normalizeGeoJson(layers.intersects),
                 touches: normalizeGeoJson(layers.touches),
                 nearby: normalizeGeoJson(layers.nearby),
+                request_objects: normalizeGeoJson(layers.request_objects),
                 dgi: normalizeGeoJson(layers.dgi),
                 odh: normalizeGeoJson(layers.odh),
                 recaps: normalizeGeoJson(layers.recaps),
@@ -1188,6 +1203,14 @@
                         layer.bindPopup(buildObjectPopup(feature.properties || {}));
                     }
                 }).addTo(relationNearbyGroup);
+            }
+            if (parsed.request_objects) {
+                L.geoJSON(parsed.request_objects, {
+                    style: {color: '#c026d3', weight: 2, fillColor: '#f0abfc', fillOpacity: 0.28},
+                    onEachFeature: (feature, layer) => {
+                        layer.bindPopup(buildObjectPopup(feature.properties || {}));
+                    },
+                }).addTo(relationRequestObjectsGroup);
             }
             renderReferenceSignalLayers(parsed.dgi, parsed.odh);
             renderRecapsLayer(parsed.recaps);

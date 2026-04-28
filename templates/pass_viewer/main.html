@@ -51,7 +51,7 @@
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
             <span style="width: 14px; height: 14px; border: 2px solid #7c3aed; background: rgba(124, 58, 237, 0.25); border-radius: 2px; display: inline-block;"></span>
-            &#1044;&#1086;&#1089;&#1100;&#1077;&#1084;&#1099;
+            Заявки на досъёмку
         </span>
     </div>
 
@@ -223,12 +223,15 @@
         }
         .map-basemap-control {
             display: flex;
+            flex-wrap: wrap;
             gap: 6px;
             background: rgba(255, 255, 255, 0.96);
             border: 1px solid #d1d5db;
             border-radius: 10px;
             padding: 6px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+            max-width: 220px;
+            justify-content: flex-end;
         }
         .map-basemap-btn {
             border: 1px solid #d1d5db;
@@ -302,6 +305,7 @@
     {{ dgi_geometry_json|default_if_none:"null"|json_script:"dgi-geometry-data" }}
     {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
     {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
+    {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
     <script>
         function getCookie(name) {
             const cookieValue = document.cookie
@@ -442,6 +446,7 @@
         const intersectsGroup = new L.FeatureGroup().addTo(map);
         const touchesGroup = new L.FeatureGroup().addTo(map);
         const nearbyGroup = new L.FeatureGroup().addTo(map);
+        const requestObjectsGroup = L.featureGroup().addTo(map);
         const dgiSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
         const recapsGroup = L.featureGroup().addTo(map);
@@ -483,7 +488,8 @@
             const container = L.DomUtil.create('div', 'map-basemap-control');
             container.innerHTML =
                 '<button type="button" class="map-basemap-btn is-active" data-map="topo">\u0421\u0445\u0435\u043c\u0430</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="sat">\u0421\u043f\u0443\u0442\u043d\u0438\u043a</button>';
+                '<button type="button" class="map-basemap-btn" data-map="sat">\u0421\u043f\u0443\u0442\u043d\u0438\u043a</button>' +
+                '<button type="button" class="map-basemap-btn" data-map="none">\u0411\u0435\u0437 \u043f\u043e\u0434\u043b\u043e\u0436\u043a\u0438</button>';
             L.DomEvent.disableClickPropagation(container);
             return container;
         };
@@ -495,6 +501,7 @@
         const nearbyGeometry = parseGeometryData('nearby-geometry-data');
         const dgiGeometry = parseGeometryData('dgi-geometry-data');
         const odhGeometry = parseGeometryData('odh-geometry-data');
+        const requestObjectsGeometry = parseGeometryData('request-objects-geometry-data');
 
         const withCount = (label, count) => `${label} (${count})`;
         const countGroupFeatures = (group) => {
@@ -523,9 +530,10 @@
             overlays[withCount('Пересекается', countGroupFeatures(intersectsGroup))] = intersectsGroup;
             overlays[withCount('Граничит', countGroupFeatures(touchesGroup))] = touchesGroup;
             overlays[withCount('В радиусе 10 м', countGroupFeatures(nearbyGroup))] = nearbyGroup;
+            overlays[withCount('Заявки', countGroupFeatures(requestObjectsGroup))] = requestObjectsGroup;
             overlays['ДГИ'] = dgiSignalGroup;
             overlays['ОДХ'] = odhSignalGroup;
-            overlays['Досьёмы'] = recapsGroup;
+            overlays['Заявки на досъёмку'] = recapsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false});
             objectLayersControl.addTo(map);
         }
@@ -669,6 +677,27 @@
             }).addTo(nearbyGroup);
         }
 
+        const requestObjectsGeoInitial = normalizeGeoJson(requestObjectsGeometry);
+        if (requestObjectsGeoInitial) {
+            const selectedRootidTextInit = (selectedRootid || '').trim();
+            const filteredRequestsInitial =
+                selectedRootidTextInit && requestObjectsGeoInitial.type === 'FeatureCollection'
+                    ? {
+                          ...requestObjectsGeoInitial,
+                          features: requestObjectsGeoInitial.features.filter((feature) => {
+                              const rid = String(feature?.properties?.rootid ?? '').trim();
+                              return rid !== selectedRootidTextInit;
+                          }),
+                      }
+                    : requestObjectsGeoInitial;
+            L.geoJSON(filteredRequestsInitial, {
+                style: {color: '#c026d3', weight: 2, fillColor: '#f0abfc', fillOpacity: 0.28},
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup(buildObjectPopup(feature.properties || {}));
+                },
+            }).addTo(requestObjectsGroup);
+        }
+
         const selectedGeo = normalizeGeoJson(selectedGeometry);
         selectedEditableGeo = toEditableFeatureCollection(selectedGeo);
         if (selectedGeo) {
@@ -684,15 +713,21 @@
         refreshObjectLayersControl();
 
         function setBasemap(mode) {
-            const isTopo = mode === 'topo';
-            if (isTopo) {
+            if (mode === 'none') {
+                if (map.hasLayer(topoLayer)) {
+                    map.removeLayer(topoLayer);
+                }
+                if (map.hasLayer(satelliteLayer)) {
+                    map.removeLayer(satelliteLayer);
+                }
+            } else if (mode === 'topo') {
                 if (!map.hasLayer(topoLayer)) {
                     map.addLayer(topoLayer);
                 }
                 if (map.hasLayer(satelliteLayer)) {
                     map.removeLayer(satelliteLayer);
                 }
-            } else {
+            } else if (mode === 'sat') {
                 if (!map.hasLayer(satelliteLayer)) {
                     map.addLayer(satelliteLayer);
                 }
@@ -781,10 +816,12 @@
             intersectsGroup.clearLayers();
             touchesGroup.clearLayers();
             nearbyGroup.clearLayers();
+            requestObjectsGroup.clearLayers();
             const parsed = {
                 intersects: normalizeGeoJson(layers.intersects),
                 touches: normalizeGeoJson(layers.touches),
                 nearby: normalizeGeoJson(layers.nearby),
+                request_objects: normalizeGeoJson(layers.request_objects),
                 dgi: normalizeGeoJson(layers.dgi),
                 odh: normalizeGeoJson(layers.odh),
                 recaps: normalizeGeoJson(layers.recaps),
@@ -808,6 +845,7 @@
             parsed.intersects = excludeSelectedRootid(parsed.intersects);
             parsed.touches = excludeSelectedRootid(parsed.touches);
             parsed.nearby = excludeSelectedRootid(parsed.nearby);
+            parsed.request_objects = excludeSelectedRootid(parsed.request_objects);
             renderReferenceSignalLayers(parsed.dgi, parsed.odh);
             renderRecapsLayer(parsed.recaps);
             if (parsed.intersects) {
@@ -827,6 +865,12 @@
                     style: {color: '#16a34a', weight: 2, fillColor: '#22c55e', fillOpacity: 0.3},
                     onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {}))
                 }).addTo(nearbyGroup);
+            }
+            if (parsed.request_objects) {
+                L.geoJSON(parsed.request_objects, {
+                    style: {color: '#c026d3', weight: 2, fillColor: '#f0abfc', fillOpacity: 0.28},
+                    onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
+                }).addTo(requestObjectsGroup);
             }
             refreshObjectLayersControl();
             rebuildSnapGuideLines();
@@ -908,7 +952,7 @@
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
             collectSnapGuideLines(selectedGeo, snapGuideLines);
-            [intersectsGroup, touchesGroup, nearbyGroup, dgiSignalGroup, odhSignalGroup, recapsGroup].forEach((group) => {
+            [intersectsGroup, touchesGroup, nearbyGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);

@@ -142,9 +142,9 @@
                                 {% if item.request_id %}
                                     <span
                                         style="align-self: center; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 8px; padding: 8px 10px; font-size: 13px; white-space: nowrap;"
-                                        title="Количество досьёмов в recaps с этим request_id"
+                                        title="Количество заявок на досъёмку в recaps с этим request_id"
                                     >
-                                        досьёмов: {{ item.recap_count|default:0 }}
+                                        Заявок на досъёмку: {{ item.recap_count|default:0 }}
                                     </span>
                                     <form method="get" action="{% url 'add_recap' %}" style="margin: 0; align-self: center;">
                                         <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
@@ -154,7 +154,7 @@
                                             type="submit"
                                             style="background: #e0ecff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 10px;"
                                         >
-                                            Добавить досьём
+                                            Заявка на досъёмку
                                         </button>
                                     </form>
                                     <form method="post" action="{% url 'delete_owned_object' %}" style="margin: 0; align-self: center;">
