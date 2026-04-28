@@ -54,9 +54,88 @@ def _column_exists(cursor, table_name, column_name):
     return cursor.fetchone() is not None
 
 
+def _table_exists(cursor, table_name):
+    cursor.execute(
+        """
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = %s
+        LIMIT 1
+        """,
+        [table_name],
+    )
+    return cursor.fetchone() is not None
+
+
 def _get_current_user_owner_id(username):
     user = ExternalUser.objects.filter(login=username).only('owner_legal_person_id').first()
     return user.owner_legal_person_id if user else None
+
+
+def _get_id_name_lookup_value(legal_person_id):
+    if legal_person_id is None:
+        return None
+
+    table = getattr(settings, 'GIS_ID_NAMES_TABLE', 'id_names')
+    id_candidates = [
+        'OwnerLegalPersonId',
+        'CustomerLegalPersonId',
+        'DepartmentLegalPersonId',
+        'LegalPersonId',
+        'id',
+    ]
+    name_candidates = ['name', 'Name', 'title', 'Title', 'full_name', 'short_name']
+
+    with connection.cursor() as cursor:
+        if not _table_exists(cursor, table):
+            return None
+
+        cursor.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = %s
+            """,
+            [table],
+        )
+        columns = {row[0] for row in cursor.fetchall()}
+        lowered = {column.lower(): column for column in columns}
+
+        id_field = None
+        for candidate in id_candidates:
+            key = candidate.lower()
+            if key in lowered:
+                id_field = lowered[key]
+                break
+        if not id_field:
+            id_like = [column for column in columns if column.lower().endswith('id')]
+            id_field = id_like[0] if id_like else None
+        if not id_field:
+            return None
+
+        name_field = None
+        for candidate in name_candidates:
+            key = candidate.lower()
+            if key in lowered:
+                name_field = lowered[key]
+                break
+        if not name_field:
+            name_like = [column for column in columns if 'name' in column.lower()]
+            name_field = name_like[0] if name_like else None
+        if not name_field:
+            return None
+
+        query = (
+            f"SELECT {_quote_ident(name_field)}::text "
+            f"FROM {_quote_ident(table)} "
+            f"WHERE {_quote_ident(id_field)}::text = %s "
+            f"LIMIT 1"
+        )
+        cursor.execute(query, [str(legal_person_id)])
+        row = cursor.fetchone()
+        return row[0] if row and row[0] else None
 
 
 def _get_owned_objects(owner_legal_person_id):
@@ -1061,11 +1140,13 @@ def home(request):
         form = EntryPointForm()
 
     owner_id = None
+    owner_name = None
     owned_objects = []
     owned_objects_error = None
     try:
         owner_id = _get_current_user_owner_id(request.user.username)
         if owner_id is not None:
+            owner_name = _get_id_name_lookup_value(owner_id)
             owned_objects = _get_owned_objects(owner_id)
             recap_counts = _get_recap_counts_by_request_ids(item['request_id'] for item in owned_objects)
             for item in owned_objects:
@@ -1083,6 +1164,7 @@ def home(request):
         {
             'form': form,
             'owner_id': owner_id,
+            'owner_name': owner_name,
             'owned_objects': owned_objects,
             'owned_objects_error': owned_objects_error,
         },
