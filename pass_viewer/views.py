@@ -39,41 +39,98 @@ def _resolve_column_name(cursor, table_name, preferred_name):
     return row[0] if row else preferred_name
 
 
+def _column_exists(cursor, table_name, column_name):
+    cursor.execute(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = %s
+          AND lower(column_name) = lower(%s)
+        LIMIT 1
+        """,
+        [table_name, column_name],
+    )
+    return cursor.fetchone() is not None
+
+
 def _get_current_user_owner_id(username):
     user = ExternalUser.objects.filter(login=username).only('owner_legal_person_id').first()
     return user.owner_legal_person_id if user else None
 
 
 def _get_owned_objects(owner_legal_person_id):
-    table = settings.GIS_OBJECT_TABLE
+    primary_table = settings.GIS_OBJECT_TABLE
     rootid_field = settings.GIS_OBJECT_ROOTID_FIELD
     name_field = settings.GIS_OBJECT_NAME_FIELD
     owner_field_pref = getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
+    odh_customer_field_pref = getattr(settings, 'GIS_ODH_CUSTOMER_FIELD', 'CustomerLegalPersonId')
     request_id_field_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
+    tables_to_query = [primary_table, 'odh']
 
+    owned_items = []
+    seen_keys = set()
+    seen_tables = set()
     with connection.cursor() as cursor:
-        owner_field = _resolve_column_name(cursor, table, owner_field_pref)
-        request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
-        query = (
-            f"SELECT ctid::text, {_quote_ident(rootid_field)}::text, {_quote_ident(name_field)}::text, "
-            f"{_quote_ident(request_id_field)}::text "
-            f"FROM {_quote_ident(table)} "
-            f"WHERE {_quote_ident(owner_field)} = %s "
-            f"ORDER BY {_quote_ident(name_field)} ASC NULLS LAST, {_quote_ident(rootid_field)} ASC "
-            f"LIMIT 500"
-        )
-        cursor.execute(query, [owner_legal_person_id])
-        rows = cursor.fetchall()
+        for table in tables_to_query:
+            if table in seen_tables:
+                continue
+            seen_tables.add(table)
+            source_label = 'ОДХ' if table.lower() == 'odh' else 'ДТ'
+            owner_field_candidates = (
+                [odh_customer_field_pref, owner_field_pref]
+                if table.lower() == 'odh'
+                else [owner_field_pref]
+            )
+            owner_field = None
+            for candidate in owner_field_candidates:
+                if _column_exists(cursor, table, candidate):
+                    owner_field = _resolve_column_name(cursor, table, candidate)
+                    break
+            if not owner_field:
+                continue
+            request_id_expr = "''::text AS request_id"
+            if _column_exists(cursor, table, request_id_field_pref):
+                request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
+                request_id_expr = f"{_quote_ident(request_id_field)}::text AS request_id"
 
-    return [
-        {
-            'object_key': row[0],
-            'rootid': row[1],
-            'name': row[2] or '',
-            'request_id': row[3] or '',
-        }
-        for row in rows
-    ]
+            query = (
+                f"SELECT ctid::text, {_quote_ident(rootid_field)}::text, {_quote_ident(name_field)}::text, "
+                f"{request_id_expr} "
+                f"FROM {_quote_ident(table)} "
+                f"WHERE {_quote_ident(owner_field)} = %s "
+                f"ORDER BY {_quote_ident(name_field)} ASC NULLS LAST, {_quote_ident(rootid_field)} ASC "
+                f"LIMIT 500"
+            )
+            cursor.execute(query, [owner_legal_person_id])
+            rows = cursor.fetchall()
+
+            for row in rows:
+                item = {
+                    'object_key': row[0],
+                    'rootid': row[1],
+                    'name': row[2] or '',
+                    'request_id': row[3] or '',
+                    'source_label': source_label,
+                }
+                key = (
+                    (item['rootid'] or '').strip().lower(),
+                    (item['name'] or '').strip().lower(),
+                    (item['request_id'] or '').strip().lower(),
+                )
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                owned_items.append(item)
+
+    return sorted(
+        owned_items,
+        key=lambda item: (
+            (item.get('name') or '').lower(),
+            (item.get('rootid') or '').lower(),
+            (item.get('request_id') or '').lower(),
+        ),
+    )
 
 
 def _get_recap_counts_by_request_ids(request_ids):

@@ -51,6 +51,22 @@
             font-size: 15px;
             line-height: 1.35;
         }
+        .source-badge {
+            align-self: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            padding: 4px 9px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #334155;
+            background: #f8fafc;
+            white-space: nowrap;
+        }
+        .source-badge--odh {
+            color: #065f46;
+            border-color: #6ee7b7;
+            background: #ecfdf5;
+        }
         @media (max-width: 900px) {
             .owned-lists-grid {
                 grid-template-columns: 1fr;
@@ -109,6 +125,9 @@
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                 </form>
+                                <span class="source-badge {% if item.source_label == 'ОДХ' %}source-badge--odh{% endif %}">
+                                    {{ item.source_label|default:'ДТ' }}
+                                </span>
                             </div>
                         {% endif %}
                     {% endfor %}
@@ -139,6 +158,9 @@
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                 </form>
+                                <span class="source-badge {% if item.source_label == 'ОДХ' %}source-badge--odh{% endif %}">
+                                    {{ item.source_label|default:'ДТ' }}
+                                </span>
                                 {% if item.request_id %}
                                     <span
                                         style="align-self: center; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 8px; padding: 8px 10px; font-size: 13px; white-space: nowrap;"
