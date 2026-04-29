@@ -506,15 +506,18 @@
                         const descr = feature?.properties?.descr ?? '-';
                         const address = feature?.properties?.address ?? '-';
                         const vri = feature?.properties?.vri ?? '-';
+                        const sobstvRr = feature?.properties?.sobstv_rr ?? '-';
                         const descrText = String(descr ?? '').trim();
                         const addressText = String(address ?? '').trim();
                         const vriText = String(vri ?? '').trim();
+                        const sobstvRrText = String(sobstvRr ?? '').trim();
                         layer.bindPopup(
                             '<div style="min-width: 220px;">' +
                             '<div><strong>ДГИ</strong></div>' +
                             (!descrText || ['null', 'none', '-'].includes(descrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Кадастровый номер:</strong> ' + String(descr) + '</div>')) +
                             (!addressText || ['null', 'none', '-'].includes(addressText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Адрес:</strong> ' + String(address) + '</div>')) +
                             (!vriText || ['null', 'none', '-'].includes(vriText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Назначение:</strong> ' + String(vri) + '</div>')) +
+                            (!sobstvRrText || ['null', 'none', '-'].includes(sobstvRrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Собственник:</strong> ' + String(sobstvRr) + '</div>')) +
                             '</div>'
                         );
                     } else if (isOdh) {
@@ -577,6 +580,8 @@
             const rootid = properties?.rootid ?? '-';
             const name = properties?.name ?? '-';
             const requestId = properties?.request_id ?? '-';
+            const ownerLegalPersonId = properties?.owner_legal_person_id ?? '-';
+            const ownerLegalPersonName = properties?.owner_legal_person_name ?? '-';
             const customerLegalPersonId = properties?.customer_legal_person_id ?? '-';
             const departmentLegalPersonId = properties?.department_legal_person_id ?? '-';
             const customerLegalPersonName = properties?.customer_legal_person_name ?? '-';
@@ -585,14 +590,21 @@
             const requestIdText = String(requestId ?? '').trim().toLowerCase();
             const isMissingRootid = !rootidText || rootidText === 'null' || rootidText === 'none' || rootidText === '-';
             const hasRequestId = !!requestIdText && requestIdText !== 'null' && requestIdText !== 'none' && requestIdText !== '-';
+            const ownerText = String(ownerLegalPersonId ?? '').trim();
             const customerText = String(customerLegalPersonId ?? '').trim();
             const departmentText = String(departmentLegalPersonId ?? '').trim();
+            const ownerNameText = String(ownerLegalPersonName ?? '').trim();
             const customerNameText = String(customerLegalPersonName ?? '').trim();
             const departmentNameText = String(departmentLegalPersonName ?? '').trim();
+            const hasOwner = !!ownerText && !['null', 'none', '-'].includes(ownerText.toLowerCase());
             const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
             const hasDepartment = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
+            const hasOwnerName = !!ownerNameText && !['null', 'none', '-'].includes(ownerNameText.toLowerCase());
             const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
             const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
+            const ownerDisplay = hasOwnerName
+                ? String(ownerLegalPersonName || '-')
+                : String(ownerLegalPersonId || '-');
             const customerDisplay = hasCustomerName
                 ? String(customerLegalPersonName || '-')
                 : String(customerLegalPersonId || '-');
@@ -600,7 +612,9 @@
                 ? String(departmentLegalPersonName || '-')
                 : String(departmentLegalPersonId || '-');
             const ownerLines =
-                (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(customerDisplay) + '</div>') : '') +
+                ((hasOwner || hasCustomer)
+                    ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(hasOwner ? ownerDisplay : customerDisplay) + '</div>')
+                    : '') +
                 (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + String(departmentDisplay) + '</div>') : '');
             if (isMissingRootid && hasRequestId) {
                 return (
