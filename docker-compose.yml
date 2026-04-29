@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: passport_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGIS_DB_NAME}
+      POSTGRES_USER: ${POSTGIS_DB_USER}
+      POSTGRES_PASSWORD: ${POSTGIS_DB_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  web:
+    build: .
+    container_name: passport_web
+    restart: unless-stopped
+    depends_on:
+      - db
+    env_file:
+      - .env
+    command: >
+      sh -c "python manage.py migrate &&
+             gunicorn pass_map.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"
+    ports:
+      - "80:8000"
+    volumes:
+      - media_data:/app/media
+
+volumes:
+  pg_data:
+  media_data:
