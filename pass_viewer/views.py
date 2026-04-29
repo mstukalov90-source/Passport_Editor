@@ -765,6 +765,9 @@ def _export_geometry_files(geometry, properties=None):
 
 
 def _get_new_object_relations(geometry, source_label='ДТ'):
+    geometry_norm = _to_intersection_geometry(geometry)
+    if not geometry_norm:
+        raise ValueError('Unsupported geometry payload for relation checks.')
     table = _get_source_table(source_label)
     dt_table = settings.GIS_OBJECT_TABLE
     odh_table = getattr(settings, 'GIS_ODH_TABLE', 'odh')
@@ -776,7 +779,7 @@ def _get_new_object_relations(geometry, source_label='ДТ'):
     department_field_pref = getattr(settings, 'GIS_OBJECT_DEPARTMENT_FIELD', 'DepartmentLegalPersonId')
     owner_field_pref_dt = getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
     owner_field_pref_odh = getattr(settings, 'GIS_ODH_CUSTOMER_FIELD', 'CustomerLegalPersonId')
-    geometry_json = json.dumps(geometry)
+    geometry_json = json.dumps(geometry_norm)
 
     customer_select_expr = "NULL::text AS customer_legal_person_id"
     department_select_expr = "NULL::text AS department_legal_person_id"
@@ -1059,6 +1062,48 @@ def _get_dgi_intersection_percent(geometry):
         cursor.execute(query, [geometry_json])
         row = cursor.fetchone()
         return float(row[0]) if row and row[0] is not None else 0.0
+
+
+def _to_intersection_geometry(geometry):
+    if not isinstance(geometry, dict):
+        return None
+    geo_type = geometry.get('type')
+    if geo_type == 'Feature':
+        feature_geom = geometry.get('geometry')
+        return feature_geom if isinstance(feature_geom, dict) else None
+    if geo_type == 'FeatureCollection':
+        geometries = []
+        for feature in geometry.get('features') or []:
+            feature_geom = (feature or {}).get('geometry')
+            if isinstance(feature_geom, dict):
+                geometries.append(feature_geom)
+        if not geometries:
+            return None
+        if len(geometries) == 1:
+            return geometries[0]
+        return {'type': 'GeometryCollection', 'geometries': geometries}
+    if geo_type in {'Polygon', 'MultiPolygon', 'GeometryCollection'}:
+        return geometry
+    return None
+
+
+def _geometries_intersect(geometry_a, geometry_b):
+    geometry_a_norm = _to_intersection_geometry(geometry_a)
+    geometry_b_norm = _to_intersection_geometry(geometry_b)
+    if not geometry_a_norm or not geometry_b_norm:
+        return False
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT ST_Intersects(
+                ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326),
+                ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326)
+            )
+            """,
+            [json.dumps(geometry_a_norm), json.dumps(geometry_b_norm)],
+        )
+        row = cursor.fetchone()
+    return bool(row[0]) if row else False
 
 
 def _ensure_request_id_column(cursor, table_name, request_id_field):
@@ -1770,20 +1815,34 @@ def check_new_object_relations(request):
     except json.JSONDecodeError:
         return JsonResponse({'ok': False, 'error': 'Некорректный JSON.'}, status=400)
 
-    geometry = payload.get('geometry')
-    if not isinstance(geometry, dict):
+    geometry_raw = payload.get('geometry')
+    geometry = _to_intersection_geometry(geometry_raw)
+    if not geometry:
         return JsonResponse({'ok': False, 'error': 'Геометрия не передана.'}, status=400)
+    selected_geometry = _to_intersection_geometry(payload.get('selected_geometry'))
+    has_selected_geometry = bool(selected_geometry)
     source_label = _normalize_source_label(payload.get('source_label'))
 
     try:
         layers = _get_new_object_relations(geometry, source_label=source_label)
+        intersects_selected = (
+            _geometries_intersect(geometry, selected_geometry)
+            if has_selected_geometry
+            else False
+        )
     except Exception:
         return JsonResponse(
             {'ok': False, 'error': 'Не удалось получить связанные объекты из PostGIS.'},
             status=500,
         )
 
-    return JsonResponse({'ok': True, 'layers': layers})
+    return JsonResponse(
+        {
+            'ok': True,
+            'layers': layers,
+            'intersects_selected': intersects_selected,
+        }
+    )
 
 
 @login_required

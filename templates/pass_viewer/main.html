@@ -998,6 +998,54 @@
             }
             return null;
         }
+        function countPolygonLikeGeometriesInCollection(geojsonCollection) {
+            const features = geojsonCollection?.features || [];
+            let count = 0;
+            features.forEach((feature) => {
+                const geom = feature?.geometry;
+                if (!geom) {
+                    return;
+                }
+                if (geom.type === 'Polygon') {
+                    count += 1;
+                } else if (geom.type === 'MultiPolygon') {
+                    count += (geom.coordinates || []).length || 1;
+                }
+            });
+            return count;
+        }
+        function hasNewPolygonBeyondSelected() {
+            if (!isEditing) {
+                return false;
+            }
+            const baselineCount = countPolygonLikeGeometriesInCollection(selectedEditableGeo);
+            const currentCount = countPolygonLikeGeometriesInCollection(editableGroup.toGeoJSON());
+            return currentCount > baselineCount;
+        }
+        function toIntersectionGeometry(raw) {
+            if (!raw || typeof raw !== 'object') {
+                return null;
+            }
+            if (raw.type === 'Feature') {
+                return raw.geometry || null;
+            }
+            if (raw.type === 'FeatureCollection') {
+                const geometries = (raw.features || [])
+                    .map((feature) => feature?.geometry)
+                    .filter((geometry) => !!geometry);
+                if (!geometries.length) {
+                    return null;
+                }
+                if (geometries.length === 1) {
+                    return geometries[0];
+                }
+                return {type: 'GeometryCollection', geometries};
+            }
+            if (raw.type === 'Polygon' || raw.type === 'MultiPolygon' || raw.type === 'GeometryCollection') {
+                return raw;
+            }
+            return null;
+        }
 
         function updateRelationsButtonState() {
             checkRelationsButton.disabled = !buildCurrentGeometry();
@@ -1078,6 +1126,8 @@
                 statusEl.textContent = 'Сначала выберите или отредактируйте объект.';
                 return;
             }
+            const hasNewPolygon = hasNewPolygonBeyondSelected();
+            const selectedGeometryForCheck = hasNewPolygon ? toIntersectionGeometry(selectedGeometry) : null;
             checkRelationsButton.disabled = true;
             statusEl.textContent = 'Ищем пересечения, границы и объекты в радиусе 10 м...';
             try {
@@ -1089,12 +1139,17 @@
                     },
                     body: JSON.stringify({
                         geometry,
-                        source_label: selectedSourceLabel
+                        source_label: selectedSourceLabel,
+                        selected_geometry: selectedGeometryForCheck
                     })
                 });
                 const data = await response.json();
                 if (!response.ok || !data.ok) {
                     throw new Error(data.error || 'Ошибка запроса.');
+                }
+                if (hasNewPolygon && data.intersects_selected) {
+                    window.alert('Новый полигон пересекает редактируемый объект');
+                    statusEl.textContent = 'Обнаружено пересечение: новый полигон пересекает редактируемый объект.';
                 }
                 renderRelationLayers(data.layers || {});
                 statusEl.textContent = 'Связанные объекты обновлены: пересечения, границы и зона 10 м.';

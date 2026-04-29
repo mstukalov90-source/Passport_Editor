@@ -1101,6 +1101,8 @@
                 statusEl.textContent = 'Нет геометрии для проверки связей.';
                 return;
             }
+            const dossierGeo = dossierGroup.toGeoJSON();
+            const hasNewPolygon = Array.isArray(dossierGeo?.features) && dossierGeo.features.length > 0;
             checkRelationsButton.disabled = true;
             statusEl.textContent = 'Обновляем связи...';
             try {
@@ -1112,12 +1114,17 @@
                     },
                     body: JSON.stringify({
                         geometry,
-                        source_label: selectedSourceLabel
+                        source_label: selectedSourceLabel,
+                        selected_geometry: hasNewPolygon ? selectedGeometry : null
                     })
                 });
                 const data = await response.json();
                 if (!response.ok || !data.ok) {
                     throw new Error(data.error || 'Ошибка обновления связей.');
+                }
+                if (hasNewPolygon && data.intersects_selected) {
+                    window.alert('Новый полигон пересекает редактируемый объект');
+                    statusEl.textContent = 'Обнаружено пересечение: новый полигон пересекает редактируемый объект.';
                 }
                 renderRelationLayers(data.layers || {});
                 statusEl.textContent = 'Связи обновлены.';
