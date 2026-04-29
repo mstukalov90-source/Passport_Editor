@@ -46,7 +46,7 @@
             &#1044;&#1043;&#1048;
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
-            <span style="width: 14px; height: 14px; border: 2px dashed #16a34a; background: repeating-linear-gradient(45deg, #16a34a 0 6px, #ffffff 6px 12px); border-radius: 2px; display: inline-block;"></span>
+            <span style="width: 14px; height: 14px; border: 2px solid #00bfff; background: transparent; border-radius: 2px; display: inline-block;"></span>
             &#1054;&#1044;&#1061;
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
@@ -71,6 +71,7 @@
             <span class="snap-switch__label">&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077;</span>
         </label>
         <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1086;&#1082;&#1072;&#1079;&#1072;&#1090;&#1100; &#1089;&#1074;&#1103;&#1079;&#1080;</button>
+        <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
         <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
         <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">&#1042;&#1099;&#1075;&#1088;&#1091;&#1079;&#1080;&#1090;&#1100; &#1092;&#1072;&#1081;&#1083;&#1099;</button>
     </div>
@@ -248,6 +249,66 @@
             background: #e8f0ff;
             color: #1d4ed8;
         }
+        .map-layer-groups-control {
+            position: absolute;
+            top: 72px;
+            right: 8px;
+            z-index: 700;
+            display: block;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            padding: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+            max-width: 360px;
+            max-height: 42vh;
+            overflow-y: auto;
+        }
+        .map-layer-groups-control label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 2px 0;
+        }
+        .map-layer-groups-control input[type="checkbox"] {
+            margin: 0;
+        }
+                .map-layer-groups-control .layer-item-label {
+            background: #fff59d !important;
+            display: block !important;
+            color: #111827 !important;
+            font-size: 13px !important;
+            line-height: 1.25 !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            white-space: nowrap;
+        }
+        .map-layer-groups-control .layer-group-label {
+            background: #ffd6d6 !important;
+            display: block !important;
+            color: #0f172a !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            white-space: nowrap;
+        }
+        .map-layer-groups-control .layer-group-title {
+            margin: 6px 0 4px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #111827;
+        }
+        .map-layer-groups-control .layer-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 2px 0;
+        }
+        .map-layer-groups-control .layer-children {
+            padding-left: 18px;
+            margin-bottom: 6px;
+        }
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -350,19 +411,61 @@
                 .replace(/'/g, '&#39;');
         }
 
-        function buildObjectPopup(properties, fallbackRootid = '-', fallbackName = '-', fallbackRequestId = '-') {
+        function buildObjectPopup(
+            properties,
+            fallbackRootid = '-',
+            fallbackName = '-',
+            fallbackRequestId = '-',
+            fallbackCustomerLegalPersonId = '-',
+            fallbackDepartmentLegalPersonId = '-',
+            fallbackCustomerLegalPersonName = '-',
+            fallbackDepartmentLegalPersonName = '-'
+        ) {
             const rootid = properties?.rootid ?? fallbackRootid;
             const name = properties?.name ?? fallbackName;
             const requestId = properties?.request_id ?? fallbackRequestId;
+            const ownerLegalPersonId = properties?.owner_legal_person_id ?? '-';
+            const ownerLegalPersonName = properties?.owner_legal_person_name ?? '-';
+            const customerLegalPersonId = properties?.customer_legal_person_id ?? fallbackCustomerLegalPersonId;
+            const departmentLegalPersonId = properties?.department_legal_person_id ?? fallbackDepartmentLegalPersonId;
+            const customerLegalPersonName = properties?.customer_legal_person_name ?? fallbackCustomerLegalPersonName;
+            const departmentLegalPersonName = properties?.department_legal_person_name ?? fallbackDepartmentLegalPersonName;
             const rootidText = String(rootid ?? '').trim().toLowerCase();
             const requestIdText = String(requestId ?? '').trim().toLowerCase();
             const isMissingRootid = !rootidText || rootidText === 'null' || rootidText === 'none' || rootidText === '-';
             const hasRequestId = !!requestIdText && requestIdText !== 'null' && requestIdText !== 'none' && requestIdText !== '-';
+            const ownerText = String(ownerLegalPersonId ?? '').trim();
+            const customerText = String(customerLegalPersonId ?? '').trim();
+            const departmentText = String(departmentLegalPersonId ?? '').trim();
+            const ownerNameText = String(ownerLegalPersonName ?? '').trim();
+            const customerNameText = String(customerLegalPersonName ?? '').trim();
+            const departmentNameText = String(departmentLegalPersonName ?? '').trim();
+            const hasOwner = !!ownerText && !['null', 'none', '-'].includes(ownerText.toLowerCase());
+            const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
+            const hasDepartment = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
+            const hasOwnerName = !!ownerNameText && !['null', 'none', '-'].includes(ownerNameText.toLowerCase());
+            const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
+            const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
+            const ownerDisplay = hasOwnerName
+                ? String(ownerLegalPersonName || '-')
+                : String(ownerLegalPersonId || '-');
+            const customerDisplay = hasCustomerName
+                ? String(customerLegalPersonName || '-')
+                : String(customerLegalPersonId || '-');
+            const departmentDisplay = hasDepartmentName
+                ? String(departmentLegalPersonName || '-')
+                : String(departmentLegalPersonId || '-');
+            const ownerLines =
+                ((hasOwner || hasCustomer)
+                    ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(hasOwner ? ownerDisplay : customerDisplay) + '</div>')
+                    : '') +
+                (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>') : '');
             if (isMissingRootid && hasRequestId) {
                 return (
                     '<div style="min-width: 220px;">' +
                     '<div><strong>№ Заявки:</strong> ' + escapeHtml(requestId || '-') + '</div>' +
                     '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
+                    ownerLines +
                     '</div>'
                 );
             }
@@ -370,6 +473,7 @@
                 '<div style="min-width: 220px;">' +
                 '<div><strong>№ Паспорта:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
                 '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
+                ownerLines +
                 '</div>'
             );
         }
@@ -418,6 +522,7 @@
         const drawModeFreehandToggle = document.getElementById('draw-mode-freehand');
         const snapToggle = document.getElementById('snap-toggle');
         const checkRelationsButton = document.getElementById('check-relations-btn');
+        const checkDgiIntersectionsButton = document.getElementById('check-dgi-intersections-btn');
         const cancelEditButton = document.getElementById('cancel-edit-btn');
         const saveButton = document.getElementById('save-geometry-btn');
         const statusEl = document.getElementById('edit-status');
@@ -434,6 +539,11 @@
         const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
         const selectedName = "{{ selected_name|default:''|escapejs }}";
         const selectedRequestId = "{{ selected_request_id|default:''|escapejs }}";
+        const selectedCustomerLegalPersonId = "{{ selected_customer_legal_person_id|default:''|escapejs }}";
+        const selectedDepartmentLegalPersonId = "{{ selected_department_legal_person_id|default:''|escapejs }}";
+        const selectedCustomerLegalPersonName = "{{ selected_customer_legal_person_name|default:''|escapejs }}";
+        const selectedDepartmentLegalPersonName = "{{ selected_department_legal_person_name|default:''|escapejs }}";
+        const selectedSourceLabel = "{{ selected_source_label|default:'ДТ'|escapejs }}";
         const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 10);
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
@@ -482,13 +592,22 @@
                 attribution: 'Tiles &copy; Esri'
             }
         );
-        topoLayer.addTo(map);
+        const mggtLayer = L.tileLayer(
+            'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}',
+            {
+                maxNativeZoom: 17,
+                maxZoom: 30,
+                attribution: '\u041c\u0413\u0413\u0422'
+            }
+        );
+        mggtLayer.addTo(map);
         const basemapControl = L.control({position: 'topright'});
         basemapControl.onAdd = function () {
             const container = L.DomUtil.create('div', 'map-basemap-control');
             container.innerHTML =
-                '<button type="button" class="map-basemap-btn is-active" data-map="topo">\u0421\u0445\u0435\u043c\u0430</button>' +
+                '<button type="button" class="map-basemap-btn" data-map="topo">OSM</button>' +
                 '<button type="button" class="map-basemap-btn" data-map="sat">\u0421\u043f\u0443\u0442\u043d\u0438\u043a</button>' +
+                '<button type="button" class="map-basemap-btn is-active" data-map="mggt">\u041c\u0413\u0413\u0422</button>' +
                 '<button type="button" class="map-basemap-btn" data-map="none">\u0411\u0435\u0437 \u043f\u043e\u0434\u043b\u043e\u0436\u043a\u0438</button>';
             L.DomEvent.disableClickPropagation(container);
             return container;
@@ -531,9 +650,9 @@
             overlays[withCount('Граничит', countGroupFeatures(touchesGroup))] = touchesGroup;
             overlays[withCount('В радиусе 10 м', countGroupFeatures(nearbyGroup))] = nearbyGroup;
             overlays[withCount('Заявки', countGroupFeatures(requestObjectsGroup))] = requestObjectsGroup;
-            overlays['ДГИ'] = dgiSignalGroup;
-            overlays['ОДХ'] = odhSignalGroup;
-            overlays['Заявки на досъёмку'] = recapsGroup;
+            overlays[withCount('ДГИ', countGroupFeatures(dgiSignalGroup))] = dgiSignalGroup;
+            overlays[withCount('ОДХ', countGroupFeatures(odhSignalGroup))] = odhSignalGroup;
+            overlays[withCount('Заявки на досъёмку', countGroupFeatures(recapsGroup))] = recapsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false});
             objectLayersControl.addTo(map);
         }
@@ -592,19 +711,71 @@
             }
             L.geoJSON(geo, {
                 style: {
-                    color: isOdh ? '#16a34a' : '#dc2626',
+                    color: isOdh ? '#00bfff' : '#dc2626',
                     weight: 4,
                     opacity: 0.95,
-                    dashArray: '10 8',
+                    dashArray: isOdh ? null : '10 8',
                     fillOpacity: 0,
                 },
                 onEachFeature: (feature, layer) => {
-                    layer.bindPopup('<strong>' + sourceLabel + '</strong>');
-                    if (isDgi || isOdh) {
+                    if (isDgi) {
+                        const descr = feature?.properties?.descr ?? '-';
+                        const address = feature?.properties?.address ?? '-';
+                        const vri = feature?.properties?.vri ?? '-';
+                        const sobstvRr = feature?.properties?.sobstv_rr ?? '-';
+                        const descrText = String(descr ?? '').trim();
+                        const addressText = String(address ?? '').trim();
+                        const vriText = String(vri ?? '').trim();
+                        const sobstvRrText = String(sobstvRr ?? '').trim();
+                        layer.bindPopup(
+                            '<div style="min-width: 220px;">' +
+                            '<div><strong>ДГИ</strong></div>' +
+                            (!descrText || ['null', 'none', '-'].includes(descrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Кадастровый номер:</strong> ' + escapeHtml(descr) + '</div>')) +
+                            (!addressText || ['null', 'none', '-'].includes(addressText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Адрес:</strong> ' + escapeHtml(address) + '</div>')) +
+                            (!vriText || ['null', 'none', '-'].includes(vriText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Назначение:</strong> ' + escapeHtml(vri) + '</div>')) +
+                            (!sobstvRrText || ['null', 'none', '-'].includes(sobstvRrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Собственник:</strong> ' + escapeHtml(sobstvRr) + '</div>')) +
+                            '</div>'
+                        );
+                    } else if (isOdh) {
+                        const rootid = feature?.properties?.rootid ?? '-';
+                        const name = feature?.properties?.name ?? '-';
+                        const customerLegalPersonId = feature?.properties?.customer_legal_person_id ?? '-';
+                        const departmentLegalPersonId = feature?.properties?.department_legal_person_id ?? '-';
+                        const customerLegalPersonName = feature?.properties?.customer_legal_person_name ?? '-';
+                        const departmentLegalPersonName = feature?.properties?.department_legal_person_name ?? '-';
+                        const customerText = String(customerLegalPersonId ?? '').trim();
+                        const departmentText = String(departmentLegalPersonId ?? '').trim();
+                        const customerNameText = String(customerLegalPersonName ?? '').trim();
+                        const departmentNameText = String(departmentLegalPersonName ?? '').trim();
+                        const rootidText = String(rootid ?? '').trim();
+                        const nameText = String(name ?? '').trim();
+                        const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
+                        const hasDepartment = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
+                        const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
+                        const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
+                        const customerDisplay = hasCustomerName
+                            ? String(customerLegalPersonName || '-')
+                            : String(customerLegalPersonId || '-');
+                        const departmentDisplay = hasDepartmentName
+                            ? String(departmentLegalPersonName || '-')
+                            : String(departmentLegalPersonId || '-');
+                        layer.bindPopup(
+                            '<div style="min-width: 220px;">' +
+                            '<div><strong>ОДХ</strong></div>' +
+                            (!rootidText || ['null', 'none', '-'].includes(rootidText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Паспорт №:</strong> ' + escapeHtml(rootid) + '</div>')) +
+                            (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
+                            (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(customerDisplay) + '</div>') : '') +
+                            (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>') : '') +
+                            '</div>'
+                        );
+                    } else {
+                        layer.bindPopup('<strong>' + sourceLabel + '</strong>');
+                    }
+                    if (isDgi) {
                         layer.on('add', () => {
                             const patternId = ensureSignalPattern(
-                                isDgi ? 'dgi-signal-tape-pattern' : 'odh-signal-tape-pattern',
-                                isDgi ? '#dc2626' : '#16a34a'
+                                'dgi-signal-tape-pattern',
+                                '#dc2626'
                             );
                             const el = layer.getElement && layer.getElement();
                             if (!patternId || !el) {
@@ -612,7 +783,7 @@
                             }
                             el.setAttribute('fill', 'url(#' + patternId + ')');
                             el.setAttribute('fill-opacity', '0.25');
-                            el.setAttribute('stroke', isDgi ? '#dc2626' : '#16a34a');
+                            el.setAttribute('stroke', '#dc2626');
                             el.setAttribute('stroke-width', '2');
                             el.setAttribute('stroke-dasharray', '10 8');
                         });
@@ -635,10 +806,21 @@
                 onEachFeature: (feature, layer) => {
                     const recapId = feature?.properties?.recap_id ?? '-';
                     const requestId = feature?.properties?.request_id ?? '-';
+                    const name = feature?.properties?.name ?? '-';
+                    const ownerLegalPersonId = feature?.properties?.owner_legal_person_id ?? '-';
+                    const ownerLegalPersonName = feature?.properties?.owner_legal_person_name ?? '-';
+                    const nameText = String(name ?? '').trim();
+                    const ownerText = String(ownerLegalPersonId ?? '').trim();
+                    const ownerNameText = String(ownerLegalPersonName ?? '').trim();
+                    const ownerDisplay = ownerNameText && !['null', 'none', '-'].includes(ownerNameText.toLowerCase())
+                        ? String(ownerLegalPersonName || '-')
+                        : String(ownerLegalPersonId || '-');
                     layer.bindPopup(
                         '<div style="min-width: 220px;">' +
                         '<div><strong>№ Досъёмки:</strong> ' + escapeHtml(recapId) + '</div>' +
                         '<div style="margin-top: 6px;"><strong>№ Заявки:</strong> ' + escapeHtml(requestId) + '</div>' +
+                        (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
+                        (!ownerText || ['null', 'none', '-'].includes(ownerText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(ownerDisplay) + '</div>')) +
                         '</div>'
                     );
                 }
@@ -704,7 +886,16 @@
             selectedLayer = L.geoJSON(selectedGeo, {
                 style: {color: '#ff0000', weight: 3, fillOpacity: 0.25}
             }).addTo(selectedGroup);
-            const popupHtml = buildObjectPopup({}, selectedRootid || '-', selectedName || '-', selectedRequestId || '-');
+            const popupHtml = buildObjectPopup(
+                {},
+                selectedRootid || '-',
+                selectedName || '-',
+                selectedRequestId || '-',
+                selectedCustomerLegalPersonId || '-',
+                selectedDepartmentLegalPersonId || '-',
+                selectedCustomerLegalPersonName || '-',
+                selectedDepartmentLegalPersonName || '-'
+            );
             bindPopupToLayer(selectedLayer, popupHtml);
             map.fitBounds(selectedLayer.getBounds(), {padding: [30, 30], maxZoom: 30});
         } else {
@@ -713,27 +904,28 @@
         refreshObjectLayersControl();
 
         function setBasemap(mode) {
+            const removeBasemapLayers = () => {
+                if (map.hasLayer(topoLayer)) {
+                    map.removeLayer(topoLayer);
+                }
+                if (map.hasLayer(satelliteLayer)) {
+                    map.removeLayer(satelliteLayer);
+                }
+                if (map.hasLayer(mggtLayer)) {
+                    map.removeLayer(mggtLayer);
+                }
+            };
             if (mode === 'none') {
-                if (map.hasLayer(topoLayer)) {
-                    map.removeLayer(topoLayer);
-                }
-                if (map.hasLayer(satelliteLayer)) {
-                    map.removeLayer(satelliteLayer);
-                }
+                removeBasemapLayers();
             } else if (mode === 'topo') {
-                if (!map.hasLayer(topoLayer)) {
-                    map.addLayer(topoLayer);
-                }
-                if (map.hasLayer(satelliteLayer)) {
-                    map.removeLayer(satelliteLayer);
-                }
+                removeBasemapLayers();
+                map.addLayer(topoLayer);
             } else if (mode === 'sat') {
-                if (!map.hasLayer(satelliteLayer)) {
-                    map.addLayer(satelliteLayer);
-                }
-                if (map.hasLayer(topoLayer)) {
-                    map.removeLayer(topoLayer);
-                }
+                removeBasemapLayers();
+                map.addLayer(satelliteLayer);
+            } else if (mode === 'mggt') {
+                removeBasemapLayers();
+                map.addLayer(mggtLayer);
             }
             document.querySelectorAll('.map-basemap-btn').forEach((btn) => {
                 btn.classList.toggle('is-active', btn.dataset.map === mode);
@@ -895,7 +1087,10 @@
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCookie('csrftoken') || ''
                     },
-                    body: JSON.stringify({geometry})
+                    body: JSON.stringify({
+                        geometry,
+                        source_label: selectedSourceLabel
+                    })
                 });
                 const data = await response.json();
                 if (!response.ok || !data.ok) {
@@ -912,6 +1107,44 @@
 
         checkRelationsButton.addEventListener('click', () => {
             checkRelations();
+        });
+
+        async function checkDgiIntersections() {
+            const geometry = buildCurrentGeometry();
+            if (!geometry) {
+                statusEl.textContent = 'Сначала выберите или отредактируйте объект.';
+                return;
+            }
+            checkDgiIntersectionsButton.disabled = true;
+            statusEl.textContent = 'Проверяем пересечение с объектами ДГИ...';
+            try {
+                const response = await fetch("{% url 'check_dgi_intersections' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || ''
+                    },
+                    body: JSON.stringify({geometry})
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Ошибка проверки пересечений с ДГИ.');
+                }
+                if (data.intersects) {
+                    window.alert('Обнаружено пересечение с объектами ДГИ ' + data.percent + '% от площади');
+                } else {
+                    window.alert('Пересечений с объектами ДГИ не обнаружено.');
+                }
+                statusEl.textContent = 'Проверка пересечений с ДГИ завершена.';
+            } catch (error) {
+                statusEl.textContent = error.message || 'Не удалось проверить пересечения с ДГИ.';
+            } finally {
+                checkDgiIntersectionsButton.disabled = false;
+            }
+        }
+
+        checkDgiIntersectionsButton.addEventListener('click', () => {
+            checkDgiIntersections();
         });
 
         function collectSnapGuideLines(geojsonObject, output) {
@@ -1464,7 +1697,18 @@
 
         function finishCreatedPolygon(layer) {
             editableGroup.addLayer(layer);
-            layer.bindPopup(buildObjectPopup({}, selectedRootid || '-', selectedName || '-', selectedRequestId || '-'));
+            layer.bindPopup(
+                buildObjectPopup(
+                    {},
+                    selectedRootid || '-',
+                    selectedName || '-',
+                    selectedRequestId || '-',
+                    selectedCustomerLegalPersonId || '-',
+                    selectedDepartmentLegalPersonId || '-',
+                    selectedCustomerLegalPersonName || '-',
+                    selectedDepartmentLegalPersonName || '-'
+                )
+            );
             if (polygonDrawer) {
                 polygonDrawer.disable();
                 polygonDrawer = null;
@@ -1503,7 +1747,18 @@
                 style: {color: '#ff0000', weight: 3, fillOpacity: 0.25}
             });
             editableLayer.eachLayer((layer) => {
-                layer.bindPopup(buildObjectPopup({}, selectedRootid || '-', selectedName || '-', selectedRequestId || '-'));
+                layer.bindPopup(
+                    buildObjectPopup(
+                        {},
+                        selectedRootid || '-',
+                        selectedName || '-',
+                        selectedRequestId || '-',
+                        selectedCustomerLegalPersonId || '-',
+                        selectedDepartmentLegalPersonId || '-',
+                        selectedCustomerLegalPersonName || '-',
+                        selectedDepartmentLegalPersonName || '-'
+                    )
+                );
                 editableGroup.addLayer(layer);
             });
             map.removeLayer(selectedLayer);
@@ -1710,7 +1965,8 @@
                 body: JSON.stringify({
                     geometry: geometryToSave,
                     name: name,
-                    request_id: requestId
+                    request_id: requestId,
+                    source_label: selectedSourceLabel
                 })
             });
             const result = await response.json();

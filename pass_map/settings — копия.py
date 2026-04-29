@@ -21,12 +21,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-1av$uzw-*%0$zqq0@sxs8i87ru+ryy)yj*euj$x0c@lnv9gvq1'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'unsafe-dev-key-change-me')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', '').split(',') if h.strip()]
 
 
 # Application definition
@@ -123,6 +123,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -144,7 +145,6 @@ GIS_OBJECT_ROOTID_FIELD = 'rootid'
 GIS_OBJECT_NAME_FIELD = 'name'
 GIS_OBJECT_GEOM_FIELD = 'geom'
 GIS_OBJECT_OWNER_FIELD = 'OwnerLegalPersonId'
-# Справочник для расшифровки ID (home, popup). Таблица: см. миграцию 0003_create_id_names_table.
 GIS_ID_NAMES_TABLE = os.getenv('GIS_ID_NAMES_TABLE', 'id_names')
 
 # GeoDjango library paths (macOS Homebrew).
