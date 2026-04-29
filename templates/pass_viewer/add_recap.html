@@ -447,6 +447,23 @@
             }
             return raw;
         }
+        function filterByRequestedName(geojsonObject) {
+            const geo = normalizeGeoJson(geojsonObject);
+            if (!geo || geo.type !== 'FeatureCollection' || !Array.isArray(geo.features)) {
+                return geo;
+            }
+            const requestedName = (objectName || '').trim().toLowerCase();
+            if (!requestedName) {
+                return geo;
+            }
+            return {
+                ...geo,
+                features: geo.features.filter((feature) => {
+                    const featureName = String(feature?.properties?.name || '').trim().toLowerCase();
+                    return featureName !== requestedName;
+                }),
+            };
+        }
 
         const withCount = (label, count) => `${label} (${count})`;
         const countGroupFeatures = (group) => {

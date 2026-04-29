@@ -1660,6 +1660,7 @@ def delete_owned_object(request):
             f"{_quote_ident(owner_field)} = %s",
         ]
         params = [object_key, owner_id]
+        target_request_id = None
 
         # Keep old protection for DT request objects, but allow ODH objects with rootid.
         if source_label != 'ОДХ':
@@ -1668,12 +1669,28 @@ def delete_owned_object(request):
         if request_id_exists:
             request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
             where_parts.append(f"{_quote_ident(request_id_field)} IS NOT NULL")
+            select_request_id_query = (
+                f"SELECT {_quote_ident(request_id_field)}::text "
+                f"FROM {_quote_ident(table)} "
+                f"WHERE {' AND '.join(where_parts)} "
+                "LIMIT 1"
+            )
+            cursor.execute(select_request_id_query, params)
+            request_id_row = cursor.fetchone()
+            target_request_id = (request_id_row[0] or '').strip() if request_id_row else None
 
         delete_query = (
             f"DELETE FROM {_quote_ident(table)} "
             f"WHERE {' AND '.join(where_parts)}"
         )
         cursor.execute(delete_query, params)
+
+        if target_request_id and _column_exists(cursor, 'recaps', request_id_field_pref):
+            recaps_request_id_field = _resolve_column_name(cursor, 'recaps', request_id_field_pref)
+            cursor.execute(
+                f"DELETE FROM recaps WHERE {_quote_ident(recaps_request_id_field)}::text = %s",
+                [target_request_id],
+            )
 
     return redirect('home')
 
