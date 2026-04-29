@@ -145,6 +145,7 @@ GIS_OBJECT_ROOTID_FIELD = 'rootid'
 GIS_OBJECT_NAME_FIELD = 'name'
 GIS_OBJECT_GEOM_FIELD = 'geom'
 GIS_OBJECT_OWNER_FIELD = 'OwnerLegalPersonId'
+GIS_ID_NAMES_TABLE = os.getenv('GIS_ID_NAMES_TABLE', 'id_names')
 
 # GeoDjango library paths (macOS Homebrew).
 GDAL_LIBRARY_PATH = os.getenv('GDAL_LIBRARY_PATH', '/opt/homebrew/lib/libgdal.dylib')
