@@ -30,6 +30,7 @@
             <span class="snap-switch__label">&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077;</span>
         </label>
         <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1086;&#1082;&#1072;&#1079;&#1072;&#1090;&#1100; &#1089;&#1074;&#1103;&#1079;&#1080;</button>
+        <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
         <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
         <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">&#1042;&#1099;&#1075;&#1088;&#1091;&#1079;&#1080;&#1090;&#1100; &#1092;&#1072;&#1081;&#1083;&#1099;</button>
     </div>
@@ -218,6 +219,66 @@
             background: #e8f0ff;
             color: #1d4ed8;
         }
+        .map-layer-groups-control {
+            position: absolute;
+            top: 72px;
+            right: 8px;
+            z-index: 700;
+            display: block;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            padding: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+            max-width: 360px;
+            max-height: 42vh;
+            overflow-y: auto;
+        }
+        .map-layer-groups-control label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 2px 0;
+        }
+        .map-layer-groups-control input[type="checkbox"] {
+            margin: 0;
+        }
+                .map-layer-groups-control .layer-item-label {
+            background: #fff59d !important;
+            display: block !important;
+            color: #111827 !important;
+            font-size: 13px !important;
+            line-height: 1.25 !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            white-space: nowrap;
+        }
+        .map-layer-groups-control .layer-group-label {
+            background: #ffd6d6 !important;
+            display: block !important;
+            color: #0f172a !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            white-space: nowrap;
+        }
+        .map-layer-groups-control .layer-group-title {
+            margin: 6px 0 4px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #111827;
+        }
+        .map-layer-groups-control .layer-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 2px 0;
+        }
+        .map-layer-groups-control .layer-children {
+            padding-left: 18px;
+            margin-bottom: 6px;
+        }
         .map-legend {
             display: flex;
             flex-wrap: wrap;
@@ -386,6 +447,7 @@
         const drawModeFreehandToggle = document.getElementById('draw-mode-freehand');
         const snapToggle = document.getElementById('snap-toggle');
         const checkRelationsButton = document.getElementById('check-relations-btn');
+        const checkDgiIntersectionsButton = document.getElementById('check-dgi-intersections-btn');
         const cancelEditButton = document.getElementById('cancel-edit-btn');
         const saveButton = document.getElementById('save-geometry-btn');
         const statusEl = document.getElementById('edit-status');
@@ -426,6 +488,7 @@
         let drawSnapTargetLine = null;
         let objectLayersControl = null;
 
+        const withCount = (label, count) => `${label} (${count})`;
         const countGroupFeatures = (group) => {
             let count = 0;
             group.eachLayer((layer) => {
@@ -443,7 +506,6 @@
             });
             return count;
         };
-
         function refreshObjectLayersControl() {
             if (objectLayersControl) {
                 map.removeControl(objectLayersControl);
@@ -454,71 +516,11 @@
             overlays[`Граничит (${countGroupFeatures(relationTouchesGroup)})`] = relationTouchesGroup;
             overlays[`В радиусе 10 м (${countGroupFeatures(relationNearbyGroup)})`] = relationNearbyGroup;
             overlays[`Заявки (${countGroupFeatures(relationRequestObjectsGroup)})`] = relationRequestObjectsGroup;
-            overlays['ДГИ'] = dgiSignalGroup;
-            overlays['ОДХ'] = odhSignalGroup;
-            overlays['Заявки на досъёмку'] = recapsGroup;
-            objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topleft'});
+            overlays[`ДГИ (${countGroupFeatures(dgiSignalGroup)})`] = dgiSignalGroup;
+            overlays[`ОДХ (${countGroupFeatures(odhSignalGroup)})`] = odhSignalGroup;
+            overlays[`Заявки на досъёмку (${countGroupFeatures(recapsGroup)})`] = recapsGroup;
+            objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topright'});
             objectLayersControl.addTo(map);
-        }
-
-        function askSnapRadiusMeters(currentValue) {
-            const raw = window.prompt('Введите радиус прилипания в метрах:', String(currentValue));
-            if (raw === null) {
-                return null;
-            }
-            const parsed = Number(raw.replace(',', '.').trim());
-            if (!Number.isFinite(parsed) || parsed <= 0) {
-                window.alert('Радиус должен быть положительным числом.');
-                return null;
-            }
-            return parsed;
-        }
-
-        snapToggle.addEventListener('change', () => {
-            snappingEnabled = snapToggle.checked;
-            if (snappingEnabled) {
-                const pickedRadius = askSnapRadiusMeters(snapDistanceMeters);
-                if (pickedRadius === null) {
-                    snappingEnabled = false;
-                    snapToggle.checked = false;
-                    statusEl.textContent = 'Прилипание не включено: радиус не задан.';
-                    return;
-                }
-                snapDistanceMeters = pickedRadius;
-                rebuildSnapGuideLines();
-                if (isEditing) {
-                    startSnapBindingLoop();
-                }
-                statusEl.textContent = 'Прилипание включено. Радиус: ' + snapDistanceMeters.toFixed(2) + ' м.';
-            } else {
-                if (isEditing) {
-                    stopSnapBindingLoop();
-                    detachPromptSnapHandlers();
-                }
-                clearDrawSnapPreview();
-                statusEl.textContent = 'Прилипание выключено.';
-            }
-        });
-
-        function getCookie(name) {
-            const cookieValue = document.cookie
-                .split('; ')
-                .find((row) => row.startsWith(name + '='));
-            return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : null;
-        }
-
-        function normalizeGeoJson(raw) {
-            if (!raw) {
-                return null;
-            }
-            if (typeof raw === 'string') {
-                try {
-                    return JSON.parse(raw);
-                } catch (e) {
-                    return null;
-                }
-            }
-            return raw;
         }
 
         function addSignalTapeLayer(targetGroup, geojsonObject, sourceLabel) {
@@ -1366,6 +1368,44 @@
 
         checkRelationsButton.addEventListener('click', () => {
             checkRelations();
+        });
+
+        async function checkDgiIntersections() {
+            const geometry = buildCurrentGeometry();
+            if (!geometry) {
+                statusEl.textContent = 'Сначала добавьте хотя бы один полигон.';
+                return;
+            }
+            checkDgiIntersectionsButton.disabled = true;
+            statusEl.textContent = 'Проверяем пересечение с объектами ДГИ...';
+            try {
+                const response = await fetch("{% url 'check_dgi_intersections' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || ''
+                    },
+                    body: JSON.stringify({geometry})
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Ошибка проверки пересечений с ДГИ.');
+                }
+                if (data.intersects) {
+                    window.alert('Обнаружено пересечение с объектами ДГИ ' + data.percent + '% от площади');
+                } else {
+                    window.alert('Пересечений с объектами ДГИ не обнаружено.');
+                }
+                statusEl.textContent = 'Проверка пересечений с ДГИ завершена.';
+            } catch (error) {
+                statusEl.textContent = error.message || 'Не удалось проверить пересечения с ДГИ.';
+            } finally {
+                checkDgiIntersectionsButton.disabled = false;
+            }
+        }
+
+        checkDgiIntersectionsButton.addEventListener('click', () => {
+            checkDgiIntersections();
         });
 
         function setEditMode(enabled) {

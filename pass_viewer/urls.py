@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     add_object,
     add_recap,
+    check_dgi_intersections,
     check_new_object_relations,
     delete_owned_object,
     export_geometry,
@@ -19,6 +20,7 @@ urlpatterns = [
     path('add-object/', add_object, name='add_object'),
     path('add-recap/', add_recap, name='add_recap'),
     path('add-object/check-relations/', check_new_object_relations, name='check_new_object_relations'),
+    path('add-object/check-dgi-intersections/', check_dgi_intersections, name='check_dgi_intersections'),
     path('add-object/export-geometry/', export_new_object_geometry, name='export_new_object_geometry'),
     path('add-object/save/', save_new_object, name='save_new_object'),
     path('add-recap/save/', save_recap_object, name='save_recap_object'),

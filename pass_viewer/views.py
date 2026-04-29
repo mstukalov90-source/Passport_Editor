@@ -1031,6 +1031,36 @@ def _get_new_object_relations(geometry, source_label='ДТ'):
     }
 
 
+def _get_dgi_intersection_percent(geometry):
+    dgi_table = getattr(settings, 'GIS_DGI_TABLE', 'dgi')
+    geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
+    geometry_json = json.dumps(geometry)
+    with connection.cursor() as cursor:
+        geom_field = _resolve_column_name(cursor, dgi_table, geom_field_pref)
+        query = (
+            "WITH input AS ("
+            " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+            "), input_area AS ("
+            " SELECT ST_Area(geom::geography) AS total_area FROM input"
+            "), dgi_intersections AS ("
+            f" SELECT ST_Intersection(d.{_quote_ident(geom_field)}, i.geom) AS geom"
+            f" FROM {_quote_ident(dgi_table)} d, input i"
+            f" WHERE ST_Intersects(d.{_quote_ident(geom_field)}, i.geom)"
+            "), overlap AS ("
+            " SELECT ST_Area(COALESCE(ST_UnaryUnion(ST_Collect(geom)), ST_GeomFromText('POLYGON EMPTY', 4326))::geography) AS overlap_area"
+            " FROM dgi_intersections"
+            ") "
+            "SELECT CASE "
+            "  WHEN ia.total_area IS NULL OR ia.total_area = 0 THEN 0 "
+            "  ELSE LEAST(100.0, (COALESCE(o.overlap_area, 0) * 100.0) / ia.total_area) "
+            "END AS overlap_percent "
+            "FROM input_area ia CROSS JOIN overlap o"
+        )
+        cursor.execute(query, [geometry_json])
+        row = cursor.fetchone()
+        return float(row[0]) if row and row[0] is not None else 0.0
+
+
 def _ensure_request_id_column(cursor, table_name, request_id_field):
     cursor.execute(
         f"ALTER TABLE {_quote_ident(table_name)} "
@@ -1737,3 +1767,33 @@ def check_new_object_relations(request):
         )
 
     return JsonResponse({'ok': True, 'layers': layers})
+
+
+@login_required
+@require_POST
+def check_dgi_intersections(request):
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'ok': False, 'error': 'Некорректный JSON.'}, status=400)
+
+    geometry = payload.get('geometry')
+    if not isinstance(geometry, dict):
+        return JsonResponse({'ok': False, 'error': 'Геометрия не передана.'}, status=400)
+
+    try:
+        percent = _get_dgi_intersection_percent(geometry)
+    except Exception:
+        return JsonResponse(
+            {'ok': False, 'error': 'Не удалось вычислить пересечение с объектами ДГИ.'},
+            status=500,
+        )
+
+    percent_rounded = round(percent, 2)
+    return JsonResponse(
+        {
+            'ok': True,
+            'intersects': percent_rounded > 0,
+            'percent': percent_rounded,
+        }
+    )

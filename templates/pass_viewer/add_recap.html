@@ -64,6 +64,7 @@
             <span class="snap-switch__label">Прилипание</span>
         </label>
         <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1054;&#1073;&#1085;&#1086;&#1074;&#1080;&#1090;&#1100; &#1089;&#1074;&#1103;&#1079;&#1080;</button>
+        <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
         <button type="button" id="cancel-draw-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
         <button type="button" id="save-dossier-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">Сохранить досъёмку</button>
     </div>
@@ -219,6 +220,66 @@
             background: #e8f0ff;
             color: #1d4ed8;
         }
+        .map-layer-groups-control {
+            position: absolute;
+            top: 72px;
+            right: 8px;
+            z-index: 700;
+            display: block;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            padding: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+            max-width: 360px;
+            max-height: 42vh;
+            overflow-y: auto;
+        }
+        .map-layer-groups-control label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 2px 0;
+        }
+        .map-layer-groups-control input[type="checkbox"] {
+            margin: 0;
+        }
+                .map-layer-groups-control .layer-item-label {
+            background: #fff59d !important;
+            display: block !important;
+            color: #111827 !important;
+            font-size: 13px !important;
+            line-height: 1.25 !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            white-space: nowrap;
+        }
+        .map-layer-groups-control .layer-group-label {
+            background: #ffd6d6 !important;
+            display: block !important;
+            color: #0f172a !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            white-space: nowrap;
+        }
+        .map-layer-groups-control .layer-group-title {
+            margin: 6px 0 4px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #111827;
+        }
+        .map-layer-groups-control .layer-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 2px 0;
+        }
+        .map-layer-groups-control .layer-children {
+            padding-left: 18px;
+            margin-bottom: 6px;
+        }
     </style>
 
     <link
@@ -332,6 +393,7 @@
         const exportLinksEl = document.getElementById('export-links');
         const addDossierButton = document.getElementById('add-dossier-btn');
         const checkRelationsButton = document.getElementById('check-relations-btn');
+        const checkDgiIntersectionsButton = document.getElementById('check-dgi-intersections-btn');
         const cancelDrawButton = document.getElementById('cancel-draw-btn');
         const saveDossierButton = document.getElementById('save-dossier-btn');
         const drawModeFreehandToggle = document.getElementById('draw-mode-freehand');
@@ -404,7 +466,6 @@
             });
             return count;
         };
-
         function refreshObjectLayersControl() {
             if (objectLayersControl) {
                 map.removeControl(objectLayersControl);
@@ -416,29 +477,11 @@
             overlays[withCount('Граничит', countGroupFeatures(touchesGroup))] = touchesGroup;
             overlays[withCount('В радиусе 10 м', countGroupFeatures(nearbyGroup))] = nearbyGroup;
             overlays[withCount('Заявки', countGroupFeatures(requestObjectsGroup))] = requestObjectsGroup;
-            overlays['ДГИ'] = dgiSignalGroup;
-            overlays['ОДХ'] = odhSignalGroup;
-            overlays['Заявки на досъёмку'] = recapsGroup;
+            overlays[withCount('ДГИ', countGroupFeatures(dgiSignalGroup))] = dgiSignalGroup;
+            overlays[withCount('ОДХ', countGroupFeatures(odhSignalGroup))] = odhSignalGroup;
+            overlays[withCount('Заявки на досъёмку', countGroupFeatures(recapsGroup))] = recapsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topleft'});
             objectLayersControl.addTo(map);
-        }
-
-        function filterByRequestedName(geojsonObject) {
-            const geo = normalizeGeoJson(geojsonObject);
-            if (!geo || geo.type !== 'FeatureCollection' || !Array.isArray(geo.features)) {
-                return geo;
-            }
-            const requestedName = (objectName || '').trim().toLowerCase();
-            if (!requestedName) {
-                return geo;
-            }
-            return {
-                ...geo,
-                features: geo.features.filter((feature) => {
-                    const featureName = String(feature?.properties?.name || '').trim().toLowerCase();
-                    return featureName !== requestedName;
-                }),
-            };
         }
 
         function addSignalTapeLayer(targetGroup, geojsonObject, sourceLabel) {
@@ -1068,6 +1111,40 @@
             }
         }
 
+        async function checkDgiIntersections() {
+            const geometry = buildCurrentGeometry();
+            if (!geometry) {
+                statusEl.textContent = 'Нет геометрии для проверки пересечений.';
+                return;
+            }
+            checkDgiIntersectionsButton.disabled = true;
+            statusEl.textContent = 'Проверяем пересечение с объектами ДГИ...';
+            try {
+                const response = await fetch("{% url 'check_dgi_intersections' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || ''
+                    },
+                    body: JSON.stringify({geometry})
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Ошибка проверки пересечений с ДГИ.');
+                }
+                if (data.intersects) {
+                    window.alert('Обнаружено пересечение с объектами ДГИ ' + data.percent + '% от площади');
+                } else {
+                    window.alert('Пересечений с объектами ДГИ не обнаружено.');
+                }
+                statusEl.textContent = 'Проверка пересечений с ДГИ завершена.';
+            } catch (error) {
+                statusEl.textContent = error.message || 'Не удалось проверить пересечения с ДГИ.';
+            } finally {
+                checkDgiIntersectionsButton.disabled = false;
+            }
+        }
+
         function openSaveModal() {
             newRecapIdInput.value = '';
             saveModalErrorEl.textContent = '';
@@ -1160,6 +1237,7 @@
             }
         });
         checkRelationsButton.addEventListener('click', checkRelations);
+        checkDgiIntersectionsButton.addEventListener('click', checkDgiIntersections);
         refreshObjectLayersControl();
     </script>
 {% endblock %}
