@@ -262,19 +262,19 @@
         const mggtLayer = L.tileLayer(
             'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}',
             {
-                maxNativeZoom: 19,
+                maxNativeZoom: 17,
                 maxZoom: 30,
                 attribution: 'МГГТ'
             }
         );
-        topoLayer.addTo(map);
+        mggtLayer.addTo(map);
         const basemapControl = L.control({position: 'topright'});
         basemapControl.onAdd = function () {
             const container = L.DomUtil.create('div', 'map-basemap-control');
             container.innerHTML =
-                '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
+                '<button type="button" class="map-basemap-btn" data-map="topo">OSM</button>' +
                 '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="mggt">МГГТ</button>' +
+                '<button type="button" class="map-basemap-btn is-active" data-map="mggt">МГГТ</button>' +
                 '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
             L.DomEvent.disableClickPropagation(container);
             return container;
@@ -535,10 +535,10 @@
                         const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
                         const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
                         const customerDisplay = hasCustomerName
-                            ? (String(customerLegalPersonId || '-') + ' (' + String(customerLegalPersonName) + ')')
+                            ? String(customerLegalPersonName || '-')
                             : String(customerLegalPersonId || '-');
                         const departmentDisplay = hasDepartmentName
-                            ? (String(departmentLegalPersonId || '-') + ' (' + String(departmentLegalPersonName) + ')')
+                            ? String(departmentLegalPersonName || '-')
                             : String(departmentLegalPersonId || '-');
                         layer.bindPopup(
                             '<div style="min-width: 220px;">' +
@@ -594,10 +594,10 @@
             const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
             const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
             const customerDisplay = hasCustomerName
-                ? (String(customerLegalPersonId || '-') + ' (' + String(customerLegalPersonName) + ')')
+                ? String(customerLegalPersonName || '-')
                 : String(customerLegalPersonId || '-');
             const departmentDisplay = hasDepartmentName
-                ? (String(departmentLegalPersonId || '-') + ' (' + String(departmentLegalPersonName) + ')')
+                ? String(departmentLegalPersonName || '-')
                 : String(departmentLegalPersonId || '-');
             const ownerLines =
                 (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(customerDisplay) + '</div>') : '') +
@@ -638,7 +638,7 @@
                     const ownerText = String(ownerLegalPersonId ?? '').trim();
                     const ownerNameText = String(ownerLegalPersonName ?? '').trim();
                     const ownerDisplay = ownerNameText && !['null', 'none', '-'].includes(ownerNameText.toLowerCase())
-                        ? (String(ownerLegalPersonId || '-') + ' (' + String(ownerLegalPersonName) + ')')
+                        ? String(ownerLegalPersonName || '-')
                         : String(ownerLegalPersonId || '-');
                     layer.bindPopup(
                         '<div style="min-width: 220px;">' +
