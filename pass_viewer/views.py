@@ -1078,6 +1078,119 @@ def _get_dgi_intersection_percent(geometry):
         return float(row[0]) if row and row[0] is not None else 0.0
 
 
+def _remove_intersections_from_geometry(
+    geometry,
+    selected_sources,
+    source_label='ДТ',
+    selected_geometry=None,
+    selected_rootid='',
+    selected_request_id='',
+):
+    geometry_norm = _to_intersection_geometry(geometry)
+    if not geometry_norm:
+        return None
+
+    source_tokens = {str(value).strip().lower() for value in (selected_sources or []) if str(value).strip()}
+    allowed_tokens = {'dt', 'odh', 'dgi'}
+    requested_tokens = [token for token in ('dt', 'odh', 'dgi') if token in source_tokens and token in allowed_tokens]
+    if not requested_tokens:
+        return geometry_norm
+
+    selected_geometry_norm = _to_intersection_geometry(selected_geometry)
+    selected_rootid_text = str(selected_rootid or '').strip()
+    selected_request_id_text = str(selected_request_id or '').strip()
+    geometry_json = json.dumps(geometry_norm)
+    selected_geometry_json = json.dumps(selected_geometry_norm) if selected_geometry_norm else None
+    normalized_source = _normalize_source_label(source_label)
+
+    token_to_table = {
+        'dt': settings.GIS_OBJECT_TABLE,
+        'odh': getattr(settings, 'GIS_ODH_TABLE', 'odh'),
+        'dgi': getattr(settings, 'GIS_DGI_TABLE', 'dgi'),
+    }
+
+    union_parts = []
+    query_params = [geometry_json]
+    if selected_geometry_json:
+        query_params.append(selected_geometry_json)
+
+    with connection.cursor() as cursor:
+        for token in requested_tokens:
+            table_name = token_to_table.get(token)
+            if not table_name or not _table_exists(cursor, table_name):
+                continue
+            geom_field = _resolve_column_name(cursor, table_name, settings.GIS_OBJECT_GEOM_FIELD)
+            exclude_selected_clause = ""
+            exclude_selected_params = []
+            if (token == 'dt' and normalized_source == 'ДТ') or (token == 'odh' and normalized_source == 'ОДХ'):
+                exclude_conditions = []
+                if selected_rootid_text:
+                    rootid_field = _resolve_column_name(cursor, table_name, settings.GIS_OBJECT_ROOTID_FIELD)
+                    exclude_conditions.append(f"t.{_quote_ident(rootid_field)}::text = %s")
+                    exclude_selected_params.append(selected_rootid_text)
+                if selected_request_id_text:
+                    request_id_field = _resolve_column_name(
+                        cursor,
+                        table_name,
+                        getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id'),
+                    )
+                    exclude_conditions.append(f"t.{_quote_ident(request_id_field)}::text = %s")
+                    exclude_selected_params.append(selected_request_id_text)
+                if selected_geometry_json:
+                    exclude_conditions.append(f"(s.geom IS NOT NULL AND ST_Equals(t.{_quote_ident(geom_field)}, s.geom))")
+                if exclude_conditions:
+                    exclude_selected_clause = " AND NOT (" + " OR ".join(exclude_conditions) + ")"
+            union_parts.append(
+                f"SELECT ST_CollectionExtract(ST_MakeValid(t.{_quote_ident(geom_field)}), 3) AS geom "
+                f"FROM {_quote_ident(table_name)} t, input i"
+                f"{' LEFT JOIN selected s ON TRUE' if selected_geometry_json else ''} "
+                f"WHERE ST_Intersects(t.{_quote_ident(geom_field)}, i.geom)"
+                f"{exclude_selected_clause}"
+            )
+            query_params.extend(exclude_selected_params)
+
+        if not union_parts:
+            return geometry_norm
+
+        query = (
+            "WITH input AS ("
+            f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+            ")"
+            + (
+                ", selected AS ("
+                f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+                ")"
+                if selected_geometry_json
+                else ""
+            )
+            + ", mask_parts AS ("
+            + " UNION ALL ".join(union_parts)
+            + "), mask_union AS ("
+            " SELECT ST_UnaryUnion(ST_Collect(geom)) AS geom FROM mask_parts WHERE geom IS NOT NULL"
+            "), result AS ("
+            " SELECT CASE "
+            "   WHEN mu.geom IS NULL OR ST_IsEmpty(mu.geom) THEN i.geom "
+            "   ELSE ST_CollectionExtract(ST_MakeValid(ST_Difference(i.geom, mu.geom)), 3) "
+            " END AS geom "
+            " FROM input i CROSS JOIN mask_union mu"
+            ") "
+            "SELECT CASE "
+            " WHEN r.geom IS NULL OR ST_IsEmpty(r.geom) THEN NULL "
+            " ELSE ST_AsGeoJSON(r.geom)::text "
+            "END "
+            "FROM result r"
+        )
+        cursor.execute(query, query_params)
+        row = cursor.fetchone()
+
+    if not row or not row[0]:
+        return None
+    try:
+        return json.loads(row[0])
+    except (TypeError, json.JSONDecodeError):
+        return None
+
+
 def _to_intersection_geometry(geometry):
     if not isinstance(geometry, dict):
         return None
@@ -1891,3 +2004,43 @@ def check_dgi_intersections(request):
             'percent': percent_rounded,
         }
     )
+
+
+@login_required
+@require_POST
+def auto_remove_intersections(request):
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'ok': False, 'error': 'Некорректный JSON.'}, status=400)
+
+    geometry = _to_intersection_geometry(payload.get('geometry'))
+    if not geometry:
+        return JsonResponse({'ok': False, 'error': 'Геометрия не передана.'}, status=400)
+
+    selected_sources = payload.get('selected_sources') or []
+    if not isinstance(selected_sources, list):
+        return JsonResponse({'ok': False, 'error': 'Некорректный список источников.'}, status=400)
+
+    source_label = _normalize_source_label(payload.get('source_label'))
+    selected_geometry = _to_intersection_geometry(payload.get('selected_geometry'))
+    selected_rootid = (payload.get('selected_rootid') or '').strip()
+    selected_request_id = (payload.get('selected_request_id') or '').strip()
+
+    try:
+        cleaned_geometry = _remove_intersections_from_geometry(
+            geometry,
+            selected_sources=selected_sources,
+            source_label=source_label,
+            selected_geometry=selected_geometry,
+            selected_rootid=selected_rootid,
+            selected_request_id=selected_request_id,
+        )
+    except Exception:
+        logger.exception('auto_remove_intersections: failed subtracting intersections')
+        return JsonResponse(
+            {'ok': False, 'error': 'Не удалось выполнить автоматическое удаление пересечений.'},
+            status=500
+        )
+
+    return JsonResponse({'ok': True, 'geometry': cleaned_geometry})

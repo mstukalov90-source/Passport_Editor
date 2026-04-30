@@ -65,6 +65,7 @@
         </label>
         <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1054;&#1073;&#1085;&#1086;&#1074;&#1080;&#1090;&#1100; &#1089;&#1074;&#1103;&#1079;&#1080;</button>
         <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
+        <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
         <button type="button" id="cancel-draw-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
         <button type="button" id="save-dossier-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">Сохранить досъёмку</button>
     </div>
@@ -80,6 +81,29 @@
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
                 <button type="button" id="save-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
                 <button type="button" id="save-modal-submit" class="map-toolbar-btn map-toolbar-btn--success">Сохранить</button>
+            </div>
+        </div>
+    </div>
+    <div id="auto-remove-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3 style="margin: 0 0 10px;">Автоматическое удаление пересечений</h3>
+            <p class="note" style="margin-top: 0;">Выберите слои, с которыми нужно убрать пересечения:</p>
+            <label class="modal-label auto-remove-option">
+                ДТ
+                <input type="checkbox" id="auto-remove-dt" checked />
+            </label>
+            <label class="modal-label auto-remove-option">
+                ОДХ
+                <input type="checkbox" id="auto-remove-odh" checked />
+            </label>
+            <label class="modal-label auto-remove-option">
+                ДГИ
+                <input type="checkbox" id="auto-remove-dgi" checked />
+            </label>
+            <p id="auto-remove-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+                <button type="button" id="auto-remove-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
+                <button type="button" id="auto-remove-modal-submit" class="map-toolbar-btn map-toolbar-btn--primary">Удалить пересечения</button>
             </div>
         </div>
     </div>
@@ -183,6 +207,17 @@
             font-size: 13px;
             color: #334155;
             margin: 10px 0 6px;
+        }
+        .auto-remove-option {
+            display: flex !important;
+            justify-content: flex-start !important;
+            align-items: center !important;
+            gap: 8px !important;
+            margin-top: 8px !important;
+        }
+        .auto-remove-option input[type="checkbox"] {
+            margin: 0 !important;
+            flex: 0 0 auto !important;
         }
         .modal-input {
             width: 100%;
@@ -393,6 +428,7 @@
         const addDossierButton = document.getElementById('add-dossier-btn');
         const checkRelationsButton = document.getElementById('check-relations-btn');
         const checkDgiIntersectionsButton = document.getElementById('check-dgi-intersections-btn');
+        const autoRemoveIntersectionsButton = document.getElementById('auto-remove-intersections-btn');
         const cancelDrawButton = document.getElementById('cancel-draw-btn');
         const saveDossierButton = document.getElementById('save-dossier-btn');
         const drawModeFreehandToggle = document.getElementById('draw-mode-freehand');
@@ -403,6 +439,13 @@
         const saveModalSubmit = document.getElementById('save-modal-submit');
         const newRecapIdInput = document.getElementById('new-recap-id');
         const saveModalErrorEl = document.getElementById('save-modal-error');
+        const autoRemoveModal = document.getElementById('auto-remove-modal');
+        const autoRemoveModalCancel = document.getElementById('auto-remove-modal-cancel');
+        const autoRemoveModalSubmit = document.getElementById('auto-remove-modal-submit');
+        const autoRemoveModalErrorEl = document.getElementById('auto-remove-modal-error');
+        const autoRemoveDtCheckbox = document.getElementById('auto-remove-dt');
+        const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
+        const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
 
         const selectedGroup = new L.FeatureGroup().addTo(map);
         const selectedLayer = L.geoJSON(selectedGeometry, {
@@ -1167,6 +1210,108 @@
                 checkDgiIntersectionsButton.disabled = false;
             }
         }
+
+        function openAutoRemoveModal() {
+            autoRemoveModalErrorEl.textContent = '';
+            autoRemoveModal.style.display = 'flex';
+        }
+
+        function closeAutoRemoveModal() {
+            autoRemoveModal.style.display = 'none';
+            autoRemoveModalErrorEl.textContent = '';
+        }
+
+        function getAutoRemoveSources() {
+            const sources = [];
+            if (autoRemoveDtCheckbox.checked) {
+                sources.push('dt');
+            }
+            if (autoRemoveOdhCheckbox.checked) {
+                sources.push('odh');
+            }
+            if (autoRemoveDgiCheckbox.checked) {
+                sources.push('dgi');
+            }
+            return sources;
+        }
+
+        function applyGeometryToDossierGroup(geometry) {
+            const normalized = normalizeGeoJson(geometry);
+            if (!normalized || !normalized.features || !normalized.features.length) {
+                return false;
+            }
+            dossierGroup.clearLayers();
+            L.geoJSON(normalized, {
+                style: {color: '#2563eb', weight: 3, fillOpacity: 0.2}
+            }).eachLayer((layer) => {
+                dossierGroup.addLayer(layer);
+            });
+            rebuildSnapGuideLines();
+            refreshObjectLayersControl();
+            return true;
+        }
+
+        async function autoRemoveIntersections() {
+            const geometry = buildCurrentGeometry();
+            if (!geometry) {
+                statusEl.textContent = 'Нет геометрии для автоматического удаления пересечений.';
+                return;
+            }
+            const selectedSources = getAutoRemoveSources();
+            if (!selectedSources.length) {
+                autoRemoveModalErrorEl.textContent = 'Выберите хотя бы один источник.';
+                return;
+            }
+            autoRemoveIntersectionsButton.disabled = true;
+            autoRemoveModalSubmit.disabled = true;
+            autoRemoveModalErrorEl.textContent = '';
+            statusEl.textContent = 'Удаляем пересечения с выбранными слоями...';
+            try {
+                const response = await fetch("{% url 'auto_remove_intersections' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || ''
+                    },
+                    body: JSON.stringify({
+                        geometry,
+                        selected_sources: selectedSources,
+                        source_label: selectedSourceLabel,
+                        selected_geometry: selectedGeometry,
+                        selected_request_id: requestId
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Не удалось удалить пересечения.');
+                }
+                if (!data.geometry) {
+                    throw new Error('После удаления пересечений не осталось площади объекта.');
+                }
+                if (!applyGeometryToDossierGroup(data.geometry)) {
+                    throw new Error('Не удалось применить обновлённую геометрию.');
+                }
+                closeAutoRemoveModal();
+                statusEl.textContent = 'Пересечения автоматически удалены.';
+                await checkRelations();
+            } catch (error) {
+                autoRemoveModalErrorEl.textContent = error.message || 'Не удалось удалить пересечения.';
+                statusEl.textContent = error.message || 'Не удалось удалить пересечения.';
+            } finally {
+                autoRemoveIntersectionsButton.disabled = false;
+                autoRemoveModalSubmit.disabled = false;
+            }
+        }
+
+        autoRemoveIntersectionsButton.addEventListener('click', () => {
+            openAutoRemoveModal();
+        });
+        autoRemoveModalCancel.addEventListener('click', () => {
+            closeAutoRemoveModal();
+        });
+        autoRemoveModalSubmit.addEventListener('click', () => {
+            autoRemoveIntersections();
+        });
 
         function openSaveModal() {
             newRecapIdInput.value = '';

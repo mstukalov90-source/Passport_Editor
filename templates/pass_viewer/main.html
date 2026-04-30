@@ -72,6 +72,7 @@
         </label>
         <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1086;&#1082;&#1072;&#1079;&#1072;&#1090;&#1100; &#1089;&#1074;&#1103;&#1079;&#1080;</button>
         <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
+        <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
         <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
         <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">&#1042;&#1099;&#1075;&#1088;&#1091;&#1079;&#1080;&#1090;&#1100; &#1092;&#1072;&#1081;&#1083;&#1099;</button>
     </div>
@@ -89,6 +90,29 @@
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
                 <button type="button" id="save-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
                 <button type="button" id="save-modal-submit" class="map-toolbar-btn map-toolbar-btn--success">Сохранить</button>
+            </div>
+        </div>
+    </div>
+    <div id="auto-remove-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3 style="margin: 0 0 10px;">Автоматическое удаление пересечений</h3>
+            <p class="note" style="margin-top: 0;">Выберите слои, с которыми нужно убрать пересечения:</p>
+            <label class="modal-label auto-remove-option">
+                ДТ
+                <input type="checkbox" id="auto-remove-dt" checked />
+            </label>
+            <label class="modal-label auto-remove-option">
+                ОДХ
+                <input type="checkbox" id="auto-remove-odh" checked />
+            </label>
+            <label class="modal-label auto-remove-option">
+                ДГИ
+                <input type="checkbox" id="auto-remove-dgi" checked />
+            </label>
+            <p id="auto-remove-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+                <button type="button" id="auto-remove-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
+                <button type="button" id="auto-remove-modal-submit" class="map-toolbar-btn map-toolbar-btn--primary">Удалить пересечения</button>
             </div>
         </div>
     </div>
@@ -331,6 +355,17 @@
             color: #334155;
             margin: 10px 0 6px;
         }
+        .auto-remove-option {
+            display: flex !important;
+            justify-content: flex-start !important;
+            align-items: center !important;
+            gap: 8px !important;
+            margin-top: 8px !important;
+        }
+        .auto-remove-option input[type="checkbox"] {
+            margin: 0 !important;
+            flex: 0 0 auto !important;
+        }
         .modal-input {
             width: 100%;
             border: 1px solid #cbd5e1;
@@ -521,6 +556,7 @@
         const snapToggle = document.getElementById('snap-toggle');
         const checkRelationsButton = document.getElementById('check-relations-btn');
         const checkDgiIntersectionsButton = document.getElementById('check-dgi-intersections-btn');
+        const autoRemoveIntersectionsButton = document.getElementById('auto-remove-intersections-btn');
         const cancelEditButton = document.getElementById('cancel-edit-btn');
         const saveButton = document.getElementById('save-geometry-btn');
         const statusEl = document.getElementById('edit-status');
@@ -533,6 +569,13 @@
         const newObjectNameInput = document.getElementById('new-object-name');
         const newObjectRequestIdInput = document.getElementById('new-object-request-id');
         const saveModalErrorEl = document.getElementById('save-modal-error');
+        const autoRemoveModal = document.getElementById('auto-remove-modal');
+        const autoRemoveModalCancel = document.getElementById('auto-remove-modal-cancel');
+        const autoRemoveModalSubmit = document.getElementById('auto-remove-modal-submit');
+        const autoRemoveModalErrorEl = document.getElementById('auto-remove-modal-error');
+        const autoRemoveDtCheckbox = document.getElementById('auto-remove-dt');
+        const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
+        const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
         const mapEl = document.getElementById('map');
         const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
         const selectedName = "{{ selected_name|default:''|escapejs }}";
@@ -1198,6 +1241,128 @@
 
         checkDgiIntersectionsButton.addEventListener('click', () => {
             checkDgiIntersections();
+        });
+
+        function openAutoRemoveModal() {
+            autoRemoveModalErrorEl.textContent = '';
+            autoRemoveModal.style.display = 'flex';
+        }
+
+        function closeAutoRemoveModal() {
+            autoRemoveModal.style.display = 'none';
+            autoRemoveModalErrorEl.textContent = '';
+        }
+
+        function getAutoRemoveSources() {
+            const sources = [];
+            if (autoRemoveDtCheckbox.checked) {
+                sources.push('dt');
+            }
+            if (autoRemoveOdhCheckbox.checked) {
+                sources.push('odh');
+            }
+            if (autoRemoveDgiCheckbox.checked) {
+                sources.push('dgi');
+            }
+            return sources;
+        }
+
+        function applyGeometryToEditableGroup(geometry) {
+            const editableGeo = toEditableFeatureCollection(geometry);
+            if (!editableGeo || !editableGeo.features.length) {
+                return false;
+            }
+            editableGroup.clearLayers();
+            const editableLayer = L.geoJSON(editableGeo, {
+                style: {color: '#ff0000', weight: 3, fillOpacity: 0.25}
+            });
+            editableLayer.eachLayer((layer) => {
+                layer.bindPopup(
+                    buildObjectPopup(
+                        {},
+                        selectedRootid || '-',
+                        selectedName || '-',
+                        selectedRequestId || '-',
+                        selectedCustomerLegalPersonId || '-',
+                        selectedDepartmentLegalPersonId || '-',
+                        selectedCustomerLegalPersonName || '-',
+                        selectedDepartmentLegalPersonName || '-'
+                    )
+                );
+                editableGroup.addLayer(layer);
+            });
+            if (editToolbar) {
+                editToolbar.disable();
+                editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
+                editToolbar.enable();
+            }
+            rebuildSnapGuideLines();
+            startSnapBindingLoop();
+            updateRelationsButtonState();
+            return true;
+        }
+
+        async function autoRemoveIntersections() {
+            const geometry = buildCurrentGeometry();
+            if (!geometry) {
+                statusEl.textContent = 'Сначала выберите или отредактируйте объект.';
+                return;
+            }
+            const selectedSources = getAutoRemoveSources();
+            if (!selectedSources.length) {
+                autoRemoveModalErrorEl.textContent = 'Выберите хотя бы один источник.';
+                return;
+            }
+            autoRemoveIntersectionsButton.disabled = true;
+            autoRemoveModalSubmit.disabled = true;
+            autoRemoveModalErrorEl.textContent = '';
+            statusEl.textContent = 'Удаляем пересечения с выбранными слоями...';
+            try {
+                const response = await fetch("{% url 'auto_remove_intersections' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || ''
+                    },
+                    body: JSON.stringify({
+                        geometry,
+                        selected_sources: selectedSources,
+                        source_label: selectedSourceLabel,
+                        selected_geometry: selectedGeometry,
+                        selected_rootid: selectedRootid,
+                        selected_request_id: selectedRequestId
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Не удалось удалить пересечения.');
+                }
+                if (!data.geometry) {
+                    throw new Error('После удаления пересечений не осталось площади объекта.');
+                }
+                if (!applyGeometryToEditableGroup(data.geometry)) {
+                    throw new Error('Не удалось применить обновлённую геометрию.');
+                }
+                closeAutoRemoveModal();
+                statusEl.textContent = 'Пересечения автоматически удалены.';
+                await checkRelations();
+            } catch (error) {
+                autoRemoveModalErrorEl.textContent = error.message || 'Не удалось удалить пересечения.';
+                statusEl.textContent = error.message || 'Не удалось удалить пересечения.';
+            } finally {
+                autoRemoveIntersectionsButton.disabled = false;
+                autoRemoveModalSubmit.disabled = false;
+            }
+        }
+
+        autoRemoveIntersectionsButton.addEventListener('click', () => {
+            openAutoRemoveModal();
+        });
+        autoRemoveModalCancel.addEventListener('click', () => {
+            closeAutoRemoveModal();
+        });
+        autoRemoveModalSubmit.addEventListener('click', () => {
+            autoRemoveIntersections();
         });
 
         function collectSnapGuideLines(geojsonObject, output) {
