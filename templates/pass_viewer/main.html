@@ -59,6 +59,7 @@
     <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;">
         <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1053;&#1072;&#1095;&#1072;&#1090;&#1100; &#1088;&#1077;&#1076;&#1072;&#1082;&#1090;&#1080;&#1088;&#1086;&#1074;&#1072;&#1085;&#1080;&#1077;</button>
         <button type="button" id="add-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent" disabled>&#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1087;&#1086;&#1083;&#1080;&#1075;&#1086;&#1085;</button>
+        <button type="button" id="cut-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent" disabled>Обрезать полигон</button>
         <label for="draw-mode-freehand" class="snap-switch" title="Режим добавления: вершины или кисть">
             <input type="checkbox" id="draw-mode-freehand">
             <span class="draw-mode-label draw-mode-label--left">Вершины</span>
@@ -123,6 +124,19 @@
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
                 <button type="button" id="delete-polygon-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
                 <button type="button" id="delete-polygon-modal-submit" class="map-toolbar-btn map-toolbar-btn--danger">Удалить</button>
+            </div>
+        </div>
+    </div>
+    <div id="cut-mode-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3 style="margin: 0 0 10px;">Тип обрезки</h3>
+            <p class="note" style="margin-top: 0;">Выберите, чем обрезать редактируемый полигон:</p>
+            <div style="display:flex; gap:8px; flex-wrap: wrap; margin-top: 10px;">
+                <button type="button" id="cut-mode-polygon-btn" class="map-toolbar-btn map-toolbar-btn--primary">Полигон</button>
+                <button type="button" id="cut-mode-line-btn" class="map-toolbar-btn map-toolbar-btn--primary">Линия</button>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+                <button type="button" id="cut-mode-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
             </div>
         </div>
     </div>
@@ -621,6 +635,7 @@
 
         const editButton = document.getElementById('edit-geometry-btn');
         const addPolygonButton = document.getElementById('add-polygon-btn');
+        const cutPolygonButton = document.getElementById('cut-polygon-btn');
         const drawModeFreehandToggle = document.getElementById('draw-mode-freehand');
         const snapToggle = document.getElementById('snap-toggle');
         const checkRelationsButton = document.getElementById('check-relations-btn');
@@ -648,6 +663,10 @@
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
         const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
         const deletePolygonModalSubmit = document.getElementById('delete-polygon-modal-submit');
+        const cutModeModal = document.getElementById('cut-mode-modal');
+        const cutModePolygonButton = document.getElementById('cut-mode-polygon-btn');
+        const cutModeLineButton = document.getElementById('cut-mode-line-btn');
+        const cutModeModalCancel = document.getElementById('cut-mode-modal-cancel');
         const mapEl = document.getElementById('map');
         const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
         const selectedName = "{{ selected_name|default:''|escapejs }}";
@@ -684,6 +703,7 @@
         let freehandPreviewLine = null;
         let drawModeToggleLocked = false;
         let addObjectMode = false;
+        let cutObjectMode = false;
         let snappingEnabled = false;
         let snapDistanceMeters = 5;
         let snapGuideLines = [];
@@ -693,6 +713,7 @@
         let objectLayersControl = null;
         let startVertexFlagMarker = null;
         let pendingDeleteLayer = null;
+        let cutDrawer = null;
 
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxNativeZoom: 19,
@@ -1177,6 +1198,46 @@
             const currentCount = countPolygonLikeGeometriesInCollection(editableGroup.toGeoJSON());
             return currentCount > baselineCount;
         }
+        function extractPolygonGeometriesFromCollection(geojsonCollection) {
+            const features = geojsonCollection?.features || [];
+            const polygons = [];
+            features.forEach((feature) => {
+                const geom = feature?.geometry;
+                if (!geom) {
+                    return;
+                }
+                if (geom.type === 'Polygon') {
+                    polygons.push(geom);
+                    return;
+                }
+                if (geom.type === 'MultiPolygon') {
+                    (geom.coordinates || []).forEach((coords) => {
+                        polygons.push({type: 'Polygon', coordinates: coords});
+                    });
+                }
+            });
+            return polygons;
+        }
+        function toGeometryFromPolygonList(polygons) {
+            if (!polygons || !polygons.length) {
+                return null;
+            }
+            if (polygons.length === 1) {
+                return polygons[0];
+            }
+            return {type: 'GeometryCollection', geometries: polygons};
+        }
+        function buildNewGeometryBeyondSelected() {
+            if (!isEditing) {
+                return null;
+            }
+            const baselineCount = countPolygonLikeGeometriesInCollection(selectedEditableGeo);
+            const currentPolygons = extractPolygonGeometriesFromCollection(editableGroup.toGeoJSON());
+            if (currentPolygons.length <= baselineCount) {
+                return null;
+            }
+            return toGeometryFromPolygonList(currentPolygons.slice(baselineCount));
+        }
         function toIntersectionGeometry(raw) {
             if (!raw || typeof raw !== 'object') {
                 return null;
@@ -1283,6 +1344,7 @@
             }
             const hasNewPolygon = hasNewPolygonBeyondSelected();
             const selectedGeometryForCheck = hasNewPolygon ? toIntersectionGeometry(selectedGeometry) : null;
+            const newGeometryForSelectedCheck = hasNewPolygon ? buildNewGeometryBeyondSelected() : null;
             checkRelationsButton.disabled = true;
             statusEl.textContent = 'Ищем пересечения, границы и объекты в радиусе 10 м...';
             try {
@@ -1295,7 +1357,8 @@
                     body: JSON.stringify({
                         geometry,
                         source_label: selectedSourceLabel,
-                        selected_geometry: selectedGeometryForCheck
+                        selected_geometry: selectedGeometryForCheck,
+                        geometry_for_selected_check: newGeometryForSelectedCheck
                     })
                 });
                 const data = await response.json();
@@ -2009,6 +2072,7 @@
                 ? '\u0420\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f \u0432\u043a\u043b\u044e\u0447\u0451\u043d'
                 : '\u041d\u0430\u0447\u0430\u0442\u044c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435';
             addPolygonButton.disabled = !enabled;
+            cutPolygonButton.disabled = !enabled;
             if (!enabled) {
                 drawModeToggleLocked = false;
             }
@@ -2018,9 +2082,13 @@
             saveButton.style.display = enabled ? 'inline-block' : 'none';
             if (!enabled) {
                 addObjectMode = false;
+                cutObjectMode = false;
                 addPolygonButton.textContent = 'Добавить полигон';
                 addPolygonButton.classList.remove('map-toolbar-btn--danger');
                 addPolygonButton.classList.add('map-toolbar-btn--accent');
+                cutPolygonButton.textContent = 'Обрезать полигон';
+                cutPolygonButton.classList.remove('map-toolbar-btn--danger');
+                cutPolygonButton.classList.add('map-toolbar-btn--accent');
             }
         }
 
@@ -2031,6 +2099,97 @@
             addPolygonButton.classList.toggle('map-toolbar-btn--accent', !enabled);
             if (!enabled) {
                 clearDrawSnapPreview();
+            }
+        }
+
+        function setCutObjectButtonMode(enabled) {
+            cutObjectMode = enabled;
+            cutPolygonButton.textContent = enabled ? 'Отменить обрезку' : 'Обрезать полигон';
+            cutPolygonButton.classList.toggle('map-toolbar-btn--danger', enabled);
+            cutPolygonButton.classList.toggle('map-toolbar-btn--accent', !enabled);
+            if (!enabled) {
+                clearDrawSnapPreview();
+            }
+        }
+
+        function cancelCutMode() {
+            if (cutDrawer) {
+                cutDrawer.disable();
+                cutDrawer = null;
+            }
+            setCutObjectButtonMode(false);
+            clearDrawSnapPreview();
+        }
+
+        function openCutModeModal() {
+            cutModeModal.style.display = 'flex';
+        }
+
+        function closeCutModeModal() {
+            cutModeModal.style.display = 'none';
+        }
+
+        function startCutMode(mode) {
+            const normalizedMode = mode === 'line' ? 'line' : 'polygon';
+            setCutObjectButtonMode(true);
+            if (editToolbar) {
+                editToolbar.disable();
+            }
+            if (polygonDrawer) {
+                polygonDrawer.disable();
+                polygonDrawer = null;
+            }
+            if (normalizedMode === 'line') {
+                cutDrawer = new L.Draw.Polyline(map, {
+                    shapeOptions: {color: '#ef4444', weight: 3, opacity: 0.9}
+                });
+                statusEl.textContent = 'Нарисуйте линию для обрезки.';
+            } else {
+                cutDrawer = new L.Draw.Polygon(map, {
+                    allowIntersection: false,
+                    showArea: false,
+                    shapeOptions: {color: '#ef4444', weight: 3, fillOpacity: 0.15}
+                });
+                statusEl.textContent = 'Нарисуйте полигон для вырезания.';
+            }
+            cutDrawer.enable();
+        }
+
+        async function applyCutGeometry(cutterLayer, cutterType) {
+            const geometry = buildCurrentGeometry();
+            const cutterGeometry = cutterLayer?.toGeoJSON?.()?.geometry;
+            if (!geometry || !cutterGeometry) {
+                statusEl.textContent = 'Не удалось выполнить обрезку: нет геометрии.';
+                return;
+            }
+            statusEl.textContent = 'Обрезаем редактируемый полигон...';
+            try {
+                const response = await fetch("{% url 'cut_edited_geometry' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || ''
+                    },
+                    body: JSON.stringify({
+                        geometry,
+                        cutter_geometry: cutterGeometry,
+                        cutter_type: cutterType
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Не удалось обрезать полигон.');
+                }
+                if (!data.geometry) {
+                    throw new Error('После обрезки геометрия не содержит площади.');
+                }
+                if (!applyGeometryToEditableGroup(data.geometry)) {
+                    throw new Error('Не удалось применить результат обрезки.');
+                }
+                statusEl.textContent = 'Обрезка выполнена.';
+                await checkRelations();
+            } catch (error) {
+                statusEl.textContent = error.message || 'Не удалось обрезать полигон.';
             }
         }
 
@@ -2161,6 +2320,9 @@
                 statusEl.textContent = '\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0432\u043a\u043b\u044e\u0447\u0438\u0442\u0435 \u0440\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f.';
                 return;
             }
+            if (cutObjectMode) {
+                cancelCutMode();
+            }
             if (addObjectMode) {
                 cancelAddObjectMode();
                 return;
@@ -2200,6 +2362,36 @@
             clearStartVertexFlag();
             statusEl.textContent = '\u041d\u0430\u0440\u0438\u0441\u0443\u0439\u0442\u0435 \u043d\u043e\u0432\u044b\u0439 \u043f\u043e\u043b\u0438\u0433\u043e\u043d \u043d\u0430 \u043a\u0430\u0440\u0442\u0435 \u0438 \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u0435 \u0434\u0432\u043e\u0439\u043d\u044b\u043c \u043a\u043b\u0438\u043a\u043e\u043c.';
         });
+        cutPolygonButton.addEventListener('click', () => {
+            if (!isEditing) {
+                statusEl.textContent = '\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0432\u043a\u043b\u044e\u0447\u0438\u0442\u0435 \u0440\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f.';
+                return;
+            }
+            if (!buildCurrentGeometry()) {
+                statusEl.textContent = 'Нет редактируемой геометрии для обрезки.';
+                return;
+            }
+            if (addObjectMode) {
+                cancelAddObjectMode();
+            }
+            if (cutObjectMode) {
+                cancelCutMode();
+                statusEl.textContent = 'Обрезка отменена.';
+                return;
+            }
+            openCutModeModal();
+        });
+        cutModeModalCancel.addEventListener('click', () => {
+            closeCutModeModal();
+        });
+        cutModePolygonButton.addEventListener('click', () => {
+            closeCutModeModal();
+            startCutMode('polygon');
+        });
+        cutModeLineButton.addEventListener('click', () => {
+            closeCutModeModal();
+            startCutMode('line');
+        });
         drawModeFreehandToggle.addEventListener('change', () => {
             if (!drawModeFreehandToggle.checked) {
                 stopFreehandMode();
@@ -2209,9 +2401,18 @@
                 polygonDrawer = null;
                 clearStartVertexFlag();
             }
+            if (cutObjectMode) {
+                cancelCutMode();
+            }
         });
 
         map.on(L.Draw.Event.CREATED, (event) => {
+            if (cutObjectMode) {
+                const cutterType = event.layerType === 'polyline' ? 'line' : 'polygon';
+                cancelCutMode();
+                applyCutGeometry(event.layer, cutterType);
+                return;
+            }
             if (event.layerType !== 'polygon') {
                 return;
             }
@@ -2285,6 +2486,7 @@
 
         cancelEditButton.addEventListener('click', () => {
             cancelAddObjectMode();
+            cancelCutMode();
             if (editToolbar) {
                 editToolbar.disable();
             }

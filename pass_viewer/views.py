@@ -1191,6 +1191,90 @@ def _remove_intersections_from_geometry(
         return None
 
 
+def _to_geojson_geometry(geometry):
+    if not isinstance(geometry, dict):
+        return None
+    geo_type = geometry.get('type')
+    if geo_type == 'Feature':
+        feature_geom = geometry.get('geometry')
+        return feature_geom if isinstance(feature_geom, dict) else None
+    if geo_type == 'FeatureCollection':
+        geometries = []
+        for feature in geometry.get('features') or []:
+            feature_geom = (feature or {}).get('geometry')
+            if isinstance(feature_geom, dict):
+                geometries.append(feature_geom)
+        if not geometries:
+            return None
+        if len(geometries) == 1:
+            return geometries[0]
+        return {'type': 'GeometryCollection', 'geometries': geometries}
+    if geo_type in {'Polygon', 'MultiPolygon', 'GeometryCollection', 'LineString', 'MultiLineString'}:
+        return geometry
+    return None
+
+
+def _cut_geometry_with_shape(base_geometry, cutter_geometry, cutter_type='polygon'):
+    base_geometry_norm = _to_intersection_geometry(base_geometry)
+    cutter_geometry_norm = _to_geojson_geometry(cutter_geometry)
+    if not base_geometry_norm or not cutter_geometry_norm:
+        return None
+
+    cutter_type_norm = str(cutter_type or '').strip().lower()
+    base_geometry_json = json.dumps(base_geometry_norm)
+    cutter_geometry_json = json.dumps(cutter_geometry_norm)
+
+    with connection.cursor() as cursor:
+        if cutter_type_norm == 'line':
+            query = (
+                "WITH base AS ("
+                f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+                "), cutter_raw AS ("
+                " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+                "), cutter_line AS ("
+                " SELECT ST_LineMerge(ST_CollectionExtract(ST_MakeValid(geom), 2)) AS geom FROM cutter_raw"
+                "), result AS ("
+                " SELECT ST_CollectionExtract(ST_MakeValid(ST_Split(b.geom, cl.geom)), 3) AS geom "
+                " FROM base b CROSS JOIN cutter_line cl"
+                " WHERE cl.geom IS NOT NULL AND NOT ST_IsEmpty(cl.geom)"
+                ") "
+                "SELECT CASE "
+                " WHEN r.geom IS NULL OR ST_IsEmpty(r.geom) THEN ST_AsGeoJSON((SELECT geom FROM base))::text "
+                " ELSE ST_AsGeoJSON(r.geom)::text "
+                "END "
+                "FROM result r "
+                "UNION ALL "
+                "SELECT ST_AsGeoJSON((SELECT geom FROM base))::text "
+                "WHERE NOT EXISTS (SELECT 1 FROM result) "
+                "LIMIT 1"
+            )
+            cursor.execute(query, [base_geometry_json, cutter_geometry_json])
+        else:
+            query = (
+                "WITH base AS ("
+                f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+                "), cutter_raw AS ("
+                f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+                "), result AS ("
+                " SELECT ST_CollectionExtract(ST_MakeValid(ST_Difference(b.geom, c.geom)), 3) AS geom "
+                " FROM base b CROSS JOIN cutter_raw c"
+                ") "
+                "SELECT CASE "
+                " WHEN r.geom IS NULL OR ST_IsEmpty(r.geom) THEN NULL "
+                " ELSE ST_AsGeoJSON(r.geom)::text "
+                "END "
+                "FROM result r"
+            )
+            cursor.execute(query, [base_geometry_json, cutter_geometry_json])
+        row = cursor.fetchone()
+    if not row or not row[0]:
+        return None
+    try:
+        return json.loads(row[0])
+    except (TypeError, json.JSONDecodeError):
+        return None
+
+
 def _to_intersection_geometry(geometry):
     if not isinstance(geometry, dict):
         return None
@@ -1947,6 +2031,7 @@ def check_new_object_relations(request):
     if not geometry:
         return JsonResponse({'ok': False, 'error': 'Геометрия не передана.'}, status=400)
     selected_geometry = _to_intersection_geometry(payload.get('selected_geometry'))
+    geometry_for_selected_check = _to_intersection_geometry(payload.get('geometry_for_selected_check'))
     has_selected_geometry = bool(selected_geometry)
     source_label = _normalize_source_label(payload.get('source_label'))
 
@@ -1962,7 +2047,8 @@ def check_new_object_relations(request):
     intersects_selected = False
     if has_selected_geometry:
         try:
-            intersects_selected = _geometries_intersect(geometry, selected_geometry)
+            intersects_input = geometry_for_selected_check or geometry
+            intersects_selected = _geometries_intersect(intersects_input, selected_geometry)
         except Exception:
             logger.exception('check_new_object_relations: intersect-with-selected check failed')
             intersects_selected = False
@@ -2044,3 +2130,36 @@ def auto_remove_intersections(request):
         )
 
     return JsonResponse({'ok': True, 'geometry': cleaned_geometry})
+
+
+@login_required
+@require_POST
+def cut_edited_geometry(request):
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'ok': False, 'error': 'Некорректный JSON.'}, status=400)
+
+    geometry = _to_intersection_geometry(payload.get('geometry'))
+    if not geometry:
+        return JsonResponse({'ok': False, 'error': 'Геометрия редактируемого объекта не передана.'}, status=400)
+
+    cutter_geometry = _to_geojson_geometry(payload.get('cutter_geometry'))
+    if not cutter_geometry:
+        return JsonResponse({'ok': False, 'error': 'Геометрия обрезки не передана.'}, status=400)
+
+    cutter_type = str(payload.get('cutter_type') or 'polygon').strip().lower()
+    if cutter_type not in {'polygon', 'line'}:
+        cutter_type = 'polygon'
+
+    try:
+        result_geometry = _cut_geometry_with_shape(
+            geometry,
+            cutter_geometry,
+            cutter_type=cutter_type,
+        )
+    except Exception:
+        logger.exception('cut_edited_geometry: failed cutting edited geometry')
+        return JsonResponse({'ok': False, 'error': 'Не удалось обрезать геометрию.'}, status=500)
+
+    return JsonResponse({'ok': True, 'geometry': result_geometry})
