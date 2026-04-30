@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import uuid
 import zipfile
@@ -16,7 +17,20 @@ from osgeo import gdal, ogr, osr
 from .forms import EntryPointForm
 from .models import ExternalUser
 
+logger = logging.getLogger(__name__)
+
 gdal.UseExceptions()
+
+
+def _sql_geojson_param_as_valid_geom2d(placeholder: str = '%s') -> str:
+    """
+    GeoJSON text (%s) → валидная 2D-геометрия для предикатов PostGIS/GEOS.
+    Иначе при самопересечениях / «бантиках» после редактирования возможен
+    TopologyException: side location conflict в ST_Intersects и т.п.
+    """
+    return (
+        f'ST_UnaryUnion(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON({placeholder}), 4326)))'
+    )
 
 
 def _quote_ident(identifier):
@@ -826,7 +840,7 @@ def _get_new_object_relations(geometry, source_label='ДТ'):
 
     intersects_sql = (
         "WITH input AS ("
-        " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+        f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
         "), input_parts AS ("
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), rel AS ("
@@ -858,7 +872,7 @@ def _get_new_object_relations(geometry, source_label='ДТ'):
     )
     touches_sql = (
         "WITH input AS ("
-        " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+        f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
         "), input_parts AS ("
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), rel AS ("
@@ -890,7 +904,7 @@ def _get_new_object_relations(geometry, source_label='ДТ'):
     )
     nearby_sql = (
         "WITH input AS ("
-        " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+        f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
         "), input_parts AS ("
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), rel AS ("
@@ -924,7 +938,7 @@ def _get_new_object_relations(geometry, source_label='ДТ'):
     )
     request_objects_sql = (
         "WITH input AS ("
-        " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+        f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
         "), input_parts AS ("
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), ix AS ("
@@ -1021,7 +1035,7 @@ def _get_new_object_relations(geometry, source_label='ДТ'):
         nearby_row = cursor.fetchone()
         cursor.execute(request_objects_sql, [geometry_json])
         request_objects_row = cursor.fetchone()
-    ref_layers = _get_reference_layers(geometry=geometry, distance_meters=100)
+    ref_layers = _get_reference_layers(geometry=geometry_norm, distance_meters=100)
 
     return {
         'intersects': intersects_row[0] if intersects_row else None,
@@ -1042,7 +1056,7 @@ def _get_dgi_intersection_percent(geometry):
         geom_field = _resolve_column_name(cursor, dgi_table, geom_field_pref)
         query = (
             "WITH input AS ("
-            " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+            f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
             "), input_area AS ("
             " SELECT ST_Area(geom::geography) AS total_area FROM input"
             "), dgi_intersections AS ("
@@ -1094,10 +1108,10 @@ def _geometries_intersect(geometry_a, geometry_b):
         return False
     with connection.cursor() as cursor:
         cursor.execute(
-            """
+            f"""
             SELECT ST_Intersects(
-                ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326),
-                ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326)
+                {_sql_geojson_param_as_valid_geom2d()},
+                {_sql_geojson_param_as_valid_geom2d()}
             )
             """,
             [json.dumps(geometry_a_norm), json.dumps(geometry_b_norm)],
@@ -1146,7 +1160,7 @@ def _create_new_object(username, geometry, name, request_id, source_label='ДТ'
             f"{_quote_ident(owner_field)}, "
             f"{_quote_ident(request_id_field)}, "
             f"{_quote_ident(geom_field)}"
-            ") VALUES (%s, %s, %s, %s, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))"
+            f") VALUES (%s, %s, %s, %s, {_sql_geojson_param_as_valid_geom2d()})"
         )
         cursor.execute(insert_query, [None, name, owner_id, request_id, json.dumps(geometry)])
     return owner_id
@@ -1181,7 +1195,7 @@ def _create_recap_object(username, geometry, name, request_id, recap_id):
             f"{_quote_ident(owner_field)}, "
             f"{_quote_ident(request_id_field)}, "
             f"{_quote_ident(geom_field)}"
-            ") VALUES (%s, %s, %s, %s, %s, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))"
+            f") VALUES (%s, %s, %s, %s, %s, {_sql_geojson_param_as_valid_geom2d()})"
         )
         cursor.execute(insert_query, [recap_id, None, name, owner_id, request_id, json.dumps(geometry)])
     return owner_id
@@ -1295,7 +1309,7 @@ def _get_reference_layer_geojson(table_name, source_label, geometry=None, distan
             geometry_json = geometry if isinstance(geometry, str) else json.dumps(geometry)
             query = (
                 "WITH input AS ("
-                " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+                f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
                 "), rel AS ("
                 f" SELECT t.{_quote_ident(geom_field)} AS geom, "
                 f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
@@ -1377,7 +1391,7 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100):
             geometry_json = geometry if isinstance(geometry, str) else json.dumps(geometry)
             query = (
                 "WITH input AS ("
-                " SELECT ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) AS geom"
+                f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
                 "), rel AS ("
                 f" SELECT t.geom AS geom, t.recap_id AS recap_id, t.request_id AS request_id, {name_select_expr}, {owner_select_expr}, {owner_name_select_expr}"
                 " FROM recaps t, input i"
@@ -1825,16 +1839,20 @@ def check_new_object_relations(request):
 
     try:
         layers = _get_new_object_relations(geometry, source_label=source_label)
-        intersects_selected = (
-            _geometries_intersect(geometry, selected_geometry)
-            if has_selected_geometry
-            else False
-        )
-    except Exception:
-        return JsonResponse(
-            {'ok': False, 'error': 'Не удалось получить связанные объекты из PostGIS.'},
-            status=500,
-        )
+    except Exception as exc:
+        logger.exception('check_new_object_relations: failed loading relation layers from PostGIS')
+        error_msg = 'Не удалось получить связанные объекты из PostGIS.'
+        if settings.DEBUG:
+            error_msg = f'{error_msg} ({exc})'
+        return JsonResponse({'ok': False, 'error': error_msg}, status=500)
+
+    intersects_selected = False
+    if has_selected_geometry:
+        try:
+            intersects_selected = _geometries_intersect(geometry, selected_geometry)
+        except Exception:
+            logger.exception('check_new_object_relations: intersect-with-selected check failed')
+            intersects_selected = False
 
     return JsonResponse(
         {
