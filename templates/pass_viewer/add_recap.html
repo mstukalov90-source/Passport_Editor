@@ -13,6 +13,7 @@
         <a class="button-link" href="{% url 'home' %}">&#1042;&#1077;&#1088;&#1085;&#1091;&#1090;&#1100;&#1089;&#1103; &#1082; &#1089;&#1087;&#1080;&#1089;&#1082;&#1091;</a>
     </div>
 
+    <p id="editable-area-info" class="note" style="display:none; margin: 0 0 10px;">Площадь редактируемого объекта: -</p>
     <div style="display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin: 8px 0 12px;">
         <strong>&#1051;&#1077;&#1075;&#1077;&#1085;&#1076;&#1072;:</strong>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
@@ -63,7 +64,7 @@
             <span class="snap-switch__track"></span>
             <span class="snap-switch__label">Прилипание</span>
         </label>
-        <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1054;&#1073;&#1085;&#1086;&#1074;&#1080;&#1090;&#1100; &#1089;&#1074;&#1103;&#1079;&#1080;</button>
+        <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">Обновить пересечения и площадь</button>
         <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
         <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
         <button type="button" id="cancel-draw-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
@@ -466,6 +467,7 @@
         const selectedSourceLabel = "{{ selected_source_label|default:'ДТ'|escapejs }}";
 
         const statusEl = document.getElementById('edit-status');
+        const editableAreaInfoEl = document.getElementById('editable-area-info');
         const exportLinksEl = document.getElementById('export-links');
         const addDossierButton = document.getElementById('add-dossier-btn');
         const checkRelationsButton = document.getElementById('check-relations-btn');
@@ -522,6 +524,7 @@
         let drawSnapTargetLine = null;
         let startVertexFlagMarker = null;
         let pendingDeleteLayer = null;
+        let areaInfoVisible = false;
 
         function normalizeGeoJson(raw) {
             if (!raw) {
@@ -554,6 +557,37 @@
             };
         }
 
+        function calculateGeometryAreaSqMeters(geometry) {
+            if (!geometry || !L?.GeometryUtil?.geodesicArea) {
+                return null;
+            }
+            const ringArea = (ring) => {
+                if (!Array.isArray(ring) || ring.length < 3) {
+                    return 0;
+                }
+                const latLngs = ring.map((coord) => L.latLng(coord[1], coord[0]));
+                return Math.abs(L.GeometryUtil.geodesicArea(latLngs));
+            };
+            const polygonArea = (coordinates) => {
+                if (!Array.isArray(coordinates) || !coordinates.length) {
+                    return 0;
+                }
+                const outer = ringArea(coordinates[0]);
+                const holes = coordinates.slice(1).reduce((sum, hole) => sum + ringArea(hole), 0);
+                return Math.max(0, outer - holes);
+            };
+            if (geometry.type === 'Polygon') {
+                return polygonArea(geometry.coordinates);
+            }
+            if (geometry.type === 'MultiPolygon') {
+                return (geometry.coordinates || []).reduce((sum, polygonCoords) => sum + polygonArea(polygonCoords), 0);
+            }
+            if (geometry.type === 'GeometryCollection') {
+                return (geometry.geometries || []).reduce((sum, child) => sum + (calculateGeometryAreaSqMeters(child) || 0), 0);
+            }
+            return null;
+        }
+
         function buildEditableDeletePopupHtml(baseHtml) {
             return (
                 baseHtml +
@@ -564,7 +598,11 @@
         }
 
         function bindDossierPolygonPopup(layer) {
-            const baseHtml = '<div><strong>Новый полигон</strong></div>';
+            const displayName = String(objectName || 'Новый полигон');
+            const baseHtml =
+                '<div style="min-width: 220px;">' +
+                '<div><strong>Название:</strong> ' + displayName + '</div>' +
+                '</div>';
             layer.bindPopup(buildEditableDeletePopupHtml(baseHtml));
             layer.off('popupopen');
             layer.on('popupopen', () => {
@@ -1080,6 +1118,7 @@
             renderRecapsLayer(parsed.recaps);
             rebuildSnapGuideLines();
             refreshObjectLayersControl();
+            updateEditableAreaInfo();
         }
 
         renderRelationLayers({
@@ -1091,6 +1130,7 @@
             odh: JSON.parse(document.getElementById('odh-geometry-data').textContent),
             recaps: JSON.parse(document.getElementById('recaps-geometry-data').textContent),
         });
+        updateEditableAreaInfo();
 
         function buildCurrentGeometry() {
             const geo = dossierGroup.toGeoJSON();
@@ -1099,8 +1139,21 @@
             }
             return selectedGeometry;
         }
+        function updateEditableAreaInfo() {
+            if (!areaInfoVisible) {
+                editableAreaInfoEl.style.display = 'none';
+                editableAreaInfoEl.textContent = 'Площадь редактируемого объекта: -';
+                return;
+            }
+            editableAreaInfoEl.style.display = 'block';
+            const area = calculateGeometryAreaSqMeters(buildCurrentGeometry());
+            editableAreaInfoEl.textContent = Number.isFinite(area) && area > 0
+                ? ('Площадь редактируемого объекта: ' + area.toFixed(2) + ' м²')
+                : 'Площадь редактируемого объекта: -';
+        }
 
         function openDrawMode() {
+            areaInfoVisible = true;
             if (polygonDrawer) {
                 polygonDrawer.disable();
             }
@@ -1147,6 +1200,8 @@
             clearDrawSnapPreview();
             dossierGroup.clearLayers();
             statusEl.textContent = 'Добавление досьё отменено.';
+            areaInfoVisible = false;
+            updateEditableAreaInfo();
         });
 
         map.on(L.Draw.Event.CREATED, (event) => {
@@ -1165,6 +1220,7 @@
             statusEl.textContent = 'Полигон досьё добавлен. Можно сохранить.';
             rebuildSnapGuideLines();
             refreshObjectLayersControl();
+            updateEditableAreaInfo();
         });
 
         map.on(L.Draw.Event.DRAWVERTEX, (event) => {
@@ -1265,6 +1321,7 @@
             clearDrawSnapPreview();
             statusEl.textContent = 'Полигон досьё добавлен. Можно сохранить.';
             rebuildSnapGuideLines();
+            updateEditableAreaInfo();
         });
 
         async function checkRelations() {
@@ -1424,6 +1481,7 @@
                 }
                 closeAutoRemoveModal();
                 statusEl.textContent = 'Пересечения автоматически удалены.';
+                updateEditableAreaInfo();
                 await checkRelations();
             } catch (error) {
                 autoRemoveModalErrorEl.textContent = error.message || 'Не удалось удалить пересечения.';
@@ -1462,6 +1520,7 @@
             rebuildSnapGuideLines();
             refreshObjectLayersControl();
             statusEl.textContent = 'Полигон удалён.';
+            updateEditableAreaInfo();
             checkRelations();
         }
 

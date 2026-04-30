@@ -23,6 +23,7 @@
         <p class="note" style="color: #b42318;">&#1054;&#1073;&#1098;&#1077;&#1082;&#1090; &#1085;&#1077; &#1085;&#1072;&#1081;&#1076;&#1077;&#1085; &#1074; &#1073;&#1072;&#1079;&#1077;.</p>
     {% endif %}
 
+    <p id="editable-area-info" class="note" style="display:none; margin: 0 0 10px;">Площадь редактируемого объекта: -</p>
     <div style="display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin: 8px 0 12px;">
         <strong>&#1051;&#1077;&#1075;&#1077;&#1085;&#1076;&#1072;:</strong>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
@@ -71,7 +72,7 @@
             <span class="snap-switch__track"></span>
             <span class="snap-switch__label">&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077;</span>
         </label>
-        <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1086;&#1082;&#1072;&#1079;&#1072;&#1090;&#1100; &#1089;&#1074;&#1103;&#1079;&#1080;</button>
+        <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">Обновить пересечения и площадь</button>
         <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
         <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
         <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
@@ -500,6 +501,37 @@
                 .replace(/'/g, '&#39;');
         }
 
+        function calculateGeometryAreaSqMeters(geometry) {
+            if (!geometry || !L?.GeometryUtil?.geodesicArea) {
+                return null;
+            }
+            const ringArea = (ring) => {
+                if (!Array.isArray(ring) || ring.length < 3) {
+                    return 0;
+                }
+                const latLngs = ring.map((coord) => L.latLng(coord[1], coord[0]));
+                return Math.abs(L.GeometryUtil.geodesicArea(latLngs));
+            };
+            const polygonArea = (coordinates) => {
+                if (!Array.isArray(coordinates) || !coordinates.length) {
+                    return 0;
+                }
+                const outer = ringArea(coordinates[0]);
+                const holes = coordinates.slice(1).reduce((sum, hole) => sum + ringArea(hole), 0);
+                return Math.max(0, outer - holes);
+            };
+            if (geometry.type === 'Polygon') {
+                return polygonArea(geometry.coordinates);
+            }
+            if (geometry.type === 'MultiPolygon') {
+                return (geometry.coordinates || []).reduce((sum, polygonCoords) => sum + polygonArea(polygonCoords), 0);
+            }
+            if (geometry.type === 'GeometryCollection') {
+                return (geometry.geometries || []).reduce((sum, child) => sum + (calculateGeometryAreaSqMeters(child) || 0), 0);
+            }
+            return null;
+        }
+
         function buildObjectPopup(
             properties,
             fallbackRootid = '-',
@@ -668,6 +700,7 @@
         const cutModeLineButton = document.getElementById('cut-mode-line-btn');
         const cutModeModalCancel = document.getElementById('cut-mode-modal-cancel');
         const mapEl = document.getElementById('map');
+        const editableAreaInfoEl = document.getElementById('editable-area-info');
         const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
         const selectedName = "{{ selected_name|default:''|escapejs }}";
         const selectedRequestId = "{{ selected_request_id|default:''|escapejs }}";
@@ -1265,6 +1298,11 @@
 
         function updateRelationsButtonState() {
             checkRelationsButton.disabled = !buildCurrentGeometry();
+            const geometry = buildCurrentGeometry();
+            const area = calculateGeometryAreaSqMeters(geometry);
+            editableAreaInfoEl.textContent = Number.isFinite(area) && area > 0
+                ? ('Площадь редактируемого объекта: ' + area.toFixed(2) + ' м²')
+                : 'Площадь редактируемого объекта: -';
             refreshObjectLayersControl();
         }
 
@@ -2068,6 +2106,10 @@
         function setEditMode(enabled) {
             isEditing = enabled;
             mapEl.classList.toggle('edit-mode', enabled);
+            editableAreaInfoEl.style.display = enabled ? 'block' : 'none';
+            if (!enabled) {
+                editableAreaInfoEl.textContent = 'Площадь редактируемого объекта: -';
+            }
             editButton.textContent = enabled
                 ? '\u0420\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f \u0432\u043a\u043b\u044e\u0447\u0451\u043d'
                 : '\u041d\u0430\u0447\u0430\u0442\u044c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435';

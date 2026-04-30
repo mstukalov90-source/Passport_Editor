@@ -30,12 +30,13 @@
             <span class="snap-switch__track"></span>
             <span class="snap-switch__label">&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077;</span>
         </label>
-        <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1086;&#1082;&#1072;&#1079;&#1072;&#1090;&#1100; &#1089;&#1074;&#1103;&#1079;&#1080;</button>
+        <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">Обновить пересечения и площадь</button>
         <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
         <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
         <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
         <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">&#1042;&#1099;&#1075;&#1088;&#1091;&#1079;&#1080;&#1090;&#1100; &#1092;&#1072;&#1081;&#1083;&#1099;</button>
     </div>
+    <p id="editable-area-info" class="note" style="display:none; margin: 0 0 10px;">Площадь редактируемого объекта: -</p>
     <div class="map-legend" style="margin-bottom: 12px;">
         <span class="map-legend__item"><span class="map-legend__swatch map-legend__swatch--new"></span>&#1053;&#1086;&#1074;&#1099;&#1081; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;</span>
         <span class="map-legend__item"><span class="map-legend__swatch map-legend__swatch--intersects"></span>&#1055;&#1077;&#1088;&#1077;&#1089;&#1077;&#1082;&#1072;&#1077;&#1090;&#1089;&#1103;</span>
@@ -571,6 +572,7 @@
         const cancelEditButton = document.getElementById('cancel-edit-btn');
         const saveButton = document.getElementById('save-geometry-btn');
         const statusEl = document.getElementById('edit-status');
+        const editableAreaInfoEl = document.getElementById('editable-area-info');
         const snapDebugEl = {set textContent(_) {}};
         const snapDebugFixedEl = {set textContent(_) {}};
         const exportLinksEl = document.getElementById('export-links');
@@ -882,6 +884,37 @@
                 .replace(/'/g, '&#39;');
         }
 
+        function calculateGeometryAreaSqMeters(geometry) {
+            if (!geometry || !L?.GeometryUtil?.geodesicArea) {
+                return null;
+            }
+            const ringArea = (ring) => {
+                if (!Array.isArray(ring) || ring.length < 3) {
+                    return 0;
+                }
+                const latLngs = ring.map((coord) => L.latLng(coord[1], coord[0]));
+                return Math.abs(L.GeometryUtil.geodesicArea(latLngs));
+            };
+            const polygonArea = (coordinates) => {
+                if (!Array.isArray(coordinates) || !coordinates.length) {
+                    return 0;
+                }
+                const outer = ringArea(coordinates[0]);
+                const holes = coordinates.slice(1).reduce((sum, hole) => sum + ringArea(hole), 0);
+                return Math.max(0, outer - holes);
+            };
+            if (geometry.type === 'Polygon') {
+                return polygonArea(geometry.coordinates);
+            }
+            if (geometry.type === 'MultiPolygon') {
+                return (geometry.coordinates || []).reduce((sum, polygonCoords) => sum + polygonArea(polygonCoords), 0);
+            }
+            if (geometry.type === 'GeometryCollection') {
+                return (geometry.geometries || []).reduce((sum, child) => sum + (calculateGeometryAreaSqMeters(child) || 0), 0);
+            }
+            return null;
+        }
+
         function buildObjectPopup(properties, fallbackRootid = '-', fallbackName = '-') {
             const rootid = properties?.rootid ?? fallbackRootid;
             const name = properties?.name ?? fallbackName;
@@ -995,6 +1028,11 @@
 
         function updateRelationsButtonState() {
             checkRelationsButton.disabled = !buildCurrentGeometry();
+            const geometry = buildCurrentGeometry();
+            const area = calculateGeometryAreaSqMeters(geometry);
+            editableAreaInfoEl.textContent = Number.isFinite(area) && area > 0
+                ? ('Площадь редактируемого объекта: ' + area.toFixed(2) + ' м²')
+                : 'Площадь редактируемого объекта: -';
             refreshObjectLayersControl();
         }
 
@@ -1645,7 +1683,14 @@
                 style: {color: '#ff0000', weight: 3, fillOpacity: 0.25}
             });
             editableLayer.eachLayer((layer) => {
-                bindEditablePolygonPopup(layer, buildObjectPopup({}, 'Новый объект', 'Новый объект'));
+                bindEditablePolygonPopup(
+                    layer,
+                    buildObjectPopup(
+                        {},
+                        'Новый объект',
+                        'Новый объект'
+                    )
+                );
                 editableGroup.addLayer(layer);
             });
             if (editToolbar) {
@@ -1760,6 +1805,10 @@
         function setEditMode(enabled) {
             isEditing = enabled;
             mapEl.classList.toggle('edit-mode', enabled);
+            editableAreaInfoEl.style.display = enabled ? 'block' : 'none';
+            if (!enabled) {
+                editableAreaInfoEl.textContent = 'Площадь редактируемого объекта: -';
+            }
             cancelEditButton.style.display = enabled ? 'inline-block' : 'none';
             saveButton.style.display = enabled ? 'inline-block' : 'none';
             editButton.textContent = enabled ? 'Режим редактирования включён' : 'Начать редактирование';
@@ -1917,7 +1966,14 @@
 
         function finishCreatedPolygon(layer) {
             editableGroup.addLayer(layer);
-            bindEditablePolygonPopup(layer, buildObjectPopup({}, 'Новый объект', 'Новый объект'));
+            bindEditablePolygonPopup(
+                layer,
+                buildObjectPopup(
+                    {},
+                    'Новый объект',
+                    'Новый объект'
+                )
+            );
             if (polygonDrawer) {
                 polygonDrawer.disable();
                 polygonDrawer = null;
