@@ -1839,12 +1839,12 @@ def check_new_object_relations(request):
 
     try:
         layers = _get_new_object_relations(geometry, source_label=source_label)
-    except Exception as exc:
+    except Exception:
         logger.exception('check_new_object_relations: failed loading relation layers from PostGIS')
-        error_msg = 'Не удалось получить связанные объекты из PostGIS.'
-        if settings.DEBUG:
-            error_msg = f'{error_msg} ({exc})'
-        return JsonResponse({'ok': False, 'error': error_msg}, status=500)
+        return JsonResponse(
+            {'ok': False, 'error': 'Не удалось получить связанные объекты из PostGIS.'},
+            status=500
+        )
 
     intersects_selected = False
     if has_selected_geometry:
