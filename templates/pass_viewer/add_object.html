@@ -86,6 +86,16 @@
             </div>
         </div>
     </div>
+    <div id="delete-polygon-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3 style="margin: 0 0 10px;">Удалить полигон?</h3>
+            <p class="note" style="margin-top: 0;">Полигон будет удалён из текущего редактирования.</p>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+                <button type="button" id="delete-polygon-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
+                <button type="button" id="delete-polygon-modal-submit" class="map-toolbar-btn map-toolbar-btn--danger">Удалить</button>
+            </div>
+        </div>
+    </div>
 
     <style>
         #map.edit-mode .leaflet-editing-icon {
@@ -380,6 +390,38 @@
             font-size: 14px;
             box-sizing: border-box;
         }
+        .start-vertex-flag {
+            position: relative;
+            width: 16px;
+            height: 16px;
+            pointer-events: none;
+        }
+        .start-vertex-flag::before {
+            content: '';
+            position: absolute;
+            left: 2px;
+            top: 1px;
+            width: 2px;
+            height: 15px;
+            background: #334155;
+            border-radius: 2px;
+        }
+        .start-vertex-flag::after {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 1px;
+            width: 10px;
+            height: 8px;
+            border-radius: 2px;
+            border: 1px solid #334155;
+            background:
+                linear-gradient(45deg, #111827 25%, transparent 25%, transparent 75%, #111827 75%, #111827),
+                linear-gradient(45deg, #111827 25%, transparent 25%, transparent 75%, #111827 75%, #111827);
+            background-size: 6px 6px;
+            background-position: 0 0, 3px 3px;
+            background-color: #ffffff;
+        }
     </style>
 
     <link
@@ -403,6 +445,35 @@
     {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
     {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
     <script>
+        function getCookie(name) {
+            const cookieValue = document.cookie
+                .split('; ')
+                .find((row) => row.startsWith(name + '='));
+            return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : null;
+        }
+
+        function normalizeGeoJson(geojsonObject) {
+            if (!geojsonObject) {
+                return null;
+            }
+            if (typeof geojsonObject === 'string') {
+                try {
+                    geojsonObject = JSON.parse(geojsonObject);
+                } catch (e) {
+                    return null;
+                }
+            }
+            if (geojsonObject.type === 'FeatureCollection' || geojsonObject.type === 'Feature') {
+                return geojsonObject;
+            }
+            return {
+                type: 'FeatureCollection',
+                features: [
+                    {type: 'Feature', properties: {}, geometry: geojsonObject}
+                ]
+            };
+        }
+
         const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
@@ -502,6 +573,9 @@
         const autoRemoveDtCheckbox = document.getElementById('auto-remove-dt');
         const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
         const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
+        const deletePolygonModal = document.getElementById('delete-polygon-modal');
+        const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
+        const deletePolygonModalSubmit = document.getElementById('delete-polygon-modal-submit');
         let isEditing = false;
         const mapEl = document.getElementById('map');
         const editableGroup = new L.FeatureGroup().addTo(map);
@@ -528,8 +602,50 @@
         let drawSnapRadiusCircle = null;
         let drawSnapTargetLine = null;
         let objectLayersControl = null;
+        let startVertexFlagMarker = null;
+        let pendingDeleteLayer = null;
 
         const withCount = (label, count) => `${label} (${count})`;
+        function clearStartVertexFlag() {
+            if (startVertexFlagMarker && map.hasLayer(startVertexFlagMarker)) {
+                map.removeLayer(startVertexFlagMarker);
+            }
+            startVertexFlagMarker = null;
+        }
+        function getFirstVertexFromDrawer() {
+            const latlngs = polygonDrawer?._poly?.getLatLngs?.();
+            if (!Array.isArray(latlngs) || !latlngs.length) {
+                return null;
+            }
+            const first = Array.isArray(latlngs[0]) ? latlngs[0][0] : latlngs[0];
+            return first && Number.isFinite(first.lat) && Number.isFinite(first.lng) ? first : null;
+        }
+        function updateStartVertexFlag() {
+            if (!isEditing || !addObjectMode || freehandMode || !polygonDrawer) {
+                clearStartVertexFlag();
+                return;
+            }
+            const firstVertex = getFirstVertexFromDrawer();
+            if (!firstVertex) {
+                clearStartVertexFlag();
+                return;
+            }
+            if (!startVertexFlagMarker) {
+                startVertexFlagMarker = L.marker(firstVertex, {
+                    interactive: false,
+                    keyboard: false,
+                    zIndexOffset: 2000,
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<span class="start-vertex-flag" aria-hidden="true"></span>',
+                        iconSize: [16, 16],
+                        iconAnchor: [3, 14],
+                    }),
+                }).addTo(map);
+            } else {
+                startVertexFlagMarker.setLatLng(firstVertex);
+            }
+        }
         const countGroupFeatures = (group) => {
             let count = 0;
             group.eachLayer((layer) => {
@@ -801,6 +917,33 @@
                 ownerLines +
                 '</div>'
             );
+        }
+
+        function buildEditableDeletePopupHtml(baseHtml) {
+            return (
+                baseHtml +
+                '<div style="margin-top:10px; padding-top:8px; border-top:1px solid #e5e7eb;">' +
+                '<button type="button" class="popup-delete-polygon-btn map-toolbar-btn map-toolbar-btn--danger" style="font-size:12px; padding:6px 10px;">🗑 Удалить полигон</button>' +
+                '</div>'
+            );
+        }
+
+        function bindEditablePolygonPopup(layer, baseHtml) {
+            layer.bindPopup(buildEditableDeletePopupHtml(baseHtml));
+            layer.off('popupopen');
+            layer.on('popupopen', () => {
+                const popupEl = layer.getPopup()?.getElement?.();
+                const btn = popupEl?.querySelector('.popup-delete-polygon-btn');
+                if (!btn) {
+                    return;
+                }
+                btn.onclick = (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    pendingDeleteLayer = layer;
+                    deletePolygonModal.style.display = 'flex';
+                };
+            });
         }
 
         function buildCurrentGeometry() {
@@ -1481,7 +1624,7 @@
                 style: {color: '#ff0000', weight: 3, fillOpacity: 0.25}
             });
             editableLayer.eachLayer((layer) => {
-                layer.bindPopup(buildObjectPopup({}, 'Новый объект', 'Новый объект'));
+                bindEditablePolygonPopup(layer, buildObjectPopup({}, 'Новый объект', 'Новый объект'));
                 editableGroup.addLayer(layer);
             });
             if (editToolbar) {
@@ -1555,6 +1698,44 @@
             autoRemoveIntersections();
         });
 
+        function closeDeletePolygonModal() {
+            deletePolygonModal.style.display = 'none';
+            pendingDeleteLayer = null;
+        }
+
+        function deletePendingPolygon() {
+            if (!pendingDeleteLayer) {
+                closeDeletePolygonModal();
+                return;
+            }
+            if (editableGroup.hasLayer(pendingDeleteLayer)) {
+                editableGroup.removeLayer(pendingDeleteLayer);
+            }
+            if (editToolbar) {
+                editToolbar.disable();
+                editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
+                if (isEditing && editableGroup.getLayers().length) {
+                    editToolbar.enable();
+                }
+            }
+            closeDeletePolygonModal();
+            clearDrawSnapPreview();
+            rebuildSnapGuideLines();
+            refreshObjectLayersControl();
+            updateRelationsButtonState();
+            statusEl.textContent = 'Полигон удалён.';
+            if (editableGroup.getLayers().length) {
+                checkRelations();
+            }
+        }
+
+        deletePolygonModalCancel.addEventListener('click', () => {
+            closeDeletePolygonModal();
+        });
+        deletePolygonModalSubmit.addEventListener('click', () => {
+            deletePendingPolygon();
+        });
+
         function setEditMode(enabled) {
             isEditing = enabled;
             mapEl.classList.toggle('edit-mode', enabled);
@@ -1591,6 +1772,7 @@
                 polygonDrawer.disable();
                 polygonDrawer = null;
             }
+            clearStartVertexFlag();
             stopFreehandMode();
             setAddObjectButtonMode(false);
             clearDrawSnapPreview();
@@ -1618,11 +1800,12 @@
 
         function finishCreatedPolygon(layer) {
             editableGroup.addLayer(layer);
-            layer.bindPopup(buildObjectPopup({}, 'Новый объект', 'Новый объект'));
+            bindEditablePolygonPopup(layer, buildObjectPopup({}, 'Новый объект', 'Новый объект'));
             if (polygonDrawer) {
                 polygonDrawer.disable();
                 polygonDrawer = null;
             }
+            clearStartVertexFlag();
             if (freehandMode || drawModeFreehandToggle.checked) {
                 drawModeFreehandToggle.checked = false;
                 stopFreehandMode();
@@ -1678,6 +1861,7 @@
                 editToolbar.disable();
             }
             stopSnapBindingLoop();
+            clearStartVertexFlag();
             setEditMode(false);
         });
 
@@ -1702,6 +1886,7 @@
                     polygonDrawer.disable();
                     polygonDrawer = null;
                 }
+                clearStartVertexFlag();
                 freehandMode = true;
                 map.getContainer().style.cursor = 'crosshair';
                 statusEl.textContent = 'Режим кисти: зажмите левую кнопку мыши и обведите контур.';
@@ -1721,14 +1906,17 @@
                 },
             });
             polygonDrawer.enable();
+            clearStartVertexFlag();
             statusEl.textContent = 'Добавьте новый полигон на карту.';
         });
         drawModeFreehandToggle.addEventListener('change', () => {
             if (!drawModeFreehandToggle.checked) {
                 stopFreehandMode();
+                clearStartVertexFlag();
             } else if (polygonDrawer) {
                 polygonDrawer.disable();
                 polygonDrawer = null;
+                clearStartVertexFlag();
             }
         });
 
@@ -1740,6 +1928,13 @@
         });
         map.on(L.Draw.Event.DRAWVERTEX, (event) => {
             snapLastDrawVertexIfNeeded(event);
+            updateStartVertexFlag();
+        });
+        map.on('draw:drawstart', () => {
+            clearStartVertexFlag();
+        });
+        map.on('draw:drawstop', () => {
+            clearStartVertexFlag();
         });
 
         map.on('mousedown', (event) => {
