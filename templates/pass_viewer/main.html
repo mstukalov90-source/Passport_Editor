@@ -30,17 +30,9 @@
             <span style="width: 14px; height: 14px; border: 2px solid #ff0000; background: rgba(255, 0, 0, 0.25); border-radius: 2px; display: inline-block;"></span>
             &#1042;&#1099;&#1073;&#1088;&#1072;&#1085;&#1085;&#1099;&#1081; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;
         </span>
-        <span style="display: inline-flex; align-items: center; gap: 6px;">
-            <span style="width: 14px; height: 14px; border: 2px solid #ff9800; background: rgba(255, 152, 0, 0.1); border-radius: 2px; display: inline-block;"></span>
-            &#1043;&#1088;&#1072;&#1085;&#1080;&#1095;&#1072;&#1097;&#1080;&#1077; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099;
-        </span>
-        <span style="display: inline-flex; align-items: center; gap: 6px;">
+        <span style="display: inline-flex; align-items: center; gap: 6px;" title="Паспорта ДТ с пересечением, общей границей или в пределах 10 м от объекта">
             <span style="width: 14px; height: 14px; border: 2px solid #0284c7; background: rgba(56, 189, 248, 0.35); border-radius: 2px; display: inline-block;"></span>
-            &#1055;&#1077;&#1088;&#1077;&#1089;&#1077;&#1082;&#1072;&#1102;&#1097;&#1080;&#1077;&#1089;&#1103; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099;
-        </span>
-        <span style="display: inline-flex; align-items: center; gap: 6px;">
-            <span style="width: 14px; height: 14px; border: 2px solid #16a34a; background: rgba(34, 197, 94, 0.3); border-radius: 2px; display: inline-block;"></span>
-            &#1054;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099; &#1074; &#1088;&#1072;&#1076;&#1080;&#1091;&#1089;&#1077; 10 &#1084;
+            Смежные паспорта ДТ
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
             <span style="width: 14px; height: 14px; border: 2px dashed #dc2626; background: repeating-linear-gradient(45deg, #dc2626 0 6px, #ffffff 6px 12px); border-radius: 2px; display: inline-block;"></span>
@@ -72,7 +64,7 @@
             <span class="snap-switch__track"></span>
             <span class="snap-switch__label">&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077;</span>
         </label>
-        <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">Обновить пересечения и площадь</button>
+        <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">Обновить смежные паспорта ДТ и площадь</button>
         <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
         <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
         <button type="button" id="add-comment-point-btn" class="map-toolbar-btn map-toolbar-btn--primary">Добавить точку с комментарием</button>
@@ -511,6 +503,45 @@
             };
         }
 
+        function mergeAdjacentDtPassportsGeoJson(intersectsGeo, touchesGeo, nearbyGeo) {
+            const mergedFeatures = [];
+            const seenRootids = new Set();
+            const appendFrom = (geojsonObject) => {
+                let g = normalizeGeoJson(geojsonObject);
+                if (!g) {
+                    return;
+                }
+                if (g.type === 'Feature') {
+                    g = {type: 'FeatureCollection', features: [g]};
+                }
+                if (g.type !== 'FeatureCollection' || !Array.isArray(g.features)) {
+                    return;
+                }
+                for (const f of g.features) {
+                    const reqRaw = f?.properties?.request_id;
+                    const reqStr = reqRaw == null ? '' : String(reqRaw).trim();
+                    if (reqStr) {
+                        continue;
+                    }
+                    const rid = String(f?.properties?.rootid ?? '').trim();
+                    if (rid) {
+                        if (seenRootids.has(rid)) {
+                            continue;
+                        }
+                        seenRootids.add(rid);
+                    }
+                    mergedFeatures.push(f);
+                }
+            };
+            appendFrom(intersectsGeo);
+            appendFrom(touchesGeo);
+            appendFrom(nearbyGeo);
+            if (!mergedFeatures.length) {
+                return null;
+            }
+            return {type: 'FeatureCollection', features: mergedFeatures};
+        }
+
         function escapeHtml(value) {
             return String(value ?? '')
                 .replace(/&/g, '&amp;')
@@ -744,12 +775,8 @@
         );
         const editableGroup = new L.FeatureGroup().addTo(map);
         let selectedLayer = null;
-        let touchesLayer = null;
-        let nearbyLayer = null;
         const selectedGroup = new L.FeatureGroup().addTo(map);
-        const intersectsGroup = new L.FeatureGroup().addTo(map);
-        const touchesGroup = new L.FeatureGroup().addTo(map);
-        const nearbyGroup = new L.FeatureGroup().addTo(map);
+        const adjacentDtPassportsGroup = new L.FeatureGroup().addTo(map);
         const requestObjectsGroup = L.featureGroup().addTo(map);
         const dgiSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
@@ -1078,9 +1105,7 @@
             }
             const overlays = {};
             overlays[withCount('Выбранный объект', countGroupFeatures(selectedGroup))] = selectedGroup;
-            overlays[withCount('Пересекается', countGroupFeatures(intersectsGroup))] = intersectsGroup;
-            overlays[withCount('Граничит', countGroupFeatures(touchesGroup))] = touchesGroup;
-            overlays[withCount('В радиусе 10 м', countGroupFeatures(nearbyGroup))] = nearbyGroup;
+            overlays[withCount('Смежные паспорта ДТ', countGroupFeatures(adjacentDtPassportsGroup))] = adjacentDtPassportsGroup;
             overlays[withCount('Заявки', countGroupFeatures(requestObjectsGroup))] = requestObjectsGroup;
             overlays[withCount('ДГИ', countGroupFeatures(dgiSignalGroup))] = dgiSignalGroup;
             overlays[withCount('ОДХ', countGroupFeatures(odhSignalGroup))] = odhSignalGroup;
@@ -1262,34 +1287,14 @@
         renderReferenceSignalLayers(dgiGeometry, odhGeometry);
         renderRecapsLayer(parseGeometryData('recaps-geometry-data'));
 
-        const intersectsGeo = normalizeGeoJson(intersectsGeometry);
-        if (intersectsGeo) {
-            L.geoJSON(intersectsGeo, {
+        const mergedAdjacentDtInitial = mergeAdjacentDtPassportsGeoJson(intersectsGeometry, touchesGeometry, nearbyGeometry);
+        if (mergedAdjacentDtInitial) {
+            L.geoJSON(mergedAdjacentDtInitial, {
                 style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
                 onEachFeature: (feature, layer) => {
                     layer.bindPopup(buildObjectPopup(feature.properties || {}));
                 }
-            }).addTo(intersectsGroup);
-        }
-
-        const touchesGeo = normalizeGeoJson(touchesGeometry);
-        if (touchesGeo) {
-            touchesLayer = L.geoJSON(touchesGeo, {
-                style: {color: '#ff9800', weight: 2, fillOpacity: 0.1},
-                onEachFeature: (feature, layer) => {
-                    layer.bindPopup(buildObjectPopup(feature.properties || {}));
-                }
-            }).addTo(touchesGroup);
-        }
-
-        const nearbyGeo = normalizeGeoJson(nearbyGeometry);
-        if (nearbyGeo) {
-            nearbyLayer = L.geoJSON(nearbyGeo, {
-                style: {color: '#16a34a', weight: 2, fillColor: '#22c55e', fillOpacity: 0.3},
-                onEachFeature: (feature, layer) => {
-                    layer.bindPopup(buildObjectPopup(feature.properties || {}));
-                }
-            }).addTo(nearbyGroup);
+            }).addTo(adjacentDtPassportsGroup);
         }
 
         const requestObjectsGeoInitial = normalizeGeoJson(requestObjectsGeometry);
@@ -1532,9 +1537,7 @@
         }
 
         function renderRelationLayers(layers) {
-            intersectsGroup.clearLayers();
-            touchesGroup.clearLayers();
-            nearbyGroup.clearLayers();
+            adjacentDtPassportsGroup.clearLayers();
             requestObjectsGroup.clearLayers();
             const parsed = {
                 intersects: normalizeGeoJson(layers.intersects),
@@ -1567,23 +1570,12 @@
             parsed.request_objects = excludeSelectedRootid(parsed.request_objects);
             renderReferenceSignalLayers(parsed.dgi, parsed.odh);
             renderRecapsLayer(parsed.recaps);
-            if (parsed.intersects) {
-                L.geoJSON(parsed.intersects, {
+            const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsed.intersects, parsed.touches, parsed.nearby);
+            if (mergedAdjacentDt) {
+                L.geoJSON(mergedAdjacentDt, {
                     style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
                     onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {}))
-                }).addTo(intersectsGroup);
-            }
-            if (parsed.touches) {
-                L.geoJSON(parsed.touches, {
-                    style: {color: '#ff9800', weight: 2, fillOpacity: 0.1},
-                    onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {}))
-                }).addTo(touchesGroup);
-            }
-            if (parsed.nearby) {
-                L.geoJSON(parsed.nearby, {
-                    style: {color: '#16a34a', weight: 2, fillColor: '#22c55e', fillOpacity: 0.3},
-                    onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {}))
-                }).addTo(nearbyGroup);
+                }).addTo(adjacentDtPassportsGroup);
             }
             if (parsed.request_objects) {
                 L.geoJSON(parsed.request_objects, {
@@ -1609,7 +1601,7 @@
             const selectedGeometryForCheck = hasNewPolygon ? toIntersectionGeometry(selectedGeometry) : null;
             const newGeometryForSelectedCheck = hasNewPolygon ? buildNewGeometryBeyondSelected() : null;
             checkRelationsButton.disabled = true;
-            statusEl.textContent = 'Ищем пересечения, границы и объекты в радиусе 10 м...';
+            statusEl.textContent = 'Ищем смежные паспорта ДТ (пересечение, общая граница, до 10 м)...';
             try {
                 const response = await fetch("{% url 'check_new_object_relations' %}", {
                     method: 'POST',
@@ -1633,7 +1625,7 @@
                     statusEl.textContent = 'Обнаружено пересечение: новый полигон пересекает редактируемый объект.';
                 }
                 renderRelationLayers(data.layers || {});
-                statusEl.textContent = 'Связанные объекты обновлены: пересечения, границы и зона 10 м.';
+                statusEl.textContent = 'Слои обновлены: смежные паспорта ДТ и остальные связанные объекты.';
             } catch (error) {
                 statusEl.textContent = error.message || 'Не удалось проверить связанные объекты.';
             } finally {
@@ -1882,7 +1874,7 @@
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
             collectSnapGuideLines(selectedGeo, snapGuideLines);
-            [intersectsGroup, touchesGroup, nearbyGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, recapsGroup].forEach((group) => {
+            [adjacentDtPassportsGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
