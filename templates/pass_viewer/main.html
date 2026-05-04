@@ -77,9 +77,9 @@
     <div id="save-modal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3 style="margin: 0 0 10px;">Новый объект</h3>
-            <label class="modal-label" for="new-object-name">Название (name, необязательно)</label>
+            <label class="modal-label" for="new-object-name">Название (необязательно)</label>
             <input id="new-object-name" class="modal-input" type="text" maxlength="255" />
-            <label class="modal-label" for="new-object-request-id">Номер заявки (request_id)</label>
+            <label class="modal-label" for="new-object-request-id">Номер заявки</label>
             <input id="new-object-request-id" class="modal-input" type="text" maxlength="100" inputmode="numeric" pattern="[0-9]*" />
             <p id="save-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
@@ -857,6 +857,63 @@
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
+        let popupHighlightLayer = null;
+        const POPUP_HIGHLIGHT_WEIGHT_DELTA = 3;
+
+        function clearPopupHighlight() {
+            if (popupHighlightLayer && popupHighlightLayer._passViewerPopupPrevStyle) {
+                const prev = popupHighlightLayer._passViewerPopupPrevStyle;
+                popupHighlightLayer.setStyle(prev);
+                if (typeof popupHighlightLayer._passViewerRestoreDgiDom === 'function') {
+                    popupHighlightLayer._passViewerDgiPopupSolidStroke = false;
+                    popupHighlightLayer._passViewerRestoreDgiDom();
+                }
+                delete popupHighlightLayer._passViewerPopupPrevStyle;
+            }
+            popupHighlightLayer = null;
+        }
+
+        function applyPopupHighlight(layer) {
+            clearPopupHighlight();
+            if (!layer || typeof layer.setStyle !== 'function') {
+                return;
+            }
+            const opt = layer.options || {};
+            layer._passViewerPopupPrevStyle = {
+                weight: opt.weight,
+                opacity: opt.opacity,
+                fillOpacity: opt.fillOpacity,
+                color: opt.color,
+                fillColor: opt.fillColor,
+                dashArray: opt.dashArray,
+            };
+            const baseW = typeof opt.weight === 'number' ? opt.weight : 2;
+            const highlight = {
+                weight: baseW + POPUP_HIGHLIGHT_WEIGHT_DELTA,
+                opacity: typeof opt.opacity === 'number' ? Math.min(1, opt.opacity + 0.08) : 1,
+            };
+            if (typeof opt.fillOpacity === 'number' && opt.fillOpacity > 0.001) {
+                highlight.fillOpacity = Math.min(0.55, opt.fillOpacity + 0.12);
+            }
+            layer.setStyle(highlight);
+            if (typeof layer._passViewerRestoreDgiDom === 'function') {
+                layer._passViewerDgiPopupSolidStroke = true;
+                layer._passViewerRestoreDgiDom();
+            }
+            popupHighlightLayer = layer;
+            if (typeof layer.bringToFront === 'function') {
+                layer.bringToFront();
+            }
+        }
+
+        map.on('popupopen', (e) => {
+            const layer = e.popup && e.popup._source;
+            applyPopupHighlight(layer);
+        });
+        map.on('popupclose', () => {
+            clearPopupHighlight();
+        });
+
         const editableGroup = new L.FeatureGroup().addTo(map);
         let selectedLayer = null;
         const selectedGroup = new L.FeatureGroup().addTo(map);
@@ -1004,7 +1061,7 @@
                 if (!rid) {
                     addCommentPointButton.disabled = true;
                     addCommentPointButton.title =
-                        'Нет номера заявки (request_id) — укажите при входе на страницу или в записи объекта.';
+                        'Нет номера заявки — укажите его при входе на страницу или в карточке объекта.';
                 } else {
                     addCommentPointButton.disabled = false;
                     addCommentPointButton.title = '';
@@ -1314,7 +1371,7 @@
                         layer.bindPopup('<strong>' + sourceLabel + '</strong>');
                     }
                     if (isDgi) {
-                        layer.on('add', () => {
+                        layer._passViewerRestoreDgiDom = function () {
                             const patternId = ensureSignalPattern(
                                 'dgi-signal-tape-pattern',
                                 '#dc2626'
@@ -1323,12 +1380,25 @@
                             if (!patternId || !el) {
                                 return;
                             }
+                            const o = layer.options || {};
+                            const solidPopup = !!layer._passViewerDgiPopupSolidStroke;
+                            const dash =
+                                solidPopup
+                                    ? null
+                                    : o.dashArray != null && o.dashArray !== ''
+                                        ? String(o.dashArray)
+                                        : '10 8';
                             el.setAttribute('fill', 'url(#' + patternId + ')');
                             el.setAttribute('fill-opacity', '0.25');
                             el.setAttribute('stroke', '#dc2626');
                             el.setAttribute('stroke-width', '2');
-                            el.setAttribute('stroke-dasharray', '10 8');
-                        });
+                            if (dash) {
+                                el.setAttribute('stroke-dasharray', dash);
+                            } else {
+                                el.removeAttribute('stroke-dasharray');
+                            }
+                        };
+                        layer.on('add', layer._passViewerRestoreDgiDom);
                     }
                 }
             }).addTo(targetGroup);
@@ -2130,7 +2200,7 @@
             if (polygonDrawer && polygonDrawer._poly && typeof polygonDrawer._poly.setLatLngs === 'function') {
                 polygonDrawer._poly.setLatLngs(markers.map((marker) => marker.getLatLng()));
             }
-            snapDebugEl.textContent = 'Snap debug: вершина привязана на ' + target.distance.toFixed(2) + ' м.';
+            snapDebugEl.textContent = 'Привязка: вершина привязана на ' + target.distance.toFixed(2) + ' м.';
         }
 
         function applySnappedVertex(marker, snappedPoint) {
@@ -2235,7 +2305,7 @@
                                     marker._snapTargetLine = null;
                                 }
                                 setSnapCircleVisualState(marker._snapRadiusCircle, false);
-                                snapDebugEl.textContent = 'Snap debug: snapping disabled.';
+                                snapDebugEl.textContent = 'Привязка: snapping disabled.';
                                 return;
                             }
                             const nearestAny = findNearestCandidate(center);
@@ -2246,7 +2316,7 @@
                                     marker._snapTargetLine = null;
                                 }
                                 setSnapCircleVisualState(marker._snapRadiusCircle, false);
-                                snapDebugEl.textContent = 'Snap debug: направляющих нет.';
+                                snapDebugEl.textContent = 'Привязка: направляющих нет.';
                                 return;
                             }
                             const canSnap = nearestAny.distance <= snapDistanceMeters;
@@ -2269,8 +2339,8 @@
                                 marker._snapTargetLine = null;
                             }
                             snapDebugEl.textContent =
-                                'Snap debug: nearest=' + nearestAny.distance.toFixed(2) +
-                                ' м, threshold=' + snapDistanceMeters.toFixed(2) + ' м, enabled=' + (snappingEnabled ? 'on' : 'off');
+                                'Привязка: ближайшая=' + nearestAny.distance.toFixed(2) +
+                                ' м, порог=' + snapDistanceMeters.toFixed(2) + ' м, enabled=' + (snappingEnabled ? 'on' : 'off');
                         };
                         const finalizeSnapAfterDrag = async (event, source = 'dragend') => {
                             const now = Date.now();
@@ -2284,8 +2354,8 @@
                                     map.removeLayer(marker._snapTargetLine);
                                     marker._snapTargetLine = null;
                                 }
-                                snapDebugEl.textContent = 'Snap debug: finalize skipped, snapping disabled.';
-                                snapDebugFixedEl.textContent = 'Snap debug fixed (dragend): snapping disabled.';
+                                snapDebugEl.textContent = 'Привязка: finalize skipped, snapping disabled.';
+                                snapDebugFixedEl.textContent = 'Привязка (dragend): snapping disabled.';
                                 return;
                             }
                             if (marker._snapRadiusCircle) {
@@ -2303,7 +2373,7 @@
                             const target = recomputed;
                             const recomputedAny = findNearestCandidate(currentLatLng);
                             const dragEndDebug =
-                                'Snap debug: finalize source=' + source + ', enabled=' + (snappingEnabled ? 'on' : 'off') +
+                                'Привязка: источник=' + source + ', enabled=' + (snappingEnabled ? 'on' : 'off') +
                                 ', recomputed=' + (recomputed ? recomputed.distance.toFixed(2) : 'null') +
                                 ', recomputedAny=' + (recomputedAny ? recomputedAny.distance.toFixed(2) : 'null') +
                                 ', fromDrag=' + (fromDrag ? fromDrag.distance.toFixed(2) : 'null') +
@@ -2317,13 +2387,13 @@
                                 }
                                 const nearestAny = findNearestCandidate(currentLatLng);
                                 snapDebugEl.textContent = nearestAny
-                                    ? ('Snap debug: без замыкания, nearest=' + nearestAny.distance.toFixed(2) + ' м.')
-                                    : 'Snap debug: без замыкания, направляющих нет.';
+                                    ? ('Привязка: без замыкания, ближайшая=' + nearestAny.distance.toFixed(2) + ' м.')
+                                    : 'Привязка: без замыкания, направляющих нет.';
                                 return;
                             }
                             applySnappedVertex(event.target, target.point);
                             statusEl.textContent = 'Замыкание выполнено: ' + target.distance.toFixed(2) + ' м.';
-                            snapDebugEl.textContent = 'Snap debug: замыкание выполнено на ' + target.distance.toFixed(2) + ' м.';
+                            snapDebugEl.textContent = 'Привязка: замыкание выполнено на ' + target.distance.toFixed(2) + ' м.';
                         };
                         const dragEndHandler = async (event) => finalizeSnapAfterDrag(event, 'dragend');
                         const mouseUpHandler = async (event) => {
@@ -2354,7 +2424,7 @@
                 });
             });
             snapDebugEl.textContent =
-                'Snap debug: markerGroups=' + markerGroupsFound +
+                'Привязка: markerGroups=' + markerGroupsFound +
                 ', handlers attached=' + attachedMarkers +
                 ', retry=' + retryCount + '.';
             if (!attachedMarkers && retryCount < 40) {
@@ -2393,7 +2463,7 @@
             if (snapBindingTimer) {
                 clearInterval(snapBindingTimer);
             }
-            snapDebugFixedEl.textContent = 'Snap debug fixed (dragend): waiting dragend...';
+            snapDebugFixedEl.textContent = 'Привязка (dragend): waiting dragend...';
             attachPromptSnapHandlers(0);
             snapBindingTimer = setInterval(() => {
                 if (isEditing) {
@@ -3322,21 +3392,21 @@
             const name = (newObjectNameInput.value || '').trim();
             const requestId = (newObjectRequestIdInput.value || '').trim();
             if (!requestId) {
-                saveModalErrorEl.textContent = 'Укажите номер заявки (request_id).';
+                saveModalErrorEl.textContent = 'Укажите номер заявки.';
                 return;
             }
             if (!/^\d+$/.test(requestId)) {
-                saveModalErrorEl.textContent = 'Номер заявки (request_id) должен содержать только цифры.';
+                saveModalErrorEl.textContent = 'Номер заявки должен содержать только цифры.';
                 return;
             }
             saveModalErrorEl.textContent = '';
 
             saveModalSubmit.disabled = true;
             saveButton.disabled = true;
-            statusEl.textContent = 'Сохраняем объект в geodb...';
+            statusEl.textContent = 'Сохраняем объект в базе...';
             try {
                 const saveResult = await saveObjectToDb(geometryToSave, name, requestId);
-                statusEl.textContent = 'Объект сохранён в geodb. Формируем файлы...';
+                statusEl.textContent = 'Объект сохранён в базе. Формируем файлы...';
                 const exportResult = await exportObjectFiles(geometryToSave, {
                     name: name,
                     OwnerLegalPersonId: saveResult.owner_id,
@@ -3344,7 +3414,7 @@
                 });
                 closeSaveModal();
                 statusEl.textContent =
-                    'Объект сохранён в geodb. rootid = NULL, OwnerLegalPersonId = ' + saveResult.owner_id + '. Файлы сформированы.';
+                    'Объект сохранён в базе. Идентификатор владельца: ' + saveResult.owner_id + '. Файлы сформированы.';
                 lastPdfExportContext = {geometry: geometryToSave, requestId: requestId};
                 exportLinksEl.innerHTML =
                     '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
@@ -3402,7 +3472,7 @@
             const rid = (effectiveEntryRequestId || '').trim();
             if (!rid) {
                 if (commentPointModalError) {
-                    commentPointModalError.textContent = 'Нет номера заявки (request_id).';
+                    commentPointModalError.textContent = 'Нет номера заявки.';
                 }
                 return;
             }
@@ -3470,7 +3540,7 @@
             addCommentPointButton.addEventListener('click', () => {
                 const rid = (effectiveEntryRequestId || '').trim();
                 if (!rid) {
-                    statusEl.textContent = 'Нет номера заявки (request_id) для привязки комментария.';
+                    statusEl.textContent = 'Нет номера заявки для привязки комментария.';
                     return;
                 }
                 if (commentPointMode) {

@@ -395,6 +395,64 @@
 
     <script>
         const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
+
+        let popupHighlightLayer = null;
+        const POPUP_HIGHLIGHT_WEIGHT_DELTA = 3;
+
+        function clearPopupHighlight() {
+            if (popupHighlightLayer && popupHighlightLayer._passViewerPopupPrevStyle) {
+                const prev = popupHighlightLayer._passViewerPopupPrevStyle;
+                popupHighlightLayer.setStyle(prev);
+                if (typeof popupHighlightLayer._passViewerRestoreDgiDom === 'function') {
+                    popupHighlightLayer._passViewerDgiPopupSolidStroke = false;
+                    popupHighlightLayer._passViewerRestoreDgiDom();
+                }
+                delete popupHighlightLayer._passViewerPopupPrevStyle;
+            }
+            popupHighlightLayer = null;
+        }
+
+        function applyPopupHighlight(layer) {
+            clearPopupHighlight();
+            if (!layer || typeof layer.setStyle !== 'function') {
+                return;
+            }
+            const opt = layer.options || {};
+            layer._passViewerPopupPrevStyle = {
+                weight: opt.weight,
+                opacity: opt.opacity,
+                fillOpacity: opt.fillOpacity,
+                color: opt.color,
+                fillColor: opt.fillColor,
+                dashArray: opt.dashArray,
+            };
+            const baseW = typeof opt.weight === 'number' ? opt.weight : 2;
+            const highlight = {
+                weight: baseW + POPUP_HIGHLIGHT_WEIGHT_DELTA,
+                opacity: typeof opt.opacity === 'number' ? Math.min(1, opt.opacity + 0.08) : 1,
+            };
+            if (typeof opt.fillOpacity === 'number' && opt.fillOpacity > 0.001) {
+                highlight.fillOpacity = Math.min(0.55, opt.fillOpacity + 0.12);
+            }
+            layer.setStyle(highlight);
+            if (typeof layer._passViewerRestoreDgiDom === 'function') {
+                layer._passViewerDgiPopupSolidStroke = true;
+                layer._passViewerRestoreDgiDom();
+            }
+            popupHighlightLayer = layer;
+            if (typeof layer.bringToFront === 'function') {
+                layer.bringToFront();
+            }
+        }
+
+        map.on('popupopen', (e) => {
+            const layer = e.popup && e.popup._source;
+            applyPopupHighlight(layer);
+        });
+        map.on('popupclose', () => {
+            clearPopupHighlight();
+        });
+
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxNativeZoom: 19,
             maxZoom: 30,
@@ -1060,7 +1118,7 @@
                         layer.bindPopup('<strong>' + sourceLabel + '</strong>');
                     }
                     if (isDgi) {
-                        layer.on('add', () => {
+                        layer._passViewerRestoreDgiDom = function () {
                             const patternId = ensureSignalPattern(
                                 'dgi-signal-tape-pattern',
                                 '#dc2626'
@@ -1069,12 +1127,25 @@
                             if (!patternId || !el) {
                                 return;
                             }
+                            const o = layer.options || {};
+                            const solidPopup = !!layer._passViewerDgiPopupSolidStroke;
+                            const dash =
+                                solidPopup
+                                    ? null
+                                    : o.dashArray != null && o.dashArray !== ''
+                                        ? String(o.dashArray)
+                                        : '10 8';
                             el.setAttribute('fill', 'url(#' + patternId + ')');
                             el.setAttribute('fill-opacity', '0.25');
                             el.setAttribute('stroke', '#dc2626');
                             el.setAttribute('stroke-width', '2');
-                            el.setAttribute('stroke-dasharray', '10 8');
-                        });
+                            if (dash) {
+                                el.setAttribute('stroke-dasharray', dash);
+                            } else {
+                                el.removeAttribute('stroke-dasharray');
+                            }
+                        };
+                        layer.on('add', layer._passViewerRestoreDgiDom);
                     }
                 }
             }).addTo(targetGroup);
