@@ -1861,9 +1861,9 @@ def save_recap_object(request):
     recap_id = (payload.get('recap_id') or '').strip()
 
     if not recap_id:
-        return JsonResponse({'ok': False, 'error': 'Укажите номер досьё (recap_id).'}, status=400)
+        return JsonResponse({'ok': False, 'error': 'Укажите номер досъёма (recap_id).'}, status=400)
     if not recap_id.isdigit():
-        return JsonResponse({'ok': False, 'error': 'Номер досьё (recap_id) должен содержать только цифры.'}, status=400)
+        return JsonResponse({'ok': False, 'error': 'Номер досъёма (recap_id) должен содержать только цифры.'}, status=400)
     if not request_id:
         return JsonResponse({'ok': False, 'error': 'Укажите номер заявки (request_id).'}, status=400)
     if not request_id.isdigit():
@@ -1871,7 +1871,7 @@ def save_recap_object(request):
 
     recap_exists = _check_recap_uniqueness(recap_id=recap_id)
     if recap_exists:
-        return JsonResponse({'ok': False, 'error': 'Номер досьё (recap_id) уже существует.'}, status=400)
+        return JsonResponse({'ok': False, 'error': 'Номер досъёма (recap_id) уже существует.'}, status=400)
 
     try:
         owner_id = _create_recap_object(
@@ -1884,7 +1884,7 @@ def save_recap_object(request):
     except ValueError as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
     except Exception:
-        return JsonResponse({'ok': False, 'error': 'Не удалось сохранить досьё в recaps.'}, status=500)
+        return JsonResponse({'ok': False, 'error': 'Не удалось сохранить досъём в recaps.'}, status=500)
 
     return JsonResponse({'ok': True, 'owner_id': owner_id, 'recap_id': recap_id})
 

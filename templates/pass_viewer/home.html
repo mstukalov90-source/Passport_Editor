@@ -171,9 +171,9 @@
                                 {% if item.request_id %}
                                     <span
                                         style="align-self: center; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 8px; padding: 8px 10px; font-size: 13px; white-space: nowrap;"
-                                        title="Количество заявок на досъёмку в recaps с этим request_id"
+                                        title="Количество заявок на досъём в recaps с этим request_id"
                                     >
-                                        Заявок на досъёмку: {{ item.recap_count|default:0 }}
+                                        Заявок на досъём: {{ item.recap_count|default:0 }}
                                     </span>
                                     <button
                                         type="button"
@@ -184,7 +184,7 @@
                                         data-object-key="{{ item.object_key|default:'' }}"
                                         data-source-label="{{ item.source_label|default:'ДТ' }}"
                                     >
-                                        Заявка на досъёмку
+                                        Заявка на досъём
                                     </button>
                                     <form method="post" action="{% url 'delete_owned_object' %}" style="margin: 0; align-self: center;">
                                         {% csrf_token %}
@@ -234,13 +234,13 @@
     >
         <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                <h3 style="margin: 0; font-size: 18px;">Номер досьё (recap_id)</h3>
+                <h3 style="margin: 0; font-size: 18px;">Номер досъёма (recap_id)</h3>
                 <button type="button" id="entry-recap-id-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <p id="entry-recap-id-modal-text" class="note" style="margin-top: 0;">
-                Укажите номер досьё (заявки на досъёмку) перед переходом к карте досъёмки.
+                Укажите номер досъёма (заявки на досъём) перед переходом к карте досъёма.
             </p>
-            <label class="note" for="entry-recap-id-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер досьё</label>
+            <label class="note" for="entry-recap-id-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер досъёма</label>
             <input
                 id="entry-recap-id-input"
                 type="text"
@@ -422,13 +422,13 @@
             const raw = (entryRecapInput && entryRecapInput.value ? entryRecapInput.value : '').trim();
             if (!raw) {
                 if (entryRecapError) {
-                    entryRecapError.textContent = 'Введите номер досьё.';
+                    entryRecapError.textContent = 'Введите номер досъёма.';
                 }
                 return;
             }
             if (!/^\d+$/.test(raw)) {
                 if (entryRecapError) {
-                    entryRecapError.textContent = 'Номер досьё должен содержать только цифры.';
+                    entryRecapError.textContent = 'Номер досъёма должен содержать только цифры.';
                 }
                 return;
             }

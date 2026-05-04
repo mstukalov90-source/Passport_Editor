@@ -45,7 +45,7 @@
         <span class="map-legend__item"><span class="map-legend__swatch map-legend__swatch--nearby"></span>&#1042; &#1088;&#1072;&#1076;&#1080;&#1091;&#1089;&#1077; 10 &#1084;</span>
         <span class="map-legend__item"><span class="map-legend__swatch" style="border: 2px dashed #dc2626; background: repeating-linear-gradient(45deg, #dc2626 0 6px, #ffffff 6px 12px);"></span>&#1044;&#1043;&#1048;</span>
         <span class="map-legend__item"><span class="map-legend__swatch" style="border: 2px solid #00bfff; background: transparent;"></span>&#1054;&#1044;&#1061;</span>
-        <span class="map-legend__item"><span class="map-legend__swatch" style="border-color:#7c3aed; background: rgba(124, 58, 237, 0.25);"></span>Заявки на досъёмку</span>
+        <span class="map-legend__item"><span class="map-legend__swatch" style="border-color:#7c3aed; background: rgba(124, 58, 237, 0.25);"></span>Заявки на досъём</span>
     </div>
     <p id="edit-status" class="note" style="margin-top: 0;">
         &#1044;&#1072;&#1083;&#1100;&#1085;&#1077;&#1081;&#1096;&#1080;&#1081; &#1092;&#1091;&#1085;&#1082;&#1094;&#1080;&#1086;&#1085;&#1072;&#1083; &#1076;&#1086;&#1073;&#1072;&#1074;&#1083;&#1077;&#1085;&#1080;&#1103; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1072; &#1085;&#1072;&#1089;&#1090;&#1088;&#1086;&#1080;&#1084; &#1089;&#1083;&#1077;&#1076;&#1091;&#1102;&#1097;&#1080;&#1084; &#1096;&#1072;&#1075;&#1086;&#1084;.
@@ -921,7 +921,7 @@
             overlays[`Заявки (${countGroupFeatures(relationRequestObjectsGroup)})`] = relationRequestObjectsGroup;
             overlays[`ДГИ (${countGroupFeatures(dgiSignalGroup)})`] = dgiSignalGroup;
             overlays[`ОДХ (${countGroupFeatures(odhSignalGroup)})`] = odhSignalGroup;
-            overlays[`Заявки на досъёмку (${countGroupFeatures(recapsGroup)})`] = recapsGroup;
+            overlays[`Заявки на досъём (${countGroupFeatures(recapsGroup)})`] = recapsGroup;
             overlays[`Комментарии (${countGroupFeatures(commentPointsGroup)})`] = commentPointsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topright'});
             objectLayersControl.addTo(map);
@@ -1087,7 +1087,7 @@
                         : String(ownerLegalPersonId || '-');
                     layer.bindPopup(
                         '<div style="min-width: 220px;">' +
-                        '<div><strong>№ Досъёмки:</strong> ' + escapeHtml(recapId) + '</div>' +
+                        '<div><strong>№ Досъёма:</strong> ' + escapeHtml(recapId) + '</div>' +
                         '<div style="margin-top: 6px;"><strong>№ Заявки:</strong> ' + escapeHtml(requestId) + '</div>' +
                         (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
                         (!ownerText || ['null', 'none', '-'].includes(ownerText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(ownerDisplay) + '</div>')) +

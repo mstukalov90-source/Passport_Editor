@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}Добавление досъёмки{% endblock %}
+{% block title %}Добавление досъёма{% endblock %}
 {% block container_class %}container--wide{% endblock %}
 
 {% block content %}
     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
         <div>
-            <h1 style="margin-bottom: 8px;">Добавление досъёмки</h1>
+            <h1 style="margin-bottom: 8px;">Добавление досъёма</h1>
             <p style="margin: 0;"><strong>№ Заявки:</strong> {{ request_id|default:"-" }}</p>
             <p style="margin: 4px 0 0;"><strong>Название:</strong> {{ name|default:"-" }}</p>
         </div>
@@ -46,13 +46,13 @@
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
             <span style="width: 14px; height: 14px; border: 2px solid #7c3aed; background: rgba(124, 58, 237, 0.25); border-radius: 2px; display: inline-block;"></span>
-            Заявки на досъёмку
+            Заявки на досъём
         </span>
     </div>
 
     <div id="map" style="height: 72vh; min-height: 520px; margin: 16px 0; border-radius: 10px; border: 1px solid #e3e6ec;"></div>
     <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;">
-        <button type="button" id="add-dossier-btn" class="map-toolbar-btn map-toolbar-btn--accent">Добавить досъёмку</button>
+        <button type="button" id="add-dossier-btn" class="map-toolbar-btn map-toolbar-btn--accent">Добавить досъём</button>
         <label for="draw-mode-freehand" class="snap-switch" title="Режим добавления: вершины или кисть">
             <input type="checkbox" id="draw-mode-freehand">
             <span class="draw-mode-label draw-mode-label--left">Вершины</span>
@@ -69,15 +69,15 @@
         <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
         <button type="button" id="add-comment-point-btn" class="map-toolbar-btn map-toolbar-btn--primary">Добавить точку с комментарием</button>
         <button type="button" id="cancel-draw-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
-        <button type="button" id="save-dossier-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">Сохранить досъёмку</button>
+        <button type="button" id="save-dossier-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">Сохранить досъём</button>
     </div>
     <p id="edit-status" class="note"></p>
     <p id="export-links" class="note"></p>
 
     <div id="save-modal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
-            <h3 style="margin: 0 0 10px;">Новая досъёмка</h3>
-            <label class="modal-label" for="new-recap-id">Номер заявки на досъёмку (recap_id)</label>
+            <h3 style="margin: 0 0 10px;">Новый досъём</h3>
+            <label class="modal-label" for="new-recap-id">Номер заявки на досъём (recap_id)</label>
             <input id="new-recap-id" class="modal-input" type="text" maxlength="100" inputmode="numeric" pattern="[0-9]*" value="{{ initial_recap_id|default:'' }}" />
             <p id="save-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
@@ -904,14 +904,14 @@
             }
             const overlays = {};
             overlays[withCount('Выбранный объект', countGroupFeatures(selectedGroup))] = selectedGroup;
-            overlays[withCount('Новый досьём', countGroupFeatures(dossierGroup))] = dossierGroup;
+            overlays[withCount('Новый досъём', countGroupFeatures(dossierGroup))] = dossierGroup;
             overlays[withCount('Пересекается', countGroupFeatures(intersectsGroup))] = intersectsGroup;
             overlays[withCount('Граничит', countGroupFeatures(touchesGroup))] = touchesGroup;
             overlays[withCount('В радиусе 10 м', countGroupFeatures(nearbyGroup))] = nearbyGroup;
             overlays[withCount('Заявки', countGroupFeatures(requestObjectsGroup))] = requestObjectsGroup;
             overlays[withCount('ДГИ', countGroupFeatures(dgiSignalGroup))] = dgiSignalGroup;
             overlays[withCount('ОДХ', countGroupFeatures(odhSignalGroup))] = odhSignalGroup;
-            overlays[withCount('Заявки на досъёмку', countGroupFeatures(recapsGroup))] = recapsGroup;
+            overlays[withCount('Заявки на досъём', countGroupFeatures(recapsGroup))] = recapsGroup;
             overlays[withCount('Комментарии', countGroupFeatures(commentPointsGroup))] = commentPointsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topleft'});
             objectLayersControl.addTo(map);
@@ -1132,7 +1132,7 @@
                         : String(ownerLegalPersonId || '-');
                     layer.bindPopup(
                         '<div style="min-width: 220px;">' +
-                        '<div><strong>№ Досъёмки:</strong> ' + String(recapId) + '</div>' +
+                        '<div><strong>№ Досъёма:</strong> ' + String(recapId) + '</div>' +
                         '<div style="margin-top: 6px;"><strong>№ Заявки:</strong> ' + String(requestId) + '</div>' +
                         (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
                         (!ownerText || ['null', 'none', '-'].includes(ownerText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(ownerDisplay) + '</div>')) +
@@ -1405,7 +1405,7 @@
             cancelDrawButton.style.display = 'inline-block';
             saveDossierButton.style.display = 'inline-block';
             exportLinksEl.innerHTML = '';
-            statusEl.textContent = 'Нарисуйте новый полигон досьё.';
+            statusEl.textContent = 'Нарисуйте новый полигон досъёма.';
             rebuildSnapGuideLines();
         }
 
@@ -1421,7 +1421,7 @@
             stopFreehandMode();
             clearDrawSnapPreview();
             dossierGroup.clearLayers();
-            statusEl.textContent = 'Добавление досьё отменено.';
+            statusEl.textContent = 'Добавление досъёма отменено.';
             areaInfoVisible = false;
             updateEditableAreaInfo();
         });
@@ -1439,7 +1439,7 @@
                 stopFreehandMode();
             }
             clearDrawSnapPreview();
-            statusEl.textContent = 'Полигон досьё добавлен. Можно сохранить.';
+            statusEl.textContent = 'Полигон досъёма добавлен. Можно сохранить.';
             rebuildSnapGuideLines();
             refreshObjectLayersControl();
             updateEditableAreaInfo();
@@ -1541,7 +1541,7 @@
             drawModeFreehandToggle.checked = false;
             stopFreehandMode();
             clearDrawSnapPreview();
-            statusEl.textContent = 'Полигон досьё добавлен. Можно сохранить.';
+            statusEl.textContent = 'Полигон досъёма добавлен. Можно сохранить.';
             rebuildSnapGuideLines();
             updateEditableAreaInfo();
         });
@@ -1771,23 +1771,23 @@
         async function saveDossier() {
             const geo = dossierGroup.toGeoJSON();
             if (!geo.features.length) {
-                statusEl.textContent = 'Сначала нарисуйте полигон досьё.';
+                statusEl.textContent = 'Сначала нарисуйте полигон досъёма.';
                 return;
             }
             const geometry = geo.features[0].geometry;
             const recapId = (newRecapIdInput.value || '').trim();
             if (!recapId) {
-                saveModalErrorEl.textContent = 'Укажите номер досьё (recap_id).';
+                saveModalErrorEl.textContent = 'Укажите номер досъёма (recap_id).';
                 return;
             }
             if (!/^\d+$/.test(recapId)) {
-                saveModalErrorEl.textContent = 'Номер досьё (recap_id) должен содержать только цифры.';
+                saveModalErrorEl.textContent = 'Номер досъёма (recap_id) должен содержать только цифры.';
                 return;
             }
             saveModalErrorEl.textContent = '';
             saveModalSubmit.disabled = true;
             saveDossierButton.disabled = true;
-            statusEl.textContent = 'Сохраняем досьё...';
+            statusEl.textContent = 'Сохраняем досъём...';
             try {
                 const saveResponse = await fetch("{% url 'save_recap_object' %}", {
                     method: 'POST',
@@ -1804,7 +1804,7 @@
                 });
                 const saveResult = await saveResponse.json();
                 if (!saveResponse.ok || !saveResult.ok) {
-                    throw new Error(saveResult.error || 'Не удалось сохранить досьё.');
+                    throw new Error(saveResult.error || 'Не удалось сохранить досъём.');
                 }
 
                 const exportResponse = await fetch("{% url 'export_new_object_geometry' %}", {
@@ -1831,9 +1831,9 @@
                 exportLinksEl.innerHTML =
                     '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
                     '<a class="button-link" href="' + exportResult.shapefile_url + '">Скачать SHP (ZIP)</a>';
-                statusEl.textContent = 'Досьё сохранено в recaps и выгружено.';
+                statusEl.textContent = 'Досъём сохранён в recaps, файлы выгружены.';
             } catch (error) {
-                saveModalErrorEl.textContent = error.message || 'Ошибка сохранения досьё.';
+                saveModalErrorEl.textContent = error.message || 'Ошибка сохранения досъёма.';
             } finally {
                 saveModalSubmit.disabled = false;
                 saveDossierButton.disabled = false;

@@ -52,7 +52,7 @@
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
             <span style="width: 14px; height: 14px; border: 2px solid #7c3aed; background: rgba(124, 58, 237, 0.25); border-radius: 2px; display: inline-block;"></span>
-            Заявки на досъёмку
+            Заявки на досъём
         </span>
     </div>
 
@@ -1084,7 +1084,7 @@
             overlays[withCount('Заявки', countGroupFeatures(requestObjectsGroup))] = requestObjectsGroup;
             overlays[withCount('ДГИ', countGroupFeatures(dgiSignalGroup))] = dgiSignalGroup;
             overlays[withCount('ОДХ', countGroupFeatures(odhSignalGroup))] = odhSignalGroup;
-            overlays[withCount('Заявки на досъёмку', countGroupFeatures(recapsGroup))] = recapsGroup;
+            overlays[withCount('Заявки на досъём', countGroupFeatures(recapsGroup))] = recapsGroup;
             overlays[withCount('Комментарии', countGroupFeatures(commentPointsGroup))] = commentPointsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false});
             objectLayersControl.addTo(map);
@@ -1250,7 +1250,7 @@
                         : String(ownerLegalPersonId || '-');
                     layer.bindPopup(
                         '<div style="min-width: 220px;">' +
-                        '<div><strong>№ Досъёмки:</strong> ' + escapeHtml(recapId) + '</div>' +
+                        '<div><strong>№ Досъёма:</strong> ' + escapeHtml(recapId) + '</div>' +
                         '<div style="margin-top: 6px;"><strong>№ Заявки:</strong> ' + escapeHtml(requestId) + '</div>' +
                         (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
                         (!ownerText || ['null', 'none', '-'].includes(ownerText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(ownerDisplay) + '</div>')) +
