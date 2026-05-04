@@ -477,27 +477,75 @@ def _get_map_layers(entry_point):
                 "AS owner_legal_person_name"
             )
 
-    where_clause, where_params = _build_where_clause(entry_point, rootid_field, name_field, request_id_field)
-    selected_sql = (
-        "WITH selected AS ("
-        f" SELECT ctid, {rootid_field} AS rootid, {name_field} AS name, {request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr_selected}, {department_name_select_expr_selected}, {geom_field} AS geom FROM {table}"
-        f" WHERE {where_clause} LIMIT 1"
-        ") "
-        "SELECT ST_AsGeoJSON(geom), rootid::text, name::text, request_id::text, "
-        "customer_legal_person_id::text, department_legal_person_id::text, "
-        "customer_legal_person_name::text, department_legal_person_name::text "
-        "FROM selected"
-    )
+    merge_rootids_raw = entry_point.get('merge_rootids')
+    if isinstance(merge_rootids_raw, (list, tuple)):
+        merge_rootids = [str(x).strip() for x in merge_rootids_raw if str(x).strip()]
+    else:
+        merge_rootids = []
+    use_merge = len(merge_rootids) >= 2
+    if use_merge:
+        where_clause = f"{rootid_field}::text = ANY(%s)"
+        where_params = [merge_rootids]
+    else:
+        where_clause, where_params = _build_where_clause(entry_point, rootid_field, name_field, request_id_field)
+
+    if use_merge:
+        selected_sql = (
+            "WITH matched AS ("
+            f" SELECT ctid, {rootid_field} AS rootid, {name_field} AS name, {request_id_field} AS request_id, "
+            f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr_selected}, {department_name_select_expr_selected}, {geom_field} AS geom FROM {table}"
+            f" WHERE {where_clause}"
+            "), selected AS ("
+            " SELECT (SELECT ctid FROM matched ORDER BY rootid NULLS LAST LIMIT 1) AS ctid, "
+            " (SELECT string_agg(rootid::text, ', ' ORDER BY rootid) FROM matched) AS rootid, "
+            " (SELECT string_agg(name::text, ' + ' ORDER BY name NULLS LAST) FROM matched) AS name, "
+            " NULL::text AS request_id, "
+            " (SELECT customer_legal_person_id FROM matched ORDER BY ctid LIMIT 1) AS customer_legal_person_id, "
+            " (SELECT department_legal_person_id FROM matched ORDER BY ctid LIMIT 1) AS department_legal_person_id, "
+            " (SELECT customer_legal_person_name FROM matched ORDER BY ctid LIMIT 1) AS customer_legal_person_name, "
+            " (SELECT department_legal_person_name FROM matched ORDER BY ctid LIMIT 1) AS department_legal_person_name, "
+            " (SELECT ST_UnaryUnion(ST_Collect(geom)) FROM matched) AS geom "
+            ") "
+            "SELECT ST_AsGeoJSON(geom), rootid::text, name::text, request_id::text, "
+            "customer_legal_person_id::text, department_legal_person_id::text, "
+            "customer_legal_person_name::text, department_legal_person_name::text "
+            "FROM selected"
+        )
+        map_layers_cte_open = (
+            f"WITH matched AS ( SELECT ctid, {rootid_field} AS rootid, {geom_field} AS geom FROM {table} WHERE {where_clause} ), "
+            "selected AS ( SELECT (SELECT ctid FROM matched ORDER BY rootid NULLS LAST LIMIT 1) AS ctid, "
+            " (SELECT ST_UnaryUnion(ST_Collect(geom)) FROM matched) AS geom ), "
+        )
+        neighbor_excl = "t.ctid NOT IN (SELECT ctid FROM matched) AND "
+        req_self_excl = "AND NOT (%s = %s AND t.ctid IN (SELECT ctid FROM matched))"
+    else:
+        selected_sql = (
+            "WITH selected AS ("
+            f" SELECT ctid, {rootid_field} AS rootid, {name_field} AS name, {request_id_field} AS request_id, "
+            f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr_selected}, {department_name_select_expr_selected}, {geom_field} AS geom FROM {table}"
+            f" WHERE {where_clause} LIMIT 1"
+            ") "
+            "SELECT ST_AsGeoJSON(geom), rootid::text, name::text, request_id::text, "
+            "customer_legal_person_id::text, department_legal_person_id::text, "
+            "customer_legal_person_name::text, department_legal_person_name::text "
+            "FROM selected"
+        )
+        map_layers_cte_open = (
+            "WITH selected AS ("
+            f" SELECT ctid, {geom_field} AS geom FROM {table}"
+            f" WHERE {where_clause} LIMIT 1"
+            "), "
+        )
+        neighbor_excl = "t.ctid <> s.ctid AND "
+        req_self_excl = "AND NOT (%s = %s AND t.ctid = s.ctid)"
+
     intersects_sql = (
-        "WITH selected AS ("
-        f" SELECT ctid, {geom_field} AS geom FROM {table}"
-        f" WHERE {where_clause} LIMIT 1"
-        "), rel AS ("
+        map_layers_cte_open
+        + "rel AS ("
         f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
         f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
         f"FROM {table} t, selected s"
-        " WHERE t.ctid <> s.ctid AND ST_Intersects("
+        f" WHERE {neighbor_excl}ST_Intersects("
         f"   t.{geom_field},"
         "   s.geom"
         " ) AND NOT ST_Touches("
@@ -523,14 +571,12 @@ def _get_map_layers(entry_point):
         ")::text FROM rel"
     )
     touches_sql = (
-        "WITH selected AS ("
-        f" SELECT ctid, {geom_field} AS geom FROM {table}"
-        f" WHERE {where_clause} LIMIT 1"
-        "), neighbors AS ("
+        map_layers_cte_open
+        + "neighbors AS ("
         f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
         f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
         f"FROM {table} t, selected s"
-        " WHERE t.ctid <> s.ctid AND ST_Touches("
+        f" WHERE {neighbor_excl}ST_Touches("
         f"   t.{geom_field},"
         "   s.geom"
         " )"
@@ -553,14 +599,12 @@ def _get_map_layers(entry_point):
         ")::text FROM neighbors"
     )
     nearby_sql = (
-        "WITH selected AS ("
-        f" SELECT ctid, {geom_field} AS geom FROM {table}"
-        f" WHERE {where_clause} LIMIT 1"
-        "), nearby AS ("
+        map_layers_cte_open
+        + "nearby AS ("
         f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
         f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
         f"FROM {table} t, selected s"
-        " WHERE t.ctid <> s.ctid AND ST_DWithin("
+        f" WHERE {neighbor_excl}ST_DWithin("
         f"   t.{geom_field}::geography,"
         "   s.geom::geography, 10"
         " ) AND NOT ST_Touches("
@@ -589,35 +633,33 @@ def _get_map_layers(entry_point):
         ")::text FROM nearby"
     )
     requests_sql = (
-        "WITH selected AS ("
-        f" SELECT ctid, {geom_field} AS geom FROM {table}"
-        f" WHERE {where_clause} LIMIT 1"
-        "), ix AS ("
+        map_layers_cte_open
+        + "ix AS ("
         f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}"
         f" FROM {_quote_ident(dt_table)} t, selected s"
         " WHERE ST_Intersects(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         f"   AND t.{request_id_field} IS NOT NULL"
-        f"   AND NOT (%s = %s AND t.ctid = s.ctid)"
+        f"   {req_self_excl}"
         " UNION ALL "
         f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}"
         f" FROM {_quote_ident(odh_table)} t, selected s"
         " WHERE ST_Intersects(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         f"   AND t.{request_id_field} IS NOT NULL"
-        f"   AND NOT (%s = %s AND t.ctid = s.ctid)"
+        f"   {req_self_excl}"
         "), tg AS ("
         f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}"
         f" FROM {_quote_ident(dt_table)} t, selected s"
         " WHERE ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         f"   AND t.{request_id_field} IS NOT NULL"
-        f"   AND NOT (%s = %s AND t.ctid = s.ctid)"
+        f"   {req_self_excl}"
         " UNION ALL "
         f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}"
         f" FROM {_quote_ident(odh_table)} t, selected s"
         " WHERE ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         f"   AND t.{request_id_field} IS NOT NULL"
-        f"   AND NOT (%s = %s AND t.ctid = s.ctid)"
+        f"   {req_self_excl}"
         "), nr AS ("
         f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}"
         f" FROM {_quote_ident(dt_table)} t, selected s"
@@ -625,7 +667,7 @@ def _get_map_layers(entry_point):
         "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         "   AND NOT ST_Intersects(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         f"   AND t.{request_id_field} IS NOT NULL"
-        f"   AND NOT (%s = %s AND t.ctid = s.ctid)"
+        f"   {req_self_excl}"
         " UNION ALL "
         f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}"
         f" FROM {_quote_ident(odh_table)} t, selected s"
@@ -633,7 +675,7 @@ def _get_map_layers(entry_point):
         "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         "   AND NOT ST_Intersects(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         f"   AND t.{request_id_field} IS NOT NULL"
-        f"   AND NOT (%s = %s AND t.ctid = s.ctid)"
+        f"   {req_self_excl}"
         "), rel AS ("
         " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name FROM ix"
         " UNION"
@@ -1905,6 +1947,38 @@ def open_owned_object(request):
         'request_id': request_id,
         'name': '' if rootid else name,
         'source_label': _normalize_source_label(request.POST.get('source_label')),
+    }
+    return redirect('main')
+
+
+@login_required
+@require_POST
+def open_merged_passports(request):
+    request_id = (request.POST.get('request_id') or '').strip()
+    source_label = _normalize_source_label(request.POST.get('source_label'))
+    rootids = [r.strip() for r in request.POST.getlist('rootid') if r.strip()]
+    if len(rootids) < 2 or not request_id.isdigit():
+        return redirect('home')
+
+    owner_id = _get_current_user_owner_id(request.user.username)
+    if owner_id is None:
+        return redirect('home')
+
+    owned = _get_owned_objects(owner_id)
+    allowed_pairs = {
+        ((item.get('rootid') or '').strip(), _normalize_source_label(item.get('source_label')))
+        for item in owned
+        if (item.get('rootid') or '').strip()
+    }
+    if not all(((rid, source_label) in allowed_pairs) for rid in rootids):
+        return redirect('home')
+
+    request.session['entry_point'] = {
+        'rootid': '',
+        'request_id': request_id,
+        'name': f'Объединение {len(rootids)} паспортов',
+        'source_label': source_label,
+        'merge_rootids': rootids,
     }
     return redirect('main')
 
