@@ -57,6 +57,20 @@
             <input id="new-object-name" class="modal-input" type="text" maxlength="255" />
             <label class="modal-label" for="new-object-request-id">&#1053;&#1086;&#1084;&#1077;&#1088; &#1079;&#1072;&#1103;&#1074;&#1082;&#1080; (request_id)</label>
             <input id="new-object-request-id" class="modal-input" type="text" maxlength="100" inputmode="numeric" pattern="[0-9]*" />
+            <label class="modal-label" style="margin-top: 10px;">Таблица сохранения</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 16px; margin: 4px 0 2px;">
+                <label class="modal-label" style="font-weight: normal; margin: 0;">
+                    <input type="radio" name="save-target-table" id="save-target-dt" value="ДТ" checked />
+                    ДТ (pass_objects)
+                </label>
+                <label class="modal-label" style="font-weight: normal; margin: 0;">
+                    <input type="radio" name="save-target-table" id="save-target-odh" value="ОДХ" />
+                    ОДХ (odh)
+                </label>
+            </div>
+            <p class="note" style="margin: 0 0 4px; font-size: 12px; color: #64748b;">
+                Если в выбранной таблице уже есть строка с этим request_id для вашего владельца, она будет перезаписана.
+            </p>
             <p id="save-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
                 <button type="button" id="save-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
@@ -648,6 +662,8 @@
         const newObjectNameInput = document.getElementById('new-object-name');
         const newObjectRequestIdInput = document.getElementById('new-object-request-id');
         const saveModalErrorEl = document.getElementById('save-modal-error');
+        const saveTargetDtRadio = document.getElementById('save-target-dt');
+        const saveTargetOdhRadio = document.getElementById('save-target-odh');
         const autoRemoveModal = document.getElementById('auto-remove-modal');
         const autoRemoveModalCancel = document.getElementById('auto-remove-modal-cancel');
         const autoRemoveModalSubmit = document.getElementById('auto-remove-modal-submit');
@@ -2553,10 +2569,24 @@
             };
         }
 
+        function getSaveTargetSourceLabel() {
+            if (saveTargetOdhRadio && saveTargetOdhRadio.checked) {
+                return 'ОДХ';
+            }
+            return 'ДТ';
+        }
+
         function openSaveModal() {
             newObjectNameInput.value = '';
             newObjectRequestIdInput.value = (effectiveEntryRequestId || '').trim();
             saveModalErrorEl.textContent = '';
+            if (selectedSourceLabel === 'ОДХ') {
+                if (saveTargetOdhRadio) {
+                    saveTargetOdhRadio.checked = true;
+                }
+            } else if (saveTargetDtRadio) {
+                saveTargetDtRadio.checked = true;
+            }
             saveModal.style.display = 'flex';
             setTimeout(() => {
                 if (newObjectNameInput.value) {
@@ -2571,7 +2601,7 @@
             saveModal.style.display = 'none';
         }
 
-        async function saveObjectToDb(geometryToSave, name, requestId) {
+        async function saveObjectToDb(geometryToSave, name, requestId, sourceLabelForSave) {
             const response = await fetch("{% url 'save_new_object' %}", {
                 method: 'POST',
                 headers: {
@@ -2582,7 +2612,7 @@
                     geometry: geometryToSave,
                     name: name,
                     request_id: requestId,
-                    source_label: selectedSourceLabel,
+                    source_label: sourceLabelForSave || selectedSourceLabel,
                 })
             });
             const result = await response.json();
@@ -2658,7 +2688,11 @@
         }
 
         async function fetchIntersectsLayerForPdfExport(geometry) {
-            const pdfBody = {geometry, source_label: selectedSourceLabel};
+            const ctxSl =
+                lastPdfExportContext && lastPdfExportContext.source_label
+                    ? lastPdfExportContext.source_label
+                    : selectedSourceLabel;
+            const pdfBody = {geometry, source_label: ctxSl};
             const entryRid = String(effectiveEntryRequestId || '').trim();
             if (entryRid) {
                 pdfBody.request_id = entryRid;
@@ -2988,9 +3022,10 @@
 
             saveModalSubmit.disabled = true;
             saveButton.disabled = true;
+            const saveTargetLabel = getSaveTargetSourceLabel();
             statusEl.textContent = 'Сохраняем объект в geodb...';
             try {
-                const saveResult = await saveObjectToDb(geometryToSave, name, requestId);
+                const saveResult = await saveObjectToDb(geometryToSave, name, requestId, saveTargetLabel);
                 statusEl.textContent = 'Объект сохранён в geodb. Формируем файлы...';
                 const exportResult = await exportObjectFiles(geometryToSave, {
                     name: name,
@@ -2999,8 +3034,16 @@
                 });
                 closeSaveModal();
                 statusEl.textContent =
-                    'Объект сохранён в geodb. rootid = NULL, OwnerLegalPersonId = ' + saveResult.owner_id + '. Файлы сформированы.';
-                lastPdfExportContext = {geometry: geometryToSave, requestId: requestId};
+                    'Объект сохранён в ' +
+                    (saveTargetLabel === 'ОДХ' ? 'ОДХ (odh)' : 'ДТ (pass_objects)') +
+                    '. rootid = NULL, OwnerLegalPersonId = ' +
+                    saveResult.owner_id +
+                    '. Файлы сформированы.';
+                lastPdfExportContext = {
+                    geometry: geometryToSave,
+                    requestId: requestId,
+                    source_label: saveTargetLabel,
+                };
                 exportLinksEl.innerHTML =
                     '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
                     '<a class="button-link" href="' + exportResult.shapefile_url + '">Скачать SHP (ZIP)</a> ' +

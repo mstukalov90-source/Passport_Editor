@@ -1528,6 +1528,19 @@ def _create_new_object(username, geometry, name, request_id, source_label='ДТ'
                     raise ValueError('Не удалось обновить строку: нет доступа или запись не найдена.')
                 return owner_id
 
+        if request_id_norm:
+            geom_sql = _sql_geojson_param_as_valid_geom2d()
+            cursor.execute(
+                f"UPDATE {_quote_ident(table)} SET "
+                f"{_quote_ident(name_field)} = %s, "
+                f"{_quote_ident(geom_field)} = {geom_sql} "
+                f"WHERE {_quote_ident(request_id_field)}::text = %s "
+                f"  AND {_quote_ident(owner_field)} = %s",
+                [name, json.dumps(geometry), request_id_norm, owner_id],
+            )
+            if cursor.rowcount > 0:
+                return owner_id
+
         insert_query = (
             f"INSERT INTO {_quote_ident(table)} ("
             f"{_quote_ident(rootid_field)}, "
