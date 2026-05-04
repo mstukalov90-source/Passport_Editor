@@ -113,9 +113,11 @@
                                 data-name="{{ item.name|default:''|lower }}"
                             >
                                 <form
+                                    class="owned-open-form"
                                     method="post"
                                     action="{% url 'open_owned_object' %}"
                                     style="margin: 0; flex: 1;"
+                                    data-needs-request-id="{% if item.request_id %}0{% else %}1{% endif %}"
                                 >
                                     {% csrf_token %}
                                     <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
@@ -147,9 +149,11 @@
                                 data-name="{{ item.name|default:''|lower }}"
                             >
                                 <form
+                                    class="owned-open-form"
                                     method="post"
                                     action="{% url 'open_owned_object' %}"
                                     style="margin: 0; flex: 1;"
+                                    data-needs-request-id="{% if item.request_id %}0{% else %}1{% endif %}"
                                 >
                                     {% csrf_token %}
                                     <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
@@ -171,18 +175,17 @@
                                     >
                                         Заявок на досъёмку: {{ item.recap_count|default:0 }}
                                     </span>
-                                    <form method="get" action="{% url 'add_recap' %}" style="margin: 0; align-self: center;">
-                                        <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
-                                        <input type="hidden" name="name" value="{{ item.name|default:'' }}">
-                                        <input type="hidden" name="object_key" value="{{ item.object_key }}">
-                                        <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
-                                        <button
-                                            type="submit"
-                                            style="background: #e0ecff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 10px;"
-                                        >
-                                            Заявка на досъёмку
-                                        </button>
-                                    </form>
+                                    <button
+                                        type="button"
+                                        class="add-recap-entry-btn"
+                                        style="background: #e0ecff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 10px; align-self: center; cursor: pointer; font: inherit;"
+                                        data-request-id="{{ item.request_id|default:'' }}"
+                                        data-name="{{ item.name|default:'' }}"
+                                        data-object-key="{{ item.object_key|default:'' }}"
+                                        data-source-label="{{ item.source_label|default:'ДТ' }}"
+                                    >
+                                        Заявка на досъёмку
+                                    </button>
                                     <form method="post" action="{% url 'delete_owned_object' %}" style="margin: 0; align-self: center;">
                                         {% csrf_token %}
                                         <input type="hidden" name="object_key" value="{{ item.object_key }}">
@@ -210,9 +213,79 @@
         <button type="button" id="manual-open-btn">
             &#1042;&#1074;&#1077;&#1089;&#1090;&#1080; &#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072; / &#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; &#1074;&#1088;&#1091;&#1095;&#1085;&#1091;&#1102;
         </button>
-        <a class="button-link" href="{% url 'add_object' %}">
+        <button type="button" id="add-object-entry-btn" class="button-link" style="border: none; cursor: pointer; font: inherit;">
             &#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;
-        </a>
+        </button>
+    </div>
+
+    <form id="form-confirm-pending" method="post" action="{% url 'confirm_entry_request_id' %}" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="request_id" id="confirm-pending-request-id" value="" />
+    </form>
+    <form id="form-prepare-add-object" method="post" action="{% url 'prepare_add_object' %}" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="request_id" id="prepare-add-object-request-id" value="" />
+        <input type="hidden" name="source_label" value="ДТ" />
+    </form>
+
+    <div
+        id="entry-recap-id-modal"
+        style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1001; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 18px;">Номер досьё (recap_id)</h3>
+                <button type="button" id="entry-recap-id-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+            </div>
+            <p id="entry-recap-id-modal-text" class="note" style="margin-top: 0;">
+                Укажите номер досьё (заявки на досъёмку) перед переходом к карте досъёмки.
+            </p>
+            <label class="note" for="entry-recap-id-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер досьё</label>
+            <input
+                id="entry-recap-id-input"
+                type="text"
+                maxlength="100"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
+                autocomplete="off"
+            />
+            <p id="entry-recap-id-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+                <button type="button" id="entry-recap-id-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
+                <button type="button" id="entry-recap-id-submit-btn">Продолжить</button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        id="entry-request-id-modal"
+        style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1001; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 18px;">Номер заявки (request_id)</h3>
+                <button type="button" id="entry-request-id-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+            </div>
+            <p id="entry-request-id-modal-text" class="note" style="margin-top: 0;">
+                Укажите номер заявки для продолжения.
+            </p>
+            <label class="note" for="entry-request-id-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер заявки</label>
+            <input
+                id="entry-request-id-input"
+                type="text"
+                maxlength="100"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
+                autocomplete="off"
+            />
+            <p id="entry-request-id-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+                <button type="button" id="entry-request-id-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
+                <button type="button" id="entry-request-id-submit-btn">Продолжить</button>
+            </div>
+        </div>
     </div>
 
     <div
@@ -301,6 +374,235 @@
                 }
                 applyOwnedFilters();
             });
+        }
+
+        const entryRequestModal = document.getElementById('entry-request-id-modal');
+        const entryRequestInput = document.getElementById('entry-request-id-input');
+        const entryRequestError = document.getElementById('entry-request-id-error');
+        const entryRequestText = document.getElementById('entry-request-id-modal-text');
+        const confirmPendingForm = document.getElementById('form-confirm-pending');
+        const confirmPendingHidden = document.getElementById('confirm-pending-request-id');
+        const prepareAddObjectForm = document.getElementById('form-prepare-add-object');
+        const prepareAddObjectHidden = document.getElementById('prepare-add-object-request-id');
+        const cancelPendingUrl = '{% url "cancel_pending_entry" %}';
+        const addRecapBaseUrl = '{% url "add_recap" %}';
+        let entryRequestMode = null;
+        let pendingOwnedForm = null;
+
+        const entryRecapModal = document.getElementById('entry-recap-id-modal');
+        const entryRecapInput = document.getElementById('entry-recap-id-input');
+        const entryRecapError = document.getElementById('entry-recap-id-error');
+        const entryRecapSubmitBtn = document.getElementById('entry-recap-id-submit-btn');
+        const entryRecapCloseBtn = document.getElementById('entry-recap-id-close-btn');
+        const entryRecapCancelBtn = document.getElementById('entry-recap-id-cancel-btn');
+        let pendingRecapEntryBtn = null;
+
+        function openEntryRecapModal(fromBtn) {
+            pendingRecapEntryBtn = fromBtn || null;
+            if (entryRecapInput) {
+                entryRecapInput.value = '';
+            }
+            if (entryRecapError) {
+                entryRecapError.textContent = '';
+            }
+            if (entryRecapModal) {
+                entryRecapModal.style.display = 'flex';
+            }
+            setTimeout(() => entryRecapInput && entryRecapInput.focus(), 0);
+        }
+
+        function closeEntryRecapModal() {
+            if (entryRecapModal) {
+                entryRecapModal.style.display = 'none';
+            }
+            pendingRecapEntryBtn = null;
+        }
+
+        function submitEntryRecapModal() {
+            const raw = (entryRecapInput && entryRecapInput.value ? entryRecapInput.value : '').trim();
+            if (!raw) {
+                if (entryRecapError) {
+                    entryRecapError.textContent = 'Введите номер досьё.';
+                }
+                return;
+            }
+            if (!/^\d+$/.test(raw)) {
+                if (entryRecapError) {
+                    entryRecapError.textContent = 'Номер досьё должен содержать только цифры.';
+                }
+                return;
+            }
+            if (entryRecapError) {
+                entryRecapError.textContent = '';
+            }
+            const btn = pendingRecapEntryBtn;
+            if (!btn || !btn.dataset) {
+                closeEntryRecapModal();
+                return;
+            }
+            const params = new URLSearchParams();
+            params.set('request_id', btn.dataset.requestId || '');
+            params.set('name', btn.dataset.name || '');
+            params.set('object_key', btn.dataset.objectKey || '');
+            params.set('source_label', btn.dataset.sourceLabel || 'ДТ');
+            params.set('recap_id', raw);
+            window.location.href = addRecapBaseUrl + '?' + params.toString();
+        }
+
+        document.querySelectorAll('.add-recap-entry-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                openEntryRecapModal(btn);
+            });
+        });
+        if (entryRecapSubmitBtn) {
+            entryRecapSubmitBtn.addEventListener('click', submitEntryRecapModal);
+        }
+        if (entryRecapCloseBtn) {
+            entryRecapCloseBtn.addEventListener('click', closeEntryRecapModal);
+        }
+        if (entryRecapCancelBtn) {
+            entryRecapCancelBtn.addEventListener('click', closeEntryRecapModal);
+        }
+        if (entryRecapModal) {
+            entryRecapModal.addEventListener('click', (event) => {
+                if (event.target === entryRecapModal) {
+                    closeEntryRecapModal();
+                }
+            });
+        }
+        if (entryRecapInput) {
+            entryRecapInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    submitEntryRecapModal();
+                }
+            });
+        }
+
+        function openEntryRequestModal(mode, opts) {
+            const options = opts || {};
+            entryRequestMode = mode;
+            pendingOwnedForm = options.form || null;
+            if (entryRequestInput) {
+                entryRequestInput.value = '';
+            }
+            if (entryRequestError) {
+                entryRequestError.textContent = '';
+            }
+            if (entryRequestText) {
+                if (mode === 'pending') {
+                    entryRequestText.textContent =
+                        'Объект найден, но в записи нет номера заявки. Введите номер заявки (request_id), чтобы открыть редактирование.';
+                } else if (mode === 'add-object') {
+                    entryRequestText.textContent =
+                        'Укажите номер заявки (request_id) перед переходом к созданию объекта.';
+                } else if (mode === 'owned') {
+                    entryRequestText.textContent =
+                        'У объекта не указан номер заявки в базе. Введите номер заявки (request_id), чтобы продолжить.';
+                }
+            }
+            if (entryRequestModal) {
+                entryRequestModal.style.display = 'flex';
+            }
+            setTimeout(() => entryRequestInput && entryRequestInput.focus(), 0);
+        }
+
+        function closeEntryRequestModal() {
+            if (entryRequestModal) {
+                entryRequestModal.style.display = 'none';
+            }
+            entryRequestMode = null;
+            pendingOwnedForm = null;
+        }
+
+        function handleEntryRequestCancel() {
+            if (entryRequestMode === 'pending') {
+                window.location.href = cancelPendingUrl;
+            } else {
+                closeEntryRequestModal();
+            }
+        }
+
+        function submitEntryRequestModal() {
+            const raw = (entryRequestInput && entryRequestInput.value ? entryRequestInput.value : '').trim();
+            if (!raw) {
+                if (entryRequestError) {
+                    entryRequestError.textContent = 'Введите номер заявки.';
+                }
+                return;
+            }
+            if (!/^\d+$/.test(raw)) {
+                if (entryRequestError) {
+                    entryRequestError.textContent = 'Номер заявки должен содержать только цифры.';
+                }
+                return;
+            }
+            if (entryRequestError) {
+                entryRequestError.textContent = '';
+            }
+            if (entryRequestMode === 'pending' && confirmPendingHidden && confirmPendingForm) {
+                confirmPendingHidden.value = raw;
+                confirmPendingForm.submit();
+            } else if (entryRequestMode === 'add-object' && prepareAddObjectHidden && prepareAddObjectForm) {
+                prepareAddObjectHidden.value = raw;
+                prepareAddObjectForm.submit();
+            } else if (entryRequestMode === 'owned' && pendingOwnedForm) {
+                const ridInput = pendingOwnedForm.querySelector('input[name="request_id"]');
+                if (ridInput) {
+                    ridInput.value = raw;
+                }
+                pendingOwnedForm.submit();
+            }
+            closeEntryRequestModal();
+        }
+
+        document.querySelectorAll('form.owned-open-form').forEach((form) => {
+            form.addEventListener('submit', (e) => {
+                if (form.dataset.needsRequestId === '1') {
+                    e.preventDefault();
+                    openEntryRequestModal('owned', { form: form });
+                }
+            });
+        });
+
+        const addObjectEntryBtn = document.getElementById('add-object-entry-btn');
+        if (addObjectEntryBtn) {
+            addObjectEntryBtn.addEventListener('click', () => {
+                openEntryRequestModal('add-object');
+            });
+        }
+
+        const entryRequestSubmitBtn = document.getElementById('entry-request-id-submit-btn');
+        const entryRequestCloseBtn = document.getElementById('entry-request-id-close-btn');
+        const entryRequestCancelBtn = document.getElementById('entry-request-id-cancel-btn');
+        if (entryRequestSubmitBtn) {
+            entryRequestSubmitBtn.addEventListener('click', submitEntryRequestModal);
+        }
+        if (entryRequestCloseBtn) {
+            entryRequestCloseBtn.addEventListener('click', handleEntryRequestCancel);
+        }
+        if (entryRequestCancelBtn) {
+            entryRequestCancelBtn.addEventListener('click', handleEntryRequestCancel);
+        }
+        if (entryRequestModal) {
+            entryRequestModal.addEventListener('click', (event) => {
+                if (event.target === entryRequestModal) {
+                    handleEntryRequestCancel();
+                }
+            });
+        }
+        if (entryRequestInput) {
+            entryRequestInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    submitEntryRequestModal();
+                }
+            });
+        }
+
+        const needEntryRequestIdOnLoad = {{ need_entry_request_id|yesno:"true,false" }};
+        if (needEntryRequestIdOnLoad) {
+            openEntryRequestModal('pending');
         }
     </script>
 {% endblock %}

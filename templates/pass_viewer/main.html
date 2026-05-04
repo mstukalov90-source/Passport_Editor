@@ -75,6 +75,7 @@
         <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">Обновить пересечения и площадь</button>
         <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
         <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
+        <button type="button" id="add-comment-point-btn" class="map-toolbar-btn map-toolbar-btn--primary">Добавить точку с комментарием</button>
         <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
         <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">&#1042;&#1099;&#1075;&#1088;&#1091;&#1079;&#1080;&#1090;&#1100; &#1092;&#1072;&#1081;&#1083;&#1099;</button>
     </div>
@@ -118,6 +119,18 @@
             </div>
         </div>
     </div>
+    <div id="comment-point-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3 style="margin: 0 0 10px;">Комментарий к точке</h3>
+            <label class="modal-label" for="comment-point-text">Текст</label>
+            <textarea id="comment-point-text" class="modal-input" rows="4" maxlength="4000" style="resize: vertical; min-height: 88px;"></textarea>
+            <p id="comment-point-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+                <button type="button" id="comment-point-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
+                <button type="button" id="comment-point-modal-submit" class="map-toolbar-btn map-toolbar-btn--success">Сохранить</button>
+            </div>
+        </div>
+    </div>
     <div id="delete-polygon-modal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3 style="margin: 0 0 10px;">Удалить полигон?</h3>
@@ -155,6 +168,12 @@
         /* Middle markers often overlap and clutter editing view. */
         #map.edit-mode .leaflet-middle-icon {
             display: none !important;
+        }
+        #map.map--pick-comment-point {
+            cursor: crosshair !important;
+        }
+        .map-toolbar-btn.is-active:not(.map-basemap-btn) {
+            box-shadow: 0 0 0 2px #6366f1;
         }
         .map-toolbar-btn {
             border: 1px solid transparent;
@@ -673,6 +692,15 @@
         const checkRelationsButton = document.getElementById('check-relations-btn');
         const checkDgiIntersectionsButton = document.getElementById('check-dgi-intersections-btn');
         const autoRemoveIntersectionsButton = document.getElementById('auto-remove-intersections-btn');
+        const addCommentPointButton = document.getElementById('add-comment-point-btn');
+        const commentPointModal = document.getElementById('comment-point-modal');
+        const commentPointText = document.getElementById('comment-point-text');
+        const commentPointModalError = document.getElementById('comment-point-modal-error');
+        const commentPointModalCancel = document.getElementById('comment-point-modal-cancel');
+        const commentPointModalSubmit = document.getElementById('comment-point-modal-submit');
+        const listCommentPointsUrl = '{% url "list_comment_points" %}';
+        const saveCommentPointUrl = '{% url "save_comment_point" %}';
+        const deleteCommentPointUrl = '{% url "delete_comment_point" %}';
         const cancelEditButton = document.getElementById('cancel-edit-btn');
         const saveButton = document.getElementById('save-geometry-btn');
         const statusEl = document.getElementById('edit-status');
@@ -704,6 +732,7 @@
         const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
         const selectedName = "{{ selected_name|default:''|escapejs }}";
         const selectedRequestId = "{{ selected_request_id|default:''|escapejs }}";
+        const effectiveEntryRequestId = "{{ effective_request_id|default:''|escapejs }}";
         const selectedCustomerLegalPersonId = "{{ selected_customer_legal_person_id|default:''|escapejs }}";
         const selectedDepartmentLegalPersonId = "{{ selected_department_legal_person_id|default:''|escapejs }}";
         const selectedCustomerLegalPersonName = "{{ selected_customer_legal_person_name|default:''|escapejs }}";
@@ -725,6 +754,7 @@
         const dgiSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
         const recapsGroup = L.featureGroup().addTo(map);
+        const commentPointsGroup = L.featureGroup().addTo(map);
         let drawControl = null;
         let editToolbar = null;
         let isEditing = false;
@@ -747,6 +777,199 @@
         let startVertexFlagMarker = null;
         let pendingDeleteLayer = null;
         let cutDrawer = null;
+        let commentPointMode = false;
+        let pendingCommentLatLng = null;
+        let commentPickCaptureLayer = null;
+
+        function buildCommentPointPopupHtml(props) {
+            const p = props || {};
+            const id = p.id;
+            const text = (p.comment || '').trim() || '—';
+            const created = p.created_at || '';
+            const esc = (s) => String(s || '').replace(/</g, '&lt;');
+            return (
+                '<div class="comment-point-popup" style="max-width:260px;">' +
+                '<strong>Комментарий</strong><br/>' +
+                esc(text) +
+                (created
+                    ? '<br/><span style="color:#64748b;font-size:12px;">' + esc(created) + '</span>'
+                    : '') +
+                '<div style="margin-top:10px;padding-top:8px;border-top:1px solid #e5e7eb;">' +
+                '<button type="button" class="map-toolbar-btn map-toolbar-btn--danger comment-point-delete-btn" style="font-size:12px;padding:6px 10px;" data-comment-point-id="' +
+                esc(id) +
+                '">🗑 Удалить</button>' +
+                '</div></div>'
+            );
+        }
+
+        function bindCommentPointLayer(layer, feature) {
+            const props = feature.properties || {};
+            const fid = props.id;
+            layer.bindPopup(buildCommentPointPopupHtml(props));
+            layer.off('popupopen');
+            layer.on('popupopen', () => {
+                const popupEl = layer.getPopup()?.getElement?.();
+                const btn = popupEl?.querySelector('.comment-point-delete-btn');
+                if (btn && fid != null) {
+                    btn.onclick = (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void deleteCommentPointById(Number(fid), layer);
+                    };
+                }
+            });
+        }
+
+        async function deleteCommentPointById(pointId, layer) {
+            if (!pointId || !Number.isFinite(pointId)) {
+                return;
+            }
+            if (!window.confirm('Удалить эту точку комментария?')) {
+                return;
+            }
+            try {
+                const res = await fetch(deleteCommentPointUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || '',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ id: pointId }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    throw new Error(data.error || 'Не удалось удалить точку.');
+                }
+                if (layer) {
+                    layer.remove();
+                }
+                map.closePopup();
+                refreshObjectLayersControl();
+                statusEl.textContent = 'Точка комментария удалена.';
+            } catch (err) {
+                window.alert(err.message || 'Ошибка удаления.');
+            }
+        }
+
+        function ensureCommentPickCapture() {
+            if (commentPickCaptureLayer) {
+                return;
+            }
+            if (!map.getPane('commentPickPane')) {
+                const pane = map.createPane('commentPickPane');
+                pane.style.zIndex = '10000';
+                pane.style.pointerEvents = 'auto';
+            }
+            const bounds = L.latLngBounds(L.latLng(-90, -180), L.latLng(90, 180));
+            commentPickCaptureLayer = L.rectangle(bounds, {
+                pane: 'commentPickPane',
+                interactive: true,
+                stroke: false,
+                fillOpacity: 0,
+                fillColor: '#000',
+            });
+            commentPickCaptureLayer.on('click', (e) => {
+                L.DomEvent.stopPropagation(e);
+                if (!commentPointMode) {
+                    return;
+                }
+                if (addObjectMode || cutObjectMode || freehandDrawing) {
+                    return;
+                }
+                if (polygonDrawer) {
+                    return;
+                }
+                pendingCommentLatLng = e.latlng;
+                setCommentPointMode(false);
+                openCommentPointModal();
+            });
+        }
+
+        async function loadCommentPointsForMap() {
+            const rid = (effectiveEntryRequestId || '').trim();
+            commentPointsGroup.clearLayers();
+            if (addCommentPointButton) {
+                if (!rid) {
+                    addCommentPointButton.disabled = true;
+                    addCommentPointButton.title =
+                        'Нет номера заявки (request_id) — укажите при входе на страницу или в записи объекта.';
+                } else {
+                    addCommentPointButton.disabled = false;
+                    addCommentPointButton.title = '';
+                }
+            }
+            if (!rid) {
+                return;
+            }
+            try {
+                const u = new URL(listCommentPointsUrl, window.location.origin);
+                u.searchParams.set('request_id', rid);
+                const res = await fetch(u.toString(), { credentials: 'same-origin' });
+                const data = await res.json();
+                if (!res.ok || !data.ok || !data.geojson) {
+                    return;
+                }
+                L.geoJSON(data.geojson, {
+                    pointToLayer: (feature, latlng) =>
+                        L.circleMarker(latlng, {
+                            radius: 8,
+                            color: '#6d28d9',
+                            weight: 2,
+                            fillColor: '#a78bfa',
+                            fillOpacity: 0.9,
+                            opacity: 0.95,
+                        }),
+                    onEachFeature: (feature, layer) => {
+                        bindCommentPointLayer(layer, feature);
+                    },
+                }).addTo(commentPointsGroup);
+            } catch (e) {
+                /* ignore */
+            }
+        }
+
+        function setCommentPointMode(enabled) {
+            commentPointMode = enabled;
+            if (addCommentPointButton) {
+                addCommentPointButton.classList.toggle('is-active', enabled);
+            }
+            if (mapEl) {
+                mapEl.classList.toggle('map--pick-comment-point', enabled);
+            }
+            if (enabled) {
+                pendingCommentLatLng = null;
+                ensureCommentPickCapture();
+                if (commentPickCaptureLayer && !map.hasLayer(commentPickCaptureLayer)) {
+                    commentPickCaptureLayer.addTo(map);
+                }
+            } else if (commentPickCaptureLayer && map.hasLayer(commentPickCaptureLayer)) {
+                map.removeLayer(commentPickCaptureLayer);
+            }
+        }
+
+        function cancelCommentPointMode() {
+            pendingCommentLatLng = null;
+            setCommentPointMode(false);
+        }
+
+        function openCommentPointModal() {
+            if (commentPointModal && commentPointText) {
+                commentPointText.value = '';
+                if (commentPointModalError) {
+                    commentPointModalError.textContent = '';
+                }
+                commentPointModal.style.display = 'flex';
+                setTimeout(() => commentPointText.focus(), 0);
+            }
+        }
+
+        function closeCommentPointModal() {
+            if (commentPointModal) {
+                commentPointModal.style.display = 'none';
+            }
+            pendingCommentLatLng = null;
+        }
 
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxNativeZoom: 19,
@@ -862,6 +1085,7 @@
             overlays[withCount('ДГИ', countGroupFeatures(dgiSignalGroup))] = dgiSignalGroup;
             overlays[withCount('ОДХ', countGroupFeatures(odhSignalGroup))] = odhSignalGroup;
             overlays[withCount('Заявки на досъёмку', countGroupFeatures(recapsGroup))] = recapsGroup;
+            overlays[withCount('Комментарии', countGroupFeatures(commentPointsGroup))] = commentPointsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false});
             objectLayersControl.addTo(map);
         }
@@ -1111,6 +1335,7 @@
             statusEl.textContent = '\u0412\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0439 \u043e\u0431\u044a\u0435\u043a\u0442 \u043d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0442\u0440\u0438\u0441\u043e\u0432\u0430\u0442\u044c \u043d\u0430 \u043a\u0430\u0440\u0442\u0435.';
         }
         refreshObjectLayersControl();
+        loadCommentPointsForMap();
 
         function setBasemap(mode) {
             const removeBasemapLayers = () => {
@@ -2527,6 +2752,7 @@
         });
 
         cancelEditButton.addEventListener('click', () => {
+            cancelCommentPointMode();
             cancelAddObjectMode();
             cancelCutMode();
             if (editToolbar) {
@@ -2570,7 +2796,7 @@
 
         function openSaveModal() {
             newObjectNameInput.value = (selectedName || '').trim();
-            newObjectRequestIdInput.value = '';
+            newObjectRequestIdInput.value = (effectiveEntryRequestId || '').trim();
             saveModalErrorEl.textContent = '';
             saveModal.style.display = 'flex';
             if (newObjectNameInput.value) {
@@ -2701,6 +2927,133 @@
             }
             openSaveModal();
         });
+
+        async function submitCommentPointModal() {
+            const latlng = pendingCommentLatLng;
+            const text = (commentPointText && commentPointText.value ? commentPointText.value : '').trim();
+            if (!latlng) {
+                if (commentPointModalError) {
+                    commentPointModalError.textContent = 'Сначала выберите точку на карте.';
+                }
+                return;
+            }
+            if (!text) {
+                if (commentPointModalError) {
+                    commentPointModalError.textContent = 'Введите комментарий.';
+                }
+                return;
+            }
+            const rid = (effectiveEntryRequestId || '').trim();
+            if (!rid) {
+                if (commentPointModalError) {
+                    commentPointModalError.textContent = 'Нет номера заявки (request_id).';
+                }
+                return;
+            }
+            if (commentPointModalError) {
+                commentPointModalError.textContent = '';
+            }
+            if (commentPointModalSubmit) {
+                commentPointModalSubmit.disabled = true;
+            }
+            try {
+                const res = await fetch(saveCommentPointUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || '',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        request_id: rid,
+                        comment: text,
+                        lng: latlng.lng,
+                        lat: latlng.lat,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    throw new Error(data.error || 'Не удалось сохранить точку.');
+                }
+                if (data.feature) {
+                    const gj = data.feature;
+                    L.geoJSON(
+                        { type: 'FeatureCollection', features: [gj] },
+                        {
+                            pointToLayer: (feature, latlngMarker) =>
+                                L.circleMarker(latlngMarker, {
+                                    radius: 8,
+                                    color: '#6d28d9',
+                                    weight: 2,
+                                    fillColor: '#a78bfa',
+                                    fillOpacity: 0.9,
+                                    opacity: 0.95,
+                                }),
+                            onEachFeature: (feature, layer) => {
+                                bindCommentPointLayer(layer, feature);
+                            },
+                        }
+                    ).addTo(commentPointsGroup);
+                }
+                refreshObjectLayersControl();
+                closeCommentPointModal();
+                cancelCommentPointMode();
+                statusEl.textContent = 'Точка комментария сохранена.';
+            } catch (err) {
+                if (commentPointModalError) {
+                    commentPointModalError.textContent = err.message || 'Ошибка сохранения.';
+                }
+            } finally {
+                if (commentPointModalSubmit) {
+                    commentPointModalSubmit.disabled = false;
+                }
+            }
+        }
+
+        if (addCommentPointButton) {
+            addCommentPointButton.addEventListener('click', () => {
+                const rid = (effectiveEntryRequestId || '').trim();
+                if (!rid) {
+                    statusEl.textContent = 'Нет номера заявки (request_id) для привязки комментария.';
+                    return;
+                }
+                if (commentPointMode) {
+                    cancelCommentPointMode();
+                    statusEl.textContent = 'Режим добавления точки выключен.';
+                    return;
+                }
+                if (addObjectMode) {
+                    cancelAddObjectMode();
+                }
+                if (cutObjectMode) {
+                    cancelCutMode();
+                }
+                if (freehandMode || freehandDrawing) {
+                    stopFreehandMode();
+                }
+                setCommentPointMode(true);
+                statusEl.textContent = 'Кликните по карте, чтобы поставить точку комментария.';
+            });
+        }
+        if (commentPointModalCancel) {
+            commentPointModalCancel.addEventListener('click', () => {
+                closeCommentPointModal();
+                cancelCommentPointMode();
+            });
+        }
+        if (commentPointModalSubmit) {
+            commentPointModalSubmit.addEventListener('click', () => {
+                submitCommentPointModal();
+            });
+        }
+        if (commentPointModal) {
+            commentPointModal.addEventListener('click', (event) => {
+                if (event.target === commentPointModal) {
+                    closeCommentPointModal();
+                    cancelCommentPointMode();
+                }
+            });
+        }
 
         updateRelationsButtonState();
     </script>

@@ -11,7 +11,7 @@ from django.shortcuts import redirect, render
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.db import connection
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 from osgeo import gdal, ogr, osr
 
 from .forms import EntryPointForm
@@ -85,6 +85,10 @@ def _table_exists(cursor, table_name):
 def _get_current_user_owner_id(username):
     user = ExternalUser.objects.filter(login=username).only('owner_legal_person_id').first()
     return user.owner_legal_person_id if user else None
+
+
+def _comment_points_table_name():
+    return getattr(settings, 'GIS_COMMENT_POINTS_TABLE', 'pass_comment_points')
 
 
 def _get_id_names_lookup_context(cursor):
@@ -396,7 +400,7 @@ def _find_manual_entry_point(rootid='', name=''):
             return {
                 'rootid': found_rootid,
                 'name': found_name,
-                'request_id': found_request_id if not found_rootid else '',
+                'request_id': found_request_id,
                 'source_label': source_label,
             }
     return None
@@ -1633,6 +1637,12 @@ def _get_reference_layers(geometry=None, distance_meters=100):
     return layers
 
 
+def _entry_point_needs_request_id(entry_point):
+    if not entry_point:
+        return True
+    return not (str(entry_point.get('request_id') or '').strip())
+
+
 @login_required
 def home(request):
     if request.method == 'POST':
@@ -1646,9 +1656,13 @@ def home(request):
                 form.add_error(None, 'Не удалось выполнить поиск. Проверьте доступ к базе данных.')
             else:
                 if entry_point:
-                    request.session['entry_point'] = entry_point
-                    return redirect('main')
-                form.add_error(None, 'Объект не найден. Проверьте № Паспорта или Название.')
+                    if _entry_point_needs_request_id(entry_point):
+                        request.session['pending_entry_point'] = entry_point
+                    else:
+                        request.session['entry_point'] = entry_point
+                        return redirect('main')
+                else:
+                    form.add_error(None, 'Объект не найден. Проверьте № Паспорта или Название.')
     else:
         form = EntryPointForm()
 
@@ -1671,6 +1685,8 @@ def home(request):
             'Проверьте поле OwnerLegalPersonId в таблице users.'
         )
 
+    need_entry_request_id = bool(request.session.get('pending_entry_point'))
+
     return render(
         request,
         'pass_viewer/home.html',
@@ -1680,6 +1696,7 @@ def home(request):
             'owner_name': owner_name,
             'owned_objects': owned_objects,
             'owned_objects_error': owned_objects_error,
+            'need_entry_request_id': need_entry_request_id,
         },
     )
 
@@ -1706,6 +1723,10 @@ def main(request):
         distance_meters=100,
     )
 
+    selected_request_id = (layers.get('selected_request_id') or '').strip() if layers else ''
+    ep_request_id = (entry_point.get('request_id') or '').strip()
+    effective_request_id = selected_request_id or ep_request_id
+
     return render(
         request,
         'pass_viewer/main.html',
@@ -1716,6 +1737,7 @@ def main(request):
             'selected_rootid': layers['selected_rootid'] if layers else None,
             'selected_name': layers['selected_name'] if layers else None,
             'selected_request_id': layers['selected_request_id'] if layers else None,
+            'effective_request_id': effective_request_id,
             'selected_customer_legal_person_id': layers['selected_customer_legal_person_id'] if layers else None,
             'selected_department_legal_person_id': layers['selected_department_legal_person_id'] if layers else None,
             'selected_customer_legal_person_name': layers['selected_customer_legal_person_name'] if layers else None,
@@ -1880,11 +1902,48 @@ def open_owned_object(request):
 
     request.session['entry_point'] = {
         'rootid': rootid,
-        'request_id': request_id if not rootid else '',
+        'request_id': request_id,
         'name': '' if rootid else name,
         'source_label': _normalize_source_label(request.POST.get('source_label')),
     }
     return redirect('main')
+
+
+@login_required
+def cancel_pending_entry(request):
+    request.session.pop('pending_entry_point', None)
+    return redirect('home')
+
+
+@login_required
+@require_POST
+def confirm_entry_request_id(request):
+    request_id = (request.POST.get('request_id') or '').strip()
+    if not request_id or not request_id.isdigit():
+        return redirect('home')
+    pending = request.session.get('pending_entry_point')
+    if not pending:
+        return redirect('home')
+    del request.session['pending_entry_point']
+    pending = dict(pending)
+    pending['request_id'] = request_id
+    request.session['entry_point'] = pending
+    return redirect('main')
+
+
+@login_required
+@require_POST
+def prepare_add_object(request):
+    request_id = (request.POST.get('request_id') or '').strip()
+    if not request_id or not request_id.isdigit():
+        return redirect('home')
+    request.session['entry_point'] = {
+        'rootid': '',
+        'name': '',
+        'request_id': request_id,
+        'source_label': _normalize_source_label(request.POST.get('source_label')),
+    }
+    return redirect('add_object')
 
 
 @login_required
@@ -1954,6 +2013,7 @@ def delete_owned_object(request):
 @login_required
 def add_object(request):
     entry_point = request.session.get('entry_point') or {}
+    effective_request_id = (entry_point.get('request_id') or '').strip()
     return render(
         request,
         'pass_viewer/add_object.html',
@@ -1963,6 +2023,7 @@ def add_object(request):
             'recaps_geometry_json': None,
             'request_objects_geometry_json': None,
             'selected_source_label': _normalize_source_label(entry_point.get('source_label')),
+            'effective_request_id': effective_request_id,
         },
     )
 
@@ -1973,6 +2034,8 @@ def add_recap(request):
     name = (request.GET.get('name') or '').strip()
     object_key = (request.GET.get('object_key') or '').strip()
     source_label = _normalize_source_label(request.GET.get('source_label'))
+    recap_id_param = (request.GET.get('recap_id') or '').strip()
+    initial_recap_id = recap_id_param if recap_id_param.isdigit() else ''
     owner_id = _get_current_user_owner_id(request.user.username)
     selected_object = _get_owned_request_object(owner_id, object_key, source_label=source_label)
     if not selected_object:
@@ -2014,6 +2077,7 @@ def add_recap(request):
             'dgi_geometry_json': reference_layers['dgi'],
             'odh_geometry_json': reference_layers['odh'],
             'recaps_geometry_json': reference_layers['recaps'],
+            'initial_recap_id': initial_recap_id,
         },
     )
 
@@ -2163,3 +2227,183 @@ def cut_edited_geometry(request):
         return JsonResponse({'ok': False, 'error': 'Не удалось обрезать геометрию.'}, status=500)
 
     return JsonResponse({'ok': True, 'geometry': result_geometry})
+
+
+@login_required
+@require_GET
+def list_comment_points(request):
+    request_id = (request.GET.get('request_id') or '').strip()
+    if not request_id:
+        return JsonResponse({'ok': False, 'error': 'Укажите request_id.'}, status=400)
+
+    table = _comment_points_table_name()
+    with connection.cursor() as cursor:
+        if not _table_exists(cursor, table):
+            return JsonResponse(
+                {'ok': True, 'geojson': {'type': 'FeatureCollection', 'features': []}}
+            )
+        t = _quote_ident(table)
+        cursor.execute(
+            f"""
+            SELECT p.id, ST_AsGeoJSON(p.geom)::text, p.request_id::text, p.comment, p.owner_legal_person_id::text,
+                   to_char(p.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+            FROM {t} p
+            WHERE p.request_id::text = %s
+            ORDER BY p.id
+            """,
+            [request_id],
+        )
+        rows = cursor.fetchall()
+
+    features = []
+    for row in rows:
+        id_, geom_json, rid, cmt, oid, created = row
+        try:
+            geometry = json.loads(geom_json)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        features.append(
+            {
+                'type': 'Feature',
+                'id': id_,
+                'geometry': geometry,
+                'properties': {
+                    'id': id_,
+                    'request_id': rid,
+                    'comment': cmt,
+                    'owner_legal_person_id': oid,
+                    'created_at': created or '',
+                },
+            }
+        )
+
+    return JsonResponse(
+        {
+            'ok': True,
+            'geojson': {'type': 'FeatureCollection', 'features': features},
+        }
+    )
+
+
+@login_required
+@require_POST
+def save_comment_point(request):
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'ok': False, 'error': 'Некорректный JSON.'}, status=400)
+
+    request_id = (payload.get('request_id') or '').strip()
+    comment = (payload.get('comment') or '').strip()
+    try:
+        lng = float(payload.get('lng'))
+        lat = float(payload.get('lat'))
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Укажите координаты точки (lng, lat).'}, status=400)
+
+    if not request_id or not request_id.isdigit():
+        return JsonResponse({'ok': False, 'error': 'Некорректный или пустой request_id.'}, status=400)
+    if not comment:
+        return JsonResponse({'ok': False, 'error': 'Введите комментарий.'}, status=400)
+    if len(comment) > 4000:
+        return JsonResponse({'ok': False, 'error': 'Комментарий слишком длинный (макс. 4000 символов).'}, status=400)
+    if not (-180.0 <= lng <= 180.0) or not (-90.0 <= lat <= 90.0):
+        return JsonResponse({'ok': False, 'error': 'Координаты вне допустимого диапазона.'}, status=400)
+
+    owner_id = _get_current_user_owner_id(request.user.username)
+    if owner_id is None:
+        return JsonResponse(
+            {'ok': False, 'error': 'Не найден OwnerLegalPersonId для пользователя в таблице users.'},
+            status=400,
+        )
+
+    table = _comment_points_table_name()
+    try:
+        with connection.cursor() as cursor:
+            if not _table_exists(cursor, table):
+                return JsonResponse(
+                    {'ok': False, 'error': 'Таблица точек комментариев не найдена в базе.'},
+                    status=500,
+                )
+            t = _quote_ident(table)
+            cursor.execute(
+                f"""
+                INSERT INTO {t} (request_id, owner_legal_person_id, comment, geom)
+                VALUES (%s, %s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326))
+                RETURNING id,
+                    ST_AsGeoJSON(geom)::text,
+                    request_id::text,
+                    comment,
+                    owner_legal_person_id::text,
+                    to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+                """,
+                [request_id, str(owner_id), comment, lng, lat],
+            )
+            row = cursor.fetchone()
+    except Exception:
+        logger.exception('save_comment_point: insert failed')
+        return JsonResponse({'ok': False, 'error': 'Не удалось сохранить точку комментария.'}, status=500)
+
+    if not row:
+        return JsonResponse({'ok': False, 'error': 'Не удалось сохранить точку комментария.'}, status=500)
+
+    id_, geom_json, rid, cmt, oid, created = row
+    try:
+        geometry = json.loads(geom_json)
+    except (TypeError, json.JSONDecodeError):
+        geometry = None
+    feature = {
+        'type': 'Feature',
+        'id': id_,
+        'geometry': geometry,
+        'properties': {
+            'id': id_,
+            'request_id': rid,
+            'comment': cmt,
+            'owner_legal_person_id': oid,
+            'created_at': created or '',
+        },
+    }
+    return JsonResponse({'ok': True, 'feature': feature})
+
+
+@login_required
+@require_POST
+def delete_comment_point(request):
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'ok': False, 'error': 'Некорректный JSON.'}, status=400)
+    try:
+        point_id = int(payload.get('id'))
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Некорректный id точки.'}, status=400)
+
+    owner_id = _get_current_user_owner_id(request.user.username)
+    if owner_id is None:
+        return JsonResponse(
+            {'ok': False, 'error': 'Не найден OwnerLegalPersonId для пользователя в таблице users.'},
+            status=400,
+        )
+
+    table = _comment_points_table_name()
+    try:
+        with connection.cursor() as cursor:
+            if not _table_exists(cursor, table):
+                return JsonResponse({'ok': False, 'error': 'Таблица точек комментариев не найдена в базе.'}, status=500)
+            t = _quote_ident(table)
+            cursor.execute(
+                f"DELETE FROM {t} WHERE id = %s AND owner_legal_person_id::text = %s RETURNING id",
+                [point_id, str(owner_id)],
+            )
+            row = cursor.fetchone()
+    except Exception:
+        logger.exception('delete_comment_point: delete failed')
+        return JsonResponse({'ok': False, 'error': 'Не удалось удалить точку комментария.'}, status=500)
+
+    if not row:
+        return JsonResponse(
+            {'ok': False, 'error': 'Точка не найдена или нет прав на удаление.'},
+            status=404,
+        )
+    return JsonResponse({'ok': True, 'id': point_id})
