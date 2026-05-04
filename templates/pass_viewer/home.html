@@ -389,7 +389,12 @@
         <button type="submit">&#1042;&#1099;&#1081;&#1090;&#1080;</button>
     </form>
 
+    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" hidden></div>
     <script>
+        const homeBootstrapEl = document.getElementById('home-bootstrap-data');
+        const needEntryRequestIdOnLoad =
+            homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
+
         const manualModal = document.getElementById('manual-modal');
         const manualOpenBtn = document.getElementById('manual-open-btn');
         const manualCloseBtn = document.getElementById('manual-close-btn');
@@ -823,7 +828,6 @@
             });
         }
 
-        const needEntryRequestIdOnLoad = {{ need_entry_request_id|yesno:"true,false" }};
         if (needEntryRequestIdOnLoad) {
             openEntryRequestModal('pending');
         }
