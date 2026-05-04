@@ -846,6 +846,7 @@
         const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
         const selectedName = "{{ selected_name|default:''|escapejs }}";
         const selectedRequestId = "{{ selected_request_id|default:''|escapejs }}";
+        const selectedRowCtid = "{{ selected_ctid|default:''|escapejs }}";
         const effectiveEntryRequestId = "{{ effective_request_id|default:''|escapejs }}";
         const selectedCustomerLegalPersonId = "{{ selected_customer_legal_person_id|default:''|escapejs }}";
         const selectedDepartmentLegalPersonId = "{{ selected_department_legal_person_id|default:''|escapejs }}";
@@ -1692,12 +1693,21 @@
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCookie('csrftoken') || ''
                     },
-                    body: JSON.stringify({
-                        geometry,
-                        source_label: selectedSourceLabel,
-                        selected_geometry: selectedGeometryForCheck,
-                        geometry_for_selected_check: newGeometryForSelectedCheck
-                    })
+                    body: JSON.stringify(
+                        (() => {
+                            const payload = {
+                                geometry,
+                                source_label: selectedSourceLabel,
+                                selected_geometry: selectedGeometryForCheck,
+                                geometry_for_selected_check: newGeometryForSelectedCheck,
+                            };
+                            const entryRid = String(effectiveEntryRequestId || '').trim();
+                            if (entryRid) {
+                                payload.request_id = entryRid;
+                            }
+                            return payload;
+                        })()
+                    )
                 });
                 const data = await response.json();
                 if (!response.ok || !data.ok) {
@@ -2886,18 +2896,24 @@
         }
 
         async function saveObjectToDb(geometryToSave, name, requestId) {
+            const savePayload = {
+                geometry: geometryToSave,
+                name: name,
+                request_id: requestId,
+                source_label: selectedSourceLabel,
+            };
+            const origRid = String(selectedRequestId || '').trim();
+            const newRid = String(requestId || '').trim();
+            if (selectedRowCtid && origRid && origRid === newRid) {
+                savePayload.replace_row_ctid = selectedRowCtid;
+            }
             const response = await fetch("{% url 'save_new_object' %}", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCookie('csrftoken') || ''
                 },
-                body: JSON.stringify({
-                    geometry: geometryToSave,
-                    name: name,
-                    request_id: requestId,
-                    source_label: selectedSourceLabel
-                })
+                body: JSON.stringify(savePayload),
             });
             const result = await response.json();
             if (!response.ok || !result.ok) {
@@ -2987,6 +3003,10 @@
             }
             if (newGeometryForSelectedCheck != null) {
                 body.geometry_for_selected_check = newGeometryForSelectedCheck;
+            }
+            const entryRid = String(effectiveEntryRequestId || '').trim();
+            if (entryRid) {
+                body.request_id = entryRid;
             }
             const response = await fetch("{% url 'check_new_object_relations' %}", {
                 method: 'POST',

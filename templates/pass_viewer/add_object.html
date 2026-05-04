@@ -1903,10 +1903,16 @@
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCookie('csrftoken') || ''
                     },
-                    body: JSON.stringify({
-                        geometry,
-                        source_label: selectedSourceLabel
-                    })
+                    body: JSON.stringify(
+                        (() => {
+                            const payload = {geometry, source_label: selectedSourceLabel};
+                            const entryRid = String(effectiveEntryRequestId || '').trim();
+                            if (entryRid) {
+                                payload.request_id = entryRid;
+                            }
+                            return payload;
+                        })()
+                    )
                 });
                 const data = await response.json();
                 if (!response.ok || !data.ok) {
@@ -2575,7 +2581,8 @@
                 body: JSON.stringify({
                     geometry: geometryToSave,
                     name: name,
-                    request_id: requestId
+                    request_id: requestId,
+                    source_label: selectedSourceLabel,
                 })
             });
             const result = await response.json();
@@ -2651,13 +2658,18 @@
         }
 
         async function fetchIntersectsLayerForPdfExport(geometry) {
+            const pdfBody = {geometry, source_label: selectedSourceLabel};
+            const entryRid = String(effectiveEntryRequestId || '').trim();
+            if (entryRid) {
+                pdfBody.request_id = entryRid;
+            }
             const response = await fetch("{% url 'check_new_object_relations' %}", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCookie('csrftoken') || '',
                 },
-                body: JSON.stringify({geometry, source_label: selectedSourceLabel}),
+                body: JSON.stringify(pdfBody),
             });
             const data = await response.json();
             if (!response.ok || !data.ok) {

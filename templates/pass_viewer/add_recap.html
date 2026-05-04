@@ -1581,7 +1581,8 @@
                     body: JSON.stringify({
                         geometry,
                         source_label: selectedSourceLabel,
-                        selected_geometry: hasNewPolygon ? selectedGeometry : null
+                        selected_geometry: hasNewPolygon ? selectedGeometry : null,
+                        request_id: String(requestId || '').trim() || undefined,
                     })
                 });
                 const data = await response.json();
