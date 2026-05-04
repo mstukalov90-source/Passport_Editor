@@ -406,6 +406,81 @@ def _find_manual_entry_point(rootid='', name=''):
     return None
 
 
+def _normalize_merge_items(entry_point):
+    """Список словарей {rootid, source_label} для объединения паспортов (≥2)."""
+    raw = entry_point.get('merge_items')
+    out = []
+    if isinstance(raw, list):
+        for x in raw:
+            if isinstance(x, dict):
+                rid = (x.get('rootid') or '').strip()
+                if rid:
+                    out.append(
+                        {
+                            'rootid': rid,
+                            'source_label': _normalize_source_label(x.get('source_label')),
+                        }
+                    )
+    if len(out) >= 2:
+        return out
+    rootids_raw = entry_point.get('merge_rootids')
+    if isinstance(rootids_raw, (list, tuple)) and len(rootids_raw) >= 2:
+        sl = _normalize_source_label(entry_point.get('source_label'))
+        return [{'rootid': str(r).strip(), 'source_label': sl} for r in rootids_raw if str(r).strip()]
+    return []
+
+
+def _merge_group_ids_by_source(merge_items):
+    res = {'ДТ': [], 'ОДХ': []}
+    for it in merge_items or []:
+        rid = (it.get('rootid') or '').strip()
+        if not rid:
+            continue
+        sl = it.get('source_label') or 'ДТ'
+        res['ОДХ' if sl == 'ОДХ' else 'ДТ'].append(rid)
+    return res
+
+
+def _build_merge_matched_body_sql(cursor, merge_items):
+    """
+    SQL-тело для CTE matched: UNION ALL выборок из таблиц ДТ и/или ОДХ.
+    Возвращает (sql_fragment, list_of_params) или (None, None).
+    """
+    by = _merge_group_ids_by_source(merge_items)
+    dt_table = settings.GIS_OBJECT_TABLE
+    odh_table = getattr(settings, 'GIS_ODH_TABLE', 'odh')
+    rootid_pref = settings.GIS_OBJECT_ROOTID_FIELD
+    name_pref = settings.GIS_OBJECT_NAME_FIELD
+    geom_pref = settings.GIS_OBJECT_GEOM_FIELD
+    req_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
+
+    parts = []
+    params = []
+    for ids, tbl in ((by['ДТ'], dt_table), (by['ОДХ'], odh_table)):
+        if not ids:
+            continue
+        if not _column_exists(cursor, tbl, rootid_pref) or not _column_exists(cursor, tbl, geom_pref):
+            continue
+        rf = _resolve_column_name(cursor, tbl, rootid_pref)
+        nf = _resolve_column_name(cursor, tbl, name_pref)
+        gf = _resolve_column_name(cursor, tbl, geom_pref)
+        if _column_exists(cursor, tbl, req_pref):
+            rqf = _resolve_column_name(cursor, tbl, req_pref)
+            rq_expr = f'{_quote_ident(rqf)}::text AS request_id'
+        else:
+            rq_expr = 'NULL::text AS request_id'
+        parts.append(
+            f'SELECT ctid, {_quote_ident(rf)}::text AS rootid, COALESCE({_quote_ident(nf)}::text, \'\') AS name, '
+            f'{rq_expr}, NULL::text AS customer_legal_person_id, NULL::text AS department_legal_person_id, '
+            f'NULL::text AS customer_legal_person_name, NULL::text AS department_legal_person_name, '
+            f'{_quote_ident(gf)} AS geom FROM {_quote_ident(tbl)} WHERE {_quote_ident(rf)}::text = ANY(%s)'
+        )
+        params.append(ids)
+    if not parts:
+        return None, None
+    return ' UNION ALL '.join(parts), params
+
+
 def _get_map_layers(entry_point):
     source_label = _normalize_source_label(entry_point.get('source_label'))
     table = _get_source_table(source_label)
@@ -477,25 +552,25 @@ def _get_map_layers(entry_point):
                 "AS owner_legal_person_name"
             )
 
-    merge_rootids_raw = entry_point.get('merge_rootids')
-    if isinstance(merge_rootids_raw, (list, tuple)):
-        merge_rootids = [str(x).strip() for x in merge_rootids_raw if str(x).strip()]
-    else:
-        merge_rootids = []
-    use_merge = len(merge_rootids) >= 2
+    merge_items = _normalize_merge_items(entry_point)
+    use_merge = len(merge_items) >= 2
+    merge_matched_body = None
+    merge_matched_params = None
     if use_merge:
-        where_clause = f"{rootid_field}::text = ANY(%s)"
-        where_params = [merge_rootids]
-    else:
+        with connection.cursor() as merge_cur:
+            merge_matched_body, merge_matched_params = _build_merge_matched_body_sql(merge_cur, merge_items)
+        if not merge_matched_body or not merge_matched_params:
+            use_merge = False
+
+    if not use_merge:
         where_clause, where_params = _build_where_clause(entry_point, rootid_field, name_field, request_id_field)
 
     if use_merge:
+        where_params = merge_matched_params
         selected_sql = (
             "WITH matched AS ("
-            f" SELECT ctid, {rootid_field} AS rootid, {name_field} AS name, {request_id_field} AS request_id, "
-            f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr_selected}, {department_name_select_expr_selected}, {geom_field} AS geom FROM {table}"
-            f" WHERE {where_clause}"
-            "), selected AS ("
+            + merge_matched_body
+            + "), selected AS ("
             " SELECT (SELECT ctid FROM matched ORDER BY rootid NULLS LAST LIMIT 1) AS ctid, "
             " (SELECT string_agg(rootid::text, ', ' ORDER BY rootid) FROM matched) AS rootid, "
             " (SELECT string_agg(name::text, ' + ' ORDER BY name NULLS LAST) FROM matched) AS name, "
@@ -512,8 +587,9 @@ def _get_map_layers(entry_point):
             "FROM selected"
         )
         map_layers_cte_open = (
-            f"WITH matched AS ( SELECT ctid, {rootid_field} AS rootid, {geom_field} AS geom FROM {table} WHERE {where_clause} ), "
-            "selected AS ( SELECT (SELECT ctid FROM matched ORDER BY rootid NULLS LAST LIMIT 1) AS ctid, "
+            "WITH matched AS ("
+            + merge_matched_body
+            + "), selected AS ( SELECT (SELECT ctid FROM matched ORDER BY rootid NULLS LAST LIMIT 1) AS ctid, "
             " (SELECT ST_UnaryUnion(ST_Collect(geom)) FROM matched) AS geom ), "
         )
         neighbor_excl = "t.ctid NOT IN (SELECT ctid FROM matched) AND "
@@ -1955,9 +2031,10 @@ def open_owned_object(request):
 @require_POST
 def open_merged_passports(request):
     request_id = (request.POST.get('request_id') or '').strip()
-    source_label = _normalize_source_label(request.POST.get('source_label'))
-    rootids = [r.strip() for r in request.POST.getlist('rootid') if r.strip()]
-    if len(rootids) < 2 or not request_id.isdigit():
+    target_source_label = _normalize_source_label(request.POST.get('target_source_label'))
+    rootids = [r.strip() for r in request.POST.getlist('merge_item_rootid') if r.strip()]
+    sources = [_normalize_source_label(s) for s in request.POST.getlist('merge_item_source')]
+    if len(rootids) < 2 or len(rootids) != len(sources) or not request_id.isdigit():
         return redirect('home')
 
     owner_id = _get_current_user_owner_id(request.user.username)
@@ -1970,15 +2047,16 @@ def open_merged_passports(request):
         for item in owned
         if (item.get('rootid') or '').strip()
     }
-    if not all(((rid, source_label) in allowed_pairs) for rid in rootids):
+    merge_items = [{'rootid': rid, 'source_label': sl} for rid, sl in zip(rootids, sources)]
+    if not all(((it['rootid'], it['source_label']) in allowed_pairs) for it in merge_items):
         return redirect('home')
 
     request.session['entry_point'] = {
         'rootid': '',
         'request_id': request_id,
-        'name': f'Объединение {len(rootids)} паспортов',
-        'source_label': source_label,
-        'merge_rootids': rootids,
+        'name': f'Объединение {len(merge_items)} паспортов (→ {target_source_label})',
+        'source_label': target_source_label,
+        'merge_items': merge_items,
     }
     return redirect('main')
 

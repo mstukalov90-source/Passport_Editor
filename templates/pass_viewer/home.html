@@ -244,7 +244,7 @@
         style="margin-top: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid #bbf7d0; background: #f0fdf4; align-items: center; gap: 12px; flex-wrap: wrap;"
     >
         <span class="note" style="margin: 0; flex: 1; min-width: 200px;">
-            Отметьте <strong>не менее двух</strong> паспортов в списке «Актуальные паспорта» <strong>одной системы</strong> (ДТ или ОДХ), затем нажмите «Продолжить» и введите номер заявки.
+            Отметьте <strong>не менее двух</strong> паспортов в списке «Актуальные паспорта» (можно из ДТ и ОДХ вместе), затем нажмите «Продолжить» и укажите номер заявки; если в выборе есть и ДТ, и ОДХ, в том же окне выберите систему для сохранения итога.
         </span>
         <button type="button" id="merge-passports-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
         <button type="button" id="merge-passports-next-btn" style="background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;">
@@ -265,8 +265,8 @@
     <form id="form-merge-passports" method="post" action="{% url 'open_merged_passports' %}" style="display: none;">
         {% csrf_token %}
         <input type="hidden" name="request_id" id="merge-passports-request-id-hidden" value="" />
-        <input type="hidden" name="source_label" id="merge-passports-source-label-hidden" value="" />
-        <div id="merge-passports-rootids-container"></div>
+        <input type="hidden" name="target_source_label" id="merge-passports-target-source-hidden" value="" />
+        <div id="merge-passports-items-container"></div>
     </form>
 
     <div
@@ -278,7 +278,7 @@
                 <h3 style="margin: 0; font-size: 18px;">Номер заявки (request_id)</h3>
                 <button type="button" id="merge-passports-request-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
-            <p class="note" style="margin-top: 0;">
+            <p id="merge-passports-request-intro" class="note" style="margin-top: 0;">
                 Укажите номер заявки для объединённого паспорта на карте редактирования.
             </p>
             <label class="note" for="merge-passports-request-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер заявки</label>
@@ -291,6 +291,20 @@
                 style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
                 autocomplete="off"
             />
+            <fieldset
+                id="merge-target-source-fieldset"
+                style="display: none; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-top: 12px; margin-bottom: 0;"
+            >
+                <legend class="note" style="font-weight: 600; padding: 0 4px;">Итоговый паспорт (куда сохранить)</legend>
+                <label style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <span>ДТ</span>
+                    <input type="radio" name="merge_target_source_ui" value="ДТ" id="merge-target-dt" />
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <span>ОДХ</span>
+                    <input type="radio" name="merge_target_source_ui" value="ОДХ" id="merge-target-odh" />
+                </label>
+            </fieldset>
             <p id="merge-passports-request-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
                 <button type="button" id="merge-passports-request-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
@@ -687,12 +701,16 @@
         const mergeRequestCancelBtn = document.getElementById('merge-passports-request-cancel-btn');
         const mergeRequestCloseBtn = document.getElementById('merge-passports-request-close-btn');
         const formMergePassports = document.getElementById('form-merge-passports');
-        const mergeRootidsContainer = document.getElementById('merge-passports-rootids-container');
+        const mergeItemsContainer = document.getElementById('merge-passports-items-container');
         const mergeRequestIdHidden = document.getElementById('merge-passports-request-id-hidden');
-        const mergeSourceLabelHidden = document.getElementById('merge-passports-source-label-hidden');
+        const mergeTargetSourceHidden = document.getElementById('merge-passports-target-source-hidden');
+        const mergeTargetDtRadio = document.getElementById('merge-target-dt');
+        const mergeTargetOdhRadio = document.getElementById('merge-target-odh');
+        const mergeTargetSourceFieldset = document.getElementById('merge-target-source-fieldset');
+        const mergePassportsRequestIntro = document.getElementById('merge-passports-request-intro');
 
         let mergePassportsMode = false;
-        let pendingMergeSourceLabel = '';
+        let mergeImplicitTargetSource = '';
 
         function setMergePassportsMode(active) {
             mergePassportsMode = Boolean(active);
@@ -720,16 +738,49 @@
             if (mergeRequestError) {
                 mergeRequestError.textContent = '';
             }
-            pendingMergeSourceLabel = '';
+            if (mergeTargetDtRadio) {
+                mergeTargetDtRadio.checked = false;
+            }
+            if (mergeTargetOdhRadio) {
+                mergeTargetOdhRadio.checked = false;
+            }
+            mergeImplicitTargetSource = '';
         }
 
-        function openMergeRequestModal(sourceLabel) {
-            pendingMergeSourceLabel = (sourceLabel || 'ДТ').trim() || 'ДТ';
+        function openMergeRequestModalWithSources(sourcesSet) {
             if (mergeRequestInput) {
                 mergeRequestInput.value = '';
             }
             if (mergeRequestError) {
                 mergeRequestError.textContent = '';
+            }
+            if (mergeTargetDtRadio) {
+                mergeTargetDtRadio.checked = false;
+            }
+            if (mergeTargetOdhRadio) {
+                mergeTargetOdhRadio.checked = false;
+            }
+            mergeImplicitTargetSource = '';
+            if (sourcesSet.size === 1) {
+                mergeImplicitTargetSource = sourcesSet.values().next().value;
+                if (mergeTargetSourceFieldset) {
+                    mergeTargetSourceFieldset.style.display = 'none';
+                }
+                if (mergePassportsRequestIntro) {
+                    mergePassportsRequestIntro.textContent =
+                        'Укажите номер заявки для объединённого паспорта на карте редактирования.';
+                }
+            } else {
+                if (mergeTargetSourceFieldset) {
+                    mergeTargetSourceFieldset.style.display = '';
+                }
+                if (mergePassportsRequestIntro) {
+                    mergePassportsRequestIntro.textContent =
+                        'В выборе есть паспорта из ДТ и ОДХ. Укажите номер заявки и выберите, в какой системе сохранить объединённый паспорт.';
+                }
+                if (mergeTargetDtRadio) {
+                    mergeTargetDtRadio.checked = true;
+                }
             }
             if (mergeRequestModal) {
                 mergeRequestModal.style.display = 'flex';
@@ -744,14 +795,12 @@
                 return;
             }
             const sources = new Set(
-                checked.map((cb) => (cb.dataset.sourceLabel || 'ДТ').trim() || 'ДТ')
+                checked.map((cb) => {
+                    const s = (cb.dataset.sourceLabel || 'ДТ').trim().toUpperCase();
+                    return s === 'ОДХ' ? 'ОДХ' : 'ДТ';
+                })
             );
-            if (sources.size !== 1) {
-                window.alert('Все выбранные паспорты должны быть из одной системы (только ДТ или только ОДХ).');
-                return;
-            }
-            const src = sources.values().next().value;
-            openMergeRequestModal(src);
+            openMergeRequestModalWithSources(sources);
         }
 
         function submitMergeRequestModal() {
@@ -768,20 +817,37 @@
                 }
                 return;
             }
+            let targetSourceValue = mergeImplicitTargetSource;
+            if (!targetSourceValue) {
+                const targetRadio = document.querySelector('input[name="merge_target_source_ui"]:checked');
+                if (!targetRadio) {
+                    if (mergeRequestError) {
+                        mergeRequestError.textContent = 'Выберите тип итогового паспорта (ДТ или ОДХ).';
+                    }
+                    return;
+                }
+                targetSourceValue = targetRadio.value;
+            }
             const checked = Array.from(document.querySelectorAll('.merge-passport-cb:checked'));
-            if (!mergeRootidsContainer || !formMergePassports || !mergeRequestIdHidden || !mergeSourceLabelHidden) {
+            if (!mergeItemsContainer || !formMergePassports || !mergeRequestIdHidden || !mergeTargetSourceHidden) {
                 return;
             }
-            mergeRootidsContainer.innerHTML = '';
+            mergeItemsContainer.innerHTML = '';
             checked.forEach((cb) => {
-                const inp = document.createElement('input');
-                inp.type = 'hidden';
-                inp.name = 'rootid';
-                inp.value = cb.value || '';
-                mergeRootidsContainer.appendChild(inp);
+                const sl = (cb.dataset.sourceLabel || 'ДТ').trim().toUpperCase() === 'ОДХ' ? 'ОДХ' : 'ДТ';
+                const rid = document.createElement('input');
+                rid.type = 'hidden';
+                rid.name = 'merge_item_rootid';
+                rid.value = cb.value || '';
+                mergeItemsContainer.appendChild(rid);
+                const srcInp = document.createElement('input');
+                srcInp.type = 'hidden';
+                srcInp.name = 'merge_item_source';
+                srcInp.value = sl;
+                mergeItemsContainer.appendChild(srcInp);
             });
             mergeRequestIdHidden.value = raw;
-            mergeSourceLabelHidden.value = pendingMergeSourceLabel || 'ДТ';
+            mergeTargetSourceHidden.value = targetSourceValue;
             formMergePassports.submit();
         }
 
