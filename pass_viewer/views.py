@@ -1159,6 +1159,31 @@ def _get_new_object_relations(geometry, source_label='ДТ'):
         request_objects_row = cursor.fetchone()
     ref_layers = _get_reference_layers(geometry=geometry_norm, distance_meters=100)
 
+    dgi_intersects = None
+    odh_intersects = None
+    dgi_table_name = getattr(settings, 'GIS_DGI_TABLE', 'dgi')
+    odh_table_name = getattr(settings, 'GIS_ODH_TABLE', 'odh')
+    try:
+        with connection.cursor() as cursor:
+            dgi_table_ok = _table_exists(cursor, dgi_table_name)
+        if dgi_table_ok:
+            dgi_intersects = _get_reference_layer_geojson(
+                dgi_table_name, 'ДГИ', geometry=geometry_norm, intersects_only=True
+            )
+    except Exception:
+        logger.exception('_get_new_object_relations: dgi_intersects failed')
+        dgi_intersects = None
+    try:
+        with connection.cursor() as cursor:
+            odh_table_ok = _table_exists(cursor, odh_table_name)
+        if odh_table_ok:
+            odh_intersects = _get_reference_layer_geojson(
+                odh_table_name, 'ОДХ', geometry=geometry_norm, intersects_only=True
+            )
+    except Exception:
+        logger.exception('_get_new_object_relations: odh_intersects failed')
+        odh_intersects = None
+
     return {
         'intersects': intersects_row[0] if intersects_row else None,
         'touches': touches_row[0] if touches_row else None,
@@ -1167,6 +1192,8 @@ def _get_new_object_relations(geometry, source_label='ДТ'):
         'dgi': ref_layers['dgi'],
         'odh': ref_layers['odh'],
         'recaps': ref_layers['recaps'],
+        'dgi_intersects': dgi_intersects,
+        'odh_intersects': odh_intersects,
     }
 
 
@@ -1530,7 +1557,9 @@ def _check_recap_uniqueness(recap_id):
     return recap_exists
 
 
-def _get_reference_layer_geojson(table_name, source_label, geometry=None, distance_meters=100):
+def _get_reference_layer_geojson(
+    table_name, source_label, geometry=None, distance_meters=100, intersects_only=False
+):
     geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
     customer_field_pref = getattr(settings, 'GIS_OBJECT_CUSTOMER_FIELD', 'CustomerLegalPersonId')
     department_field_pref = getattr(settings, 'GIS_OBJECT_DEPARTMENT_FIELD', 'DepartmentLegalPersonId')
@@ -1626,22 +1655,7 @@ def _get_reference_layer_geojson(table_name, source_label, geometry=None, distan
             cursor.execute(query, [source_label])
         else:
             geometry_json = geometry if isinstance(geometry, str) else json.dumps(geometry)
-            query = (
-                "WITH input AS ("
-                f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
-                "), rel AS ("
-                f" SELECT t.{_quote_ident(geom_field)} AS geom, "
-                f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
-                f"FROM {_quote_ident(table_name)} t, input i"
-                " WHERE ST_DWithin("
-                f"   t.{_quote_ident(geom_field)}::geography,"
-                "   ST_Boundary(i.geom)::geography,"
-                "   %s"
-                " ) OR ST_Intersects("
-                f"   t.{_quote_ident(geom_field)},"
-                "   i.geom"
-                " )"
-                ") "
+            select_json_tail = (
                 "SELECT jsonb_build_object("
                 " 'type', 'FeatureCollection',"
                 " 'features', COALESCE(jsonb_agg(jsonb_build_object("
@@ -1663,7 +1677,45 @@ def _get_reference_layer_geojson(table_name, source_label, geometry=None, distan
                 " )), '[]'::jsonb)"
                 ")::text FROM rel"
             )
-            cursor.execute(query, [geometry_json, distance_meters, source_label])
+            if intersects_only:
+                query = (
+                    "WITH input AS ("
+                    f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+                    "), input_parts AS ("
+                    " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
+                    "), rel AS ("
+                    f" SELECT t.{_quote_ident(geom_field)} AS geom, "
+                    f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
+                    f"FROM {_quote_ident(table_name)} t, input i"
+                    f" WHERE ST_Intersects(t.{_quote_ident(geom_field)}, i.geom)"
+                    "   AND NOT EXISTS ("
+                    "       SELECT 1 FROM input_parts p"
+                    f"       WHERE ST_Equals(t.{_quote_ident(geom_field)}, p.geom)"
+                    "   )"
+                    ") "
+                    + select_json_tail
+                )
+                cursor.execute(query, [geometry_json, source_label])
+            else:
+                query = (
+                    "WITH input AS ("
+                    f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+                    "), rel AS ("
+                    f" SELECT t.{_quote_ident(geom_field)} AS geom, "
+                    f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
+                    f"FROM {_quote_ident(table_name)} t, input i"
+                    " WHERE ST_DWithin("
+                    f"   t.{_quote_ident(geom_field)}::geography,"
+                    "   ST_Boundary(i.geom)::geography,"
+                    "   %s"
+                    " ) OR ST_Intersects("
+                    f"   t.{_quote_ident(geom_field)},"
+                    "   i.geom"
+                    " )"
+                    ") "
+                    + select_json_tail
+                )
+                cursor.execute(query, [geometry_json, distance_meters, source_label])
         row = cursor.fetchone()
         return row[0] if row else None
 
