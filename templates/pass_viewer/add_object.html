@@ -67,6 +67,10 @@
                     <input type="radio" name="save-target-table" id="save-target-odh" value="ОДХ" />
                     ОДХ (odh)
                 </label>
+                <label class="modal-label" style="font-weight: normal; margin: 0;">
+                    <input type="radio" name="save-target-table" id="save-target-ozn" value="ОЗН" />
+                    ОО (ozn)
+                </label>
             </div>
             <p class="note" style="margin: 0 0 4px; font-size: 12px; color: #64748b;">
                 Если в выбранной таблице уже есть строка с этим номером заявки для вашего владельца, она будет перезаписана.
@@ -89,6 +93,10 @@
             <label class="modal-label auto-remove-option">
                 ОДХ
                 <input type="checkbox" id="auto-remove-odh" checked />
+            </label>
+            <label class="modal-label auto-remove-option">
+                ОО
+                <input type="checkbox" id="auto-remove-ozn" checked />
             </label>
             <label class="modal-label auto-remove-option">
                 ДГИ
@@ -488,6 +496,7 @@
     {{ dgi_geometry_json|default_if_none:"null"|json_script:"dgi-geometry-data" }}
     {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
     {{ ozn_geometry_json|default_if_none:"null"|json_script:"ozn-geometry-data" }}
+    {{ renew_geometry_json|default_if_none:"null"|json_script:"renew-geometry-data" }}
     {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
     {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
     <script>
@@ -556,6 +565,41 @@
                     {type: 'Feature', properties: {}, geometry: geojsonObject}
                 ]
             };
+        }
+
+        function toEditableFeatureCollection(geojsonObject) {
+            const normalized = normalizeGeoJson(geojsonObject);
+            if (!normalized) {
+                return null;
+            }
+            const features = [];
+            const sourceFeatures = normalized.type === 'Feature'
+                ? [normalized]
+                : (Array.isArray(normalized.features) ? normalized.features : []);
+            sourceFeatures.forEach((feature) => {
+                const geometry = feature?.geometry;
+                if (!geometry) {
+                    return;
+                }
+                if (geometry.type === 'Polygon') {
+                    features.push({
+                        type: 'Feature',
+                        properties: feature.properties || {},
+                        geometry: geometry
+                    });
+                    return;
+                }
+                if (geometry.type === 'MultiPolygon' && Array.isArray(geometry.coordinates)) {
+                    geometry.coordinates.forEach((polyCoords) => {
+                        features.push({
+                            type: 'Feature',
+                            properties: feature.properties || {},
+                            geometry: {type: 'Polygon', coordinates: polyCoords}
+                        });
+                    });
+                }
+            });
+            return {type: 'FeatureCollection', features: features};
         }
 
         function mergeAdjacentDtPassportsGeoJson(intersectsGeo, touchesGeo, nearbyGeo) {
@@ -751,6 +795,7 @@
         const snapDebugFixedEl = {set textContent(_) {}};
         const exportLinksEl = document.getElementById('export-links');
         const selectedSourceLabel = "{{ selected_source_label|default:'ДТ'|escapejs }}";
+        const selectedRootid = "{{ selected_rootid|default:''|escapejs }}";
         const effectiveEntryRequestId = "{{ effective_request_id|default:''|escapejs }}";
         const saveModal = document.getElementById('save-modal');
         const saveModalCancel = document.getElementById('save-modal-cancel');
@@ -760,12 +805,14 @@
         const saveModalErrorEl = document.getElementById('save-modal-error');
         const saveTargetDtRadio = document.getElementById('save-target-dt');
         const saveTargetOdhRadio = document.getElementById('save-target-odh');
+        const saveTargetOznRadio = document.getElementById('save-target-ozn');
         const autoRemoveModal = document.getElementById('auto-remove-modal');
         const autoRemoveModalCancel = document.getElementById('auto-remove-modal-cancel');
         const autoRemoveModalSubmit = document.getElementById('auto-remove-modal-submit');
         const autoRemoveModalErrorEl = document.getElementById('auto-remove-modal-error');
         const autoRemoveDtCheckbox = document.getElementById('auto-remove-dt');
         const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
+        const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
         const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
         const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
@@ -782,6 +829,7 @@
         const dgiSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
         const oznSignalGroup = L.featureGroup().addTo(map);
+        const renewGroup = L.featureGroup().addTo(map);
         const recapsGroup = L.featureGroup().addTo(map);
         const commentPointsGroup = L.featureGroup().addTo(map);
         let drawControl = null;
@@ -807,6 +855,7 @@
         let commentPointMode = false;
         let pendingCommentLatLng = null;
         let commentPickCaptureLayer = null;
+        autoRemoveIntersectionsButton.disabled = true;
 
         function buildCommentPointPopupHtml(props) {
             const p = props || {};
@@ -1056,6 +1105,19 @@
             });
             return count;
         };
+        const filterOutSelectedRootid = (geojson, selectedRootidValue) => {
+            const selectedRootidText = String(selectedRootidValue || '').trim();
+            if (!selectedRootidText || !geojson || geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
+                return geojson;
+            }
+            return {
+                ...geojson,
+                features: geojson.features.filter((feature) => {
+                    const rid = String(feature?.properties?.rootid ?? '').trim();
+                    return rid !== selectedRootidText;
+                }),
+            };
+        };
         function refreshObjectLayersControl() {
             if (objectLayersControl) {
                 map.removeControl(objectLayersControl);
@@ -1066,7 +1128,8 @@
             overlays[`Заявки (${countGroupFeatures(relationRequestObjectsGroup)})`] = relationRequestObjectsGroup;
             overlays[`ДГИ (${countGroupFeatures(dgiSignalGroup)})`] = dgiSignalGroup;
             overlays[`ОДХ (${countGroupFeatures(odhSignalGroup)})`] = odhSignalGroup;
-            overlays[`ОЗН (${countGroupFeatures(oznSignalGroup)})`] = oznSignalGroup;
+            overlays[`ОО (${countGroupFeatures(oznSignalGroup)})`] = oznSignalGroup;
+            overlays[`Реновация (${countGroupFeatures(renewGroup)})`] = renewGroup;
             overlays[`Заявки на досъём (${countGroupFeatures(recapsGroup)})`] = recapsGroup;
             overlays[`Комментарии (${countGroupFeatures(commentPointsGroup)})`] = commentPointsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topright'});
@@ -1187,7 +1250,7 @@
                             : String(ownerLegalPersonId || '-');
                         layer.bindPopup(
                             '<div style="min-width: 220px;">' +
-                            '<div><strong>' + (isOzn ? 'ОЗН' : 'ОДХ') + '</strong></div>' +
+                            '<div><strong>' + (isOzn ? 'ОО' : 'ОДХ') + '</strong></div>' +
                             (!rootidText || ['null', 'none', '-'].includes(rootidText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Паспорт №:</strong> ' + escapeHtml(rootid) + '</div>')) +
                             (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
                             (isOzn
@@ -1237,6 +1300,29 @@
             addSignalTapeLayer(odhSignalGroup, odhGeo, 'ОДХ');
             addSignalTapeLayer(oznSignalGroup, oznGeo, 'ОЗН');
         }
+        function renderRenewLayer(renewGeo) {
+            renewGroup.clearLayers();
+            const geo = normalizeGeoJson(renewGeo);
+            if (!geo) {
+                return;
+            }
+            L.geoJSON(geo, {
+                style: {color: '#b45309', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.25},
+                onEachFeature: (feature, layer) => {
+                    const name = feature?.properties?.name ?? '-';
+                    const nameText = String(name ?? '').trim();
+                    layer.bindPopup(
+                        '<div style="min-width: 220px;">' +
+                        '<div><strong>Реновация</strong></div>' +
+                        (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase())
+                            ? ''
+                            : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
+                        '</div>'
+                    );
+                }
+            }).addTo(renewGroup);
+        }
+
         function renderRecapsLayer(recapsGeo) {
             recapsGroup.clearLayers();
             const geo = normalizeGeoJson(recapsGeo);
@@ -1354,6 +1440,7 @@
             if (isMissingRootid && hasRequestId) {
                 return (
                     '<div style="min-width: 220px;">' +
+                    '<div><strong>ДТ</strong></div>' +
                     '<div><strong>№ Заявки:</strong> ' + escapeHtml(requestId || '-') + '</div>' +
                     '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
                     ownerLines +
@@ -1362,6 +1449,7 @@
             }
             return (
                 '<div style="min-width: 220px;">' +
+                '<div><strong>ДТ</strong></div>' +
                 '<div><strong>№ Паспорта:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
                 '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
                 ownerLines +
@@ -1435,7 +1523,7 @@
                     : String(ownerLegalPersonId || '-');
                 return (
                     '<div style="min-width: 220px;">' +
-                    '<div><strong>' + (src === 'ОЗН' ? 'ОЗН' : 'ОДХ') + '</strong></div>' +
+                    '<div><strong>' + (src === 'ОЗН' ? 'ОО' : 'ОДХ') + '</strong></div>' +
                     (!rootidText || ['null', 'none', '-'].includes(rootidText.toLowerCase())
                         ? ''
                         : '<div style="margin-top: 6px;"><strong>Паспорт №:</strong> ' + escapeHtml(rootid) + '</div>') +
@@ -1556,7 +1644,7 @@
 
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
-            [relationAdjacentDtPassportsGroup, relationRequestObjectsGroup, dgiSignalGroup, odhSignalGroup, oznSignalGroup, recapsGroup].forEach((group) => {
+            [relationAdjacentDtPassportsGroup, relationRequestObjectsGroup, dgiSignalGroup, odhSignalGroup, oznSignalGroup, renewGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
@@ -2012,8 +2100,11 @@
                 dgi: normalizeGeoJson(layers.dgi),
                 odh: normalizeGeoJson(layers.odh),
                 ozn: normalizeGeoJson(layers.ozn),
+                renew: normalizeGeoJson(layers.renew),
                 recaps: normalizeGeoJson(layers.recaps),
             };
+            parsed.odh = filterOutSelectedRootid(parsed.odh, selectedRootid);
+            parsed.ozn = filterOutSelectedRootid(parsed.ozn, selectedRootid);
 
             const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsed.intersects, parsed.touches, parsed.nearby);
             if (mergedAdjacentDt) {
@@ -2034,6 +2125,7 @@
             }
             renderReferenceSignalLayers(parsed.dgi, parsed.odh, parsed.ozn);
             renderRecapsLayer(parsed.recaps);
+            renderRenewLayer(parsed.renew);
             refreshObjectLayersControl();
             rebuildSnapGuideLines();
             if (isEditing) {
@@ -2142,6 +2234,9 @@
             if (autoRemoveOdhCheckbox.checked) {
                 sources.push('odh');
             }
+            if (autoRemoveOznCheckbox.checked) {
+                sources.push('ozn');
+            }
             if (autoRemoveDgiCheckbox.checked) {
                 sources.push('dgi');
             }
@@ -2224,7 +2319,7 @@
                 autoRemoveModalErrorEl.textContent = error.message || 'Не удалось удалить пересечения.';
                 statusEl.textContent = error.message || 'Не удалось удалить пересечения.';
             } finally {
-                autoRemoveIntersectionsButton.disabled = false;
+                autoRemoveIntersectionsButton.disabled = !isEditing;
                 autoRemoveModalSubmit.disabled = false;
             }
         }
@@ -2286,6 +2381,7 @@
             }
             cancelEditButton.style.display = enabled ? 'inline-block' : 'none';
             saveButton.style.display = enabled ? 'inline-block' : 'none';
+            autoRemoveIntersectionsButton.disabled = !enabled;
             editButton.textContent = enabled ? 'Режим редактирования включён' : 'Начать редактирование';
             addPolygonButton.disabled = !enabled;
             cutPolygonButton.disabled = !enabled;
@@ -2709,6 +2805,9 @@
         }
 
         function getSaveTargetSourceLabel() {
+            if (saveTargetOznRadio && saveTargetOznRadio.checked) {
+                return 'ОЗН';
+            }
             if (saveTargetOdhRadio && saveTargetOdhRadio.checked) {
                 return 'ОДХ';
             }
@@ -2719,7 +2818,11 @@
             newObjectNameInput.value = '';
             newObjectRequestIdInput.value = (effectiveEntryRequestId || '').trim();
             saveModalErrorEl.textContent = '';
-            if (selectedSourceLabel === 'ОДХ') {
+            if (selectedSourceLabel === 'ОЗН') {
+                if (saveTargetOznRadio) {
+                    saveTargetOznRadio.checked = true;
+                }
+            } else if (selectedSourceLabel === 'ОДХ') {
                 if (saveTargetOdhRadio) {
                     saveTargetOdhRadio.checked = true;
                 }
@@ -3172,9 +3275,12 @@
                     request_id: requestId
                 });
                 closeSaveModal();
+                const savedTableLabel = saveTargetLabel === 'ОЗН'
+                    ? 'ОО'
+                    : (saveTargetLabel === 'ОДХ' ? 'ОДХ' : 'ДТ');
                 statusEl.textContent =
                     'Объект сохранён в ' +
-                    (saveTargetLabel === 'ОДХ' ? 'ОДХ' : 'ДТ') +
+                    savedTableLabel +
                     '. Идентификатор владельца: ' +
                     saveResult.owner_id +
                     '. Файлы сформированы.';

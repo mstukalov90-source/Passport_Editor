@@ -181,12 +181,15 @@ def _get_id_name_lookup_value(legal_person_id):
 
 def _get_owned_objects(owner_legal_person_id):
     primary_table = settings.GIS_OBJECT_TABLE
+    odh_table = getattr(settings, 'GIS_ODH_TABLE', 'odh')
+    ozn_table = getattr(settings, 'GIS_OZN_TABLE', 'ozn')
     rootid_field = settings.GIS_OBJECT_ROOTID_FIELD
     name_field = settings.GIS_OBJECT_NAME_FIELD
     owner_field_pref = getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
     odh_customer_field_pref = getattr(settings, 'GIS_ODH_CUSTOMER_FIELD', 'CustomerLegalPersonId')
+    ozn_owner_field_pref = getattr(settings, 'GIS_OZN_OWNER_FIELD', 'ownerlegalpersonalid')
     request_id_field_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
-    tables_to_query = [primary_table, 'odh']
+    tables_to_query = [primary_table, odh_table, ozn_table]
 
     owned_items = []
     seen_keys = set()
@@ -196,10 +199,20 @@ def _get_owned_objects(owner_legal_person_id):
             if table in seen_tables:
                 continue
             seen_tables.add(table)
-            source_label = 'ОДХ' if table.lower() == 'odh' else 'ДТ'
+            table_norm = table.lower()
+            odh_table_norm = odh_table.lower()
+            ozn_table_norm = ozn_table.lower()
+            if table_norm == odh_table_norm:
+                source_label = 'ОДХ'
+            elif table_norm == ozn_table_norm:
+                source_label = 'ОЗН'
+            else:
+                source_label = 'ДТ'
             owner_field_candidates = (
                 [odh_customer_field_pref, owner_field_pref]
-                if table.lower() == 'odh'
+                if table_norm == odh_table_norm
+                else [ozn_owner_field_pref, owner_field_pref]
+                if table_norm == ozn_table_norm
                 else [owner_field_pref]
             )
             owner_field = None
@@ -255,11 +268,20 @@ def _get_owned_objects(owner_legal_person_id):
 
 def _normalize_source_label(value):
     source = str(value or '').strip().upper()
-    return 'ОДХ' if source == 'ОДХ' else 'ДТ'
+    if source == 'ОДХ':
+        return 'ОДХ'
+    if source in {'ОЗН', 'ОО'}:
+        return 'ОЗН'
+    return 'ДТ'
 
 
 def _get_source_table(source_label):
-    return getattr(settings, 'GIS_ODH_TABLE', 'odh') if _normalize_source_label(source_label) == 'ОДХ' else settings.GIS_OBJECT_TABLE
+    normalized_source = _normalize_source_label(source_label)
+    if normalized_source == 'ОДХ':
+        return getattr(settings, 'GIS_ODH_TABLE', 'odh')
+    if normalized_source == 'ОЗН':
+        return getattr(settings, 'GIS_OZN_TABLE', 'ozn')
+    return settings.GIS_OBJECT_TABLE
 
 
 def _get_recap_counts_by_request_ids(request_ids):
@@ -294,6 +316,8 @@ def _get_owned_request_object(owner_legal_person_id, object_key, source_label='�
     owner_field_pref = (
         getattr(settings, 'GIS_ODH_CUSTOMER_FIELD', 'CustomerLegalPersonId')
         if normalized_source == 'ОДХ'
+        else getattr(settings, 'GIS_OZN_OWNER_FIELD', 'ownerlegalpersonalid')
+        if normalized_source == 'ОЗН'
         else getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
     )
     request_id_field_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
@@ -303,14 +327,16 @@ def _get_owned_request_object(owner_legal_person_id, object_key, source_label='�
         name_field = _resolve_column_name(cursor, table, name_field_pref)
         geom_field = _resolve_column_name(cursor, table, geom_field_pref)
         owner_field = _resolve_column_name(cursor, table, owner_field_pref)
-        request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
+        request_id_select_expr = "''::text"
+        if _column_exists(cursor, table, request_id_field_pref):
+            request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
+            request_id_select_expr = f"{_quote_ident(request_id_field)}::text"
         query = (
             f"SELECT ctid::text, {_quote_ident(rootid_field)}::text, {_quote_ident(name_field)}::text, "
-            f"{_quote_ident(request_id_field)}::text, ST_AsGeoJSON({_quote_ident(geom_field)}) "
+            f"{request_id_select_expr}, ST_AsGeoJSON({_quote_ident(geom_field)}) "
             f"FROM {_quote_ident(table)} "
             f"WHERE ctid = %s::tid "
             f"  AND {_quote_ident(owner_field)} = %s "
-            f"  AND {_quote_ident(request_id_field)} IS NOT NULL "
             f"LIMIT 1"
         )
         cursor.execute(query, [object_key, owner_legal_person_id])
@@ -351,13 +377,14 @@ def _find_manual_entry_point(rootid='', name=''):
 
     primary_table = settings.GIS_OBJECT_TABLE
     odh_table = getattr(settings, 'GIS_ODH_TABLE', 'odh')
+    ozn_table = getattr(settings, 'GIS_OZN_TABLE', 'ozn')
     rootid_field_pref = settings.GIS_OBJECT_ROOTID_FIELD
     name_field_pref = settings.GIS_OBJECT_NAME_FIELD
     request_id_field_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
 
     seen_tables = set()
     with connection.cursor() as cursor:
-        for table in [primary_table, odh_table]:
+        for table in [primary_table, odh_table, ozn_table]:
             if table in seen_tables:
                 continue
             seen_tables.add(table)
@@ -396,7 +423,12 @@ def _find_manual_entry_point(rootid='', name=''):
             found_rootid = (row[0] or '').strip()
             found_name = (row[1] or '').strip()
             found_request_id = (row[2] or '').strip()
-            source_label = 'ОДХ' if table.lower() == odh_table.lower() else 'ДТ'
+            if table.lower() == odh_table.lower():
+                source_label = 'ОДХ'
+            elif table.lower() == ozn_table.lower():
+                source_label = 'ОЗН'
+            else:
+                source_label = 'ДТ'
             return {
                 'rootid': found_rootid,
                 'name': found_name,
@@ -431,24 +463,30 @@ def _normalize_merge_items(entry_point):
 
 
 def _merge_group_ids_by_source(merge_items):
-    res = {'ДТ': [], 'ОДХ': []}
+    res = {'ДТ': [], 'ОДХ': [], 'ОЗН': []}
     for it in merge_items or []:
         rid = (it.get('rootid') or '').strip()
         if not rid:
             continue
-        sl = it.get('source_label') or 'ДТ'
-        res['ОДХ' if sl == 'ОДХ' else 'ДТ'].append(rid)
+        sl = _normalize_source_label(it.get('source_label'))
+        if sl == 'ОДХ':
+            res['ОДХ'].append(rid)
+        elif sl == 'ОЗН':
+            res['ОЗН'].append(rid)
+        else:
+            res['ДТ'].append(rid)
     return res
 
 
 def _build_merge_matched_body_sql(cursor, merge_items):
     """
-    SQL-тело для CTE matched: UNION ALL выборок из таблиц ДТ и/или ОДХ.
+    SQL-тело для CTE matched: UNION ALL выборок из таблиц ДТ/ОДХ/ОЗН.
     Возвращает (sql_fragment, list_of_params) или (None, None).
     """
     by = _merge_group_ids_by_source(merge_items)
     dt_table = settings.GIS_OBJECT_TABLE
     odh_table = getattr(settings, 'GIS_ODH_TABLE', 'odh')
+    ozn_table = getattr(settings, 'GIS_OZN_TABLE', 'ozn')
     rootid_pref = settings.GIS_OBJECT_ROOTID_FIELD
     name_pref = settings.GIS_OBJECT_NAME_FIELD
     geom_pref = settings.GIS_OBJECT_GEOM_FIELD
@@ -456,7 +494,7 @@ def _build_merge_matched_body_sql(cursor, merge_items):
 
     parts = []
     params = []
-    for ids, tbl in ((by['ДТ'], dt_table), (by['ОДХ'], odh_table)):
+    for ids, tbl in ((by['ДТ'], dt_table), (by['ОДХ'], odh_table), (by['ОЗН'], ozn_table)):
         if not ids:
             continue
         if not _column_exists(cursor, tbl, rootid_pref) or not _column_exists(cursor, tbl, geom_pref):
@@ -509,6 +547,22 @@ def _get_map_layers(entry_point):
     request_owner_dt_name_select_expr = "NULL::text AS owner_legal_person_name"
     request_owner_odh_select_expr = "NULL::text AS owner_legal_person_id"
     request_owner_odh_name_select_expr = "NULL::text AS owner_legal_person_name"
+    adjacent_customer_select_expr = "NULL::text AS customer_legal_person_id"
+    adjacent_department_select_expr = "NULL::text AS department_legal_person_id"
+    adjacent_customer_name_select_expr = "NULL::text AS customer_legal_person_name"
+    adjacent_department_name_select_expr = "NULL::text AS department_legal_person_name"
+    adjacent_customer_prop_expr = "NULL::text"
+    adjacent_department_prop_expr = "NULL::text"
+    adjacent_customer_name_prop_expr = "NULL::text"
+    adjacent_department_name_prop_expr = "NULL::text"
+    adjacent_owner_select_expr = "NULL::text AS owner_legal_person_id"
+    adjacent_owner_name_select_expr = "NULL::text AS owner_legal_person_name"
+    adjacent_owner_prop_expr = "NULL::text"
+    adjacent_owner_name_prop_expr = "NULL::text"
+    adjacent_rootid_field = rootid_field
+    adjacent_name_field = name_field
+    adjacent_geom_field = geom_field
+    adjacent_request_id_field = request_id_field
     with connection.cursor() as cursor:
         lookup_context = _get_id_names_lookup_context(cursor)
         if _column_exists(cursor, table, customer_field_pref):
@@ -551,6 +605,23 @@ def _get_map_layers(entry_point):
                 f"{_build_id_name_lookup_expr(f't.{_quote_ident(odh_owner_field)}', lookup_context)} "
                 "AS owner_legal_person_name"
             )
+        if _column_exists(cursor, dt_table, rootid_field):
+            adjacent_rootid_field = _resolve_column_name(cursor, dt_table, rootid_field)
+        if _column_exists(cursor, dt_table, name_field):
+            adjacent_name_field = _resolve_column_name(cursor, dt_table, name_field)
+        if _column_exists(cursor, dt_table, geom_field):
+            adjacent_geom_field = _resolve_column_name(cursor, dt_table, geom_field)
+        if _column_exists(cursor, dt_table, request_id_field):
+            adjacent_request_id_field = _resolve_column_name(cursor, dt_table, request_id_field)
+        if _column_exists(cursor, dt_table, owner_field_pref_dt):
+            adjacent_owner_field = _resolve_column_name(cursor, dt_table, owner_field_pref_dt)
+            adjacent_owner_select_expr = f"t.{_quote_ident(adjacent_owner_field)}::text AS owner_legal_person_id"
+            adjacent_owner_prop_expr = "owner_legal_person_id::text"
+            adjacent_owner_name_select_expr = (
+                f"{_build_id_name_lookup_expr(f't.{_quote_ident(adjacent_owner_field)}', lookup_context)} "
+                "AS owner_legal_person_name"
+            )
+            adjacent_owner_name_prop_expr = "owner_legal_person_name::text"
 
     merge_items = _normalize_merge_items(entry_point)
     use_merge = len(merge_items) >= 2
@@ -618,14 +689,14 @@ def _get_map_layers(entry_point):
     intersects_sql = (
         map_layers_cte_open
         + "rel AS ("
-        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
-        f"FROM {table} t, selected s"
+        f" SELECT t.{_quote_ident(adjacent_geom_field)} AS geom, t.{_quote_ident(adjacent_rootid_field)} AS rootid, t.{_quote_ident(adjacent_name_field)} AS name, t.{_quote_ident(adjacent_request_id_field)} AS request_id, "
+        f"{adjacent_customer_select_expr}, {adjacent_department_select_expr}, {adjacent_owner_select_expr}, {adjacent_customer_name_select_expr}, {adjacent_department_name_select_expr}, {adjacent_owner_name_select_expr} "
+        f"FROM {_quote_ident(dt_table)} t, selected s"
         f" WHERE {neighbor_excl}ST_Intersects("
-        f"   t.{geom_field},"
+        f"   t.{_quote_ident(adjacent_geom_field)},"
         "   s.geom"
         " ) AND NOT ST_Touches("
-        f"   t.{geom_field},"
+        f"   t.{_quote_ident(adjacent_geom_field)},"
         "   s.geom"
         " )"
         ") "
@@ -638,10 +709,12 @@ def _get_map_layers(entry_point):
         "       'rootid', rootid::text,"
         "       'name', name::text,"
         "       'request_id', request_id::text,"
-        f"      'customer_legal_person_id', {customer_prop_expr},"
-        f"      'department_legal_person_id', {department_prop_expr},"
-        f"      'customer_legal_person_name', {customer_name_prop_expr},"
-        f"      'department_legal_person_name', {department_name_prop_expr}"
+        f"      'customer_legal_person_id', {adjacent_customer_prop_expr},"
+        f"      'department_legal_person_id', {adjacent_department_prop_expr},"
+        f"      'owner_legal_person_id', {adjacent_owner_prop_expr},"
+        f"      'customer_legal_person_name', {adjacent_customer_name_prop_expr},"
+        f"      'department_legal_person_name', {adjacent_department_name_prop_expr},"
+        f"      'owner_legal_person_name', {adjacent_owner_name_prop_expr}"
         "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
@@ -649,11 +722,11 @@ def _get_map_layers(entry_point):
     touches_sql = (
         map_layers_cte_open
         + "neighbors AS ("
-        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
-        f"FROM {table} t, selected s"
+        f" SELECT t.{_quote_ident(adjacent_geom_field)} AS geom, t.{_quote_ident(adjacent_rootid_field)} AS rootid, t.{_quote_ident(adjacent_name_field)} AS name, t.{_quote_ident(adjacent_request_id_field)} AS request_id, "
+        f"{adjacent_customer_select_expr}, {adjacent_department_select_expr}, {adjacent_owner_select_expr}, {adjacent_customer_name_select_expr}, {adjacent_department_name_select_expr}, {adjacent_owner_name_select_expr} "
+        f"FROM {_quote_ident(dt_table)} t, selected s"
         f" WHERE {neighbor_excl}ST_Touches("
-        f"   t.{geom_field},"
+        f"   t.{_quote_ident(adjacent_geom_field)},"
         "   s.geom"
         " )"
         ") "
@@ -666,10 +739,12 @@ def _get_map_layers(entry_point):
         "       'rootid', rootid::text,"
         "       'name', name::text,"
         "       'request_id', request_id::text,"
-        f"      'customer_legal_person_id', {customer_prop_expr},"
-        f"      'department_legal_person_id', {department_prop_expr},"
-        f"      'customer_legal_person_name', {customer_name_prop_expr},"
-        f"      'department_legal_person_name', {department_name_prop_expr}"
+        f"      'customer_legal_person_id', {adjacent_customer_prop_expr},"
+        f"      'department_legal_person_id', {adjacent_department_prop_expr},"
+        f"      'owner_legal_person_id', {adjacent_owner_prop_expr},"
+        f"      'customer_legal_person_name', {adjacent_customer_name_prop_expr},"
+        f"      'department_legal_person_name', {adjacent_department_name_prop_expr},"
+        f"      'owner_legal_person_name', {adjacent_owner_name_prop_expr}"
         "   )"
         " )), '[]'::jsonb)"
         ")::text FROM neighbors"
@@ -677,17 +752,17 @@ def _get_map_layers(entry_point):
     nearby_sql = (
         map_layers_cte_open
         + "nearby AS ("
-        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
-        f"FROM {table} t, selected s"
+        f" SELECT t.{_quote_ident(adjacent_geom_field)} AS geom, t.{_quote_ident(adjacent_rootid_field)} AS rootid, t.{_quote_ident(adjacent_name_field)} AS name, t.{_quote_ident(adjacent_request_id_field)} AS request_id, "
+        f"{adjacent_customer_select_expr}, {adjacent_department_select_expr}, {adjacent_owner_select_expr}, {adjacent_customer_name_select_expr}, {adjacent_department_name_select_expr}, {adjacent_owner_name_select_expr} "
+        f"FROM {_quote_ident(dt_table)} t, selected s"
         f" WHERE {neighbor_excl}ST_DWithin("
-        f"   t.{geom_field}::geography,"
-        "   s.geom::geography, 10"
+        f"   t.{_quote_ident(adjacent_geom_field)}::geography,"
+        "   s.geom::geography, 100"
         " ) AND NOT ST_Touches("
-        f"   t.{geom_field},"
+        f"   t.{_quote_ident(adjacent_geom_field)},"
         "   s.geom"
         " ) AND NOT ST_Intersects("
-        f"   t.{geom_field},"
+        f"   t.{_quote_ident(adjacent_geom_field)},"
         "   s.geom"
         " )"
         ") "
@@ -700,10 +775,12 @@ def _get_map_layers(entry_point):
         "       'rootid', rootid::text,"
         "       'name', name::text,"
         "       'request_id', request_id::text,"
-        f"      'customer_legal_person_id', {customer_prop_expr},"
-        f"      'department_legal_person_id', {department_prop_expr},"
-        f"      'customer_legal_person_name', {customer_name_prop_expr},"
-        f"      'department_legal_person_name', {department_name_prop_expr}"
+        f"      'customer_legal_person_id', {adjacent_customer_prop_expr},"
+        f"      'department_legal_person_id', {adjacent_department_prop_expr},"
+        f"      'owner_legal_person_id', {adjacent_owner_prop_expr},"
+        f"      'customer_legal_person_name', {adjacent_customer_name_prop_expr},"
+        f"      'department_legal_person_name', {adjacent_department_name_prop_expr},"
+        f"      'owner_legal_person_name', {adjacent_owner_name_prop_expr}"
         "   )"
         " )), '[]'::jsonb)"
         ")::text FROM nearby"
@@ -906,7 +983,6 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
     geometry_norm = _to_intersection_geometry(geometry)
     if not geometry_norm:
         raise ValueError('Unsupported geometry payload for relation checks.')
-    table = _get_source_table(source_label)
     dt_table = settings.GIS_OBJECT_TABLE
     odh_table = getattr(settings, 'GIS_ODH_TABLE', 'odh')
     geom_field = settings.GIS_OBJECT_GEOM_FIELD
@@ -921,31 +997,42 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
 
     customer_select_expr = "NULL::text AS customer_legal_person_id"
     department_select_expr = "NULL::text AS department_legal_person_id"
+    owner_select_expr = "NULL::text AS owner_legal_person_id"
     customer_name_select_expr = "NULL::text AS customer_legal_person_name"
     department_name_select_expr = "NULL::text AS department_legal_person_name"
+    owner_name_select_expr = "NULL::text AS owner_legal_person_name"
     customer_prop_expr = "customer_legal_person_id::text"
     department_prop_expr = "department_legal_person_id::text"
+    owner_prop_expr = "owner_legal_person_id::text"
     customer_name_prop_expr = "customer_legal_person_name::text"
     department_name_prop_expr = "department_legal_person_name::text"
+    owner_name_prop_expr = "owner_legal_person_name::text"
     request_owner_dt_select_expr = "NULL::text AS owner_legal_person_id"
     request_owner_dt_name_select_expr = "NULL::text AS owner_legal_person_name"
     request_owner_odh_select_expr = "NULL::text AS owner_legal_person_id"
     request_owner_odh_name_select_expr = "NULL::text AS owner_legal_person_name"
     with connection.cursor() as cursor:
         lookup_context = _get_id_names_lookup_context(cursor)
-        if _column_exists(cursor, table, customer_field_pref):
-            customer_field = _resolve_column_name(cursor, table, customer_field_pref)
-            customer_select_expr = f"{_quote_ident(customer_field)}::text AS customer_legal_person_id"
+        if _column_exists(cursor, dt_table, customer_field_pref):
+            customer_field = _resolve_column_name(cursor, dt_table, customer_field_pref)
+            customer_select_expr = f"t.{_quote_ident(customer_field)}::text AS customer_legal_person_id"
             customer_name_select_expr = (
                 f"{_build_id_name_lookup_expr(f't.{_quote_ident(customer_field)}', lookup_context)} "
                 "AS customer_legal_person_name"
             )
-        if _column_exists(cursor, table, department_field_pref):
-            department_field = _resolve_column_name(cursor, table, department_field_pref)
-            department_select_expr = f"{_quote_ident(department_field)}::text AS department_legal_person_id"
+        if _column_exists(cursor, dt_table, department_field_pref):
+            department_field = _resolve_column_name(cursor, dt_table, department_field_pref)
+            department_select_expr = f"t.{_quote_ident(department_field)}::text AS department_legal_person_id"
             department_name_select_expr = (
                 f"{_build_id_name_lookup_expr(f't.{_quote_ident(department_field)}', lookup_context)} "
                 "AS department_legal_person_name"
+            )
+        if _column_exists(cursor, dt_table, owner_field_pref_dt):
+            owner_field = _resolve_column_name(cursor, dt_table, owner_field_pref_dt)
+            owner_select_expr = f"t.{_quote_ident(owner_field)}::text AS owner_legal_person_id"
+            owner_name_select_expr = (
+                f"{_build_id_name_lookup_expr(f't.{_quote_ident(owner_field)}', lookup_context)} "
+                "AS owner_legal_person_name"
             )
         if _column_exists(cursor, dt_table, owner_field_pref_dt):
             dt_owner_field = _resolve_column_name(cursor, dt_table, owner_field_pref_dt)
@@ -969,8 +1056,8 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), rel AS ("
         f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
-        f"FROM {table} t, input i"
+        f"{customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr} "
+        f"FROM {_quote_ident(dt_table)} t, input i"
         f" WHERE ST_Intersects(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
         "       SELECT 1 FROM input_parts p"
@@ -988,8 +1075,10 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         "       'request_id', request_id::text,"
         f"      'customer_legal_person_id', {customer_prop_expr},"
         f"      'department_legal_person_id', {department_prop_expr},"
+        f"      'owner_legal_person_id', {owner_prop_expr},"
         f"      'customer_legal_person_name', {customer_name_prop_expr},"
-        f"      'department_legal_person_name', {department_name_prop_expr}"
+        f"      'department_legal_person_name', {department_name_prop_expr},"
+        f"      'owner_legal_person_name', {owner_name_prop_expr}"
         "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
@@ -1001,8 +1090,8 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), rel AS ("
         f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
-        f"FROM {table} t, input i"
+        f"{customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr} "
+        f"FROM {_quote_ident(dt_table)} t, input i"
         f" WHERE ST_Touches(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
         "       SELECT 1 FROM input_parts p"
@@ -1020,8 +1109,10 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         "       'request_id', request_id::text,"
         f"      'customer_legal_person_id', {customer_prop_expr},"
         f"      'department_legal_person_id', {department_prop_expr},"
+        f"      'owner_legal_person_id', {owner_prop_expr},"
         f"      'customer_legal_person_name', {customer_name_prop_expr},"
-        f"      'department_legal_person_name', {department_name_prop_expr}"
+        f"      'department_legal_person_name', {department_name_prop_expr},"
+        f"      'owner_legal_person_name', {owner_name_prop_expr}"
         "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
@@ -1033,9 +1124,9 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), rel AS ("
         f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
-        f"FROM {table} t, input i"
-        f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
+        f"{customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr} "
+        f"FROM {_quote_ident(dt_table)} t, input i"
+        f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 100)"
         f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
         f"   AND NOT ST_Intersects(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
@@ -1054,8 +1145,10 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         "       'request_id', request_id::text,"
         f"      'customer_legal_person_id', {customer_prop_expr},"
         f"      'department_legal_person_id', {department_prop_expr},"
+        f"      'owner_legal_person_id', {owner_prop_expr},"
         f"      'customer_legal_person_name', {customer_name_prop_expr},"
-        f"      'department_legal_person_name', {department_name_prop_expr}"
+        f"      'department_legal_person_name', {department_name_prop_expr},"
+        f"      'owner_legal_person_name', {owner_name_prop_expr}"
         "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
@@ -1198,6 +1291,7 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         'dgi': ref_layers['dgi'],
         'odh': ref_layers['odh'],
         'ozn': ref_layers['ozn'],
+        'renew': ref_layers['renew'],
         'recaps': ref_layers['recaps'],
         'dgi_intersects': dgi_intersects,
         'odh_intersects': odh_intersects,
@@ -1247,8 +1341,8 @@ def _remove_intersections_from_geometry(
         return None
 
     source_tokens = {str(value).strip().lower() for value in (selected_sources or []) if str(value).strip()}
-    allowed_tokens = {'dt', 'odh', 'dgi'}
-    requested_tokens = [token for token in ('dt', 'odh', 'dgi') if token in source_tokens and token in allowed_tokens]
+    allowed_tokens = {'dt', 'odh', 'ozn', 'dgi'}
+    requested_tokens = [token for token in ('dt', 'odh', 'ozn', 'dgi') if token in source_tokens and token in allowed_tokens]
     if not requested_tokens:
         return geometry_norm
 
@@ -1262,6 +1356,7 @@ def _remove_intersections_from_geometry(
     token_to_table = {
         'dt': settings.GIS_OBJECT_TABLE,
         'odh': getattr(settings, 'GIS_ODH_TABLE', 'odh'),
+        'ozn': getattr(settings, 'GIS_OZN_TABLE', 'ozn'),
         'dgi': getattr(settings, 'GIS_DGI_TABLE', 'dgi'),
     }
 
@@ -1278,7 +1373,11 @@ def _remove_intersections_from_geometry(
             geom_field = _resolve_column_name(cursor, table_name, settings.GIS_OBJECT_GEOM_FIELD)
             exclude_selected_clause = ""
             exclude_selected_params = []
-            if (token == 'dt' and normalized_source == 'ДТ') or (token == 'odh' and normalized_source == 'ОДХ'):
+            if (
+                (token == 'dt' and normalized_source == 'ДТ')
+                or (token == 'odh' and normalized_source == 'ОДХ')
+                or (token == 'ozn' and normalized_source == 'ОЗН')
+            ):
                 exclude_conditions = []
                 if selected_rootid_text:
                     rootid_field = _resolve_column_name(cursor, table_name, settings.GIS_OBJECT_ROOTID_FIELD)
@@ -1493,6 +1592,8 @@ def _create_new_object(username, geometry, name, request_id, source_label='ДТ'
     owner_field_pref = (
         getattr(settings, 'GIS_ODH_CUSTOMER_FIELD', 'CustomerLegalPersonId')
         if normalized_source == 'ОДХ'
+        else getattr(settings, 'GIS_OZN_OWNER_FIELD', 'ownerlegalpersonalid')
+        if normalized_source == 'ОЗН'
         else getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
     )
     request_id_field_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
@@ -1907,7 +2008,7 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100, request_id_fil
 
 
 def _get_reference_layers(geometry=None, distance_meters=100, request_id_filter=None):
-    layers = {'dgi': None, 'odh': None, 'ozn': None, 'recaps': None}
+    layers = {'dgi': None, 'odh': None, 'ozn': None, 'renew': None, 'recaps': None}
     try:
         layers['dgi'] = _get_reference_layer_geojson('dgi', 'ДГИ', geometry=geometry, distance_meters=distance_meters)
     except Exception:
@@ -1925,6 +2026,15 @@ def _get_reference_layers(geometry=None, distance_meters=100, request_id_filter=
         )
     except Exception:
         layers['ozn'] = None
+    try:
+        layers['renew'] = _get_reference_layer_geojson(
+            getattr(settings, 'GIS_RENEW_TABLE', 'renew'),
+            'Реновация',
+            geometry=geometry,
+            distance_meters=distance_meters,
+        )
+    except Exception:
+        layers['renew'] = None
     try:
         layers['recaps'] = _get_recaps_layer_geojson(
             geometry=geometry,
@@ -2051,6 +2161,7 @@ def main(request):
             'dgi_geometry_json': reference_layers['dgi'],
             'odh_geometry_json': reference_layers['odh'],
             'ozn_geometry_json': reference_layers['ozn'],
+            'renew_geometry_json': reference_layers['renew'],
             'recaps_geometry_json': reference_layers['recaps'],
             'query_error': query_error,
         },
@@ -2301,6 +2412,8 @@ def delete_owned_object(request):
     owner_field_pref = (
         getattr(settings, 'GIS_ODH_CUSTOMER_FIELD', 'CustomerLegalPersonId')
         if source_label == 'ОДХ'
+        else getattr(settings, 'GIS_OZN_OWNER_FIELD', 'ownerlegalpersonalid')
+        if source_label == 'ОЗН'
         else getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
     )
     request_id_field_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
@@ -2359,8 +2472,10 @@ def add_object(request):
             'dgi_geometry_json': None,
             'odh_geometry_json': None,
             'ozn_geometry_json': None,
+            'renew_geometry_json': None,
             'recaps_geometry_json': None,
             'request_objects_geometry_json': None,
+            'selected_rootid': (entry_point.get('rootid') or '').strip(),
             'selected_source_label': _normalize_source_label(entry_point.get('source_label')),
             'effective_request_id': effective_request_id,
         },
@@ -2410,6 +2525,7 @@ def add_recap(request):
             'request_id': selected_object['request_id'] or request_id,
             'name': selected_object['name'] or name,
             'object_key': selected_object['object_key'] or object_key,
+            'selected_rootid': selected_object['rootid'] or '',
             'selected_source_label': selected_object.get('source_label') or source_label,
             'selected_geometry_json': selected_object['geometry_json'],
             'intersects_geometry_json': initial_relations.get('intersects'),
@@ -2419,6 +2535,7 @@ def add_recap(request):
             'dgi_geometry_json': reference_layers['dgi'],
             'odh_geometry_json': reference_layers['odh'],
             'ozn_geometry_json': reference_layers['ozn'],
+            'renew_geometry_json': reference_layers['renew'],
             'recaps_geometry_json': reference_layers['recaps'],
             'initial_recap_id': initial_recap_id,
         },

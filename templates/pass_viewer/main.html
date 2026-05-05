@@ -101,6 +101,10 @@
                 <input type="checkbox" id="auto-remove-odh" checked />
             </label>
             <label class="modal-label auto-remove-option">
+                ОО
+                <input type="checkbox" id="auto-remove-ozn" checked />
+            </label>
+            <label class="modal-label auto-remove-option">
                 ДГИ
                 <input type="checkbox" id="auto-remove-dgi" checked />
             </label>
@@ -475,6 +479,7 @@
     {{ dgi_geometry_json|default_if_none:"null"|json_script:"dgi-geometry-data" }}
     {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
     {{ ozn_geometry_json|default_if_none:"null"|json_script:"ozn-geometry-data" }}
+    {{ renew_geometry_json|default_if_none:"null"|json_script:"renew-geometry-data" }}
     {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
     {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
     <script>
@@ -681,6 +686,7 @@
             if (isMissingRootid && hasRequestId) {
                 return (
                     '<div style="min-width: 220px;">' +
+                    '<div><strong>ДТ</strong></div>' +
                     '<div><strong>№ Заявки:</strong> ' + escapeHtml(requestId || '-') + '</div>' +
                     '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
                     ownerLines +
@@ -689,6 +695,7 @@
             }
             return (
                 '<div style="min-width: 220px;">' +
+                '<div><strong>ДТ</strong></div>' +
                 '<div><strong>№ Паспорта:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
                 '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
                 ownerLines +
@@ -762,7 +769,7 @@
                     : String(ownerLegalPersonId || '-');
                 return (
                     '<div style="min-width: 220px;">' +
-                    '<div><strong>' + (src === 'ОЗН' ? 'ОЗН' : 'ОДХ') + '</strong></div>' +
+                    '<div><strong>' + (src === 'ОЗН' ? 'ОО' : 'ОДХ') + '</strong></div>' +
                     (!rootidText || ['null', 'none', '-'].includes(rootidText.toLowerCase())
                         ? ''
                         : '<div style="margin-top: 6px;"><strong>Паспорт №:</strong> ' + escapeHtml(rootid) + '</div>') +
@@ -886,6 +893,7 @@
         const autoRemoveModalErrorEl = document.getElementById('auto-remove-modal-error');
         const autoRemoveDtCheckbox = document.getElementById('auto-remove-dt');
         const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
+        const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
         const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
         const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
@@ -975,6 +983,7 @@
         const dgiSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
         const oznSignalGroup = L.featureGroup().addTo(map);
+        const renewGroup = L.featureGroup().addTo(map);
         const recapsGroup = L.featureGroup().addTo(map);
         const commentPointsGroup = L.featureGroup().addTo(map);
         let drawControl = null;
@@ -1002,6 +1011,7 @@
         let commentPointMode = false;
         let pendingCommentLatLng = null;
         let commentPickCaptureLayer = null;
+        autoRemoveIntersectionsButton.disabled = true;
 
         function buildCommentPointPopupHtml(props) {
             const p = props || {};
@@ -1234,6 +1244,7 @@
         const nearbyGeometry = parseGeometryData('nearby-geometry-data');
         const dgiGeometry = parseGeometryData('dgi-geometry-data');
         const odhGeometry = parseGeometryData('odh-geometry-data');
+        const oznGeometry = parseGeometryData('ozn-geometry-data');
         const requestObjectsGeometry = parseGeometryData('request-objects-geometry-data');
 
         const withCount = (label, count) => `${label} (${count})`;
@@ -1294,6 +1305,19 @@
             });
             return count;
         };
+        const filterOutSelectedRootid = (geojson, selectedRootidValue) => {
+            const selectedRootidText = String(selectedRootidValue || '').trim();
+            if (!selectedRootidText || !geojson || geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
+                return geojson;
+            }
+            return {
+                ...geojson,
+                features: geojson.features.filter((feature) => {
+                    const rid = String(feature?.properties?.rootid ?? '').trim();
+                    return rid !== selectedRootidText;
+                }),
+            };
+        };
         function refreshObjectLayersControl() {
             if (objectLayersControl) {
                 map.removeControl(objectLayersControl);
@@ -1304,7 +1328,8 @@
             overlays[withCount('Заявки', countGroupFeatures(requestObjectsGroup))] = requestObjectsGroup;
             overlays[withCount('ДГИ', countGroupFeatures(dgiSignalGroup))] = dgiSignalGroup;
             overlays[withCount('ОДХ', countGroupFeatures(odhSignalGroup))] = odhSignalGroup;
-            overlays[withCount('ОЗН', countGroupFeatures(oznSignalGroup))] = oznSignalGroup;
+            overlays[withCount('ОО', countGroupFeatures(oznSignalGroup))] = oznSignalGroup;
+            overlays[withCount('Реновация', countGroupFeatures(renewGroup))] = renewGroup;
             overlays[withCount('Заявки на досъём', countGroupFeatures(recapsGroup))] = recapsGroup;
             overlays[withCount('Комментарии', countGroupFeatures(commentPointsGroup))] = commentPointsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false});
@@ -1425,7 +1450,7 @@
                             : String(ownerLegalPersonId || '-');
                         layer.bindPopup(
                             '<div style="min-width: 220px;">' +
-                            '<div><strong>' + (isOzn ? 'ОЗН' : 'ОДХ') + '</strong></div>' +
+                            '<div><strong>' + (isOzn ? 'ОО' : 'ОДХ') + '</strong></div>' +
                             (!rootidText || ['null', 'none', '-'].includes(rootidText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Паспорт №:</strong> ' + escapeHtml(rootid) + '</div>')) +
                             (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
                             (isOzn
@@ -1475,6 +1500,29 @@
             addSignalTapeLayer(odhSignalGroup, odhGeo, 'ОДХ');
             addSignalTapeLayer(oznSignalGroup, oznGeo, 'ОЗН');
         }
+        function renderRenewLayer(renewGeo) {
+            renewGroup.clearLayers();
+            const geo = normalizeGeoJson(renewGeo);
+            if (!geo) {
+                return;
+            }
+            L.geoJSON(geo, {
+                style: {color: '#b45309', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.25},
+                onEachFeature: (feature, layer) => {
+                    const name = feature?.properties?.name ?? '-';
+                    const nameText = String(name ?? '').trim();
+                    layer.bindPopup(
+                        '<div style="min-width: 220px;">' +
+                        '<div><strong>Реновация</strong></div>' +
+                        (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase())
+                            ? ''
+                            : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
+                        '</div>'
+                    );
+                }
+            }).addTo(renewGroup);
+        }
+
         function renderRecapsLayer(recapsGeo) {
             recapsGroup.clearLayers();
             const geo = normalizeGeoJson(recapsGeo);
@@ -1506,8 +1554,13 @@
                 }
             }).addTo(recapsGroup);
         }
-        renderReferenceSignalLayers(dgiGeometry, odhGeometry, parseGeometryData('ozn-geometry-data'));
+        renderReferenceSignalLayers(
+            dgiGeometry,
+            filterOutSelectedRootid(odhGeometry, selectedRootid),
+            filterOutSelectedRootid(oznGeometry, selectedRootid),
+        );
         renderRecapsLayer(parseGeometryData('recaps-geometry-data'));
+        renderRenewLayer(parseGeometryData('renew-geometry-data'));
 
         const mergedAdjacentDtInitial = mergeAdjacentDtPassportsGeoJson(intersectsGeometry, touchesGeometry, nearbyGeometry);
         if (mergedAdjacentDtInitial) {
@@ -1769,6 +1822,7 @@
                 dgi: normalizeGeoJson(layers.dgi),
                 odh: normalizeGeoJson(layers.odh),
                 ozn: normalizeGeoJson(layers.ozn),
+                renew: normalizeGeoJson(layers.renew),
                 recaps: normalizeGeoJson(layers.recaps),
             };
             const selectedRootidText = (selectedRootid || '').trim();
@@ -1791,8 +1845,11 @@
             parsed.touches = excludeSelectedRootid(parsed.touches);
             parsed.nearby = excludeSelectedRootid(parsed.nearby);
             parsed.request_objects = excludeSelectedRootid(parsed.request_objects);
+            parsed.odh = excludeSelectedRootid(parsed.odh);
+            parsed.ozn = excludeSelectedRootid(parsed.ozn);
             renderReferenceSignalLayers(parsed.dgi, parsed.odh, parsed.ozn);
             renderRecapsLayer(parsed.recaps);
+            renderRenewLayer(parsed.renew);
             const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsed.intersects, parsed.touches, parsed.nearby);
             if (mergedAdjacentDt) {
                 L.geoJSON(mergedAdjacentDt, {
@@ -1925,6 +1982,9 @@
             if (autoRemoveOdhCheckbox.checked) {
                 sources.push('odh');
             }
+            if (autoRemoveOznCheckbox.checked) {
+                sources.push('ozn');
+            }
             if (autoRemoveDgiCheckbox.checked) {
                 sources.push('dgi');
             }
@@ -2015,7 +2075,7 @@
                 autoRemoveModalErrorEl.textContent = error.message || 'Не удалось удалить пересечения.';
                 statusEl.textContent = error.message || 'Не удалось удалить пересечения.';
             } finally {
-                autoRemoveIntersectionsButton.disabled = false;
+                autoRemoveIntersectionsButton.disabled = !isEditing;
                 autoRemoveModalSubmit.disabled = false;
             }
         }
@@ -2106,7 +2166,7 @@
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
             collectSnapGuideLines(selectedGeo, snapGuideLines);
-            [adjacentDtPassportsGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, oznSignalGroup, recapsGroup].forEach((group) => {
+            [adjacentDtPassportsGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, oznSignalGroup, renewGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
@@ -2571,6 +2631,7 @@
             drawModeFreehandToggle.closest('.snap-switch')?.classList.toggle('snap-switch--locked', drawModeToggleLocked);
             cancelEditButton.style.display = enabled ? 'inline-block' : 'none';
             saveButton.style.display = enabled ? 'inline-block' : 'none';
+            autoRemoveIntersectionsButton.disabled = !enabled;
             if (!enabled) {
                 addObjectMode = false;
                 cutObjectMode = false;

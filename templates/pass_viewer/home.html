@@ -54,17 +54,27 @@
         }
         .source-badge {
             align-self: center;
-            border: 1px solid #cbd5e1;
+            border: 1px solid #93c5fd;
             border-radius: 999px;
             padding: 4px 9px;
             font-size: 12px;
             font-weight: 700;
-            color: #334155;
-            background: #f8fafc;
+            color: #1d4ed8;
+            background: #eff6ff;
             white-space: nowrap;
         }
+        .source-badge--dt {
+            color: #1d4ed8;
+            border-color: #93c5fd;
+            background: #eff6ff;
+        }
         .source-badge--odh {
-            color: #065f46;
+            color: #475569;
+            border-color: #cbd5e1;
+            background: #f8fafc;
+        }
+        .source-badge--oo {
+            color: #047857;
             border-color: #6ee7b7;
             background: #ecfdf5;
         }
@@ -148,8 +158,8 @@
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                 </form>
-                                <span class="source-badge {% if item.source_label == 'ОДХ' %}source-badge--odh{% endif %}">
-                                    {{ item.source_label|default:'ДТ' }}
+                                <span class="source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% else %}source-badge--dt{% endif %}">
+                                    {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
                                 </span>
                             </div>
                         {% endif %}
@@ -184,8 +194,8 @@
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                 </form>
-                                <span class="source-badge {% if item.source_label == 'ОДХ' %}source-badge--odh{% endif %}">
-                                    {{ item.source_label|default:'ДТ' }}
+                                <span class="source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% else %}source-badge--dt{% endif %}">
+                                    {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
                                 </span>
                                 {% if item.request_id %}
                                     <span
@@ -244,7 +254,7 @@
         style="margin-top: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid #bbf7d0; background: #f0fdf4; align-items: center; gap: 12px; flex-wrap: wrap;"
     >
         <span class="note" style="margin: 0; flex: 1; min-width: 200px;">
-            Отметьте <strong>не менее двух</strong> паспортов в списке «Актуальные паспорта» (можно из ДТ и ОДХ вместе), затем нажмите «Продолжить» и укажите номер заявки; если в выборе есть и ДТ, и ОДХ, в том же окне выберите систему для сохранения итога.
+            Отметьте <strong>не менее двух</strong> паспортов в списке «Актуальные паспорта» (можно из ДТ, ОДХ и ОО вместе), затем нажмите «Продолжить» и укажите номер заявки; если в выборе есть разные типы, в том же окне выберите систему для сохранения итога.
         </span>
         <button type="button" id="merge-passports-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
         <button type="button" id="merge-passports-next-btn" style="background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;">
@@ -303,6 +313,10 @@
                 <label style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
                     <span>ОДХ</span>
                     <input type="radio" name="merge_target_source_ui" value="ОДХ" id="merge-target-odh" />
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <span>ОО</span>
+                    <input type="radio" name="merge_target_source_ui" value="ОЗН" id="merge-target-ozn" />
                 </label>
             </fieldset>
             <p id="merge-passports-request-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
@@ -706,11 +720,23 @@
         const mergeTargetSourceHidden = document.getElementById('merge-passports-target-source-hidden');
         const mergeTargetDtRadio = document.getElementById('merge-target-dt');
         const mergeTargetOdhRadio = document.getElementById('merge-target-odh');
+        const mergeTargetOznRadio = document.getElementById('merge-target-ozn');
         const mergeTargetSourceFieldset = document.getElementById('merge-target-source-fieldset');
         const mergePassportsRequestIntro = document.getElementById('merge-passports-request-intro');
 
         let mergePassportsMode = false;
         let mergeImplicitTargetSource = '';
+
+        function normalizeMergeSourceLabel(rawSourceLabel) {
+            const sourceLabel = String(rawSourceLabel || 'ДТ').trim().toUpperCase();
+            if (sourceLabel === 'ОДХ') {
+                return 'ОДХ';
+            }
+            if (sourceLabel === 'ОЗН' || sourceLabel === 'ОО') {
+                return 'ОЗН';
+            }
+            return 'ДТ';
+        }
 
         function setMergePassportsMode(active) {
             mergePassportsMode = Boolean(active);
@@ -744,6 +770,9 @@
             if (mergeTargetOdhRadio) {
                 mergeTargetOdhRadio.checked = false;
             }
+            if (mergeTargetOznRadio) {
+                mergeTargetOznRadio.checked = false;
+            }
             mergeImplicitTargetSource = '';
         }
 
@@ -760,27 +789,28 @@
             if (mergeTargetOdhRadio) {
                 mergeTargetOdhRadio.checked = false;
             }
+            if (mergeTargetOznRadio) {
+                mergeTargetOznRadio.checked = false;
+            }
             mergeImplicitTargetSource = '';
+            if (mergeTargetSourceFieldset) {
+                mergeTargetSourceFieldset.style.display = '';
+            }
+            if (mergePassportsRequestIntro) {
+                mergePassportsRequestIntro.textContent =
+                    'Укажите номер заявки и выберите, в какой системе сохранить объединённый паспорт (ДТ/ОДХ/ОО).';
+            }
             if (sourcesSet.size === 1) {
-                mergeImplicitTargetSource = sourcesSet.values().next().value;
-                if (mergeTargetSourceFieldset) {
-                    mergeTargetSourceFieldset.style.display = 'none';
-                }
-                if (mergePassportsRequestIntro) {
-                    mergePassportsRequestIntro.textContent =
-                        'Укажите номер заявки для объединённого паспорта на карте редактирования.';
-                }
-            } else {
-                if (mergeTargetSourceFieldset) {
-                    mergeTargetSourceFieldset.style.display = '';
-                }
-                if (mergePassportsRequestIntro) {
-                    mergePassportsRequestIntro.textContent =
-                        'В выборе есть паспорта из ДТ и ОДХ. Укажите номер заявки и выберите, в какой системе сохранить объединённый паспорт.';
-                }
-                if (mergeTargetDtRadio) {
+                const onlySource = sourcesSet.values().next().value;
+                if (onlySource === 'ОЗН' && mergeTargetOznRadio) {
+                    mergeTargetOznRadio.checked = true;
+                } else if (onlySource === 'ОДХ' && mergeTargetOdhRadio) {
+                    mergeTargetOdhRadio.checked = true;
+                } else if (mergeTargetDtRadio) {
                     mergeTargetDtRadio.checked = true;
                 }
+            } else if (mergeTargetDtRadio) {
+                mergeTargetDtRadio.checked = true;
             }
             if (mergeRequestModal) {
                 mergeRequestModal.style.display = 'flex';
@@ -796,8 +826,7 @@
             }
             const sources = new Set(
                 checked.map((cb) => {
-                    const s = (cb.dataset.sourceLabel || 'ДТ').trim().toUpperCase();
-                    return s === 'ОДХ' ? 'ОДХ' : 'ДТ';
+                    return normalizeMergeSourceLabel(cb.dataset.sourceLabel);
                 })
             );
             openMergeRequestModalWithSources(sources);
@@ -822,7 +851,7 @@
                 const targetRadio = document.querySelector('input[name="merge_target_source_ui"]:checked');
                 if (!targetRadio) {
                     if (mergeRequestError) {
-                        mergeRequestError.textContent = 'Выберите тип итогового паспорта (ДТ или ОДХ).';
+                        mergeRequestError.textContent = 'Выберите тип итогового паспорта (ДТ, ОДХ или ОО).';
                     }
                     return;
                 }
@@ -834,7 +863,7 @@
             }
             mergeItemsContainer.innerHTML = '';
             checked.forEach((cb) => {
-                const sl = (cb.dataset.sourceLabel || 'ДТ').trim().toUpperCase() === 'ОДХ' ? 'ОДХ' : 'ДТ';
+                const sl = normalizeMergeSourceLabel(cb.dataset.sourceLabel);
                 const rid = document.createElement('input');
                 rid.type = 'hidden';
                 rid.name = 'merge_item_rootid';
