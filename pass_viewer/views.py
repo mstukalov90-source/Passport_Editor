@@ -1197,6 +1197,7 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         'request_objects': request_objects_row[0] if request_objects_row else None,
         'dgi': ref_layers['dgi'],
         'odh': ref_layers['odh'],
+        'ozn': ref_layers['ozn'],
         'recaps': ref_layers['recaps'],
         'dgi_intersects': dgi_intersects,
         'odh_intersects': odh_intersects,
@@ -1605,6 +1606,14 @@ def _get_reference_layer_geojson(
     geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
     customer_field_pref = getattr(settings, 'GIS_OBJECT_CUSTOMER_FIELD', 'CustomerLegalPersonId')
     department_field_pref = getattr(settings, 'GIS_OBJECT_DEPARTMENT_FIELD', 'DepartmentLegalPersonId')
+    owner_field_pref = getattr(settings, 'GIS_OBJECT_OWNER_FIELD', 'OwnerLegalPersonId')
+    source_label_norm = str(source_label or '').strip().upper()
+    department_field_candidates = [department_field_pref]
+    if source_label_norm == 'ОДХ':
+        department_field_candidates.insert(0, getattr(settings, 'GIS_ODH_GRBS_FIELD', 'grbslegalpersonid'))
+    owner_field_candidates = [owner_field_pref]
+    if source_label_norm == 'ОЗН':
+        owner_field_candidates.insert(0, getattr(settings, 'GIS_OZN_OWNER_FIELD', 'ownerlegalpersonalid'))
     with connection.cursor() as cursor:
         geom_field = _resolve_column_name(cursor, table_name, geom_field_pref)
         rootid_field_pref = settings.GIS_OBJECT_ROOTID_FIELD
@@ -1627,12 +1636,16 @@ def _get_reference_layer_geojson(
         sobstv_rr_prop_expr = "sobstv_rr::text"
         customer_select_expr = "NULL::text AS customer_legal_person_id"
         department_select_expr = "NULL::text AS department_legal_person_id"
+        owner_select_expr = "NULL::text AS owner_legal_person_id"
         customer_name_select_expr = "NULL::text AS customer_legal_person_name"
         department_name_select_expr = "NULL::text AS department_legal_person_name"
+        owner_name_select_expr = "NULL::text AS owner_legal_person_name"
         customer_prop_expr = "customer_legal_person_id::text"
         department_prop_expr = "department_legal_person_id::text"
+        owner_prop_expr = "owner_legal_person_id::text"
         customer_name_prop_expr = "customer_legal_person_name::text"
         department_name_prop_expr = "department_legal_person_name::text"
+        owner_name_prop_expr = "owner_legal_person_name::text"
         lookup_context = _get_id_names_lookup_context(cursor)
         if _column_exists(cursor, table_name, rootid_field_pref):
             rootid_field = _resolve_column_name(cursor, table_name, rootid_field_pref)
@@ -1659,13 +1672,24 @@ def _get_reference_layer_geojson(
                 f"{_build_id_name_lookup_expr(f't.{_quote_ident(customer_field)}', lookup_context)} "
                 "AS customer_legal_person_name"
             )
-        if _column_exists(cursor, table_name, department_field_pref):
-            department_field = _resolve_column_name(cursor, table_name, department_field_pref)
-            department_select_expr = f"t.{_quote_ident(department_field)}::text AS department_legal_person_id"
-            department_name_select_expr = (
-                f"{_build_id_name_lookup_expr(f't.{_quote_ident(department_field)}', lookup_context)} "
-                "AS department_legal_person_name"
-            )
+        for department_field_pref_candidate in department_field_candidates:
+            if _column_exists(cursor, table_name, department_field_pref_candidate):
+                department_field = _resolve_column_name(cursor, table_name, department_field_pref_candidate)
+                department_select_expr = f"t.{_quote_ident(department_field)}::text AS department_legal_person_id"
+                department_name_select_expr = (
+                    f"{_build_id_name_lookup_expr(f't.{_quote_ident(department_field)}', lookup_context)} "
+                    "AS department_legal_person_name"
+                )
+                break
+        for owner_field_pref_candidate in owner_field_candidates:
+            if _column_exists(cursor, table_name, owner_field_pref_candidate):
+                owner_field = _resolve_column_name(cursor, table_name, owner_field_pref_candidate)
+                owner_select_expr = f"t.{_quote_ident(owner_field)}::text AS owner_legal_person_id"
+                owner_name_select_expr = (
+                    f"{_build_id_name_lookup_expr(f't.{_quote_ident(owner_field)}', lookup_context)} "
+                    "AS owner_legal_person_name"
+                )
+                break
         if geometry is None:
             query = (
                 "SELECT jsonb_build_object("
@@ -1685,13 +1709,15 @@ def _get_reference_layer_geojson(
                 f"      'sobstv_rr', {sobstv_rr_prop_expr},"
                 f"      'customer_legal_person_id', {customer_prop_expr},"
                 f"      'department_legal_person_id', {department_prop_expr},"
+                f"      'owner_legal_person_id', {owner_prop_expr},"
                 f"      'customer_legal_person_name', {customer_name_prop_expr},"
-                f"      'department_legal_person_name', {department_name_prop_expr}"
+                f"      'department_legal_person_name', {department_name_prop_expr},"
+                f"      'owner_legal_person_name', {owner_name_prop_expr}"
                 "   )"
                 " )), '[]'::jsonb)"
                 ")::text "
                 f"FROM (SELECT t.{_quote_ident(geom_field)} AS {_quote_ident(geom_field)}, "
-                f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
+                f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr} "
                 f"FROM {_quote_ident(table_name)} t) rel"
             )
             cursor.execute(query, [source_label])
@@ -1713,8 +1739,10 @@ def _get_reference_layer_geojson(
                 f"      'sobstv_rr', {sobstv_rr_prop_expr},"
                 f"      'customer_legal_person_id', {customer_prop_expr},"
                 f"      'department_legal_person_id', {department_prop_expr},"
+                f"      'owner_legal_person_id', {owner_prop_expr},"
                 f"      'customer_legal_person_name', {customer_name_prop_expr},"
-                f"      'department_legal_person_name', {department_name_prop_expr}"
+                f"      'department_legal_person_name', {department_name_prop_expr},"
+                f"      'owner_legal_person_name', {owner_name_prop_expr}"
                 "   )"
                 " )), '[]'::jsonb)"
                 ")::text FROM rel"
@@ -1727,7 +1755,7 @@ def _get_reference_layer_geojson(
                     " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
                     "), rel AS ("
                     f" SELECT t.{_quote_ident(geom_field)} AS geom, "
-                    f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
+                    f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr} "
                     f"FROM {_quote_ident(table_name)} t, input i"
                     f" WHERE ST_Intersects(t.{_quote_ident(geom_field)}, i.geom)"
                     "   AND NOT EXISTS ("
@@ -1744,7 +1772,7 @@ def _get_reference_layer_geojson(
                     f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
                     "), rel AS ("
                     f" SELECT t.{_quote_ident(geom_field)} AS geom, "
-                    f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {customer_name_select_expr}, {department_name_select_expr} "
+                    f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr} "
                     f"FROM {_quote_ident(table_name)} t, input i"
                     " WHERE ST_DWithin("
                     f"   t.{_quote_ident(geom_field)}::geography,"
@@ -1879,7 +1907,7 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100, request_id_fil
 
 
 def _get_reference_layers(geometry=None, distance_meters=100, request_id_filter=None):
-    layers = {'dgi': None, 'odh': None, 'recaps': None}
+    layers = {'dgi': None, 'odh': None, 'ozn': None, 'recaps': None}
     try:
         layers['dgi'] = _get_reference_layer_geojson('dgi', 'ДГИ', geometry=geometry, distance_meters=distance_meters)
     except Exception:
@@ -1888,6 +1916,15 @@ def _get_reference_layers(geometry=None, distance_meters=100, request_id_filter=
         layers['odh'] = _get_reference_layer_geojson('odh', 'ОДХ', geometry=geometry, distance_meters=distance_meters)
     except Exception:
         layers['odh'] = None
+    try:
+        layers['ozn'] = _get_reference_layer_geojson(
+            getattr(settings, 'GIS_OZN_TABLE', 'ozn'),
+            'ОЗН',
+            geometry=geometry,
+            distance_meters=distance_meters,
+        )
+    except Exception:
+        layers['ozn'] = None
     try:
         layers['recaps'] = _get_recaps_layer_geojson(
             geometry=geometry,
@@ -2013,6 +2050,7 @@ def main(request):
             'request_objects_geometry_json': layers['request_objects'] if layers else None,
             'dgi_geometry_json': reference_layers['dgi'],
             'odh_geometry_json': reference_layers['odh'],
+            'ozn_geometry_json': reference_layers['ozn'],
             'recaps_geometry_json': reference_layers['recaps'],
             'query_error': query_error,
         },
@@ -2320,6 +2358,7 @@ def add_object(request):
         {
             'dgi_geometry_json': None,
             'odh_geometry_json': None,
+            'ozn_geometry_json': None,
             'recaps_geometry_json': None,
             'request_objects_geometry_json': None,
             'selected_source_label': _normalize_source_label(entry_point.get('source_label')),
@@ -2379,6 +2418,7 @@ def add_recap(request):
             'request_objects_geometry_json': initial_relations.get('request_objects'),
             'dgi_geometry_json': reference_layers['dgi'],
             'odh_geometry_json': reference_layers['odh'],
+            'ozn_geometry_json': reference_layers['ozn'],
             'recaps_geometry_json': reference_layers['recaps'],
             'initial_recap_id': initial_recap_id,
         },

@@ -390,6 +390,7 @@
     {{ nearby_geometry_json|default_if_none:"null"|json_script:"nearby-geometry-data" }}
     {{ dgi_geometry_json|default_if_none:"null"|json_script:"dgi-geometry-data" }}
     {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
+    {{ ozn_geometry_json|default_if_none:"null"|json_script:"ozn-geometry-data" }}
     {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
     {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
 
@@ -621,6 +622,7 @@
         const requestObjectsGroup = L.featureGroup().addTo(map);
         const dgiSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
+        const oznSignalGroup = L.featureGroup().addTo(map);
         const recapsGroup = L.featureGroup().addTo(map);
         const commentPointsGroup = L.featureGroup().addTo(map);
         let objectLayersControl = null;
@@ -1035,6 +1037,7 @@
             overlays[withCount('Заявки', countGroupFeatures(requestObjectsGroup))] = requestObjectsGroup;
             overlays[withCount('ДГИ', countGroupFeatures(dgiSignalGroup))] = dgiSignalGroup;
             overlays[withCount('ОДХ', countGroupFeatures(odhSignalGroup))] = odhSignalGroup;
+            overlays[withCount('ОЗН', countGroupFeatures(oznSignalGroup))] = oznSignalGroup;
             overlays[withCount('Заявки на досъём', countGroupFeatures(recapsGroup))] = recapsGroup;
             overlays[withCount('Комментарии', countGroupFeatures(commentPointsGroup))] = commentPointsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topleft'});
@@ -1087,7 +1090,8 @@
             };
             const isDgi = sourceLabel === 'ДГИ';
             const isOdh = sourceLabel === 'ОДХ';
-            if (!isDgi && !isOdh) {
+            const isOzn = sourceLabel === 'ОЗН';
+            if (!isDgi && !isOdh && !isOzn) {
                 L.geoJSON(geo, {
                     interactive: false,
                     style: {color: '#ffffff', weight: 7, opacity: 0.95, fillOpacity: 0}
@@ -1095,11 +1099,11 @@
             }
             L.geoJSON(geo, {
                 style: {
-                    color: isOdh ? '#00bfff' : '#dc2626',
+                    color: isOdh ? '#00bfff' : isOzn ? '#16a34a' : '#dc2626',
                     weight: 4,
                     opacity: 0.95,
-                    dashArray: isOdh ? null : '10 8',
-                    fillOpacity: 0,
+                    dashArray: (isOdh || isOzn) ? null : '10 8',
+                    fillOpacity: isOzn ? 0.25 : 0,
                 },
                 onEachFeature: (feature, layer) => {
                     if (isDgi) {
@@ -1120,35 +1124,46 @@
                             (!sobstvRrText || ['null', 'none', '-'].includes(sobstvRrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Собственник:</strong> ' + String(sobstvRr) + '</div>')) +
                             '</div>'
                         );
-                    } else if (isOdh) {
+                    } else if (isOdh || isOzn) {
                         const rootid = feature?.properties?.rootid ?? '-';
                         const name = feature?.properties?.name ?? '-';
                         const customerLegalPersonId = feature?.properties?.customer_legal_person_id ?? '-';
                         const departmentLegalPersonId = feature?.properties?.department_legal_person_id ?? '-';
+                        const ownerLegalPersonId = feature?.properties?.owner_legal_person_id ?? '-';
                         const customerLegalPersonName = feature?.properties?.customer_legal_person_name ?? '-';
                         const departmentLegalPersonName = feature?.properties?.department_legal_person_name ?? '-';
+                        const ownerLegalPersonName = feature?.properties?.owner_legal_person_name ?? '-';
                         const customerText = String(customerLegalPersonId ?? '').trim();
                         const departmentText = String(departmentLegalPersonId ?? '').trim();
+                        const ownerText = String(ownerLegalPersonId ?? '').trim();
                         const customerNameText = String(customerLegalPersonName ?? '').trim();
                         const departmentNameText = String(departmentLegalPersonName ?? '').trim();
+                        const ownerNameText = String(ownerLegalPersonName ?? '').trim();
                         const rootidText = String(rootid ?? '').trim();
                         const nameText = String(name ?? '').trim();
                         const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
                         const hasDepartment = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
+                        const hasOwner = !!ownerText && !['null', 'none', '-'].includes(ownerText.toLowerCase());
                         const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
                         const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
+                        const hasOwnerName = !!ownerNameText && !['null', 'none', '-'].includes(ownerNameText.toLowerCase());
                         const customerDisplay = hasCustomerName
                             ? String(customerLegalPersonName || '-')
                             : String(customerLegalPersonId || '-');
                         const departmentDisplay = hasDepartmentName
                             ? String(departmentLegalPersonName || '-')
                             : String(departmentLegalPersonId || '-');
+                        const ownerDisplay = hasOwnerName
+                            ? String(ownerLegalPersonName || '-')
+                            : String(ownerLegalPersonId || '-');
                         layer.bindPopup(
                             '<div style="min-width: 220px;">' +
-                            '<div><strong>ОДХ</strong></div>' +
+                            '<div><strong>' + (isOzn ? 'ОЗН' : 'ОДХ') + '</strong></div>' +
                             (!rootidText || ['null', 'none', '-'].includes(rootidText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Паспорт №:</strong> ' + String(rootid) + '</div>')) +
                             (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
-                            (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(customerDisplay) + '</div>') : '') +
+                            (isOzn
+                                ? (hasOwner ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(ownerDisplay) + '</div>') : '')
+                                : (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(customerDisplay) + '</div>') : '')) +
                             (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + String(departmentDisplay) + '</div>') : '') +
                             '</div>'
                         );
@@ -1313,7 +1328,7 @@
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
             collectSnapGuideLines(selectedGeometry, snapGuideLines);
-            [dossierGroup, adjacentDtPassportsGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, recapsGroup].forEach((group) => {
+            [dossierGroup, adjacentDtPassportsGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, oznSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
                 });
@@ -1443,6 +1458,7 @@
                 request_objects: ensureSelectedRequestObject(layers.request_objects),
                 dgi: normalizeGeoJson(layers.dgi),
                 odh: normalizeGeoJson(layers.odh),
+                ozn: normalizeGeoJson(layers.ozn),
                 recaps: normalizeGeoJson(layers.recaps),
             };
             const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsed.intersects, parsed.touches, parsed.nearby);
@@ -1460,6 +1476,7 @@
             }
             addSignalTapeLayer(dgiSignalGroup, parsed.dgi, 'ДГИ');
             addSignalTapeLayer(odhSignalGroup, parsed.odh, 'ОДХ');
+            addSignalTapeLayer(oznSignalGroup, parsed.ozn, 'ОЗН');
             renderRecapsLayer(parsed.recaps);
             rebuildSnapGuideLines();
             refreshObjectLayersControl();
@@ -1473,6 +1490,7 @@
             request_objects: JSON.parse(document.getElementById('request-objects-geometry-data').textContent),
             dgi: JSON.parse(document.getElementById('dgi-geometry-data').textContent),
             odh: JSON.parse(document.getElementById('odh-geometry-data').textContent),
+            ozn: JSON.parse(document.getElementById('ozn-geometry-data').textContent),
             recaps: JSON.parse(document.getElementById('recaps-geometry-data').textContent),
         });
         updateEditableAreaInfo();
