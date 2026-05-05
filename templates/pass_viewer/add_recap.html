@@ -127,6 +127,13 @@
             </div>
         </div>
     </div>
+    <div id="db-loading-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card" style="max-width: 420px; text-align: center;">
+            <p class="note" style="margin: 0; font-size: 15px; font-weight: 600; color: #0f172a;">
+                Выполняется выгрузка обьектов. Подождите
+            </p>
+        </div>
+    </div>
 
     <style>
         #map .leaflet-editing-icon {
@@ -615,6 +622,7 @@
         const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
         const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
         const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
+        const dbLoadingModal = document.getElementById('db-loading-modal');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
         const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
         const deletePolygonModalSubmit = document.getElementById('delete-polygon-modal-submit');
@@ -655,6 +663,25 @@
         let commentPointMode = false;
         let pendingCommentLatLng = null;
         let commentPickCaptureLayer = null;
+        let dbLoadingCounter = 0;
+
+        function showDbLoadingModal() {
+            if (!dbLoadingModal) {
+                return;
+            }
+            dbLoadingCounter += 1;
+            dbLoadingModal.style.display = 'flex';
+        }
+
+        function hideDbLoadingModal() {
+            if (!dbLoadingModal) {
+                return;
+            }
+            dbLoadingCounter = Math.max(0, dbLoadingCounter - 1);
+            if (dbLoadingCounter === 0) {
+                dbLoadingModal.style.display = 'none';
+            }
+        }
 
         function buildCommentPointPopupHtml(props) {
             const p = props || {};
@@ -1750,6 +1777,7 @@
             const hasNewPolygon = Array.isArray(dossierGeo?.features) && dossierGeo.features.length > 0;
             checkRelationsButton.disabled = true;
             statusEl.textContent = 'Ищем смежные паспорта ДТ (пересечение, общая граница, до 10 м)...';
+            showDbLoadingModal();
             try {
                 const response = await fetch("{% url 'check_new_object_relations' %}", {
                     method: 'POST',
@@ -1777,6 +1805,7 @@
             } catch (error) {
                 statusEl.textContent = error.message || 'Не удалось обновить связи.';
             } finally {
+                hideDbLoadingModal();
                 checkRelationsButton.disabled = false;
             }
         }
