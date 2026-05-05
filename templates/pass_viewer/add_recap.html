@@ -17,44 +17,40 @@
     <div style="display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin: 8px 0 12px;">
         <strong>&#1051;&#1077;&#1075;&#1077;&#1085;&#1076;&#1072;:</strong>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
-            <span style="width: 14px; height: 14px; border: 2px solid #ef4444; background: rgba(239, 68, 68, 0.2); border-radius: 2px; display: inline-block;"></span>
-            &#1042;&#1099;&#1073;&#1088;&#1072;&#1085;&#1085;&#1099;&#1081; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090; (&#1090;&#1086;&#1083;&#1100;&#1082;&#1086; &#1087;&#1088;&#1086;&#1089;&#1084;&#1086;&#1090;&#1088;)
-        </span>
-        <span style="display: inline-flex; align-items: center; gap: 6px;">
             <span style="width: 14px; height: 14px; border: 2px solid #2563eb; background: rgba(37, 99, 235, 0.2); border-radius: 2px; display: inline-block;"></span>
-            &#1053;&#1086;&#1074;&#1099;&#1081; &#1076;&#1086;&#1089;&#1100;&#1077;&#1084;
+            Выбраный обьект
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;" title="Паспорта ДТ с пересечением, общей границей или в пределах 10 м от объекта">
             <span style="width: 14px; height: 14px; border: 2px solid #0284c7; background: rgba(56, 189, 248, 0.35); border-radius: 2px; display: inline-block;"></span>
-            Смежные паспорта ДТ
-        </span>
-        <span style="display: inline-flex; align-items: center; gap: 6px;">
-            <span style="width: 14px; height: 14px; border: 2px solid #c026d3; background: rgba(240, 171, 252, 0.28); border-radius: 2px; display: inline-block;"></span>
-            Заявки
-        </span>
-        <span style="display: inline-flex; align-items: center; gap: 6px;">
-            <span style="width: 14px; height: 14px; border: 2px dashed #dc2626; background: repeating-linear-gradient(45deg, #dc2626 0 6px, #ffffff 6px 12px); border-radius: 2px; display: inline-block;"></span>
-            &#1044;&#1043;&#1048;
-        </span>
-        <span style="display: inline-flex; align-items: center; gap: 6px;">
-            <span style="width: 14px; height: 14px; border: 2px solid #00bfff; background: transparent; border-radius: 2px; display: inline-block;"></span>
-            &#1054;&#1044;&#1061;
+            Паспорта ДТ
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
             <span style="width: 14px; height: 14px; border: 2px solid #16a34a; background: rgba(22, 163, 74, 0.25); border-radius: 2px; display: inline-block;"></span>
-            ОО
+            Паспорта ОО
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="width: 14px; height: 14px; border: 2px solid #00bfff; background: transparent; border-radius: 2px; display: inline-block;"></span>
+            Паспорта ОДХ
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="width: 14px; height: 14px; border: 2px dashed #dc2626; background: repeating-linear-gradient(45deg, #dc2626 0 6px, #ffffff 6px 12px); border-radius: 2px; display: inline-block;"></span>
+            Обьекты ДГИ
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
             <span style="width: 14px; height: 14px; border: 2px solid #b45309; background: rgba(245, 158, 11, 0.25); border-radius: 2px; display: inline-block;"></span>
             Реновация
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
-            <span style="width: 14px; height: 14px; border: 2px solid #0f766e; background: rgba(94, 234, 212, 0.5); border-radius: 999px; display: inline-block;"></span>
-            Комментарии
+            <span style="width: 14px; height: 14px; border: 2px solid #c026d3; background: rgba(240, 171, 252, 0.28); border-radius: 2px; display: inline-block;"></span>
+            Заявки
         </span>
         <span style="display: inline-flex; align-items: center; gap: 6px;">
             <span style="width: 14px; height: 14px; border: 2px solid #7c3aed; background: rgba(124, 58, 237, 0.25); border-radius: 2px; display: inline-block;"></span>
             Заявки на досъём
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="width: 14px; height: 14px; border: 2px solid #0f766e; background: rgba(94, 234, 212, 0.5); border-radius: 999px; display: inline-block;"></span>
+            Комментарии
         </span>
     </div>
 
@@ -358,6 +354,22 @@
         }
         .map-layer-groups-control input[type="checkbox"] {
             margin: 0;
+        }
+        .leaflet-control-layers-overlays label,
+        .leaflet-control-layers-base label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .leaflet-control-layers-overlays label span,
+        .leaflet-control-layers-base label span {
+            order: 1;
+        }
+        .leaflet-control-layers-overlays input.leaflet-control-layers-selector,
+        .leaflet-control-layers-base input.leaflet-control-layers-selector {
+            order: 2;
+            margin: 0 0 0 8px;
         }
                 .map-layer-groups-control .layer-item-label {
             background: #fff59d !important;
@@ -1095,14 +1107,13 @@
                 map.removeControl(objectLayersControl);
             }
             const overlays = {};
-            overlays[withCount('Выбранный объект', countGroupFeatures(selectedGroup))] = selectedGroup;
-            overlays[withCount('Новый досъём', countGroupFeatures(dossierGroup))] = dossierGroup;
-            overlays[withCount('Смежные паспорта ДТ', countGroupFeatures(adjacentDtPassportsGroup))] = adjacentDtPassportsGroup;
-            overlays[withCount('Заявки', countGroupFeatures(requestObjectsGroup))] = requestObjectsGroup;
-            overlays[withCount('ДГИ', countGroupFeatures(dgiSignalGroup))] = dgiSignalGroup;
-            overlays[withCount('ОДХ', countGroupFeatures(odhSignalGroup))] = odhSignalGroup;
-            overlays[withCount('ОО', countGroupFeatures(oznSignalGroup))] = oznSignalGroup;
+            overlays[withCount('Выбраный обьект', countGroupFeatures(dossierGroup))] = dossierGroup;
+            overlays[withCount('Паспорта ДТ', countGroupFeatures(adjacentDtPassportsGroup))] = adjacentDtPassportsGroup;
+            overlays[withCount('Паспорта ОО', countGroupFeatures(oznSignalGroup))] = oznSignalGroup;
+            overlays[withCount('Паспорта ОДХ', countGroupFeatures(odhSignalGroup))] = odhSignalGroup;
+            overlays[withCount('Обьекты ДГИ', countGroupFeatures(dgiSignalGroup))] = dgiSignalGroup;
             overlays[withCount('Реновация', countGroupFeatures(renewGroup))] = renewGroup;
+            overlays[withCount('Заявки', countGroupFeatures(requestObjectsGroup))] = requestObjectsGroup;
             overlays[withCount('Заявки на досъём', countGroupFeatures(recapsGroup))] = recapsGroup;
             overlays[withCount('Комментарии', countGroupFeatures(commentPointsGroup))] = commentPointsGroup;
             objectLayersControl = L.control.layers(null, overlays, {collapsed: false, position: 'topleft'});
