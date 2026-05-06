@@ -9,6 +9,32 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunSQL(
             sql="""
+                CREATE EXTENSION IF NOT EXISTS postgis;
+
+                CREATE TABLE IF NOT EXISTS pass_objects (
+                    rootid text NULL,
+                    name text NULL,
+                    "OwnerLegalPersonId" text NULL,
+                    request_id text NULL,
+                    geom geometry(Geometry, 4326) NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS pass_objects_geom_gix
+                ON pass_objects
+                USING GIST (geom);
+
+                CREATE TABLE IF NOT EXISTS odh (
+                    rootid text NULL,
+                    name text NULL,
+                    "CustomerLegalPersonId" text NULL,
+                    request_id text NULL,
+                    geom geometry(Geometry, 4326) NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS odh_geom_gix
+                ON odh
+                USING GIST (geom);
+
                 CREATE TABLE IF NOT EXISTS recaps
                 (LIKE pass_objects INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES);
 
