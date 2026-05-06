@@ -4,9 +4,15 @@
 {% block container_class %}container--wide{% endblock %}
 
 {% block content %}
-    <h2 style="font-size: 18px; margin: 0 0 10px;">
-        &#1054;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099; &#1087;&#1086; &#8470; &#1041;&#1072;&#1083;&#1072;&#1085;&#1089;&#1086;&#1076;&#1077;&#1088;&#1078;&#1072;&#1090;&#1077;&#1083;&#1103;
-    </h2>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px;">
+        <h2 style="font-size: 18px; margin: 0;">
+            &#1054;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099; &#1087;&#1086; &#8470; &#1041;&#1072;&#1083;&#1072;&#1085;&#1089;&#1086;&#1076;&#1077;&#1088;&#1078;&#1072;&#1090;&#1077;&#1083;&#1103;
+        </h2>
+        <form method="post" action="{% url 'logout' %}" style="margin: 0;">
+            {% csrf_token %}
+            <button type="submit">&#1042;&#1099;&#1081;&#1090;&#1080;</button>
+        </form>
+    </div>
     {% if owner_id or owner_name %}
         <p class="note" style="margin-top: 0;">
             &#8470; &#1041;&#1072;&#1083;&#1072;&#1085;&#1089;&#1086;&#1076;&#1077;&#1088;&#1078;&#1072;&#1090;&#1077;&#1083;&#1103;:
@@ -54,19 +60,38 @@
         }
         .source-badge {
             align-self: center;
-            border: 1px solid #cbd5e1;
+            border: 1px solid #93c5fd;
             border-radius: 999px;
             padding: 4px 9px;
             font-size: 12px;
             font-weight: 700;
-            color: #334155;
-            background: #f8fafc;
+            color: #1d4ed8;
+            background: #eff6ff;
             white-space: nowrap;
         }
+        .source-badge--dt {
+            color: #1d4ed8;
+            border-color: #93c5fd;
+            background: #eff6ff;
+        }
         .source-badge--odh {
-            color: #065f46;
+            color: #475569;
+            border-color: #cbd5e1;
+            background: #f8fafc;
+        }
+        .source-badge--oo {
+            color: #047857;
             border-color: #6ee7b7;
             background: #ecfdf5;
+        }
+        body.home--merge-passports .merge-passport-cb {
+            display: block !important;
+        }
+        #merge-passports-btn.is-active {
+            box-shadow: inset 0 0 0 2px #15803d;
+        }
+        #merge-passports-toolbar {
+            display: none;
         }
         @media (max-width: 900px) {
             .owned-lists-grid {
@@ -108,14 +133,26 @@
                     {% for item in owned_objects %}
                         {% if item.rootid %}
                             <div
-                                class="owned-list-item owned-item"
+                                class="owned-list-item owned-item owned-passport-row"
                                 data-rootid="{{ item.rootid|default_if_none:''|lower }}"
                                 data-name="{{ item.name|default:''|lower }}"
+                                data-source-label="{{ item.source_label|default:'ДТ' }}"
                             >
+                                <input
+                                    type="checkbox"
+                                    class="merge-passport-cb"
+                                    value="{{ item.rootid|default_if_none:'' }}"
+                                    data-source-label="{{ item.source_label|default:'ДТ' }}"
+                                    title="Выбрать для объединения"
+                                    style="display: none; width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; align-self: flex-start; cursor: pointer;"
+                                    aria-label="Выбрать паспорт для объединения"
+                                />
                                 <form
+                                    class="owned-open-form"
                                     method="post"
                                     action="{% url 'open_owned_object' %}"
                                     style="margin: 0; flex: 1;"
+                                    data-needs-request-id="{% if item.request_id %}0{% else %}1{% endif %}"
                                 >
                                     {% csrf_token %}
                                     <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
@@ -127,8 +164,8 @@
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                 </form>
-                                <span class="source-badge {% if item.source_label == 'ОДХ' %}source-badge--odh{% endif %}">
-                                    {{ item.source_label|default:'ДТ' }}
+                                <span class="source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% else %}source-badge--dt{% endif %}">
+                                    {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
                                 </span>
                             </div>
                         {% endif %}
@@ -147,9 +184,11 @@
                                 data-name="{{ item.name|default:''|lower }}"
                             >
                                 <form
+                                    class="owned-open-form"
                                     method="post"
                                     action="{% url 'open_owned_object' %}"
                                     style="margin: 0; flex: 1;"
+                                    data-needs-request-id="{% if item.request_id %}0{% else %}1{% endif %}"
                                 >
                                     {% csrf_token %}
                                     <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
@@ -161,28 +200,27 @@
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                 </form>
-                                <span class="source-badge {% if item.source_label == 'ОДХ' %}source-badge--odh{% endif %}">
-                                    {{ item.source_label|default:'ДТ' }}
+                                <span class="source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% else %}source-badge--dt{% endif %}">
+                                    {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
                                 </span>
                                 {% if item.request_id %}
                                     <span
                                         style="align-self: center; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 8px; padding: 8px 10px; font-size: 13px; white-space: nowrap;"
-                                        title="Количество заявок на досъёмку в recaps с этим request_id"
+                                        title="Количество заявок на досъём в recaps с этим request_id"
                                     >
-                                        Заявок на досъёмку: {{ item.recap_count|default:0 }}
+                                        Заявок на досъём: {{ item.recap_count|default:0 }}
                                     </span>
-                                    <form method="get" action="{% url 'add_recap' %}" style="margin: 0; align-self: center;">
-                                        <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
-                                        <input type="hidden" name="name" value="{{ item.name|default:'' }}">
-                                        <input type="hidden" name="object_key" value="{{ item.object_key }}">
-                                        <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
-                                        <button
-                                            type="submit"
-                                            style="background: #e0ecff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 10px;"
-                                        >
-                                            Заявка на досъёмку
-                                        </button>
-                                    </form>
+                                    <button
+                                        type="button"
+                                        class="add-recap-entry-btn"
+                                        style="background: #e0ecff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 10px; align-self: center; cursor: pointer; font: inherit;"
+                                        data-request-id="{{ item.request_id|default:'' }}"
+                                        data-name="{{ item.name|default:'' }}"
+                                        data-object-key="{{ item.object_key|default:'' }}"
+                                        data-source-label="{{ item.source_label|default:'ДТ' }}"
+                                    >
+                                        Заявка на досъём
+                                    </button>
                                     <form method="post" action="{% url 'delete_owned_object' %}" style="margin: 0; align-self: center;">
                                         {% csrf_token %}
                                         <input type="hidden" name="object_key" value="{{ item.object_key }}">
@@ -207,12 +245,152 @@
     {% endif %}
 
     <div style="margin-top: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-        <button type="button" id="manual-open-btn">
+        <button type="button" id="manual-open-btn" style="display: none;">
             &#1042;&#1074;&#1077;&#1089;&#1090;&#1080; &#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072; / &#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; &#1074;&#1088;&#1091;&#1095;&#1085;&#1091;&#1102;
         </button>
-        <a class="button-link" href="{% url 'add_object' %}">
-            &#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;
-        </a>
+        <button type="button" id="merge-passports-btn" class="button-link" style="border: none; cursor: pointer; font: inherit;">
+            Объединение паспортов
+        </button>
+        <button type="button" id="add-object-entry-btn" class="button-link" style="border: none; cursor: pointer; font: inherit;">
+            Заявка на новый паспорт
+        </button>
+    </div>
+    <div
+        id="merge-passports-toolbar"
+        style="margin-top: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid #bbf7d0; background: #f0fdf4; align-items: center; gap: 12px; flex-wrap: wrap;"
+    >
+        <span class="note" style="margin: 0; flex: 1; min-width: 200px;">
+            Отметьте <strong>не менее двух</strong> паспортов в списке «Актуальные паспорта» (можно из ДТ, ОДХ и ОО вместе), затем нажмите «Продолжить» и укажите номер заявки; если в выборе есть разные типы, в том же окне выберите систему для сохранения итога.
+        </span>
+        <button type="button" id="merge-passports-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
+        <button type="button" id="merge-passports-next-btn" style="background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;">
+            Продолжить
+        </button>
+    </div>
+
+    <form id="form-confirm-pending" method="post" action="{% url 'confirm_entry_request_id' %}" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="request_id" id="confirm-pending-request-id" value="" />
+    </form>
+    <form id="form-prepare-add-object" method="post" action="{% url 'prepare_add_object' %}" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="request_id" id="prepare-add-object-request-id" value="" />
+        <input type="hidden" name="source_label" value="ДТ" />
+    </form>
+
+    <form id="form-merge-passports" method="post" action="{% url 'open_merged_passports' %}" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="request_id" id="merge-passports-request-id-hidden" value="" />
+        <input type="hidden" name="target_source_label" id="merge-passports-target-source-hidden" value="" />
+        <div id="merge-passports-items-container"></div>
+    </form>
+
+    <div
+        id="merge-passports-request-modal"
+        style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1002; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 18px;">Номер заявки (request_id)</h3>
+                <button type="button" id="merge-passports-request-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+            </div>
+            <p id="merge-passports-request-intro" class="note" style="margin-top: 0;">
+                Укажите номер заявки для объединённого паспорта на карте редактирования.
+            </p>
+            <label class="note" for="merge-passports-request-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер заявки</label>
+            <input
+                id="merge-passports-request-input"
+                type="text"
+                maxlength="100"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
+                autocomplete="off"
+            />
+            <fieldset
+                id="merge-target-source-fieldset"
+                style="display: none; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-top: 12px; margin-bottom: 0;"
+            >
+                <legend class="note" style="font-weight: 600; padding: 0 4px;">Итоговый паспорт (куда сохранить)</legend>
+                <label style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <span>ДТ</span>
+                    <input type="radio" name="merge_target_source_ui" value="ДТ" id="merge-target-dt" />
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <span>ОДХ</span>
+                    <input type="radio" name="merge_target_source_ui" value="ОДХ" id="merge-target-odh" />
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <span>ОО</span>
+                    <input type="radio" name="merge_target_source_ui" value="ОЗН" id="merge-target-ozn" />
+                </label>
+            </fieldset>
+            <p id="merge-passports-request-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+                <button type="button" id="merge-passports-request-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
+                <button type="button" id="merge-passports-request-submit-btn">Открыть карту</button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        id="entry-recap-id-modal"
+        style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1001; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 18px;">Номер досъёма (recap_id)</h3>
+                <button type="button" id="entry-recap-id-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+            </div>
+            <p id="entry-recap-id-modal-text" class="note" style="margin-top: 0;">
+                Укажите номер досъёма (заявки на досъём) перед переходом к карте досъёма.
+            </p>
+            <label class="note" for="entry-recap-id-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер досъёма</label>
+            <input
+                id="entry-recap-id-input"
+                type="text"
+                maxlength="100"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
+                autocomplete="off"
+            />
+            <p id="entry-recap-id-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+                <button type="button" id="entry-recap-id-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
+                <button type="button" id="entry-recap-id-submit-btn">Продолжить</button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        id="entry-request-id-modal"
+        style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1001; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 18px;">Номер заявки (request_id)</h3>
+                <button type="button" id="entry-request-id-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+            </div>
+            <p id="entry-request-id-modal-text" class="note" style="margin-top: 0;">
+                Укажите номер заявки для продолжения.
+            </p>
+            <label class="note" for="entry-request-id-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер заявки</label>
+            <input
+                id="entry-request-id-input"
+                type="text"
+                maxlength="100"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
+                autocomplete="off"
+            />
+            <p id="entry-request-id-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+                <button type="button" id="entry-request-id-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
+                <button type="button" id="entry-request-id-submit-btn">Продолжить</button>
+            </div>
+        </div>
     </div>
 
     <div
@@ -240,12 +418,12 @@
         </div>
     </div>
 
-    <form method="post" action="{% url 'logout' %}" style="margin-top: 12px;">
-        {% csrf_token %}
-        <button type="submit">&#1042;&#1099;&#1081;&#1090;&#1080;</button>
-    </form>
-
+    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" hidden></div>
     <script>
+        const homeBootstrapEl = document.getElementById('home-bootstrap-data');
+        const needEntryRequestIdOnLoad =
+            homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
+
         const manualModal = document.getElementById('manual-modal');
         const manualOpenBtn = document.getElementById('manual-open-btn');
         const manualCloseBtn = document.getElementById('manual-close-btn');
@@ -301,6 +479,453 @@
                 }
                 applyOwnedFilters();
             });
+        }
+
+        const entryRequestModal = document.getElementById('entry-request-id-modal');
+        const entryRequestInput = document.getElementById('entry-request-id-input');
+        const entryRequestError = document.getElementById('entry-request-id-error');
+        const entryRequestText = document.getElementById('entry-request-id-modal-text');
+        const confirmPendingForm = document.getElementById('form-confirm-pending');
+        const confirmPendingHidden = document.getElementById('confirm-pending-request-id');
+        const prepareAddObjectForm = document.getElementById('form-prepare-add-object');
+        const prepareAddObjectHidden = document.getElementById('prepare-add-object-request-id');
+        const cancelPendingUrl = '{% url "cancel_pending_entry" %}';
+        const addRecapBaseUrl = '{% url "add_recap" %}';
+        let entryRequestMode = null;
+        let pendingOwnedForm = null;
+
+        const entryRecapModal = document.getElementById('entry-recap-id-modal');
+        const entryRecapInput = document.getElementById('entry-recap-id-input');
+        const entryRecapError = document.getElementById('entry-recap-id-error');
+        const entryRecapSubmitBtn = document.getElementById('entry-recap-id-submit-btn');
+        const entryRecapCloseBtn = document.getElementById('entry-recap-id-close-btn');
+        const entryRecapCancelBtn = document.getElementById('entry-recap-id-cancel-btn');
+        let pendingRecapEntryBtn = null;
+
+        function openEntryRecapModal(fromBtn) {
+            pendingRecapEntryBtn = fromBtn || null;
+            if (entryRecapInput) {
+                entryRecapInput.value = '';
+            }
+            if (entryRecapError) {
+                entryRecapError.textContent = '';
+            }
+            if (entryRecapModal) {
+                entryRecapModal.style.display = 'flex';
+            }
+            setTimeout(() => entryRecapInput && entryRecapInput.focus(), 0);
+        }
+
+        function closeEntryRecapModal() {
+            if (entryRecapModal) {
+                entryRecapModal.style.display = 'none';
+            }
+            pendingRecapEntryBtn = null;
+        }
+
+        function submitEntryRecapModal() {
+            const raw = (entryRecapInput && entryRecapInput.value ? entryRecapInput.value : '').trim();
+            if (!raw) {
+                if (entryRecapError) {
+                    entryRecapError.textContent = 'Введите номер досъёма.';
+                }
+                return;
+            }
+            if (!/^\d+$/.test(raw)) {
+                if (entryRecapError) {
+                    entryRecapError.textContent = 'Номер досъёма должен содержать только цифры.';
+                }
+                return;
+            }
+            if (entryRecapError) {
+                entryRecapError.textContent = '';
+            }
+            const btn = pendingRecapEntryBtn;
+            if (!btn || !btn.dataset) {
+                closeEntryRecapModal();
+                return;
+            }
+            const params = new URLSearchParams();
+            params.set('request_id', btn.dataset.requestId || '');
+            params.set('name', btn.dataset.name || '');
+            params.set('object_key', btn.dataset.objectKey || '');
+            params.set('source_label', btn.dataset.sourceLabel || 'ДТ');
+            params.set('recap_id', raw);
+            window.location.href = addRecapBaseUrl + '?' + params.toString();
+        }
+
+        document.querySelectorAll('.add-recap-entry-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                openEntryRecapModal(btn);
+            });
+        });
+        if (entryRecapSubmitBtn) {
+            entryRecapSubmitBtn.addEventListener('click', submitEntryRecapModal);
+        }
+        if (entryRecapCloseBtn) {
+            entryRecapCloseBtn.addEventListener('click', closeEntryRecapModal);
+        }
+        if (entryRecapCancelBtn) {
+            entryRecapCancelBtn.addEventListener('click', closeEntryRecapModal);
+        }
+        if (entryRecapModal) {
+            entryRecapModal.addEventListener('click', (event) => {
+                if (event.target === entryRecapModal) {
+                    closeEntryRecapModal();
+                }
+            });
+        }
+        if (entryRecapInput) {
+            entryRecapInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    submitEntryRecapModal();
+                }
+            });
+        }
+
+        function openEntryRequestModal(mode, opts) {
+            const options = opts || {};
+            entryRequestMode = mode;
+            pendingOwnedForm = options.form || null;
+            if (entryRequestInput) {
+                entryRequestInput.value = '';
+            }
+            if (entryRequestError) {
+                entryRequestError.textContent = '';
+            }
+            if (entryRequestText) {
+                if (mode === 'pending') {
+                    entryRequestText.textContent =
+                        'Объект найден, но в записи нет номера заявки. Введите номер заявки (request_id), чтобы открыть редактирование.';
+                } else if (mode === 'add-object') {
+                    entryRequestText.textContent =
+                        'Укажите номер заявки (request_id) перед переходом к созданию объекта.';
+                } else if (mode === 'owned') {
+                    entryRequestText.textContent =
+                        'У объекта не указан номер заявки в базе. Введите номер заявки (request_id), чтобы продолжить.';
+                }
+            }
+            if (entryRequestModal) {
+                entryRequestModal.style.display = 'flex';
+            }
+            setTimeout(() => entryRequestInput && entryRequestInput.focus(), 0);
+        }
+
+        function closeEntryRequestModal() {
+            if (entryRequestModal) {
+                entryRequestModal.style.display = 'none';
+            }
+            entryRequestMode = null;
+            pendingOwnedForm = null;
+        }
+
+        function handleEntryRequestCancel() {
+            if (entryRequestMode === 'pending') {
+                window.location.href = cancelPendingUrl;
+            } else {
+                closeEntryRequestModal();
+            }
+        }
+
+        function submitEntryRequestModal() {
+            const raw = (entryRequestInput && entryRequestInput.value ? entryRequestInput.value : '').trim();
+            if (!raw) {
+                if (entryRequestError) {
+                    entryRequestError.textContent = 'Введите номер заявки.';
+                }
+                return;
+            }
+            if (!/^\d+$/.test(raw)) {
+                if (entryRequestError) {
+                    entryRequestError.textContent = 'Номер заявки должен содержать только цифры.';
+                }
+                return;
+            }
+            if (entryRequestError) {
+                entryRequestError.textContent = '';
+            }
+            if (entryRequestMode === 'pending' && confirmPendingHidden && confirmPendingForm) {
+                confirmPendingHidden.value = raw;
+                confirmPendingForm.submit();
+            } else if (entryRequestMode === 'add-object' && prepareAddObjectHidden && prepareAddObjectForm) {
+                prepareAddObjectHidden.value = raw;
+                prepareAddObjectForm.submit();
+            } else if (entryRequestMode === 'owned' && pendingOwnedForm) {
+                const ridInput = pendingOwnedForm.querySelector('input[name="request_id"]');
+                if (ridInput) {
+                    ridInput.value = raw;
+                }
+                pendingOwnedForm.submit();
+            }
+            closeEntryRequestModal();
+        }
+
+        document.querySelectorAll('form.owned-open-form').forEach((form) => {
+            form.addEventListener('submit', (e) => {
+                if (form.dataset.needsRequestId === '1') {
+                    e.preventDefault();
+                    openEntryRequestModal('owned', { form: form });
+                }
+            });
+        });
+
+        const addObjectEntryBtn = document.getElementById('add-object-entry-btn');
+        if (addObjectEntryBtn) {
+            addObjectEntryBtn.addEventListener('click', () => {
+                openEntryRequestModal('add-object');
+            });
+        }
+
+        const entryRequestSubmitBtn = document.getElementById('entry-request-id-submit-btn');
+        const entryRequestCloseBtn = document.getElementById('entry-request-id-close-btn');
+        const entryRequestCancelBtn = document.getElementById('entry-request-id-cancel-btn');
+        if (entryRequestSubmitBtn) {
+            entryRequestSubmitBtn.addEventListener('click', submitEntryRequestModal);
+        }
+        if (entryRequestCloseBtn) {
+            entryRequestCloseBtn.addEventListener('click', handleEntryRequestCancel);
+        }
+        if (entryRequestCancelBtn) {
+            entryRequestCancelBtn.addEventListener('click', handleEntryRequestCancel);
+        }
+        if (entryRequestModal) {
+            entryRequestModal.addEventListener('click', (event) => {
+                if (event.target === entryRequestModal) {
+                    handleEntryRequestCancel();
+                }
+            });
+        }
+        if (entryRequestInput) {
+            entryRequestInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    submitEntryRequestModal();
+                }
+            });
+        }
+
+        const mergePassportsBtn = document.getElementById('merge-passports-btn');
+        const mergePassportsToolbar = document.getElementById('merge-passports-toolbar');
+        const mergePassportsCancelBtn = document.getElementById('merge-passports-cancel-btn');
+        const mergePassportsNextBtn = document.getElementById('merge-passports-next-btn');
+        const mergeRequestModal = document.getElementById('merge-passports-request-modal');
+        const mergeRequestInput = document.getElementById('merge-passports-request-input');
+        const mergeRequestError = document.getElementById('merge-passports-request-error');
+        const mergeRequestSubmitBtn = document.getElementById('merge-passports-request-submit-btn');
+        const mergeRequestCancelBtn = document.getElementById('merge-passports-request-cancel-btn');
+        const mergeRequestCloseBtn = document.getElementById('merge-passports-request-close-btn');
+        const formMergePassports = document.getElementById('form-merge-passports');
+        const mergeItemsContainer = document.getElementById('merge-passports-items-container');
+        const mergeRequestIdHidden = document.getElementById('merge-passports-request-id-hidden');
+        const mergeTargetSourceHidden = document.getElementById('merge-passports-target-source-hidden');
+        const mergeTargetDtRadio = document.getElementById('merge-target-dt');
+        const mergeTargetOdhRadio = document.getElementById('merge-target-odh');
+        const mergeTargetOznRadio = document.getElementById('merge-target-ozn');
+        const mergeTargetSourceFieldset = document.getElementById('merge-target-source-fieldset');
+        const mergePassportsRequestIntro = document.getElementById('merge-passports-request-intro');
+
+        let mergePassportsMode = false;
+        let mergeImplicitTargetSource = '';
+
+        function normalizeMergeSourceLabel(rawSourceLabel) {
+            const sourceLabel = String(rawSourceLabel || 'ДТ').trim().toUpperCase();
+            if (sourceLabel === 'ОДХ') {
+                return 'ОДХ';
+            }
+            if (sourceLabel === 'ОЗН' || sourceLabel === 'ОО') {
+                return 'ОЗН';
+            }
+            return 'ДТ';
+        }
+
+        function setMergePassportsMode(active) {
+            mergePassportsMode = Boolean(active);
+            document.body.classList.toggle('home--merge-passports', mergePassportsMode);
+            if (mergePassportsToolbar) {
+                mergePassportsToolbar.style.display = mergePassportsMode ? 'flex' : 'none';
+            }
+            document.querySelectorAll('.owned-passport-row .owned-open-form button[type="submit"]').forEach((btn) => {
+                btn.disabled = mergePassportsMode;
+            });
+            if (!mergePassportsMode) {
+                document.querySelectorAll('.merge-passport-cb').forEach((cb) => {
+                    cb.checked = false;
+                });
+            }
+        }
+
+        function closeMergeRequestModal() {
+            if (mergeRequestModal) {
+                mergeRequestModal.style.display = 'none';
+            }
+            if (mergeRequestInput) {
+                mergeRequestInput.value = '';
+            }
+            if (mergeRequestError) {
+                mergeRequestError.textContent = '';
+            }
+            if (mergeTargetDtRadio) {
+                mergeTargetDtRadio.checked = false;
+            }
+            if (mergeTargetOdhRadio) {
+                mergeTargetOdhRadio.checked = false;
+            }
+            if (mergeTargetOznRadio) {
+                mergeTargetOznRadio.checked = false;
+            }
+            mergeImplicitTargetSource = '';
+        }
+
+        function openMergeRequestModalWithSources(sourcesSet) {
+            if (mergeRequestInput) {
+                mergeRequestInput.value = '';
+            }
+            if (mergeRequestError) {
+                mergeRequestError.textContent = '';
+            }
+            if (mergeTargetDtRadio) {
+                mergeTargetDtRadio.checked = false;
+            }
+            if (mergeTargetOdhRadio) {
+                mergeTargetOdhRadio.checked = false;
+            }
+            if (mergeTargetOznRadio) {
+                mergeTargetOznRadio.checked = false;
+            }
+            mergeImplicitTargetSource = '';
+            if (mergeTargetSourceFieldset) {
+                mergeTargetSourceFieldset.style.display = '';
+            }
+            if (mergePassportsRequestIntro) {
+                mergePassportsRequestIntro.textContent =
+                    'Укажите номер заявки и выберите, в какой системе сохранить объединённый паспорт (ДТ/ОДХ/ОО).';
+            }
+            if (sourcesSet.size === 1) {
+                const onlySource = sourcesSet.values().next().value;
+                if (onlySource === 'ОЗН' && mergeTargetOznRadio) {
+                    mergeTargetOznRadio.checked = true;
+                } else if (onlySource === 'ОДХ' && mergeTargetOdhRadio) {
+                    mergeTargetOdhRadio.checked = true;
+                } else if (mergeTargetDtRadio) {
+                    mergeTargetDtRadio.checked = true;
+                }
+            } else if (mergeTargetDtRadio) {
+                mergeTargetDtRadio.checked = true;
+            }
+            if (mergeRequestModal) {
+                mergeRequestModal.style.display = 'flex';
+            }
+            setTimeout(() => mergeRequestInput && mergeRequestInput.focus(), 0);
+        }
+
+        function submitMergePassportsContinue() {
+            const checked = Array.from(document.querySelectorAll('.merge-passport-cb:checked'));
+            if (checked.length < 2) {
+                window.alert('Отметьте не менее двух паспортов.');
+                return;
+            }
+            const sources = new Set(
+                checked.map((cb) => {
+                    return normalizeMergeSourceLabel(cb.dataset.sourceLabel);
+                })
+            );
+            openMergeRequestModalWithSources(sources);
+        }
+
+        function submitMergeRequestModal() {
+            const raw = (mergeRequestInput && mergeRequestInput.value ? mergeRequestInput.value : '').trim();
+            if (!raw) {
+                if (mergeRequestError) {
+                    mergeRequestError.textContent = 'Введите номер заявки.';
+                }
+                return;
+            }
+            if (!/^\d+$/.test(raw)) {
+                if (mergeRequestError) {
+                    mergeRequestError.textContent = 'Номер заявки должен содержать только цифры.';
+                }
+                return;
+            }
+            let targetSourceValue = mergeImplicitTargetSource;
+            if (!targetSourceValue) {
+                const targetRadio = document.querySelector('input[name="merge_target_source_ui"]:checked');
+                if (!targetRadio) {
+                    if (mergeRequestError) {
+                        mergeRequestError.textContent = 'Выберите тип итогового паспорта (ДТ, ОДХ или ОО).';
+                    }
+                    return;
+                }
+                targetSourceValue = targetRadio.value;
+            }
+            const checked = Array.from(document.querySelectorAll('.merge-passport-cb:checked'));
+            if (!mergeItemsContainer || !formMergePassports || !mergeRequestIdHidden || !mergeTargetSourceHidden) {
+                return;
+            }
+            mergeItemsContainer.innerHTML = '';
+            checked.forEach((cb) => {
+                const sl = normalizeMergeSourceLabel(cb.dataset.sourceLabel);
+                const rid = document.createElement('input');
+                rid.type = 'hidden';
+                rid.name = 'merge_item_rootid';
+                rid.value = cb.value || '';
+                mergeItemsContainer.appendChild(rid);
+                const srcInp = document.createElement('input');
+                srcInp.type = 'hidden';
+                srcInp.name = 'merge_item_source';
+                srcInp.value = sl;
+                mergeItemsContainer.appendChild(srcInp);
+            });
+            mergeRequestIdHidden.value = raw;
+            mergeTargetSourceHidden.value = targetSourceValue;
+            formMergePassports.submit();
+        }
+
+        if (mergePassportsBtn && mergePassportsToolbar) {
+            mergePassportsBtn.addEventListener('click', () => {
+                setMergePassportsMode(!mergePassportsMode);
+                mergePassportsBtn.classList.toggle('is-active', mergePassportsMode);
+            });
+        }
+        if (mergePassportsCancelBtn) {
+            mergePassportsCancelBtn.addEventListener('click', () => {
+                setMergePassportsMode(false);
+                if (mergePassportsBtn) {
+                    mergePassportsBtn.classList.remove('is-active');
+                }
+                closeMergeRequestModal();
+            });
+        }
+        if (mergePassportsNextBtn) {
+            mergePassportsNextBtn.addEventListener('click', submitMergePassportsContinue);
+        }
+        if (mergeRequestSubmitBtn) {
+            mergeRequestSubmitBtn.addEventListener('click', submitMergeRequestModal);
+        }
+        if (mergeRequestCancelBtn) {
+            mergeRequestCancelBtn.addEventListener('click', closeMergeRequestModal);
+        }
+        if (mergeRequestCloseBtn) {
+            mergeRequestCloseBtn.addEventListener('click', closeMergeRequestModal);
+        }
+        if (mergeRequestModal) {
+            mergeRequestModal.addEventListener('click', (event) => {
+                if (event.target === mergeRequestModal) {
+                    closeMergeRequestModal();
+                }
+            });
+        }
+        if (mergeRequestInput) {
+            mergeRequestInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    submitMergeRequestModal();
+                }
+            });
+        }
+
+        if (needEntryRequestIdOnLoad) {
+            openEntryRequestModal('pending');
         }
     </script>
 {% endblock %}
