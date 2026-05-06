@@ -364,21 +364,33 @@
         .map-layer-groups-control input[type="checkbox"] {
             margin: 0;
         }
+        /* Leaflet по умолчанию задаёт label { display: block } — из‑за этого чекбокс уезжает над текстом */
         .leaflet-control-layers-overlays label,
-        .leaflet-control-layers-base label {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+        .leaflet-control-layers-base label,
+        .leaflet-control-layers-list label {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
             gap: 8px;
+            width: 100%;
+            box-sizing: border-box;
         }
         .leaflet-control-layers-overlays label span,
         .leaflet-control-layers-base label span {
             order: 1;
+            flex: 1 1 auto;
+            min-width: 0;
+            line-height: 1.25;
         }
         .leaflet-control-layers-overlays input.leaflet-control-layers-selector,
         .leaflet-control-layers-base input.leaflet-control-layers-selector {
             order: 2;
-            margin: 0 0 0 8px;
+            flex: 0 0 auto;
+            margin: 0 !important;
+            position: static !important;
+            top: auto !important;
         }
                 .map-layer-groups-control .layer-item-label {
             background: #fff59d !important;
