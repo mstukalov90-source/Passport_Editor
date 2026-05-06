@@ -547,6 +547,14 @@ def _get_map_layers(entry_point):
     request_owner_dt_name_select_expr = "NULL::text AS owner_legal_person_name"
     request_owner_odh_select_expr = "NULL::text AS owner_legal_person_id"
     request_owner_odh_name_select_expr = "NULL::text AS owner_legal_person_name"
+    request_customer_dt_select_expr = "NULL::text AS customer_legal_person_id"
+    request_department_dt_select_expr = "NULL::text AS department_legal_person_id"
+    request_customer_dt_name_select_expr = "NULL::text AS customer_legal_person_name"
+    request_department_dt_name_select_expr = "NULL::text AS department_legal_person_name"
+    request_customer_odh_select_expr = "NULL::text AS customer_legal_person_id"
+    request_department_odh_select_expr = "NULL::text AS department_legal_person_id"
+    request_customer_odh_name_select_expr = "NULL::text AS customer_legal_person_name"
+    request_department_odh_name_select_expr = "NULL::text AS department_legal_person_name"
     adjacent_customer_select_expr = "NULL::text AS customer_legal_person_id"
     adjacent_department_select_expr = "NULL::text AS department_legal_person_id"
     adjacent_customer_name_select_expr = "NULL::text AS customer_legal_person_name"
@@ -604,6 +612,48 @@ def _get_map_layers(entry_point):
             request_owner_odh_name_select_expr = (
                 f"{_build_id_name_lookup_expr(f't.{_quote_ident(odh_owner_field)}', lookup_context)} "
                 "AS owner_legal_person_name"
+            )
+        if _column_exists(cursor, dt_table, customer_field_pref):
+            dt_customer_field = _resolve_column_name(cursor, dt_table, customer_field_pref)
+            adjacent_customer_select_expr = f"t.{_quote_ident(dt_customer_field)}::text AS customer_legal_person_id"
+            adjacent_customer_prop_expr = "customer_legal_person_id::text"
+            adjacent_customer_name_select_expr = (
+                f"{_build_id_name_lookup_expr(f't.{_quote_ident(dt_customer_field)}', lookup_context)} "
+                "AS customer_legal_person_name"
+            )
+            adjacent_customer_name_prop_expr = "customer_legal_person_name::text"
+            request_customer_dt_select_expr = f"t.{_quote_ident(dt_customer_field)}::text AS customer_legal_person_id"
+            request_customer_dt_name_select_expr = (
+                f"{_build_id_name_lookup_expr(f't.{_quote_ident(dt_customer_field)}', lookup_context)} "
+                "AS customer_legal_person_name"
+            )
+        if _column_exists(cursor, dt_table, department_field_pref):
+            dt_department_field = _resolve_column_name(cursor, dt_table, department_field_pref)
+            adjacent_department_select_expr = f"t.{_quote_ident(dt_department_field)}::text AS department_legal_person_id"
+            adjacent_department_prop_expr = "department_legal_person_id::text"
+            adjacent_department_name_select_expr = (
+                f"{_build_id_name_lookup_expr(f't.{_quote_ident(dt_department_field)}', lookup_context)} "
+                "AS department_legal_person_name"
+            )
+            adjacent_department_name_prop_expr = "department_legal_person_name::text"
+            request_department_dt_select_expr = f"t.{_quote_ident(dt_department_field)}::text AS department_legal_person_id"
+            request_department_dt_name_select_expr = (
+                f"{_build_id_name_lookup_expr(f't.{_quote_ident(dt_department_field)}', lookup_context)} "
+                "AS department_legal_person_name"
+            )
+        if _column_exists(cursor, odh_table, customer_field_pref):
+            odh_customer_field = _resolve_column_name(cursor, odh_table, customer_field_pref)
+            request_customer_odh_select_expr = f"t.{_quote_ident(odh_customer_field)}::text AS customer_legal_person_id"
+            request_customer_odh_name_select_expr = (
+                f"{_build_id_name_lookup_expr(f't.{_quote_ident(odh_customer_field)}', lookup_context)} "
+                "AS customer_legal_person_name"
+            )
+        if _column_exists(cursor, odh_table, department_field_pref):
+            odh_department_field = _resolve_column_name(cursor, odh_table, department_field_pref)
+            request_department_odh_select_expr = f"t.{_quote_ident(odh_department_field)}::text AS department_legal_person_id"
+            request_department_odh_name_select_expr = (
+                f"{_build_id_name_lookup_expr(f't.{_quote_ident(odh_department_field)}', lookup_context)} "
+                "AS department_legal_person_name"
             )
         if _column_exists(cursor, dt_table, rootid_field):
             adjacent_rootid_field = _resolve_column_name(cursor, dt_table, rootid_field)
@@ -788,33 +838,33 @@ def _get_map_layers(entry_point):
     requests_sql = (
         map_layers_cte_open
         + "ix AS ("
-        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}, {request_customer_dt_select_expr}, {request_department_dt_select_expr}, {request_customer_dt_name_select_expr}, {request_department_dt_name_select_expr}"
         f" FROM {_quote_ident(dt_table)} t, selected s"
         " WHERE ST_Intersects(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         f"   AND t.{request_id_field} IS NOT NULL"
         f"   {req_self_excl}"
         " UNION ALL "
-        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}, {request_customer_odh_select_expr}, {request_department_odh_select_expr}, {request_customer_odh_name_select_expr}, {request_department_odh_name_select_expr}"
         f" FROM {_quote_ident(odh_table)} t, selected s"
         " WHERE ST_Intersects(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         f"   AND t.{request_id_field} IS NOT NULL"
         f"   {req_self_excl}"
         "), tg AS ("
-        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}, {request_customer_dt_select_expr}, {request_department_dt_select_expr}, {request_customer_dt_name_select_expr}, {request_department_dt_name_select_expr}"
         f" FROM {_quote_ident(dt_table)} t, selected s"
         " WHERE ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         f"   AND t.{request_id_field} IS NOT NULL"
         f"   {req_self_excl}"
         " UNION ALL "
-        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}, {request_customer_odh_select_expr}, {request_department_odh_select_expr}, {request_customer_odh_name_select_expr}, {request_department_odh_name_select_expr}"
         f" FROM {_quote_ident(odh_table)} t, selected s"
         " WHERE ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         f"   AND t.{request_id_field} IS NOT NULL"
         f"   {req_self_excl}"
         "), nr AS ("
-        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}, {request_customer_dt_select_expr}, {request_department_dt_select_expr}, {request_customer_dt_name_select_expr}, {request_department_dt_name_select_expr}"
         f" FROM {_quote_ident(dt_table)} t, selected s"
         " WHERE ST_DWithin(t.{geom_field}::geography, s.geom::geography, 10)".replace("{geom_field}", geom_field) +
         "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
@@ -822,7 +872,7 @@ def _get_map_layers(entry_point):
         f"   AND t.{request_id_field} IS NOT NULL"
         f"   {req_self_excl}"
         " UNION ALL "
-        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}, {request_customer_odh_select_expr}, {request_department_odh_select_expr}, {request_customer_odh_name_select_expr}, {request_department_odh_name_select_expr}"
         f" FROM {_quote_ident(odh_table)} t, selected s"
         " WHERE ST_DWithin(t.{geom_field}::geography, s.geom::geography, 10)".replace("{geom_field}", geom_field) +
         "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
@@ -830,11 +880,11 @@ def _get_map_layers(entry_point):
         f"   AND t.{request_id_field} IS NOT NULL"
         f"   {req_self_excl}"
         "), rel AS ("
-        " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name FROM ix"
+        " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name, customer_legal_person_id, department_legal_person_id, customer_legal_person_name, department_legal_person_name FROM ix"
         " UNION"
-        " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name FROM tg"
+        " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name, customer_legal_person_id, department_legal_person_id, customer_legal_person_name, department_legal_person_name FROM tg"
         " UNION"
-        " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name FROM nr"
+        " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name, customer_legal_person_id, department_legal_person_id, customer_legal_person_name, department_legal_person_name FROM nr"
         ") "
         "SELECT jsonb_build_object("
         " 'type', 'FeatureCollection',"
@@ -847,10 +897,10 @@ def _get_map_layers(entry_point):
         "       'request_id', request_id::text,"
         "      'owner_legal_person_id', owner_legal_person_id::text,"
         "      'owner_legal_person_name', owner_legal_person_name::text,"
-        "      'customer_legal_person_id', NULL::text,"
-        "      'department_legal_person_id', NULL::text,"
-        "      'customer_legal_person_name', NULL::text,"
-        "      'department_legal_person_name', NULL::text"
+        "      'customer_legal_person_id', customer_legal_person_id::text,"
+        "      'department_legal_person_id', department_legal_person_id::text,"
+        "      'customer_legal_person_name', customer_legal_person_name::text,"
+        "      'department_legal_person_name', department_legal_person_name::text"
         "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"
@@ -1011,6 +1061,14 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
     request_owner_dt_name_select_expr = "NULL::text AS owner_legal_person_name"
     request_owner_odh_select_expr = "NULL::text AS owner_legal_person_id"
     request_owner_odh_name_select_expr = "NULL::text AS owner_legal_person_name"
+    request_customer_dt_select_expr = "NULL::text AS customer_legal_person_id"
+    request_department_dt_select_expr = "NULL::text AS department_legal_person_id"
+    request_customer_dt_name_select_expr = "NULL::text AS customer_legal_person_name"
+    request_department_dt_name_select_expr = "NULL::text AS department_legal_person_name"
+    request_customer_odh_select_expr = "NULL::text AS customer_legal_person_id"
+    request_department_odh_select_expr = "NULL::text AS department_legal_person_id"
+    request_customer_odh_name_select_expr = "NULL::text AS customer_legal_person_name"
+    request_department_odh_name_select_expr = "NULL::text AS department_legal_person_name"
     with connection.cursor() as cursor:
         lookup_context = _get_id_names_lookup_context(cursor)
         if _column_exists(cursor, dt_table, customer_field_pref):
@@ -1026,6 +1084,18 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
             department_name_select_expr = (
                 f"{_build_id_name_lookup_expr(f't.{_quote_ident(department_field)}', lookup_context)} "
                 "AS department_legal_person_name"
+            )
+            request_department_dt_select_expr = f"t.{_quote_ident(department_field)}::text AS department_legal_person_id"
+            request_department_dt_name_select_expr = (
+                f"{_build_id_name_lookup_expr(f't.{_quote_ident(department_field)}', lookup_context)} "
+                "AS department_legal_person_name"
+            )
+        if _column_exists(cursor, dt_table, customer_field_pref):
+            dt_customer_field = _resolve_column_name(cursor, dt_table, customer_field_pref)
+            request_customer_dt_select_expr = f"t.{_quote_ident(dt_customer_field)}::text AS customer_legal_person_id"
+            request_customer_dt_name_select_expr = (
+                f"{_build_id_name_lookup_expr(f't.{_quote_ident(dt_customer_field)}', lookup_context)} "
+                "AS customer_legal_person_name"
             )
         if _column_exists(cursor, dt_table, owner_field_pref_dt):
             owner_field = _resolve_column_name(cursor, dt_table, owner_field_pref_dt)
@@ -1047,6 +1117,20 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
             request_owner_odh_name_select_expr = (
                 f"{_build_id_name_lookup_expr(f't.{_quote_ident(odh_owner_field)}', lookup_context)} "
                 "AS owner_legal_person_name"
+            )
+        if _column_exists(cursor, odh_table, customer_field_pref):
+            odh_customer_field = _resolve_column_name(cursor, odh_table, customer_field_pref)
+            request_customer_odh_select_expr = f"t.{_quote_ident(odh_customer_field)}::text AS customer_legal_person_id"
+            request_customer_odh_name_select_expr = (
+                f"{_build_id_name_lookup_expr(f't.{_quote_ident(odh_customer_field)}', lookup_context)} "
+                "AS customer_legal_person_name"
+            )
+        if _column_exists(cursor, odh_table, department_field_pref):
+            odh_department_field = _resolve_column_name(cursor, odh_table, department_field_pref)
+            request_department_odh_select_expr = f"t.{_quote_ident(odh_department_field)}::text AS department_legal_person_id"
+            request_department_odh_name_select_expr = (
+                f"{_build_id_name_lookup_expr(f't.{_quote_ident(odh_department_field)}', lookup_context)} "
+                "AS department_legal_person_name"
             )
 
     intersects_sql = (
@@ -1159,7 +1243,7 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         "), input_parts AS ("
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
         "), ix AS ("
-        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}, {request_customer_dt_select_expr}, {request_department_dt_select_expr}, {request_customer_dt_name_select_expr}, {request_department_dt_name_select_expr}"
         f" FROM {_quote_ident(dt_table)} t, input i"
         f" WHERE ST_Intersects(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
@@ -1168,7 +1252,7 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         "   )"
         f"   AND t.{request_id_field} IS NOT NULL"
         " UNION ALL "
-        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}, {request_customer_odh_select_expr}, {request_department_odh_select_expr}, {request_customer_odh_name_select_expr}, {request_department_odh_name_select_expr}"
         f" FROM {_quote_ident(odh_table)} t, input i"
         f" WHERE ST_Intersects(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
@@ -1177,7 +1261,7 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         "   )"
         f"   AND t.{request_id_field} IS NOT NULL"
         "), tg AS ("
-        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}, {request_customer_dt_select_expr}, {request_department_dt_select_expr}, {request_customer_dt_name_select_expr}, {request_department_dt_name_select_expr}"
         f" FROM {_quote_ident(dt_table)} t, input i"
         f" WHERE ST_Touches(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
@@ -1186,7 +1270,7 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         "   )"
         f"   AND t.{request_id_field} IS NOT NULL"
         " UNION ALL "
-        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}, {request_customer_odh_select_expr}, {request_department_odh_select_expr}, {request_customer_odh_name_select_expr}, {request_department_odh_name_select_expr}"
         f" FROM {_quote_ident(odh_table)} t, input i"
         f" WHERE ST_Touches(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
@@ -1195,7 +1279,7 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         "   )"
         f"   AND t.{request_id_field} IS NOT NULL"
         "), nr AS ("
-        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}, {request_customer_dt_select_expr}, {request_department_dt_select_expr}, {request_customer_dt_name_select_expr}, {request_department_dt_name_select_expr}"
         f" FROM {_quote_ident(dt_table)} t, input i"
         f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
         f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
@@ -1206,7 +1290,7 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         "   )"
         f"   AND t.{request_id_field} IS NOT NULL"
         " UNION ALL "
-        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}"
+        f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}, {request_customer_odh_select_expr}, {request_department_odh_select_expr}, {request_customer_odh_name_select_expr}, {request_department_odh_name_select_expr}"
         f" FROM {_quote_ident(odh_table)} t, input i"
         f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
         f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
@@ -1217,11 +1301,11 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         "   )"
         f"   AND t.{request_id_field} IS NOT NULL"
         "), rel AS ("
-        " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name FROM ix"
+        " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name, customer_legal_person_id, department_legal_person_id, customer_legal_person_name, department_legal_person_name FROM ix"
         " UNION"
-        " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name FROM tg"
+        " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name, customer_legal_person_id, department_legal_person_id, customer_legal_person_name, department_legal_person_name FROM tg"
         " UNION"
-        " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name FROM nr"
+        " SELECT row_tid, geom, rootid, name, request_id, owner_legal_person_id, owner_legal_person_name, customer_legal_person_id, department_legal_person_id, customer_legal_person_name, department_legal_person_name FROM nr"
         ") "
         "SELECT jsonb_build_object("
         " 'type', 'FeatureCollection',"
@@ -1234,10 +1318,10 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         "       'request_id', request_id::text,"
         "      'owner_legal_person_id', owner_legal_person_id::text,"
         "      'owner_legal_person_name', owner_legal_person_name::text,"
-        "      'customer_legal_person_id', NULL::text,"
-        "      'department_legal_person_id', NULL::text,"
-        "      'customer_legal_person_name', NULL::text,"
-        "      'department_legal_person_name', NULL::text"
+        "      'customer_legal_person_id', customer_legal_person_id::text,"
+        "      'department_legal_person_id', department_legal_person_id::text,"
+        "      'customer_legal_person_name', customer_legal_person_name::text,"
+        "      'department_legal_person_name', department_legal_person_name::text"
         "   )"
         " )), '[]'::jsonb)"
         ")::text FROM rel"

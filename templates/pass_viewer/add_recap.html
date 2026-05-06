@@ -1131,6 +1131,15 @@
             objectLayersControl.addTo(map);
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         function addSignalTapeLayer(targetGroup, geojsonObject, sourceLabel) {
             targetGroup.clearLayers();
             const geo = normalizeGeoJson(geojsonObject);
@@ -1205,10 +1214,10 @@
                         layer.bindPopup(
                             '<div style="min-width: 220px;">' +
                             '<div><strong>ДГИ</strong></div>' +
-                            (!descrText || ['null', 'none', '-'].includes(descrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Кадастровый номер:</strong> ' + String(descr) + '</div>')) +
-                            (!addressText || ['null', 'none', '-'].includes(addressText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Адрес:</strong> ' + String(address) + '</div>')) +
-                            (!vriText || ['null', 'none', '-'].includes(vriText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Назначение:</strong> ' + String(vri) + '</div>')) +
-                            (!sobstvRrText || ['null', 'none', '-'].includes(sobstvRrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Собственник:</strong> ' + String(sobstvRr) + '</div>')) +
+                            (!descrText || ['null', 'none', '-'].includes(descrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Кадастровый номер:</strong> ' + escapeHtml(descr) + '</div>')) +
+                            (!addressText || ['null', 'none', '-'].includes(addressText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Адрес:</strong> ' + escapeHtml(address) + '</div>')) +
+                            (!vriText || ['null', 'none', '-'].includes(vriText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Назначение:</strong> ' + escapeHtml(vri) + '</div>')) +
+                            (!sobstvRrText || ['null', 'none', '-'].includes(sobstvRrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Собственник:</strong> ' + escapeHtml(sobstvRr) + '</div>')) +
                             '</div>'
                         );
                     } else if (isOdh || isOzn) {
@@ -1229,10 +1238,11 @@
                         const rootidText = String(rootid ?? '').trim();
                         const nameText = String(name ?? '').trim();
                         const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
-                        const hasDepartment = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
+                        const hasDepartmentId = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
                         const hasOwner = !!ownerText && !['null', 'none', '-'].includes(ownerText.toLowerCase());
                         const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
                         const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
+                        const hasDepartment = hasDepartmentId || hasDepartmentName;
                         const hasOwnerName = !!ownerNameText && !['null', 'none', '-'].includes(ownerNameText.toLowerCase());
                         const customerDisplay = hasCustomerName
                             ? String(customerLegalPersonName || '-')
@@ -1246,12 +1256,12 @@
                         layer.bindPopup(
                             '<div style="min-width: 220px;">' +
                             '<div><strong>' + (isOzn ? 'ОО' : 'ОДХ') + '</strong></div>' +
-                            (!rootidText || ['null', 'none', '-'].includes(rootidText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Паспорт №:</strong> ' + String(rootid) + '</div>')) +
-                            (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
+                            (!rootidText || ['null', 'none', '-'].includes(rootidText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Паспорт №:</strong> ' + escapeHtml(rootid) + '</div>')) +
+                            (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
                             (isOzn
-                                ? (hasOwner ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(ownerDisplay) + '</div>') : '')
-                                : (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(customerDisplay) + '</div>') : '')) +
-                            (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + String(departmentDisplay) + '</div>') : '') +
+                                ? (hasOwner ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(ownerDisplay) + '</div>') : '')
+                                : (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(customerDisplay) + '</div>') : '')) +
+                            (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>') : '') +
                             '</div>'
                         );
                     } else {
@@ -1313,10 +1323,11 @@
             const departmentNameText = String(departmentLegalPersonName ?? '').trim();
             const hasOwner = !!ownerText && !['null', 'none', '-'].includes(ownerText.toLowerCase());
             const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
-            const hasDepartment = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
+            const hasDepartmentId = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
             const hasOwnerName = !!ownerNameText && !['null', 'none', '-'].includes(ownerNameText.toLowerCase());
             const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
             const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
+            const hasDepartment = hasDepartmentId || hasDepartmentName;
             const ownerDisplay = hasOwnerName
                 ? String(ownerLegalPersonName || '-')
                 : String(ownerLegalPersonId || '-');
@@ -1328,15 +1339,15 @@
                 : String(departmentLegalPersonId || '-');
             const ownerLines =
                 ((hasOwner || hasCustomer)
-                    ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(hasOwner ? ownerDisplay : customerDisplay) + '</div>')
+                    ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(hasOwner ? ownerDisplay : customerDisplay) + '</div>')
                     : '') +
-                (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + String(departmentDisplay) + '</div>') : '');
+                (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>') : '');
             if (isMissingRootid && hasRequestId) {
                 return (
                     '<div style="min-width: 220px;">' +
                     '<div><strong>ДТ</strong></div>' +
-                    '<div><strong>№ Заявки:</strong> ' + String(requestId || '-') + '</div>' +
-                    '<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name || '-') + '</div>' +
+                    '<div><strong>№ Заявки:</strong> ' + escapeHtml(requestId || '-') + '</div>' +
+                    '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
                     ownerLines +
                     '</div>'
                 );
@@ -1344,8 +1355,8 @@
             return (
                 '<div style="min-width: 220px;">' +
                 '<div><strong>ДТ</strong></div>' +
-                '<div><strong>№ Паспорта:</strong> ' + String(rootid || '-') + '</div>' +
-                '<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name || '-') + '</div>' +
+                '<div><strong>№ Паспорта:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
+                '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
                 ownerLines +
                 '</div>'
             );
@@ -1367,7 +1378,7 @@
                         '<div><strong>Реновация</strong></div>' +
                         (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase())
                             ? ''
-                            : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
+                            : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
                         '</div>'
                     );
                 }
@@ -1396,10 +1407,10 @@
                         : String(ownerLegalPersonId || '-');
                     layer.bindPopup(
                         '<div style="min-width: 220px;">' +
-                        '<div><strong>№ Досъёма:</strong> ' + String(recapId) + '</div>' +
-                        '<div style="margin-top: 6px;"><strong>№ Заявки:</strong> ' + String(requestId) + '</div>' +
-                        (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
-                        (!ownerText || ['null', 'none', '-'].includes(ownerText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + String(ownerDisplay) + '</div>')) +
+                        '<div><strong>№ Досъёма:</strong> ' + escapeHtml(recapId) + '</div>' +
+                        '<div style="margin-top: 6px;"><strong>№ Заявки:</strong> ' + escapeHtml(requestId) + '</div>' +
+                        (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
+                        (!ownerText || ['null', 'none', '-'].includes(ownerText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(ownerDisplay) + '</div>')) +
                         '</div>'
                     );
                 }

@@ -228,6 +228,9 @@
             border-color: #d1d5db;
             box-shadow: none;
         }
+        .map-toolbar-hidden {
+            display: none !important;
+        }
         .snap-switch {
             display: inline-flex;
             align-items: center;
@@ -813,6 +816,8 @@
         const cutPolygonButton = document.getElementById('cut-polygon-btn');
         const drawModeFreehandToggle = document.getElementById('draw-mode-freehand');
         const snapToggle = document.getElementById('snap-toggle');
+        const drawModeSwitch = drawModeFreehandToggle.closest('.snap-switch');
+        const snapModeSwitch = snapToggle.closest('.snap-switch');
         const checkRelationsButton = document.getElementById('check-relations-btn');
         const checkDgiIntersectionsButton = document.getElementById('check-dgi-intersections-btn');
         const autoRemoveIntersectionsButton = document.getElementById('auto-remove-intersections-btn');
@@ -1656,13 +1661,26 @@
         }
 
         function updateRelationsButtonState() {
-            checkRelationsButton.disabled = !buildCurrentGeometry();
+            const hasEditableGeometry = !!buildCurrentGeometry();
+            checkRelationsButton.disabled = !hasEditableGeometry;
             const geometry = buildCurrentGeometry();
             const area = calculateGeometryAreaSqMeters(geometry);
             editableAreaInfoEl.textContent = Number.isFinite(area) && area > 0
                 ? ('Площадь редактируемого объекта: ' + area.toFixed(2) + ' м²')
                 : 'Площадь редактируемого объекта: -';
+            updateEditToolbarVisibility(hasEditableGeometry);
             refreshObjectLayersControl();
+        }
+
+        function updateEditToolbarVisibility(hasEditableGeometry = !!buildCurrentGeometry()) {
+            const showEditModeControls = !!isEditing;
+            const showGeometryControls = showEditModeControls && !!hasEditableGeometry;
+            [addPolygonButton, cutPolygonButton, drawModeSwitch, snapModeSwitch].forEach((control) => {
+                control?.classList.toggle('map-toolbar-hidden', !showEditModeControls);
+            });
+            [checkRelationsButton, checkDgiIntersectionsButton, autoRemoveIntersectionsButton, addCommentPointButton].forEach((control) => {
+                control?.classList.toggle('map-toolbar-hidden', !showGeometryControls);
+            });
         }
 
         function collectSnapGuideLines(geojsonObject, output) {
@@ -2461,6 +2479,7 @@
             statusEl.textContent = enabled
                 ? 'Режим редактирования включён. Можно добавлять и изменять полигоны.'
                 : 'Режим редактирования выключен.';
+            updateEditToolbarVisibility();
         }
 
         function setAddObjectButtonMode(enabled) {
