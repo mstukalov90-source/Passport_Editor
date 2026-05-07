@@ -159,6 +159,7 @@
                                     <input type="hidden" name="name" value="{{ item.name }}">
                                     <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
                                     <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
+                                    <input type="hidden" name="geometry_detail_mode" value="simplified">
                                     <button type="submit" class="owned-list-open-btn">
                                         <strong>&#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.rootid }}<br>
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
@@ -195,6 +196,7 @@
                                     <input type="hidden" name="name" value="{{ item.name }}">
                                     <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
                                     <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
+                                    <input type="hidden" name="geometry_detail_mode" value="full">
                                     <button type="submit" class="owned-list-open-btn">
                                         <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}<br>
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
@@ -385,6 +387,20 @@
                 style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
                 autocomplete="off"
             />
+            <fieldset
+                id="entry-geometry-detail-fieldset"
+                style="display: none; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-top: 12px; margin-bottom: 0;"
+            >
+                <legend class="note" style="font-weight: 600; padding: 0 4px;">Геометрия выбранного паспорта</legend>
+                <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <input type="radio" name="entry_geometry_detail_ui" value="simplified" id="entry-geometry-detail-simplified" checked style="width: auto; height: auto; margin: 0; flex: 0 0 auto;" />
+                    <span style="display: inline-block;">Упрощённая (быстрее редактирование)</span>
+                </label>
+                <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <input type="radio" name="entry_geometry_detail_ui" value="full" id="entry-geometry-detail-full" style="width: auto; height: auto; margin: 0; flex: 0 0 auto;" />
+                    <span style="display: inline-block;">Полная</span>
+                </label>
+            </fieldset>
             <p id="entry-request-id-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
                 <button type="button" id="entry-request-id-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
@@ -485,6 +501,9 @@
         const entryRequestInput = document.getElementById('entry-request-id-input');
         const entryRequestError = document.getElementById('entry-request-id-error');
         const entryRequestText = document.getElementById('entry-request-id-modal-text');
+        const entryGeometryDetailFieldset = document.getElementById('entry-geometry-detail-fieldset');
+        const entryGeometryDetailSimplified = document.getElementById('entry-geometry-detail-simplified');
+        const entryGeometryDetailFull = document.getElementById('entry-geometry-detail-full');
         const confirmPendingForm = document.getElementById('form-confirm-pending');
         const confirmPendingHidden = document.getElementById('confirm-pending-request-id');
         const prepareAddObjectForm = document.getElementById('form-prepare-add-object');
@@ -606,6 +625,16 @@
                         'У объекта не указан номер заявки в базе. Введите номер заявки (request_id), чтобы продолжить.';
                 }
             }
+            if (entryGeometryDetailFieldset) {
+                const showGeometryModeChoice = mode === 'owned';
+                entryGeometryDetailFieldset.style.display = showGeometryModeChoice ? 'block' : 'none';
+                if (entryGeometryDetailSimplified && showGeometryModeChoice) {
+                    entryGeometryDetailSimplified.checked = true;
+                }
+                if (entryGeometryDetailFull && !showGeometryModeChoice) {
+                    entryGeometryDetailFull.checked = false;
+                }
+            }
             if (entryRequestModal) {
                 entryRequestModal.style.display = 'flex';
             }
@@ -655,6 +684,11 @@
                 const ridInput = pendingOwnedForm.querySelector('input[name="request_id"]');
                 if (ridInput) {
                     ridInput.value = raw;
+                }
+                const geometryDetailInput = pendingOwnedForm.querySelector('input[name="geometry_detail_mode"]');
+                if (geometryDetailInput) {
+                    const selectedDetailMode = entryGeometryDetailFull && entryGeometryDetailFull.checked ? 'full' : 'simplified';
+                    geometryDetailInput.value = selectedDetailMode;
                 }
                 pendingOwnedForm.submit();
             }
