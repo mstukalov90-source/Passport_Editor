@@ -132,3 +132,4 @@ docker-data/
 postgres-data/
 pgdata/
 *.pid
+.cursor/
