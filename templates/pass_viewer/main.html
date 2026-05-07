@@ -720,6 +720,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     {{ selected_geometry_json|default_if_none:"null"|json_script:"selected-geometry-data" }}
+    {{ selected_geometry_for_editing_json|default_if_none:"null"|json_script:"selected-geometry-for-editing-data" }}
     {{ intersects_geometry_json|default_if_none:"null"|json_script:"intersects-geometry-data" }}
     {{ touches_geometry_json|default_if_none:"null"|json_script:"touches-geometry-data" }}
     {{ nearby_geometry_json|default_if_none:"null"|json_script:"nearby-geometry-data" }}
@@ -1516,6 +1517,7 @@
         basemapControl.addTo(map);
 
         const selectedGeometry = parseGeometryData('selected-geometry-data');
+        const selectedGeometryForEditing = parseGeometryData('selected-geometry-for-editing-data') || selectedGeometry;
         const intersectsGeometry = parseGeometryData('intersects-geometry-data');
         const touchesGeometry = parseGeometryData('touches-geometry-data');
         const nearbyGeometry = parseGeometryData('nearby-geometry-data');
@@ -1942,7 +1944,7 @@
             }).addTo(requestObjectsGroup);
         }
 
-        const selectedGeo = normalizeGeoJson(selectedGeometry);
+        const selectedGeo = normalizeGeoJson(selectedGeometryForEditing);
         selectedEditableGeo = toEditableFeatureCollection(selectedGeo);
         if (selectedGeo) {
             selectedLayer = L.geoJSON(selectedGeo, {

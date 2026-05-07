@@ -805,7 +805,8 @@ def _get_map_layers(entry_point):
         f" SELECT t.{_quote_ident(adjacent_geom_field)} AS geom, t.{_quote_ident(adjacent_rootid_field)} AS rootid, t.{_quote_ident(adjacent_name_field)} AS name, t.{_quote_ident(adjacent_request_id_field)} AS request_id, "
         f"{adjacent_customer_select_expr}, {adjacent_department_select_expr}, {adjacent_owner_select_expr}, {adjacent_customer_name_select_expr}, {adjacent_department_name_select_expr}, {adjacent_owner_name_select_expr} "
         f"FROM {_quote_ident(dt_table)} t, selected s"
-        f" WHERE {neighbor_excl}ST_DWithin("
+        f" WHERE {neighbor_excl}t.{_quote_ident(adjacent_geom_field)} && ST_Envelope(ST_Buffer(s.geom::geography, 100)::geometry)"
+        "   AND ST_DWithin("
         f"   t.{_quote_ident(adjacent_geom_field)}::geography,"
         "   s.geom::geography, 100"
         " ) AND NOT ST_Touches("
@@ -866,7 +867,8 @@ def _get_map_layers(entry_point):
         "), nr AS ("
         f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}, {request_customer_dt_select_expr}, {request_department_dt_select_expr}, {request_customer_dt_name_select_expr}, {request_department_dt_name_select_expr}"
         f" FROM {_quote_ident(dt_table)} t, selected s"
-        " WHERE ST_DWithin(t.{geom_field}::geography, s.geom::geography, 10)".replace("{geom_field}", geom_field) +
+        " WHERE t.{geom_field} && ST_Envelope(ST_Buffer(s.geom::geography, 10)::geometry)".replace("{geom_field}", geom_field) +
+        "   AND ST_DWithin(t.{geom_field}::geography, s.geom::geography, 10)".replace("{geom_field}", geom_field) +
         "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         "   AND NOT ST_Intersects(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         f"   AND t.{request_id_field} IS NOT NULL"
@@ -874,7 +876,8 @@ def _get_map_layers(entry_point):
         " UNION ALL "
         f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}, {request_customer_odh_select_expr}, {request_department_odh_select_expr}, {request_customer_odh_name_select_expr}, {request_department_odh_name_select_expr}"
         f" FROM {_quote_ident(odh_table)} t, selected s"
-        " WHERE ST_DWithin(t.{geom_field}::geography, s.geom::geography, 10)".replace("{geom_field}", geom_field) +
+        " WHERE t.{geom_field} && ST_Envelope(ST_Buffer(s.geom::geography, 10)::geometry)".replace("{geom_field}", geom_field) +
+        "   AND ST_DWithin(t.{geom_field}::geography, s.geom::geography, 10)".replace("{geom_field}", geom_field) +
         "   AND NOT ST_Touches(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         "   AND NOT ST_Intersects(t.{geom_field}, s.geom)".replace("{geom_field}", geom_field) +
         f"   AND t.{request_id_field} IS NOT NULL"
@@ -1210,7 +1213,8 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
         f"{customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr} "
         f"FROM {_quote_ident(dt_table)} t, input i"
-        f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 100)"
+        f" WHERE t.{geom_field} && ST_Envelope(ST_Buffer(i.geom::geography, 100)::geometry)"
+        f"   AND ST_DWithin(t.{geom_field}::geography, i.geom::geography, 100)"
         f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
         f"   AND NOT ST_Intersects(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
@@ -1281,7 +1285,8 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         "), nr AS ("
         f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_dt_select_expr}, {request_owner_dt_name_select_expr}, {request_customer_dt_select_expr}, {request_department_dt_select_expr}, {request_customer_dt_name_select_expr}, {request_department_dt_name_select_expr}"
         f" FROM {_quote_ident(dt_table)} t, input i"
-        f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
+        f" WHERE t.{geom_field} && ST_Envelope(ST_Buffer(i.geom::geography, 10)::geometry)"
+        f"   AND ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
         f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
         f"   AND NOT ST_Intersects(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
@@ -1292,7 +1297,8 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         " UNION ALL "
         f" SELECT t.ctid::text AS row_tid, t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, {request_owner_odh_select_expr}, {request_owner_odh_name_select_expr}, {request_customer_odh_select_expr}, {request_department_odh_select_expr}, {request_customer_odh_name_select_expr}, {request_department_odh_name_select_expr}"
         f" FROM {_quote_ident(odh_table)} t, input i"
-        f" WHERE ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
+        f" WHERE t.{geom_field} && ST_Envelope(ST_Buffer(i.geom::geography, 10)::geometry)"
+        f"   AND ST_DWithin(t.{geom_field}::geography, i.geom::geography, 10)"
         f"   AND NOT ST_Touches(t.{geom_field}, i.geom)"
         f"   AND NOT ST_Intersects(t.{geom_field}, i.geom)"
         "   AND NOT EXISTS ("
@@ -1637,6 +1643,70 @@ def _to_intersection_geometry(geometry):
     return None
 
 
+def _simplify_geojson_for_editing(geojson_text, tolerance_meters=0.75):
+    if not geojson_text:
+        return None
+    try:
+        payload = json.loads(geojson_text) if isinstance(geojson_text, str) else geojson_text
+    except (TypeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    def _simplify_single_geometry(geometry):
+        if not isinstance(geometry, dict):
+            return geometry
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT ST_AsGeoJSON(
+                    ST_Transform(
+                        ST_SimplifyPreserveTopology(
+                            ST_Transform(
+                                ST_UnaryUnion(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))),
+                                3857
+                            ),
+                            %s
+                        ),
+                        4326
+                    )
+                )::text
+                """,
+                [json.dumps(geometry), float(tolerance_meters)],
+            )
+            row = cursor.fetchone()
+        if not row or not row[0]:
+            return geometry
+        try:
+            return json.loads(row[0])
+        except (TypeError, json.JSONDecodeError):
+            return geometry
+
+    if payload.get('type') == 'FeatureCollection':
+        features = payload.get('features') or []
+        if not isinstance(features, list):
+            return payload
+        simplified_features = []
+        for feature in features:
+            if not isinstance(feature, dict):
+                continue
+            simplified_feature = dict(feature)
+            simplified_feature['geometry'] = _simplify_single_geometry(feature.get('geometry'))
+            simplified_features.append(simplified_feature)
+        result = dict(payload)
+        result['features'] = simplified_features
+        return result
+
+    if payload.get('type') in {'Feature', 'Polygon', 'MultiPolygon', 'GeometryCollection'}:
+        if payload.get('type') == 'Feature':
+            result = dict(payload)
+            result['geometry'] = _simplify_single_geometry(payload.get('geometry'))
+            return result
+        return _simplify_single_geometry(payload)
+
+    return payload
+
+
 def _geometries_intersect(geometry_a, geometry_b):
     geometry_a_norm = _to_intersection_geometry(geometry_a)
     geometry_b_norm = _to_intersection_geometry(geometry_b)
@@ -1959,18 +2029,19 @@ def _get_reference_layer_geojson(
                     f" SELECT t.{_quote_ident(geom_field)} AS geom, "
                     f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr} "
                     f"FROM {_quote_ident(table_name)} t, input i"
-                    " WHERE ST_DWithin("
+                    f" WHERE t.{_quote_ident(geom_field)} && ST_Envelope(ST_Buffer(i.geom::geography, %s)::geometry)"
+                    "   AND (ST_DWithin("
                     f"   t.{_quote_ident(geom_field)}::geography,"
                     "   ST_Boundary(i.geom)::geography,"
                     "   %s"
                     " ) OR ST_Intersects("
                     f"   t.{_quote_ident(geom_field)},"
                     "   i.geom"
-                    " )"
+                    " ))"
                     ") "
                     + select_json_tail
                 )
-                cursor.execute(query, [geometry_json, distance_meters, source_label])
+                cursor.execute(query, [geometry_json, distance_meters, distance_meters, source_label])
         row = cursor.fetchone()
         return row[0] if row else None
 
@@ -2060,8 +2131,9 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100, request_id_fil
                     "), spatial_rel AS ("
                     f" SELECT {recap_select_core}"
                     " FROM recaps t, input i"
-                    " WHERE ST_DWithin(t.geom::geography, ST_Boundary(i.geom)::geography, %s)"
-                    "    OR ST_Intersects(t.geom, i.geom)"
+                    " WHERE t.geom && ST_Envelope(ST_Buffer(i.geom::geography, %s)::geometry)"
+                    "   AND (ST_DWithin(t.geom::geography, ST_Boundary(i.geom)::geography, %s)"
+                    "    OR ST_Intersects(t.geom, i.geom))"
                     "), request_rel AS ("
                     f" SELECT {recap_select_core}"
                     " FROM recaps t"
@@ -2073,7 +2145,7 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100, request_id_fil
                     ") "
                     + json_agg_select
                 )
-                cursor.execute(query, [geometry_json, distance_meters, request_id_text])
+                cursor.execute(query, [geometry_json, distance_meters, distance_meters, request_id_text])
             else:
                 query = (
                     "WITH input AS ("
@@ -2081,12 +2153,13 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100, request_id_fil
                     "), rel AS ("
                     f" SELECT {recap_select_core}"
                     " FROM recaps t, input i"
-                    " WHERE ST_DWithin(t.geom::geography, ST_Boundary(i.geom)::geography, %s)"
-                    "    OR ST_Intersects(t.geom, i.geom)"
+                    " WHERE t.geom && ST_Envelope(ST_Buffer(i.geom::geography, %s)::geometry)"
+                    "   AND (ST_DWithin(t.geom::geography, ST_Boundary(i.geom)::geography, %s)"
+                    "    OR ST_Intersects(t.geom, i.geom))"
                     ") "
                     + json_agg_select
                 )
-                cursor.execute(query, [geometry_json, distance_meters])
+                cursor.execute(query, [geometry_json, distance_meters, distance_meters])
         row = cursor.fetchone()
         return row[0] if row else None
 
@@ -2214,6 +2287,26 @@ def main(request):
     selected_request_id = (layers.get('selected_request_id') or '').strip() if layers else ''
     ep_request_id = (entry_point.get('request_id') or '').strip()
     effective_request_id = selected_request_id or ep_request_id
+    selected_geometry_for_editing = layers['selected'] if layers else None
+    geometry_detail_mode = str(entry_point.get('geometry_detail_mode') or '').strip().lower()
+    use_full_geometry = geometry_detail_mode == 'full'
+    should_simplify_selected = (
+        bool(layers)
+        and (entry_point.get('entry_source') == 'owned_passport_list')
+        and bool((layers.get('selected_rootid') or '').strip())
+        and not use_full_geometry
+    )
+    if should_simplify_selected:
+        try:
+            simplify_tolerance_m = float(getattr(settings, 'GIS_EDIT_SIMPLIFY_TOLERANCE_METERS', 0.75))
+            selected_geom_simplified = _simplify_geojson_for_editing(
+                layers['selected'],
+                tolerance_meters=max(0.0, simplify_tolerance_m),
+            )
+            if selected_geom_simplified:
+                selected_geometry_for_editing = json.dumps(selected_geom_simplified, ensure_ascii=False)
+        except Exception:
+            logger.exception('main: failed to simplify selected geometry for editing')
 
     reference_layers = _get_reference_layers(
         geometry=layers['selected'] if layers else None,
@@ -2228,6 +2321,7 @@ def main(request):
             'entry_point': entry_point,
             'map_layers': layers,
             'selected_geometry_json': layers['selected'] if layers else None,
+            'selected_geometry_for_editing_json': selected_geometry_for_editing,
             'selected_rootid': layers['selected_rootid'] if layers else None,
             'selected_name': layers['selected_name'] if layers else None,
             'selected_request_id': layers['selected_request_id'] if layers else None,
@@ -2399,11 +2493,16 @@ def open_owned_object(request):
     if not rootid and not name and not request_id:
         return redirect('home')
 
+    geometry_detail_mode = str(request.POST.get('geometry_detail_mode') or '').strip().lower()
+    if geometry_detail_mode not in {'simplified', 'full'}:
+        geometry_detail_mode = 'simplified' if rootid else 'full'
     request.session['entry_point'] = {
         'rootid': rootid,
         'request_id': request_id,
         'name': '' if rootid else name,
         'source_label': _normalize_source_label(request.POST.get('source_label')),
+        'entry_source': 'owned_passport_list' if rootid else 'owned_request_list',
+        'geometry_detail_mode': geometry_detail_mode,
     }
     return redirect('main')
 
