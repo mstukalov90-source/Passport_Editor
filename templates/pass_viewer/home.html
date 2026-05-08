@@ -21,7 +21,7 @@
     {% endif %}
     <style>
         .owned-list-wrap {
-            max-height: min(62vh, 720px);
+            max-height: min(34vh, 420px);
             overflow: auto;
             border: 1px solid #dbe2ea;
             border-radius: 12px;
@@ -29,21 +29,28 @@
         }
         .owned-lists-grid {
             display: grid;
-            grid-template-columns: minmax(360px, 0.95fr) 1fr 1fr;
+            grid-template-columns: minmax(340px, 1fr) minmax(620px, 2fr);
+            grid-template-areas:
+                "passports map"
+                "requests map";
             gap: 14px;
             width: 100%;
+            align-items: start;
         }
+        .owned-passports-cell { grid-area: passports; }
+        .owned-requests-cell { grid-area: requests; }
+        .owned-map-cell { grid-area: map; }
         .owned-map-wrap {
             border: 1px solid #dbe2ea;
             border-radius: 12px;
             overflow: hidden;
             background: #fff;
-            min-height: 420px;
+            min-height: min(72vh, 860px);
         }
         #owned-passports-map {
             width: 100%;
-            height: min(62vh, 720px);
-            min-height: 420px;
+            height: min(72vh, 860px);
+            min-height: 520px;
         }
         .owned-list-title {
             margin: 0 0 8px;
@@ -56,14 +63,17 @@
             border-bottom: 1px solid #eef1f6;
             padding: 10px 12px;
         }
-        .owned-passport-row {
+        .owned-passport-row,
+        .owned-request-row {
             cursor: pointer;
         }
-        .owned-passport-row.is-map-focused {
+        .owned-passport-row.is-map-focused,
+        .owned-request-row.is-map-focused {
             background: #f0f7ff;
             box-shadow: inset 0 0 0 2px #93c5fd;
         }
-        .owned-passport-row.is-map-hovered {
+        .owned-passport-row.is-map-hovered,
+        .owned-request-row.is-map-hovered {
             background: #fff1f2;
             box-shadow: inset 0 0 0 2px #fda4af;
         }
@@ -145,10 +155,11 @@
         }
         @media (max-width: 1300px) {
             .owned-lists-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-            .owned-map-cell {
-                grid-column: 1 / -1;
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "map"
+                    "passports"
+                    "requests";
             }
             #owned-passports-map {
                 height: 46vh;
@@ -195,7 +206,7 @@
                     <div id="owned-passports-map" aria-label="Карта объектов пользователя"></div>
                 </div>
             </div>
-            <div>
+            <div class="owned-passports-cell">
                 <h3 class="owned-list-title">Актуальные паспорта</h3>
                 <div class="owned-list-wrap">
                     {% for item in owned_objects %}
@@ -203,6 +214,8 @@
                             <div
                                 class="owned-list-item owned-item owned-passport-row"
                                 data-rootid="{{ item.rootid|default_if_none:''|lower }}"
+                                data-map-rootid="{{ item.rootid|default_if_none:''|lower }}"
+                                data-request-id="{{ item.request_id|default_if_none:''|lower }}"
                                 data-name="{{ item.name|default:''|lower }}"
                                 data-source-label="{{ item.source_label|default:'ДТ' }}"
                             >
@@ -242,15 +255,18 @@
                 </div>
             </div>
 
-            <div>
+            <div class="owned-requests-cell">
                 <h3 class="owned-list-title">Заявки</h3>
                 <div class="owned-list-wrap">
                     {% for item in owned_objects %}
                         {% if not item.rootid %}
                             <div
-                                class="owned-list-item owned-item"
+                                class="owned-list-item owned-item owned-request-row"
                                 data-rootid="{{ item.request_id|default_if_none:''|lower }}"
+                                data-map-rootid="{{ item.rootid|default_if_none:''|lower }}"
+                                data-request-id="{{ item.request_id|default_if_none:''|lower }}"
                                 data-name="{{ item.name|default:''|lower }}"
+                                data-source-label="{{ item.source_label|default:'ДТ' }}"
                             >
                                 <form
                                     class="owned-open-form"
@@ -533,8 +549,12 @@
             return 'ДТ';
         }
 
-        function buildOwnedMapKey(rootidValue, sourceLabelValue) {
-            return `${String(rootidValue || '').trim().toLowerCase()}|${normalizeOwnedSourceLabel(sourceLabelValue)}`;
+        function buildOwnedMapKey(rootidValue, sourceLabelValue, requestIdValue, nameValue) {
+            const rid = String(rootidValue || '').trim().toLowerCase();
+            const req = String(requestIdValue || '').trim().toLowerCase();
+            const nm = String(nameValue || '').trim().toLowerCase();
+            const entityId = rid || (req ? `req:${req}` : `name:${nm}`);
+            return `${entityId}|${normalizeOwnedSourceLabel(sourceLabelValue)}`;
         }
 
         function parseOwnedGeoData() {
@@ -554,6 +574,11 @@
 
         function styleOwnedFeature(feature) {
             const sourceLabel = String(feature?.properties?.source_label || 'ДТ').toUpperCase();
+            const rootid = String(feature?.properties?.rootid || '').trim();
+            const requestId = String(feature?.properties?.request_id || '').trim();
+            if (!rootid && requestId) {
+                return { color: '#c026d3', weight: 2.5, fillOpacity: 0.28, fillColor: '#f0abfc' };
+            }
             if (sourceLabel === 'ОДХ') {
                 return { color: '#00bfff', weight: 2.5, fillOpacity: 0.04, fillColor: '#93c5fd' };
             }
@@ -567,10 +592,15 @@
             if (!ownedMapEl || typeof L === 'undefined') {
                 return;
             }
-            const passportRows = Array.from(document.querySelectorAll('.owned-passport-row'));
+            const mapListRows = Array.from(document.querySelectorAll('.owned-passport-row, .owned-request-row'));
             const rowByKey = new Map();
-            passportRows.forEach((row) => {
-                const key = buildOwnedMapKey(row.dataset.rootid || '', row.dataset.sourceLabel || 'ДТ');
+            mapListRows.forEach((row) => {
+                const key = buildOwnedMapKey(
+                    row.dataset.mapRootid || '',
+                    row.dataset.sourceLabel || 'ДТ',
+                    row.dataset.requestId || '',
+                    row.dataset.name || ''
+                );
                 row.dataset.mapKey = key;
                 if (!rowByKey.has(key)) {
                     rowByKey.set(key, row);
@@ -754,13 +784,18 @@
                 style: styleOwnedFeature,
                 onEachFeature: (feature, featureLayer) => {
                     const props = feature?.properties || {};
-                    const key = buildOwnedMapKey(props.rootid || '', props.source_label || 'ДТ');
+                    const key = buildOwnedMapKey(
+                        props.rootid || '',
+                        props.source_label || 'ДТ',
+                        props.request_id || '',
+                        props.name || ''
+                    );
                     featureLayerByKey.set(key, featureLayer);
                     featureStyleByKey.set(key, styleOwnedFeature(feature));
                     featureLayer.on('click', () => focusByKey(key, 'map'));
                     featureLayer.bindPopup(
                         '<div>' +
-                            '<div><strong>№ Паспорта:</strong> ' + (props.rootid || '-') + '</div>' +
+                            '<div><strong>' + (props.rootid ? '№ Паспорта' : '№ Заявки') + ':</strong> ' + (props.rootid || props.request_id || '-') + '</div>' +
                             '<div><strong>Название:</strong> ' + (props.name || '-') + '</div>' +
                             '<div><strong>Источник:</strong> ' + (props.source_label || 'ДТ') + '</div>' +
                         '</div>'
@@ -778,9 +813,12 @@
                 '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
             );
 
-            passportRows.forEach((row) => {
+            mapListRows.forEach((row) => {
                 row.addEventListener('click', (event) => {
                     if (event.target.closest('button, form, input, a, label')) {
+                        return;
+                    }
+                    if (!row.classList.contains('owned-passport-row')) {
                         return;
                     }
                     focusByKey(row.dataset.mapKey || '', 'list');

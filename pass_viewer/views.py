@@ -3,7 +3,6 @@ import logging
 import re
 import uuid
 import zipfile
-from datetime import date
 from pathlib import Path
 
 from django.http import JsonResponse
@@ -278,8 +277,9 @@ def _build_owned_passports_geojson(owned_objects):
     features = []
     for item in owned_objects:
         rootid = (item.get('rootid') or '').strip()
+        request_id = (item.get('request_id') or '').strip()
         geom_json = item.get('geom_json') or ''
-        if not rootid or not geom_json:
+        if not geom_json:
             continue
         try:
             geometry = json.loads(geom_json)
@@ -295,7 +295,8 @@ def _build_owned_passports_geojson(owned_objects):
                     'rootid': rootid,
                     'name': item.get('name') or '',
                     'source_label': item.get('source_label') or 'ДТ',
-                    'request_id': item.get('request_id') or '',
+                    'request_id': request_id,
+                    'is_request_object': bool(request_id and not rootid),
                 },
             }
         )
@@ -1006,6 +1007,7 @@ def _export_geometry_files(geometry, properties=None):
             None if properties.get('OwnerLegalPersonId') is None else str(properties.get('OwnerLegalPersonId'))
         ),
         'request_id': (properties.get('request_id') or ''),
+        'recap_id': (properties.get('recap_id') or ''),
     }
 
     export_root = Path(settings.MEDIA_ROOT) / 'exports'
@@ -1015,12 +1017,22 @@ def _export_geometry_files(geometry, properties=None):
     export_dir.mkdir(parents=True, exist_ok=True)
 
     request_id_raw = str(export_properties.get('request_id') or '').strip()
-    request_id_safe = re.sub(r'[^A-Za-z0-9._-]+', '_', request_id_raw).strip('._-')
+    recap_id_raw = str(export_properties.get('recap_id') or '').strip()
+    name_raw = str(export_properties.get('name') or '').strip()
+    request_id_safe = re.sub(r'[^\w.-]+', '_', request_id_raw, flags=re.UNICODE).strip('._-')
+    recap_id_safe = re.sub(r'[^\w.-]+', '_', recap_id_raw, flags=re.UNICODE).strip('._-')
+    name_safe = re.sub(r'[^\w.-]+', '_', name_raw, flags=re.UNICODE).strip('._-')
     if not request_id_safe:
         request_id_safe = 'request'
+    if not name_safe:
+        name_safe = 'object'
     request_id_safe = request_id_safe[:80]
-    export_date = date.today().strftime('%Y%m%d')
-    base_filename = f"{request_id_safe}_{export_date}"
+    recap_id_safe = recap_id_safe[:80]
+    name_safe = name_safe[:120]
+    if recap_id_safe:
+        base_filename = f"{request_id_safe}_{recap_id_safe}_{name_safe}"
+    else:
+        base_filename = f"{request_id_safe}_{name_safe}"
 
     feature = {'type': 'Feature', 'properties': export_properties, 'geometry': geometry}
     feature_collection = {'type': 'FeatureCollection', 'features': [feature]}
