@@ -124,6 +124,12 @@
             white-space: nowrap;
             cursor: pointer;
         }
+        .owned-split-form {
+            margin: 0;
+            align-self: center;
+            display: inline-flex;
+            flex: 0 0 auto;
+        }
         .owned-list-panel {
             display: none;
             min-height: 0;
@@ -355,7 +361,6 @@
                                     class="owned-split-form"
                                     method="post"
                                     action="{% url 'open_owned_object' %}"
-                                    style="margin: 0;"
                                 >
                                     {% csrf_token %}
                                     <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">

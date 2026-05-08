@@ -2414,26 +2414,8 @@ def split_object(request):
             'Проверьте настройки таблицы/полей в settings.py.'
         )
 
+    # For split workflow we always use full geometry.
     selected_geometry_for_editing = layers['selected'] if layers else None
-    geometry_detail_mode = str(entry_point.get('geometry_detail_mode') or '').strip().lower()
-    use_full_geometry = geometry_detail_mode == 'full'
-    should_simplify_selected = (
-        bool(layers)
-        and (entry_point.get('entry_source') == 'owned_passport_list')
-        and bool((layers.get('selected_rootid') or '').strip())
-        and not use_full_geometry
-    )
-    if should_simplify_selected:
-        try:
-            simplify_tolerance_m = float(getattr(settings, 'GIS_EDIT_SIMPLIFY_TOLERANCE_METERS', 0.75))
-            selected_geom_simplified = _simplify_geojson_for_editing(
-                layers['selected'],
-                tolerance_meters=max(0.0, simplify_tolerance_m),
-            )
-            if selected_geom_simplified:
-                selected_geometry_for_editing = json.dumps(selected_geom_simplified, ensure_ascii=False)
-        except Exception:
-            logger.exception('split_object: failed to simplify selected geometry for editing')
 
     return render(
         request,
@@ -2446,6 +2428,9 @@ def split_object(request):
             'selected_rootid': layers['selected_rootid'] if layers else None,
             'selected_name': layers['selected_name'] if layers else None,
             'selected_request_id': layers['selected_request_id'] if layers else None,
+            'selected_source_label': (
+                layers['selected_source_label'] if layers else _normalize_source_label(entry_point.get('source_label'))
+            ),
             'query_error': query_error,
         },
     )
