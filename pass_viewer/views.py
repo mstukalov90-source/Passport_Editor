@@ -3,7 +3,6 @@ import logging
 import re
 import uuid
 import zipfile
-from datetime import date
 from pathlib import Path
 
 from django.http import JsonResponse
@@ -226,10 +225,17 @@ def _get_owned_objects(owner_legal_person_id):
             if _column_exists(cursor, table, request_id_field_pref):
                 request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
                 request_id_expr = f"{_quote_ident(request_id_field)}::text AS request_id"
+            geom_expr = "NULL::text AS geom_json"
+            try:
+                geom_field = _resolve_column_name(cursor, table, settings.GIS_OBJECT_GEOM_FIELD)
+            except Exception:
+                geom_field = None
+            if geom_field:
+                geom_expr = f"ST_AsGeoJSON(ST_Force2D({_quote_ident(geom_field)}))::text AS geom_json"
 
             query = (
                 f"SELECT ctid::text, {_quote_ident(rootid_field)}::text, {_quote_ident(name_field)}::text, "
-                f"{request_id_expr} "
+                f"{request_id_expr}, {geom_expr} "
                 f"FROM {_quote_ident(table)} "
                 f"WHERE {_quote_ident(owner_field)} = %s "
                 f"ORDER BY {_quote_ident(name_field)} ASC NULLS LAST, {_quote_ident(rootid_field)} ASC "
@@ -245,6 +251,7 @@ def _get_owned_objects(owner_legal_person_id):
                     'name': row[2] or '',
                     'request_id': row[3] or '',
                     'source_label': source_label,
+                    'geom_json': row[4] or '',
                 }
                 key = (
                     (item['rootid'] or '').strip().lower(),
@@ -264,6 +271,36 @@ def _get_owned_objects(owner_legal_person_id):
             (item.get('request_id') or '').lower(),
         ),
     )
+
+
+def _build_owned_passports_geojson(owned_objects):
+    features = []
+    for item in owned_objects:
+        rootid = (item.get('rootid') or '').strip()
+        request_id = (item.get('request_id') or '').strip()
+        geom_json = item.get('geom_json') or ''
+        if not geom_json:
+            continue
+        try:
+            geometry = json.loads(geom_json)
+        except Exception:
+            continue
+        if not geometry:
+            continue
+        features.append(
+            {
+                'type': 'Feature',
+                'geometry': geometry,
+                'properties': {
+                    'rootid': rootid,
+                    'name': item.get('name') or '',
+                    'source_label': item.get('source_label') or 'ДТ',
+                    'request_id': request_id,
+                    'is_request_object': bool(request_id and not rootid),
+                },
+            }
+        )
+    return {'type': 'FeatureCollection', 'features': features}
 
 
 def _normalize_source_label(value):
@@ -970,6 +1007,7 @@ def _export_geometry_files(geometry, properties=None):
             None if properties.get('OwnerLegalPersonId') is None else str(properties.get('OwnerLegalPersonId'))
         ),
         'request_id': (properties.get('request_id') or ''),
+        'recap_id': (properties.get('recap_id') or ''),
     }
 
     export_root = Path(settings.MEDIA_ROOT) / 'exports'
@@ -979,12 +1017,22 @@ def _export_geometry_files(geometry, properties=None):
     export_dir.mkdir(parents=True, exist_ok=True)
 
     request_id_raw = str(export_properties.get('request_id') or '').strip()
-    request_id_safe = re.sub(r'[^A-Za-z0-9._-]+', '_', request_id_raw).strip('._-')
+    recap_id_raw = str(export_properties.get('recap_id') or '').strip()
+    name_raw = str(export_properties.get('name') or '').strip()
+    request_id_safe = re.sub(r'[^\w.-]+', '_', request_id_raw, flags=re.UNICODE).strip('._-')
+    recap_id_safe = re.sub(r'[^\w.-]+', '_', recap_id_raw, flags=re.UNICODE).strip('._-')
+    name_safe = re.sub(r'[^\w.-]+', '_', name_raw, flags=re.UNICODE).strip('._-')
     if not request_id_safe:
         request_id_safe = 'request'
+    if not name_safe:
+        name_safe = 'object'
     request_id_safe = request_id_safe[:80]
-    export_date = date.today().strftime('%Y%m%d')
-    base_filename = f"{request_id_safe}_{export_date}"
+    recap_id_safe = recap_id_safe[:80]
+    name_safe = name_safe[:120]
+    if recap_id_safe:
+        base_filename = f"{request_id_safe}_{recap_id_safe}_{name_safe}"
+    else:
+        base_filename = f"{request_id_safe}_{name_safe}"
 
     feature = {'type': 'Feature', 'properties': export_properties, 'geometry': geometry}
     feature_collection = {'type': 'FeatureCollection', 'features': [feature]}
@@ -2235,6 +2283,7 @@ def home(request):
     owner_id = None
     owner_name = None
     owned_objects = []
+    owned_passports_geojson = {'type': 'FeatureCollection', 'features': []}
     owned_objects_error = None
     try:
         owner_id = _get_current_user_owner_id(request.user.username)
@@ -2245,6 +2294,7 @@ def home(request):
             for item in owned_objects:
                 request_id = (item.get('request_id') or '').strip()
                 item['recap_count'] = recap_counts.get(request_id, 0)
+            owned_passports_geojson = _build_owned_passports_geojson(owned_objects)
     except Exception:
         owned_objects_error = (
             'Не удалось получить список объектов пользователя. '
@@ -2261,6 +2311,7 @@ def home(request):
             'owner_id': owner_id,
             'owner_name': owner_name,
             'owned_objects': owned_objects,
+            'owned_passports_geojson': owned_passports_geojson,
             'owned_objects_error': owned_objects_error,
             'need_entry_request_id': need_entry_request_id,
         },
@@ -2341,6 +2392,45 @@ def main(request):
             'ozn_geometry_json': reference_layers['ozn'],
             'renew_geometry_json': reference_layers['renew'],
             'recaps_geometry_json': reference_layers['recaps'],
+            'query_error': query_error,
+        },
+    )
+
+
+@login_required
+def split_object(request):
+    entry_point = request.session.get('entry_point')
+    if not entry_point:
+        return redirect('home')
+
+    layers = None
+    query_error = None
+
+    try:
+        layers = _get_map_layers(entry_point)
+    except Exception:
+        query_error = (
+            'Не удалось получить геометрию из PostGIS. '
+            'Проверьте настройки таблицы/полей в settings.py.'
+        )
+
+    # For split workflow we always use full geometry.
+    selected_geometry_for_editing = layers['selected'] if layers else None
+
+    return render(
+        request,
+        'pass_viewer/split_object.html',
+        {
+            'entry_point': entry_point,
+            'map_layers': layers,
+            'selected_geometry_json': layers['selected'] if layers else None,
+            'selected_geometry_for_editing_json': selected_geometry_for_editing,
+            'selected_rootid': layers['selected_rootid'] if layers else None,
+            'selected_name': layers['selected_name'] if layers else None,
+            'selected_request_id': layers['selected_request_id'] if layers else None,
+            'selected_source_label': (
+                layers['selected_source_label'] if layers else _normalize_source_label(entry_point.get('source_label'))
+            ),
             'query_error': query_error,
         },
     )
@@ -2504,6 +2594,9 @@ def open_owned_object(request):
         'entry_source': 'owned_passport_list' if rootid else 'owned_request_list',
         'geometry_detail_mode': geometry_detail_mode,
     }
+    redirect_to = str(request.POST.get('redirect_to') or '').strip().lower()
+    if redirect_to == 'split_object' and rootid:
+        return redirect('split_object')
     return redirect('main')
 
 

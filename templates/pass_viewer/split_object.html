@@ -1,0 +1,575 @@
+{% extends 'base.html' %}
+
+{% block title %}Разделение объекта{% endblock %}
+{% block container_class %}container--wide{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+    <div>
+        <h1 style="margin-bottom:8px;">Разделение объекта</h1>
+        {% if selected_rootid %}
+            <p style="margin:0;">Обьект паспорт №: {{ selected_rootid }}</p>
+        {% endif %}
+        <p style="margin:4px 0 0;">Название: <strong>{{ selected_name|default:"-" }}</strong></p>
+        <p style="margin:4px 0 0;">№ заявки: <strong>{{ selected_request_id|default:"-" }}</strong></p>
+    </div>
+    <a class="button-link" href="{% url 'home' %}">Вернуться к списку</a>
+</div>
+
+{% if query_error %}
+    <p class="note" style="color:#b42318;">{{ query_error }}</p>
+{% elif not map_layers %}
+    <p class="note" style="color:#b42318;">Объект не найден в базе.</p>
+{% endif %}
+
+<div style="display:flex;gap:10px;margin:8px 0 12px;align-items:center;flex-wrap:wrap;">
+    <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">Начать редактирование</button>
+    <button type="button" id="cut-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent" disabled>Разрезать полигон</button>
+    <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">Отмена</button>
+    <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">Выгрузить файлы</button>
+</div>
+
+<p id="edit-status" class="note" style="margin:0 0 10px;"></p>
+<div id="map" style="height:72vh;min-height:520px;margin:0;border-radius:10px;border:1px solid #e3e6ec;"></div>
+<p id="export-links" class="note"></p>
+
+<style>
+    #map.edit-mode .leaflet-editing-icon { display: none !important; }
+    #map.edit-mode .leaflet-middle-icon { display: none !important; }
+    .map-toolbar-btn { border:1px solid transparent; border-radius:9px; padding:10px 14px; font-weight:600; }
+    .map-toolbar-btn--primary { background:#1f6feb; color:#fff; }
+    .map-toolbar-btn--success { background:#15803d; color:#fff; }
+    .map-toolbar-btn--accent { background:#7c3aed; color:#fff; }
+    .map-toolbar-btn--danger { background:#dc2626; color:#fff; }
+    .map-toolbar-btn--muted { background:#e5e7eb; color:#111827; border-color:#d1d5db; }
+    .map-toolbar-btn:disabled { background:#e5e7eb !important; color:#6b7280 !important; border-color:#d1d5db !important; cursor:not-allowed !important; }
+    .map-basemap-control {
+        display: inline-flex;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #d1d5db;
+        border-radius: 10px;
+        padding: 6px;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
+    }
+    .map-basemap-btn {
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        color: #0f172a;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .map-basemap-btn.is-active {
+        background: #1d4ed8;
+        color: #fff;
+        border-color: #1d4ed8;
+    }
+</style>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+{{ selected_geometry_json|default_if_none:"null"|json_script:"selected-geometry-data" }}
+{{ selected_geometry_for_editing_json|default_if_none:"null"|json_script:"selected-geometry-for-editing-data" }}
+
+<script>
+    function getCookie(name) {
+        const cookieValue = document.cookie.split('; ').find((row) => row.startsWith(name + '='));
+        return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : null;
+    }
+
+    function parseGeometryData(id) {
+        const raw = JSON.parse(document.getElementById(id).textContent);
+        return raw ? JSON.parse(raw) : null;
+    }
+
+    function normalizeGeoJson(geojsonObject) {
+        if (!geojsonObject) return null;
+        if (typeof geojsonObject === 'string') {
+            try { geojsonObject = JSON.parse(geojsonObject); } catch (e) { return null; }
+        }
+        if (geojsonObject.type === 'FeatureCollection' || geojsonObject.type === 'Feature') return geojsonObject;
+        return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: geojsonObject }] };
+    }
+
+    function toEditableFeatureCollection(geojsonObject) {
+        const normalized = normalizeGeoJson(geojsonObject);
+        if (!normalized) return null;
+        const features = [];
+        normalized.features.forEach((feature) => {
+            const geometry = feature.geometry;
+            if (!geometry) return;
+            if (geometry.type === 'Polygon') {
+                features.push({
+                    type: 'Feature',
+                    properties: { ...(feature.properties || {}) },
+                    geometry: geometry
+                });
+            } else if (geometry.type === 'MultiPolygon') {
+                (geometry.coordinates || []).forEach((polyCoords) => {
+                    features.push({
+                        type: 'Feature',
+                        properties: { ...(feature.properties || {}) },
+                        geometry: { type: 'Polygon', coordinates: polyCoords }
+                    });
+                });
+            }
+        });
+        return { type: 'FeatureCollection', features: features };
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    const editButton = document.getElementById('edit-geometry-btn');
+    const cutButton = document.getElementById('cut-polygon-btn');
+    const cancelButton = document.getElementById('cancel-edit-btn');
+    const saveButton = document.getElementById('save-geometry-btn');
+    const statusEl = document.getElementById('edit-status');
+    const exportLinksEl = document.getElementById('export-links');
+    if (L && L.drawLocal) {
+        L.drawLocal.draw.toolbar.actions.title = 'Отменить рисование';
+        L.drawLocal.draw.toolbar.actions.text = 'Отмена';
+        L.drawLocal.draw.toolbar.finish.title = 'Завершить рисование';
+        L.drawLocal.draw.toolbar.finish.text = 'Завершить';
+        L.drawLocal.draw.toolbar.undo.title = 'Удалить последнюю точку';
+        L.drawLocal.draw.toolbar.undo.text = 'Назад';
+        L.drawLocal.draw.toolbar.buttons.polyline = 'Нарисовать линию';
+        L.drawLocal.draw.toolbar.buttons.polygon = 'Нарисовать полигон';
+        L.drawLocal.draw.handlers.polyline.tooltip.start = 'Кликните, чтобы начать линию.';
+        L.drawLocal.draw.handlers.polyline.tooltip.cont = 'Кликайте, чтобы продолжить линию.';
+        L.drawLocal.draw.handlers.polyline.tooltip.end = 'Кликните последнюю точку, чтобы завершить линию.';
+        L.drawLocal.edit.toolbar.actions.save.title = 'Сохранить изменения';
+        L.drawLocal.edit.toolbar.actions.save.text = 'Сохранить';
+        L.drawLocal.edit.toolbar.actions.cancel.title = 'Отменить редактирование, сбросить изменения';
+        L.drawLocal.edit.toolbar.actions.cancel.text = 'Отмена';
+        L.drawLocal.edit.toolbar.buttons.edit = 'Редактировать объекты';
+        L.drawLocal.edit.toolbar.buttons.editDisabled = 'Нет объектов для редактирования';
+        L.drawLocal.edit.toolbar.actions.clearAll.title = 'Удалить все объекты';
+        L.drawLocal.edit.toolbar.actions.clearAll.text = 'Удалить все';
+        L.drawLocal.edit.toolbar.buttons.remove = 'Удалить объекты';
+        L.drawLocal.edit.toolbar.buttons.removeDisabled = 'Нет объектов для удаления';
+        L.drawLocal.edit.handlers.edit.tooltip.text = 'Перетаскивайте маркеры или объекты для изменения.';
+        L.drawLocal.edit.handlers.edit.tooltip.subtext = 'Нажмите "Отмена", чтобы отменить изменения.';
+        L.drawLocal.edit.handlers.remove.tooltip.text = 'Кликните по объекту, чтобы удалить его.';
+    }
+
+    function stripGeometryTo2D(geometry) {
+        if (!geometry || typeof geometry !== 'object') return null;
+        if (geometry.type === 'GeometryCollection') {
+            return {
+                type: 'GeometryCollection',
+                geometries: (geometry.geometries || []).map(stripGeometryTo2D).filter(Boolean),
+            };
+        }
+        const stripCoords = (coords) => {
+            if (!Array.isArray(coords)) return coords;
+            if (coords.length && typeof coords[0] === 'number') {
+                return [coords[0], coords[1]];
+            }
+            return coords.map(stripCoords);
+        };
+        return { ...geometry, coordinates: stripCoords(geometry.coordinates) };
+    }
+
+
+    const selectedName = "{{ selected_name|default:''|escapejs }}";
+    const selectedRequestId = "{{ selected_request_id|default:''|escapejs }}";
+    const selectedSourceLabel = "{{ selected_source_label|default:'ДТ'|escapejs }}";
+
+    const map = L.map('map', { maxZoom: 30 }).setView([55.75, 37.61], 10);
+    map.attributionControl.setPrefix(
+        '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
+    );
+    const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxNativeZoom: 19,
+        maxZoom: 30,
+        attribution: '&copy; OpenStreetMap contributors'
+    });
+    const satelliteLayer = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+            maxNativeZoom: 19,
+            maxZoom: 30,
+            attribution: 'Tiles &copy; Esri'
+        }
+    );
+    const mggtLayer = L.tileLayer(
+        'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}',
+        {
+            maxNativeZoom: 17,
+            maxZoom: 30,
+            attribution: 'МГГТ'
+        }
+    );
+    mggtLayer.addTo(map);
+    const basemapControl = L.control({position: 'topright'});
+    basemapControl.onAdd = function () {
+        const container = L.DomUtil.create('div', 'map-basemap-control');
+        container.innerHTML =
+            '<button type="button" class="map-basemap-btn" data-map="topo">OSM</button>' +
+            '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
+            '<button type="button" class="map-basemap-btn is-active" data-map="mggt">МГГТ</button>' +
+            '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
+        L.DomEvent.disableClickPropagation(container);
+        return container;
+    };
+    basemapControl.addTo(map);
+
+    function setBasemap(mode) {
+        const removeBasemapLayers = () => {
+            if (map.hasLayer(topoLayer)) {
+                map.removeLayer(topoLayer);
+            }
+            if (map.hasLayer(satelliteLayer)) {
+                map.removeLayer(satelliteLayer);
+            }
+            if (map.hasLayer(mggtLayer)) {
+                map.removeLayer(mggtLayer);
+            }
+        };
+        if (mode === 'none') {
+            removeBasemapLayers();
+        } else if (mode === 'topo') {
+            removeBasemapLayers();
+            map.addLayer(topoLayer);
+        } else if (mode === 'sat') {
+            removeBasemapLayers();
+            map.addLayer(satelliteLayer);
+        } else if (mode === 'mggt') {
+            removeBasemapLayers();
+            map.addLayer(mggtLayer);
+        }
+        document.querySelectorAll('.map-basemap-btn').forEach((btn) => {
+            btn.classList.toggle('is-active', btn.dataset.map === mode);
+        });
+    }
+    map.getContainer().querySelectorAll('.map-basemap-btn').forEach((btn) => {
+        btn.addEventListener('click', () => setBasemap(btn.dataset.map));
+    });
+
+    const selectedGroup = L.featureGroup().addTo(map);
+    const editableGroup = L.featureGroup().addTo(map);
+    let selectedLayer = null;
+    let cutDrawer = null;
+    let isEditing = false;
+    let cutObjectMode = false;
+    let selectedEditableGeo = null;
+
+    function setEditMode(enabled) {
+        isEditing = enabled;
+        cutButton.disabled = !enabled;
+        cancelButton.style.display = enabled ? 'inline-block' : 'none';
+        saveButton.style.display = enabled ? 'inline-block' : 'none';
+        editButton.textContent = enabled ? 'Режим редактирования включён' : 'Начать редактирование';
+        if (!enabled) {
+            cutObjectMode = false;
+            cutButton.classList.remove('map-toolbar-btn--danger');
+            cutButton.classList.add('map-toolbar-btn--accent');
+            exportLinksEl.innerHTML = '';
+        }
+    }
+
+    function buildCurrentGeometry() {
+        if (!isEditing) return null;
+        const fc = editableGroup.toGeoJSON();
+        const geometries = (fc.features || []).map((f) => f.geometry).filter((g) => g && g.type === 'Polygon');
+        if (!geometries.length) return null;
+        if (geometries.length === 1) return geometries[0];
+        return { type: 'MultiPolygon', coordinates: geometries.map((g) => g.coordinates) };
+    }
+
+    function bindPartPopup(layer) {
+        const props = layer.feature?.properties || {};
+        const html = '<div style="min-width:220px;">' +
+            '<div><strong>Часть объекта</strong></div>' +
+            '<div style="margin-top:6px;"><strong>№ Заявки:</strong> ' + escapeHtml(props.request_id || '-') + '</div>' +
+            '<div style="margin-top:6px;"><strong>Название:</strong> ' + escapeHtml(props.name || '-') + '</div>' +
+            '</div>';
+        layer.bindPopup(html);
+    }
+
+    async function requestAttributesForLayer(layer, idx, total) {
+        return new Promise((resolve) => {
+            const popupId = 'split-attrs-' + Date.now() + '-' + idx;
+            const center = layer.getBounds().getCenter();
+            const popupHtml =
+                '<div id="' + popupId + '" style="min-width:230px;">' +
+                '<div style="font-weight:700;margin-bottom:8px;">Часть ' + idx + ' из ' + total + '</div>' +
+                '<label style="display:block;font-size:12px;margin-bottom:4px;">№ Заявки:</label>' +
+                '<input data-field="request" type="text" inputmode="numeric" pattern="[0-9]*" style="width:100%;box-sizing:border-box;margin-bottom:8px;" />' +
+                '<label style="display:block;font-size:12px;margin-bottom:4px;">Название:</label>' +
+                '<input data-field="name" type="text" style="width:100%;box-sizing:border-box;margin-bottom:8px;" />' +
+                '<div data-error style="color:#b42318;font-size:12px;min-height:16px;"></div>' +
+                '<button type="button" data-save class="map-toolbar-btn map-toolbar-btn--primary" style="width:100%;margin-top:6px;">Сохранить</button>' +
+                '</div>';
+            const popup = L.popup({ closeButton: false, closeOnClick: false, autoClose: false })
+                .setLatLng(center)
+                .setContent(popupHtml)
+                .openOn(map);
+            setTimeout(() => {
+                const root = document.getElementById(popupId);
+                if (!root) {
+                    resolve(false);
+                    return;
+                }
+                const requestInput = root.querySelector('[data-field="request"]');
+                const nameInput = root.querySelector('[data-field="name"]');
+                const saveBtn = root.querySelector('[data-save]');
+                const errEl = root.querySelector('[data-error]');
+                requestInput.value = (layer.feature?.properties?.request_id || selectedRequestId || '').trim();
+                nameInput.value = (layer.feature?.properties?.name || selectedName || '').trim();
+                requestInput.focus();
+                saveBtn.addEventListener('click', () => {
+                    const requestId = (requestInput.value || '').trim();
+                    const name = (nameInput.value || '').trim();
+                    if (!requestId || !/^\d+$/.test(requestId)) {
+                        errEl.textContent = 'Введите request_id (только цифры).';
+                        return;
+                    }
+                    if (!name) {
+                        errEl.textContent = 'Введите название.';
+                        return;
+                    }
+                    layer.feature = layer.feature || {
+                        type: 'Feature',
+                        properties: {},
+                        geometry: stripGeometryTo2D(layer.toGeoJSON().geometry)
+                    };
+                    layer.feature.properties = layer.feature.properties || {};
+                    layer.feature.properties.request_id = requestId;
+                    layer.feature.properties.name = name;
+                    bindPartPopup(layer);
+                    map.closePopup(popup);
+                    resolve(true);
+                });
+            }, 0);
+        });
+    }
+
+    async function ensureAttributesForAllParts() {
+        const layers = editableGroup.getLayers().filter((l) => typeof l.toGeoJSON === 'function');
+        if (!layers.length) return false;
+        for (let i = 0; i < layers.length; i += 1) {
+            const layer = layers[i];
+            const requestId = String(layer.feature?.properties?.request_id || '').trim();
+            const name = String(layer.feature?.properties?.name || '').trim();
+            if (requestId && name) continue;
+            statusEl.textContent = 'Заполните атрибуты для каждой образованной части.';
+            const ok = await requestAttributesForLayer(layer, i + 1, layers.length);
+            if (!ok) return false;
+        }
+        return true;
+    }
+
+    function applyGeometryToEditableGroup(geometry) {
+        const editableGeo = toEditableFeatureCollection(geometry);
+        if (!editableGeo || !editableGeo.features.length) return false;
+        editableGroup.clearLayers();
+        const layer = L.geoJSON(editableGeo, { style: { color: '#ef4444', weight: 3, fillOpacity: 0.25 } });
+        layer.eachLayer((partLayer) => {
+            partLayer.feature = partLayer.feature || {
+                type: 'Feature',
+                properties: {},
+                geometry: stripGeometryTo2D(partLayer.toGeoJSON().geometry)
+            };
+            editableGroup.addLayer(partLayer);
+        });
+        return true;
+    }
+
+    function cancelCutMode() {
+        if (cutDrawer) {
+            cutDrawer.disable();
+            cutDrawer = null;
+        }
+        cutObjectMode = false;
+        cutButton.textContent = 'Разрезать полигон';
+        cutButton.classList.remove('map-toolbar-btn--danger');
+        cutButton.classList.add('map-toolbar-btn--accent');
+    }
+
+    function startCutMode() {
+        cancelCutMode();
+        cutObjectMode = true;
+        cutButton.textContent = 'Отменить разрезание';
+        cutButton.classList.remove('map-toolbar-btn--accent');
+        cutButton.classList.add('map-toolbar-btn--danger');
+        cutDrawer = new L.Draw.Polyline(map, { shapeOptions: { color: '#ef4444', weight: 3, opacity: 0.9 } });
+        statusEl.textContent = 'Нарисуйте линию для разрезания.';
+        cutDrawer.enable();
+    }
+
+    async function applyCutGeometry(cutterLayer, cutterType) {
+        const geometry = stripGeometryTo2D(buildCurrentGeometry());
+        const cutterGeometry = stripGeometryTo2D(cutterLayer?.toGeoJSON?.()?.geometry);
+        if (!geometry || !cutterGeometry) {
+            statusEl.textContent = 'Не удалось выполнить разрезание: нет геометрии.';
+            return;
+        }
+        statusEl.textContent = 'Выполняем разрезание полигона...';
+        try {
+            const response = await fetch("{% url 'cut_edited_geometry' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || '' },
+                body: JSON.stringify({ geometry: geometry, cutter_geometry: cutterGeometry, cutter_type: cutterType })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || 'Не удалось разрезать полигон.');
+            if (!data.geometry) throw new Error('После разрезания геометрия не содержит площади.');
+            if (!applyGeometryToEditableGroup(data.geometry)) throw new Error('Не удалось применить результат разрезания.');
+            const attrsOk = await ensureAttributesForAllParts();
+            if (!attrsOk) throw new Error('Не удалось заполнить атрибуты частей.');
+            statusEl.textContent = 'Разрезание выполнено. Атрибуты частей заполнены.';
+        } catch (error) {
+            statusEl.textContent = error.message || 'Не удалось разрезать полигон.';
+        }
+    }
+
+    async function exportAllParts() {
+        if (!isEditing) {
+            statusEl.textContent = 'Сначала включите режим редактирования.';
+            return;
+        }
+        const layers = editableGroup.getLayers().filter((l) => typeof l.toGeoJSON === 'function');
+        if (!layers.length) {
+            statusEl.textContent = 'Нет геометрии для выгрузки.';
+            return;
+        }
+        const attrsOk = await ensureAttributesForAllParts();
+        if (!attrsOk) return;
+        saveButton.disabled = true;
+        statusEl.textContent = 'Сохраняем части в базе и формируем файлы...';
+        const links = [];
+        try {
+            for (let i = 0; i < layers.length; i += 1) {
+                const layer = layers[i];
+                const geometry = stripGeometryTo2D(layer.toGeoJSON().geometry);
+                const props = layer.feature?.properties || {};
+                const saveResponse = await fetch("{% url 'save_new_object' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || '' },
+                    body: JSON.stringify({
+                        geometry: geometry,
+                        name: props.name,
+                        request_id: props.request_id,
+                        source_label: selectedSourceLabel
+                    })
+                });
+                const saveResult = await saveResponse.json();
+                if (!saveResponse.ok || !saveResult.ok) {
+                    throw new Error(saveResult.error || ('Ошибка сохранения части №' + (i + 1) + ' в базе.'));
+                }
+                const response = await fetch("{% url 'export_new_object_geometry' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || '' },
+                    body: JSON.stringify({
+                        geometry: geometry,
+                        properties: {
+                            request_id: props.request_id,
+                            name: props.name,
+                            OwnerLegalPersonId: saveResult.owner_id
+                        }
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.ok) throw new Error(result.error || 'Ошибка выгрузки части №' + (i + 1));
+                links.push({
+                    idx: i + 1,
+                    name: props.name,
+                    requestId: props.request_id,
+                    geojson: result.geojson_url,
+                    shp: result.shapefile_url
+                });
+            }
+            exportLinksEl.innerHTML = links.map((item) =>
+                '<div style="margin:6px 0;">' +
+                '<strong>Часть ' + item.idx + '</strong> (№ заявки: ' + escapeHtml(item.requestId) +
+                ', Название: ' + escapeHtml(item.name) + ') — ' +
+                '<a class="button-link" href="' + item.geojson + '" download>GeoJSON</a> ' +
+                '<a class="button-link" href="' + item.shp + '">SHP (ZIP)</a>' +
+                '</div>'
+            ).join('');
+            statusEl.textContent = 'Все части сохранены в БД и выгружены в файлы: ' + links.length + '.';
+        } catch (error) {
+            statusEl.textContent = error.message || 'Не удалось сохранить и выгрузить части.';
+        } finally {
+            saveButton.disabled = false;
+        }
+    }
+
+    const selectedGeometry = stripGeometryTo2D(parseGeometryData('selected-geometry-data'));
+    const selectedGeometryForEditing = stripGeometryTo2D(parseGeometryData('selected-geometry-for-editing-data')) || selectedGeometry;
+    const selectedGeo = normalizeGeoJson(selectedGeometryForEditing);
+    selectedEditableGeo = toEditableFeatureCollection(selectedGeo);
+    if (selectedGeo) {
+        selectedLayer = L.geoJSON(selectedGeo, { style: { color: '#ef4444', weight: 3, fillOpacity: 0.25 } }).addTo(selectedGroup);
+        map.fitBounds(selectedLayer.getBounds(), { padding: [30, 30], maxZoom: 30 });
+    } else {
+        statusEl.textContent = 'Выбранный объект не удалось отрисовать на карте.';
+    }
+
+    editButton.addEventListener('click', () => {
+        if (!selectedEditableGeo || !selectedEditableGeo.features.length) {
+            statusEl.textContent = 'Для этого типа геометрии редактирование не поддержано.';
+            return;
+        }
+        if (isEditing) return;
+        editableGroup.clearLayers();
+        const editableLayer = L.geoJSON(selectedEditableGeo, { style: { color: '#ef4444', weight: 3, fillOpacity: 0.25 } });
+        editableLayer.eachLayer((layer) => {
+            layer.feature = layer.feature || {
+                type: 'Feature',
+                properties: {},
+                geometry: stripGeometryTo2D(layer.toGeoJSON().geometry)
+            };
+            layer.feature.properties = layer.feature.properties || {};
+            editableGroup.addLayer(layer);
+        });
+        if (selectedLayer && map.hasLayer(selectedLayer)) map.removeLayer(selectedLayer);
+        setEditMode(true);
+        statusEl.textContent = 'Режим редактирования включён.';
+    });
+
+    cutButton.addEventListener('click', () => {
+        if (!isEditing) {
+            statusEl.textContent = 'Сначала включите режим редактирования.';
+            return;
+        }
+        if (!buildCurrentGeometry()) {
+            statusEl.textContent = 'Нет редактируемой геометрии для разрезания.';
+            return;
+        }
+        if (cutObjectMode) {
+            cancelCutMode();
+            statusEl.textContent = 'Разрезание отменено.';
+            return;
+        }
+        startCutMode();
+    });
+
+    map.on(L.Draw.Event.CREATED, (event) => {
+        if (!cutObjectMode) return;
+        const cutterType = 'line';
+        cancelCutMode();
+        void applyCutGeometry(event.layer, cutterType);
+    });
+
+    cancelButton.addEventListener('click', () => {
+        cancelCutMode();
+        editableGroup.clearLayers();
+        if (selectedLayer && !map.hasLayer(selectedLayer)) map.addLayer(selectedLayer);
+        setEditMode(false);
+        statusEl.textContent = 'Изменения отменены.';
+    });
+
+    saveButton.addEventListener('click', () => { void exportAllParts(); });
+</script>
+{% endblock %}
