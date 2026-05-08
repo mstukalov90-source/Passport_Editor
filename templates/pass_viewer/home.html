@@ -21,36 +21,131 @@
     {% endif %}
     <style>
         .owned-list-wrap {
-            max-height: min(34vh, 420px);
+            max-height: none;
+            height: 100%;
             overflow: auto;
             border: 1px solid #dbe2ea;
             border-radius: 12px;
             background: #fff;
         }
         .owned-lists-grid {
+            --owned-workspace-height: clamp(520px, calc(100vh - 360px), 900px);
             display: grid;
             grid-template-columns: minmax(340px, 1fr) minmax(620px, 2fr);
             grid-template-areas:
-                "passports map"
-                "requests map";
+                "lists map";
             gap: 14px;
             width: 100%;
-            align-items: start;
+            align-items: stretch;
+            min-height: var(--owned-workspace-height);
+            max-height: var(--owned-workspace-height);
         }
-        .owned-passports-cell { grid-area: passports; }
-        .owned-requests-cell { grid-area: requests; }
-        .owned-map-cell { grid-area: map; }
+        .owned-lists-cell {
+            grid-area: lists;
+            display: flex;
+        }
+        .owned-map-cell {
+            grid-area: map;
+            display: flex;
+            flex-direction: column;
+        }
+        .owned-lists-panel {
+            border: 1px solid #dbe2ea;
+            border-radius: 12px;
+            background: #fff;
+            padding: 10px;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            min-height: var(--owned-workspace-height);
+            max-height: var(--owned-workspace-height);
+        }
+        .owned-list-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .owned-list-tab-btn {
+            border: 1px solid #cbd5e1;
+            background: #fff;
+            color: #1f2937;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .owned-list-tab-btn.is-active {
+            background: #dbeafe;
+            border-color: #93c5fd;
+            color: #1d4ed8;
+        }
+        .owned-source-filters {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .owned-source-filter-btn {
+            border: none;
+            cursor: pointer;
+            font: inherit;
+        }
+        .owned-source-filter-btn.is-off {
+            opacity: 0.35;
+            filter: grayscale(0.2);
+        }
+        .owned-confirm-open-btn {
+            display: none;
+            align-self: center;
+            background: #e0ecff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .owned-split-btn {
+            display: none;
+            align-self: center;
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .owned-list-panel {
+            display: none;
+            min-height: 0;
+        }
+        .owned-list-panel.is-active {
+            display: block;
+            flex: 1;
+        }
         .owned-map-wrap {
             border: 1px solid #dbe2ea;
             border-radius: 12px;
             overflow: hidden;
             background: #fff;
-            min-height: min(72vh, 860px);
+            min-height: 0;
+            height: 100%;
+            flex: 1;
+            max-height: var(--owned-workspace-height);
         }
         #owned-passports-map {
             width: 100%;
-            height: min(72vh, 860px);
-            min-height: 520px;
+            height: 100%;
+            min-height: 0;
         }
         .owned-list-title {
             margin: 0 0 8px;
@@ -158,8 +253,9 @@
                 grid-template-columns: 1fr;
                 grid-template-areas:
                     "map"
-                    "passports"
-                    "requests";
+                    "lists";
+                min-height: 0;
+                max-height: none;
             }
             #owned-passports-map {
                 height: 46vh;
@@ -206,9 +302,18 @@
                     <div id="owned-passports-map" aria-label="Карта объектов пользователя"></div>
                 </div>
             </div>
-            <div class="owned-passports-cell">
-                <h3 class="owned-list-title">Актуальные паспорта</h3>
-                <div class="owned-list-wrap">
+            <div class="owned-lists-cell">
+                <div class="owned-lists-panel">
+                    <div class="owned-list-tabs">
+                        <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="passports">Актуальные паспорта</button>
+                        <button type="button" class="owned-list-tab-btn" data-owned-list-tab="requests">Заявки</button>
+                    </div>
+                    <div class="owned-source-filters">
+                        <button type="button" class="source-badge source-badge--dt owned-source-filter-btn is-active" data-source-filter="ДТ">ДТ</button>
+                        <button type="button" class="source-badge source-badge--odh owned-source-filter-btn is-active" data-source-filter="ОДХ">ОДХ</button>
+                        <button type="button" class="source-badge source-badge--oo owned-source-filter-btn is-active" data-source-filter="ОЗН">ОО</button>
+                    </div>
+                <div class="owned-list-wrap owned-list-panel is-active" data-list-panel="passports">
                     {% for item in owned_objects %}
                         {% if item.rootid %}
                             <div
@@ -246,18 +351,30 @@
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                 </form>
-                                <span class="source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% else %}source-badge--dt{% endif %}">
+                                <form
+                                    class="owned-split-form"
+                                    method="post"
+                                    action="{% url 'open_owned_object' %}"
+                                    style="margin: 0;"
+                                >
+                                    {% csrf_token %}
+                                    <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
+                                    <input type="hidden" name="name" value="{{ item.name }}">
+                                    <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
+                                    <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
+                                    <input type="hidden" name="geometry_detail_mode" value="simplified">
+                                    <input type="hidden" name="redirect_to" value="split_object">
+                                    <button type="submit" class="owned-split-btn">Разделить</button>
+                                </form>
+                                <span class="source-badge owned-source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% else %}source-badge--dt{% endif %}">
                                     {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
                                 </span>
+                                <button type="button" class="owned-confirm-open-btn">Актуализировать</button>
                             </div>
                         {% endif %}
                     {% endfor %}
                 </div>
-            </div>
-
-            <div class="owned-requests-cell">
-                <h3 class="owned-list-title">Заявки</h3>
-                <div class="owned-list-wrap">
+                <div class="owned-list-wrap owned-list-panel" data-list-panel="requests">
                     {% for item in owned_objects %}
                         {% if not item.rootid %}
                             <div
@@ -323,6 +440,7 @@
                             </div>
                         {% endif %}
                     {% endfor %}
+                </div>
                 </div>
             </div>
         </div>
@@ -537,6 +655,10 @@
             homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
         const ownedMapEl = document.getElementById('owned-passports-map');
         const ownedGeoDataEl = document.getElementById('owned-passports-geojson-data');
+        const listTabButtons = Array.from(document.querySelectorAll('.owned-list-tab-btn'));
+        const listPanels = Array.from(document.querySelectorAll('.owned-list-panel'));
+        const sourceFilterButtons = Array.from(document.querySelectorAll('.owned-source-filter-btn'));
+        let applyOwnedMapSourceFilters = null;
 
         function normalizeOwnedSourceLabel(value) {
             const source = String(value || 'ДТ').trim().toUpperCase();
@@ -555,6 +677,31 @@
             const nm = String(nameValue || '').trim().toLowerCase();
             const entityId = rid || (req ? `req:${req}` : `name:${nm}`);
             return `${entityId}|${normalizeOwnedSourceLabel(sourceLabelValue)}`;
+        }
+
+        function getSelectedSourceSet() {
+            const selected = new Set();
+            sourceFilterButtons.forEach((btn) => {
+                if (!btn.classList.contains('is-off')) {
+                    selected.add(normalizeOwnedSourceLabel(btn.dataset.sourceFilter || 'ДТ'));
+                }
+            });
+            return selected;
+        }
+
+        function getActiveOwnedListTab() {
+            const activeBtn = listTabButtons.find((btn) => btn.classList.contains('is-active'));
+            return activeBtn ? activeBtn.dataset.ownedListTab : 'passports';
+        }
+
+        function setOwnedListTab(tabName) {
+            listTabButtons.forEach((btn) => {
+                const isActive = btn.dataset.ownedListTab === tabName;
+                btn.classList.toggle('is-active', isActive);
+            });
+            listPanels.forEach((panel) => {
+                panel.classList.toggle('is-active', panel.dataset.listPanel === tabName);
+            });
         }
 
         function parseOwnedGeoData() {
@@ -668,6 +815,7 @@
             const data = parseOwnedGeoData();
             const featureLayerByKey = new Map();
             const featureStyleByKey = new Map();
+            const featureMetaByKey = new Map();
             let activeKey = '';
             let activeRow = null;
             let hoverKey = '';
@@ -772,6 +920,11 @@
 
                 const row = rowByKey.get(key);
                 if (row) {
+                    if (source === 'map') {
+                        const rowTab = row.classList.contains('owned-request-row') ? 'requests' : 'passports';
+                        setOwnedListTab(rowTab);
+                        applyOwnedFilters();
+                    }
                     row.classList.add('is-map-focused');
                     activeRow = row;
                     if (source === 'map') {
@@ -792,6 +945,9 @@
                     );
                     featureLayerByKey.set(key, featureLayer);
                     featureStyleByKey.set(key, styleOwnedFeature(feature));
+                    featureMetaByKey.set(key, {
+                        sourceLabel: normalizeOwnedSourceLabel(props.source_label || 'ДТ'),
+                    });
                     featureLayer.on('click', () => focusByKey(key, 'map'));
                     featureLayer.bindPopup(
                         '<div>' +
@@ -809,11 +965,26 @@
             } else {
                 map.setView([55.751244, 37.618423], 10);
             }
+            // Keep requests above regular passports by default.
+            layer.eachLayer((featureLayer) => {
+                const props = featureLayer?.feature?.properties || {};
+                const rootid = String(props.rootid || '').trim();
+                const requestId = String(props.request_id || '').trim();
+                if (!rootid && requestId && typeof featureLayer.bringToFront === 'function') {
+                    featureLayer.bringToFront();
+                }
+            });
             map.attributionControl.setPrefix(
                 '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
             );
 
             mapListRows.forEach((row) => {
+                const openBtn = row.querySelector('.owned-list-open-btn');
+                if (openBtn) {
+                    openBtn.addEventListener('click', () => {
+                        focusByKey(row.dataset.mapKey || '', 'list');
+                    });
+                }
                 row.addEventListener('click', (event) => {
                     if (event.target.closest('button, form, input, a, label')) {
                         return;
@@ -831,6 +1002,55 @@
                     clearHoverRow();
                 });
             });
+
+            function applyMapFilters() {
+                const selectedSources = getSelectedSourceSet();
+                featureLayerByKey.forEach((featureLayer, key) => {
+                    const baseStyle = featureStyleByKey.get(key) || {};
+                    const meta = featureMetaByKey.get(key) || {};
+                    const isVisible = selectedSources.has(meta.sourceLabel || 'ДТ');
+                    let visibleStyle = baseStyle;
+                    if (key === activeKey) {
+                        visibleStyle = {
+                            ...baseStyle,
+                            weight: Math.max(4, Number(baseStyle.weight) + 1 || 4),
+                            fillOpacity: Math.max(0.34, Number(baseStyle.fillOpacity) + 0.12 || 0.34),
+                        };
+                    } else if (key === hoverKey) {
+                        visibleStyle = {
+                            ...baseStyle,
+                            color: '#ef4444',
+                            fillColor: '#fecaca',
+                            weight: Math.max(4, Number(baseStyle.weight) + 1 || 4),
+                            fillOpacity: 0.45,
+                        };
+                    }
+                    if (typeof featureLayer.setStyle === 'function') {
+                        featureLayer.setStyle(
+                            isVisible
+                                ? {
+                                      ...visibleStyle,
+                                      opacity: 1,
+                                      interactive: true,
+                                  }
+                                : {
+                                      ...baseStyle,
+                                      opacity: 0,
+                                      fillOpacity: 0,
+                                      interactive: false,
+                                  }
+                        );
+                    }
+                    if (!isVisible && typeof featureLayer.closePopup === 'function') {
+                        featureLayer.closePopup();
+                    }
+                });
+                clearHoverFeature();
+                clearHoverRow();
+            }
+
+            applyOwnedMapSourceFilters = applyMapFilters;
+            applyOwnedMapSourceFilters();
         }
         initOwnedMap();
 
@@ -842,6 +1062,7 @@
         const filterNameEl = document.getElementById('owned-filter-name');
         const filterClearEl = document.getElementById('owned-filter-clear');
         const ownedItems = Array.from(document.querySelectorAll('.owned-item'));
+        const passportForms = Array.from(document.querySelectorAll('.owned-passport-row form.owned-open-form'));
         const shouldOpenManualModal = manualModal?.dataset?.openOnLoad === '1';
 
         function closeManualModal() {
@@ -866,12 +1087,54 @@
         function applyOwnedFilters() {
             const rootidNeedle = (filterRootidEl?.value || '').trim().toLowerCase();
             const nameNeedle = (filterNameEl?.value || '').trim().toLowerCase();
+            const activeTab = getActiveOwnedListTab();
+            const selectedSources = getSelectedSourceSet();
             ownedItems.forEach((item) => {
                 const rootidValue = item.dataset.rootid || '';
                 const nameValue = item.dataset.name || '';
+                const sourceLabel = normalizeOwnedSourceLabel(item.dataset.sourceLabel || 'ДТ');
+                const tabName = item.classList.contains('owned-request-row') ? 'requests' : 'passports';
                 const rootidMatch = !rootidNeedle || rootidValue.includes(rootidNeedle);
                 const nameMatch = !nameNeedle || nameValue.includes(nameNeedle);
-                item.style.display = rootidMatch && nameMatch ? '' : 'none';
+                const sourceMatch = selectedSources.has(sourceLabel);
+                const tabMatch = tabName === activeTab;
+                item.style.display = rootidMatch && nameMatch && sourceMatch && tabMatch ? '' : 'none';
+            });
+            if (typeof applyOwnedMapSourceFilters === 'function') {
+                applyOwnedMapSourceFilters();
+            }
+        }
+
+        function setPassportConfirmState(form, enabled) {
+            if (!form) {
+                return;
+            }
+            const row = form.closest('.owned-passport-row');
+            if (!row) {
+                return;
+            }
+            const badge = row.querySelector('.owned-source-badge');
+            const confirmBtn = row.querySelector('.owned-confirm-open-btn');
+            const splitBtn = row.querySelector('.owned-split-btn');
+            if (!confirmBtn) {
+                return;
+            }
+            if (badge) {
+                badge.style.display = enabled ? 'none' : '';
+            }
+            confirmBtn.style.display = enabled ? 'inline-flex' : 'none';
+            if (splitBtn) {
+                splitBtn.style.display = enabled ? 'inline-flex' : 'none';
+            }
+            form.dataset.confirmReady = enabled ? '1' : '0';
+        }
+
+        function clearPassportConfirmState(exceptForm) {
+            passportForms.forEach((form) => {
+                if (exceptForm && form === exceptForm) {
+                    return;
+                }
+                setPassportConfirmState(form, false);
             });
         }
 
@@ -890,6 +1153,32 @@
                 applyOwnedFilters();
             });
         }
+        listTabButtons.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                setOwnedListTab(btn.dataset.ownedListTab || 'passports');
+                applyOwnedFilters();
+            });
+        });
+        sourceFilterButtons.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                btn.classList.toggle('is-off');
+                applyOwnedFilters();
+            });
+        });
+        passportForms.forEach((form) => {
+            const row = form.closest('.owned-passport-row');
+            const confirmBtn = row ? row.querySelector('.owned-confirm-open-btn') : null;
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    clearPassportConfirmState(form);
+                    setPassportConfirmState(form, true);
+                    form.requestSubmit();
+                });
+            }
+        });
+        setOwnedListTab('passports');
+        applyOwnedFilters();
 
         const entryRequestModal = document.getElementById('entry-request-id-modal');
         const entryRequestInput = document.getElementById('entry-request-id-input');
@@ -1091,8 +1380,19 @@
 
         document.querySelectorAll('form.owned-open-form').forEach((form) => {
             form.addEventListener('submit', (e) => {
+                const isPassportForm = !!form.closest('.owned-passport-row');
+                if (isPassportForm && form.dataset.confirmReady !== '1') {
+                    e.preventDefault();
+                    clearPassportConfirmState(form);
+                    setPassportConfirmState(form, true);
+                    return;
+                }
+                if (isPassportForm) {
+                    setPassportConfirmState(form, false);
+                }
                 if (form.dataset.needsRequestId === '1') {
                     e.preventDefault();
+                    clearPassportConfirmState();
                     openEntryRequestModal('owned', { form: form });
                 }
             });

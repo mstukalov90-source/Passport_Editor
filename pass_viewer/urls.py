@@ -22,6 +22,7 @@ from .views import (
     save_comment_point,
     save_recap_object,
     save_new_object,
+    split_object,
 )
 
 urlpatterns = [
@@ -46,4 +47,5 @@ urlpatterns = [
     path('owned/delete/', delete_owned_object, name='delete_owned_object'),
     path('main/', main, name='main'),
     path('main/export-geometry/', export_geometry, name='export_geometry'),
+    path('split-object/', split_object, name='split_object'),
 ]

@@ -2398,6 +2398,60 @@ def main(request):
 
 
 @login_required
+def split_object(request):
+    entry_point = request.session.get('entry_point')
+    if not entry_point:
+        return redirect('home')
+
+    layers = None
+    query_error = None
+
+    try:
+        layers = _get_map_layers(entry_point)
+    except Exception:
+        query_error = (
+            'Не удалось получить геометрию из PostGIS. '
+            'Проверьте настройки таблицы/полей в settings.py.'
+        )
+
+    selected_geometry_for_editing = layers['selected'] if layers else None
+    geometry_detail_mode = str(entry_point.get('geometry_detail_mode') or '').strip().lower()
+    use_full_geometry = geometry_detail_mode == 'full'
+    should_simplify_selected = (
+        bool(layers)
+        and (entry_point.get('entry_source') == 'owned_passport_list')
+        and bool((layers.get('selected_rootid') or '').strip())
+        and not use_full_geometry
+    )
+    if should_simplify_selected:
+        try:
+            simplify_tolerance_m = float(getattr(settings, 'GIS_EDIT_SIMPLIFY_TOLERANCE_METERS', 0.75))
+            selected_geom_simplified = _simplify_geojson_for_editing(
+                layers['selected'],
+                tolerance_meters=max(0.0, simplify_tolerance_m),
+            )
+            if selected_geom_simplified:
+                selected_geometry_for_editing = json.dumps(selected_geom_simplified, ensure_ascii=False)
+        except Exception:
+            logger.exception('split_object: failed to simplify selected geometry for editing')
+
+    return render(
+        request,
+        'pass_viewer/split_object.html',
+        {
+            'entry_point': entry_point,
+            'map_layers': layers,
+            'selected_geometry_json': layers['selected'] if layers else None,
+            'selected_geometry_for_editing_json': selected_geometry_for_editing,
+            'selected_rootid': layers['selected_rootid'] if layers else None,
+            'selected_name': layers['selected_name'] if layers else None,
+            'selected_request_id': layers['selected_request_id'] if layers else None,
+            'query_error': query_error,
+        },
+    )
+
+
+@login_required
 @require_POST
 def export_geometry(request):
     entry_point = request.session.get('entry_point')
@@ -2555,6 +2609,9 @@ def open_owned_object(request):
         'entry_source': 'owned_passport_list' if rootid else 'owned_request_list',
         'geometry_detail_mode': geometry_detail_mode,
     }
+    redirect_to = str(request.POST.get('redirect_to') or '').strip().lower()
+    if redirect_to == 'split_object' and rootid:
+        return redirect('split_object')
     return redirect('main')
 
 
