@@ -29,9 +29,21 @@
         }
         .owned-lists-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: minmax(360px, 0.95fr) 1fr 1fr;
             gap: 14px;
             width: 100%;
+        }
+        .owned-map-wrap {
+            border: 1px solid #dbe2ea;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #fff;
+            min-height: 420px;
+        }
+        #owned-passports-map {
+            width: 100%;
+            height: min(62vh, 720px);
+            min-height: 420px;
         }
         .owned-list-title {
             margin: 0 0 8px;
@@ -43,6 +55,17 @@
             align-items: stretch;
             border-bottom: 1px solid #eef1f6;
             padding: 10px 12px;
+        }
+        .owned-passport-row {
+            cursor: pointer;
+        }
+        .owned-passport-row.is-map-focused {
+            background: #f0f7ff;
+            box-shadow: inset 0 0 0 2px #93c5fd;
+        }
+        .owned-passport-row.is-map-hovered {
+            background: #fff1f2;
+            box-shadow: inset 0 0 0 2px #fda4af;
         }
         .owned-list-item:last-child {
             border-bottom: none;
@@ -84,6 +107,33 @@
             border-color: #6ee7b7;
             background: #ecfdf5;
         }
+        .map-basemap-control {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            padding: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+            max-width: 220px;
+            justify-content: flex-end;
+        }
+        .map-basemap-btn {
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 6px 10px;
+            background: #fff;
+            color: #111827;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .map-basemap-btn.is-active {
+            border-color: #2563eb;
+            background: #e8f0ff;
+            color: #1d4ed8;
+        }
         body.home--merge-passports .merge-passport-cb {
             display: block !important;
         }
@@ -92,6 +142,18 @@
         }
         #merge-passports-toolbar {
             display: none;
+        }
+        @media (max-width: 1300px) {
+            .owned-lists-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .owned-map-cell {
+                grid-column: 1 / -1;
+            }
+            #owned-passports-map {
+                height: 46vh;
+                min-height: 360px;
+            }
         }
         @media (max-width: 900px) {
             .owned-lists-grid {
@@ -127,6 +189,12 @@
             </button>
         </div>
         <div class="owned-lists-grid">
+            <div class="owned-map-cell">
+                <h3 class="owned-list-title">Карта объектов</h3>
+                <div class="owned-map-wrap">
+                    <div id="owned-passports-map" aria-label="Карта объектов пользователя"></div>
+                </div>
+            </div>
             <div>
                 <h3 class="owned-list-title">Актуальные паспорта</h3>
                 <div class="owned-list-wrap">
@@ -435,10 +503,298 @@
     </div>
 
     <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" hidden></div>
+    {{ owned_passports_geojson|json_script:"owned-passports-geojson-data" }}
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""
+    />
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""
+    ></script>
     <script>
         const homeBootstrapEl = document.getElementById('home-bootstrap-data');
         const needEntryRequestIdOnLoad =
             homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
+        const ownedMapEl = document.getElementById('owned-passports-map');
+        const ownedGeoDataEl = document.getElementById('owned-passports-geojson-data');
+
+        function normalizeOwnedSourceLabel(value) {
+            const source = String(value || 'ДТ').trim().toUpperCase();
+            if (source === 'ОДХ') {
+                return 'ОДХ';
+            }
+            if (source === 'ОЗН' || source === 'ОО') {
+                return 'ОЗН';
+            }
+            return 'ДТ';
+        }
+
+        function buildOwnedMapKey(rootidValue, sourceLabelValue) {
+            return `${String(rootidValue || '').trim().toLowerCase()}|${normalizeOwnedSourceLabel(sourceLabelValue)}`;
+        }
+
+        function parseOwnedGeoData() {
+            if (!ownedGeoDataEl) {
+                return { type: 'FeatureCollection', features: [] };
+            }
+            try {
+                const parsed = JSON.parse(ownedGeoDataEl.textContent || '{}');
+                if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
+                    return parsed;
+                }
+            } catch (e) {
+                // keep map resilient to malformed payload
+            }
+            return { type: 'FeatureCollection', features: [] };
+        }
+
+        function styleOwnedFeature(feature) {
+            const sourceLabel = String(feature?.properties?.source_label || 'ДТ').toUpperCase();
+            if (sourceLabel === 'ОДХ') {
+                return { color: '#00bfff', weight: 2.5, fillOpacity: 0.04, fillColor: '#93c5fd' };
+            }
+            if (sourceLabel === 'ОЗН' || sourceLabel === 'ОО') {
+                return { color: '#16a34a', weight: 2.5, fillOpacity: 0.22, fillColor: '#86efac' };
+            }
+            return { color: '#0284c7', weight: 2.5, fillOpacity: 0.3, fillColor: '#38bdf8' };
+        }
+
+        function initOwnedMap() {
+            if (!ownedMapEl || typeof L === 'undefined') {
+                return;
+            }
+            const passportRows = Array.from(document.querySelectorAll('.owned-passport-row'));
+            const rowByKey = new Map();
+            passportRows.forEach((row) => {
+                const key = buildOwnedMapKey(row.dataset.rootid || '', row.dataset.sourceLabel || 'ДТ');
+                row.dataset.mapKey = key;
+                if (!rowByKey.has(key)) {
+                    rowByKey.set(key, row);
+                }
+            });
+
+            const map = L.map(ownedMapEl, { zoomControl: true, preferCanvas: true });
+            const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxNativeZoom: 19,
+                maxZoom: 30,
+                attribution: '&copy; OpenStreetMap contributors',
+            });
+            const satelliteLayer = L.tileLayer(
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                {
+                    maxNativeZoom: 19,
+                    maxZoom: 30,
+                    attribution: 'Tiles &copy; Esri',
+                }
+            );
+            const mggtLayer = L.tileLayer(
+                'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}',
+                {
+                    maxNativeZoom: 17,
+                    maxZoom: 30,
+                    attribution: 'МГГТ',
+                }
+            );
+            mggtLayer.addTo(map);
+
+            const basemapControl = L.control({ position: 'topright' });
+            basemapControl.onAdd = function () {
+                const container = L.DomUtil.create('div', 'map-basemap-control');
+                container.innerHTML =
+                    '<button type="button" class="map-basemap-btn" data-map="topo">OSM</button>' +
+                    '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
+                    '<button type="button" class="map-basemap-btn is-active" data-map="mggt">МГГТ</button>' +
+                    '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
+                L.DomEvent.disableClickPropagation(container);
+                return container;
+            };
+            basemapControl.addTo(map);
+
+            const setBasemap = (mode) => {
+                [topoLayer, satelliteLayer, mggtLayer].forEach((layer) => {
+                    if (map.hasLayer(layer)) {
+                        map.removeLayer(layer);
+                    }
+                });
+                if (mode === 'topo') {
+                    topoLayer.addTo(map);
+                } else if (mode === 'sat') {
+                    satelliteLayer.addTo(map);
+                } else if (mode === 'mggt') {
+                    mggtLayer.addTo(map);
+                }
+                ownedMapEl.parentElement
+                    ?.querySelectorAll('.map-basemap-btn')
+                    .forEach((btn) => btn.classList.toggle('is-active', btn.dataset.map === mode));
+            };
+            ownedMapEl.parentElement?.querySelectorAll('.map-basemap-btn').forEach((btn) => {
+                btn.addEventListener('click', () => setBasemap(btn.dataset.map));
+            });
+
+            const data = parseOwnedGeoData();
+            const featureLayerByKey = new Map();
+            const featureStyleByKey = new Map();
+            let activeKey = '';
+            let activeRow = null;
+            let hoverKey = '';
+            let hoverRow = null;
+
+            function clearActiveRow() {
+                if (activeRow) {
+                    activeRow.classList.remove('is-map-focused');
+                    activeRow = null;
+                }
+            }
+
+            function clearActiveFeature() {
+                if (!activeKey) {
+                    return;
+                }
+                const prevLayer = featureLayerByKey.get(activeKey);
+                const prevStyle = featureStyleByKey.get(activeKey);
+                if (prevLayer && prevStyle && typeof prevLayer.setStyle === 'function') {
+                    prevLayer.setStyle(prevStyle);
+                }
+                activeKey = '';
+            }
+
+            function clearHoverFeature() {
+                if (!hoverKey || hoverKey === activeKey) {
+                    hoverKey = '';
+                    return;
+                }
+                const prevLayer = featureLayerByKey.get(hoverKey);
+                const prevStyle = featureStyleByKey.get(hoverKey);
+                if (prevLayer && prevStyle && typeof prevLayer.setStyle === 'function') {
+                    prevLayer.setStyle(prevStyle);
+                }
+                hoverKey = '';
+            }
+
+            function clearHoverRow() {
+                if (hoverRow) {
+                    hoverRow.classList.remove('is-map-hovered');
+                    hoverRow = null;
+                }
+            }
+
+            function hoverByKey(key) {
+                if (!key || key === activeKey) {
+                    return;
+                }
+                clearHoverFeature();
+                clearHoverRow();
+                const layerToHover = featureLayerByKey.get(key);
+                if (layerToHover && typeof layerToHover.setStyle === 'function') {
+                    const baseStyle = featureStyleByKey.get(key) || {};
+                    layerToHover.setStyle({
+                        ...baseStyle,
+                        color: '#ef4444',
+                        fillColor: '#fecaca',
+                        weight: Math.max(4, Number(baseStyle.weight) + 1 || 4),
+                        fillOpacity: 0.45,
+                    });
+                    if (typeof layerToHover.bringToFront === 'function') {
+                        layerToHover.bringToFront();
+                    }
+                    hoverKey = key;
+                }
+                const row = rowByKey.get(key);
+                if (row) {
+                    row.classList.add('is-map-hovered');
+                    hoverRow = row;
+                }
+            }
+
+            function focusByKey(key, source) {
+                if (!key) {
+                    return;
+                }
+                clearActiveFeature();
+                clearActiveRow();
+
+                const layerToFocus = featureLayerByKey.get(key);
+                if (layerToFocus && typeof layerToFocus.setStyle === 'function') {
+                    const baseStyle = featureStyleByKey.get(key) || {};
+                    layerToFocus.setStyle({
+                        ...baseStyle,
+                        weight: Math.max(4, Number(baseStyle.weight) + 1 || 4),
+                        fillOpacity: Math.max(0.34, Number(baseStyle.fillOpacity) + 0.12 || 0.34),
+                    });
+                    if (typeof layerToFocus.bringToFront === 'function') {
+                        layerToFocus.bringToFront();
+                    }
+                    if (source === 'list') {
+                        const bounds = layerToFocus.getBounds && layerToFocus.getBounds();
+                        if (bounds && bounds.isValid && bounds.isValid()) {
+                            map.fitBounds(bounds.pad(0.18));
+                        }
+                    }
+                    if (typeof layerToFocus.openPopup === 'function') {
+                        layerToFocus.openPopup();
+                    }
+                    activeKey = key;
+                }
+
+                const row = rowByKey.get(key);
+                if (row) {
+                    row.classList.add('is-map-focused');
+                    activeRow = row;
+                    if (source === 'map') {
+                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            }
+
+            const layer = L.geoJSON(data, {
+                style: styleOwnedFeature,
+                onEachFeature: (feature, featureLayer) => {
+                    const props = feature?.properties || {};
+                    const key = buildOwnedMapKey(props.rootid || '', props.source_label || 'ДТ');
+                    featureLayerByKey.set(key, featureLayer);
+                    featureStyleByKey.set(key, styleOwnedFeature(feature));
+                    featureLayer.on('click', () => focusByKey(key, 'map'));
+                    featureLayer.bindPopup(
+                        '<div>' +
+                            '<div><strong>№ Паспорта:</strong> ' + (props.rootid || '-') + '</div>' +
+                            '<div><strong>Название:</strong> ' + (props.name || '-') + '</div>' +
+                            '<div><strong>Источник:</strong> ' + (props.source_label || 'ДТ') + '</div>' +
+                        '</div>'
+                    );
+                },
+            }).addTo(map);
+
+            const bounds = layer.getBounds();
+            if (bounds.isValid()) {
+                map.fitBounds(bounds.pad(0.12));
+            } else {
+                map.setView([55.751244, 37.618423], 10);
+            }
+            map.attributionControl.setPrefix(
+                '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
+            );
+
+            passportRows.forEach((row) => {
+                row.addEventListener('click', (event) => {
+                    if (event.target.closest('button, form, input, a, label')) {
+                        return;
+                    }
+                    focusByKey(row.dataset.mapKey || '', 'list');
+                });
+                row.addEventListener('mouseenter', () => {
+                    hoverByKey(row.dataset.mapKey || '');
+                });
+                row.addEventListener('mouseleave', () => {
+                    clearHoverFeature();
+                    clearHoverRow();
+                });
+            });
+        }
+        initOwnedMap();
 
         const manualModal = document.getElementById('manual-modal');
         const manualOpenBtn = document.getElementById('manual-open-btn');

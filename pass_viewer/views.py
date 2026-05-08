@@ -226,10 +226,17 @@ def _get_owned_objects(owner_legal_person_id):
             if _column_exists(cursor, table, request_id_field_pref):
                 request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
                 request_id_expr = f"{_quote_ident(request_id_field)}::text AS request_id"
+            geom_expr = "NULL::text AS geom_json"
+            try:
+                geom_field = _resolve_column_name(cursor, table, settings.GIS_OBJECT_GEOM_FIELD)
+            except Exception:
+                geom_field = None
+            if geom_field:
+                geom_expr = f"ST_AsGeoJSON(ST_Force2D({_quote_ident(geom_field)}))::text AS geom_json"
 
             query = (
                 f"SELECT ctid::text, {_quote_ident(rootid_field)}::text, {_quote_ident(name_field)}::text, "
-                f"{request_id_expr} "
+                f"{request_id_expr}, {geom_expr} "
                 f"FROM {_quote_ident(table)} "
                 f"WHERE {_quote_ident(owner_field)} = %s "
                 f"ORDER BY {_quote_ident(name_field)} ASC NULLS LAST, {_quote_ident(rootid_field)} ASC "
@@ -245,6 +252,7 @@ def _get_owned_objects(owner_legal_person_id):
                     'name': row[2] or '',
                     'request_id': row[3] or '',
                     'source_label': source_label,
+                    'geom_json': row[4] or '',
                 }
                 key = (
                     (item['rootid'] or '').strip().lower(),
@@ -264,6 +272,34 @@ def _get_owned_objects(owner_legal_person_id):
             (item.get('request_id') or '').lower(),
         ),
     )
+
+
+def _build_owned_passports_geojson(owned_objects):
+    features = []
+    for item in owned_objects:
+        rootid = (item.get('rootid') or '').strip()
+        geom_json = item.get('geom_json') or ''
+        if not rootid or not geom_json:
+            continue
+        try:
+            geometry = json.loads(geom_json)
+        except Exception:
+            continue
+        if not geometry:
+            continue
+        features.append(
+            {
+                'type': 'Feature',
+                'geometry': geometry,
+                'properties': {
+                    'rootid': rootid,
+                    'name': item.get('name') or '',
+                    'source_label': item.get('source_label') or 'ДТ',
+                    'request_id': item.get('request_id') or '',
+                },
+            }
+        )
+    return {'type': 'FeatureCollection', 'features': features}
 
 
 def _normalize_source_label(value):
@@ -2235,6 +2271,7 @@ def home(request):
     owner_id = None
     owner_name = None
     owned_objects = []
+    owned_passports_geojson = {'type': 'FeatureCollection', 'features': []}
     owned_objects_error = None
     try:
         owner_id = _get_current_user_owner_id(request.user.username)
@@ -2245,6 +2282,7 @@ def home(request):
             for item in owned_objects:
                 request_id = (item.get('request_id') or '').strip()
                 item['recap_count'] = recap_counts.get(request_id, 0)
+            owned_passports_geojson = _build_owned_passports_geojson(owned_objects)
     except Exception:
         owned_objects_error = (
             'Не удалось получить список объектов пользователя. '
@@ -2261,6 +2299,7 @@ def home(request):
             'owner_id': owner_id,
             'owner_name': owner_name,
             'owned_objects': owned_objects,
+            'owned_passports_geojson': owned_passports_geojson,
             'owned_objects_error': owned_objects_error,
             'need_entry_request_id': need_entry_request_id,
         },
