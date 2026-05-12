@@ -28,26 +28,118 @@
             border-radius: 12px;
             background: #fff;
         }
-        .owned-lists-grid {
+        .owned-home-workspace {
             --owned-workspace-height: clamp(520px, calc(100vh - 360px), 900px);
             display: grid;
             grid-template-columns: minmax(340px, 1fr) minmax(620px, 2fr);
-            grid-template-areas:
-                "lists map";
+            grid-template-areas: "lists map";
             gap: 14px;
             width: 100%;
             align-items: stretch;
             min-height: var(--owned-workspace-height);
             max-height: var(--owned-workspace-height);
         }
-        .owned-lists-cell {
+        .owned-home-lists-stack {
             grid-area: lists;
             display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 0;
+            min-height: 0;
+            max-height: var(--owned-workspace-height);
         }
-        .owned-map-cell {
+        .owned-filter-toolbar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            flex: 0 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .owned-filter-toolbar #owned-filter-rootid {
+            max-width: 260px;
+        }
+        .owned-filter-toolbar #owned-filter-name {
+            flex: 1;
+            min-width: 140px;
+        }
+        .owned-filter-toolbar #owned-filter-clear {
+            background: #e5e7eb;
+            color: #111;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 8px 10px;
+            cursor: pointer;
+            font: inherit;
+        }
+        .owned-filter-toolbar input[type="text"] {
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font: inherit;
+            box-sizing: border-box;
+        }
+        .owned-home-map-stack {
             grid-area: map;
             display: flex;
             flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+            min-height: 0;
+            height: 100%;
+        }
+        .owned-map-legend {
+            flex: 0 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px 18px;
+            padding: 10px 12px;
+            border: 1px solid #dbe2ea;
+            border-radius: 12px;
+            background: #f8fafc;
+            font-size: 13px;
+            color: #334155;
+            box-sizing: border-box;
+        }
+        .owned-map-legend__title {
+            font-weight: 700;
+            color: #0f172a;
+            margin-right: 4px;
+        }
+        .owned-map-legend__item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        .owned-map-legend__swatch {
+            width: 18px;
+            height: 12px;
+            border-radius: 3px;
+            border: 1px solid rgba(15, 23, 42, 0.25);
+            flex-shrink: 0;
+        }
+        .owned-map-legend__swatch--dt {
+            background: rgba(56, 189, 248, 0.45);
+            border-color: #0284c7;
+        }
+        .owned-map-legend__swatch--odh {
+            background: #fff;
+            border: 2px solid #00bfff;
+            box-sizing: border-box;
+        }
+        .owned-map-legend__swatch--oo {
+            background: rgba(134, 239, 172, 0.55);
+            border-color: #16a34a;
+        }
+        .owned-map-legend__swatch--request {
+            background: rgba(240, 171, 252, 0.45);
+            border-color: #c026d3;
+        }
+        .owned-map-legend__swatch--hood {
+            background: transparent;
+            border: 2px solid #5c4033;
         }
         .owned-lists-panel {
             border: 1px solid #dbe2ea;
@@ -55,12 +147,11 @@
             background: #fff;
             padding: 10px;
             width: 100%;
-            height: 100%;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            min-height: var(--owned-workspace-height);
-            max-height: var(--owned-workspace-height);
+            flex: 1;
+            min-height: 0;
         }
         .owned-list-tabs {
             display: flex;
@@ -130,6 +221,15 @@
             display: inline-flex;
             flex: 0 0 auto;
         }
+        body.home--ogh-boundaries-edit .owned-passport-row .owned-split-form {
+            display: none !important;
+        }
+        body.home--ogh-boundaries-edit .owned-passport-row .owned-split-btn {
+            display: none !important;
+        }
+        body.home--ogh-split-passport .owned-passport-row .owned-confirm-open-btn {
+            display: none !important;
+        }
         .owned-list-panel {
             display: none;
             min-height: 0;
@@ -144,9 +244,7 @@
             overflow: hidden;
             background: #fff;
             min-height: 0;
-            height: 100%;
             flex: 1;
-            max-height: var(--owned-workspace-height);
         }
         #owned-passports-map {
             width: 100%;
@@ -255,12 +353,15 @@
             display: none;
         }
         @media (max-width: 1300px) {
-            .owned-lists-grid {
+            .owned-home-workspace {
                 grid-template-columns: 1fr;
                 grid-template-areas:
                     "map"
                     "lists";
                 min-height: 0;
+                max-height: none;
+            }
+            .owned-home-lists-stack {
                 max-height: none;
             }
             #owned-passports-map {
@@ -269,7 +370,7 @@
             }
         }
         @media (max-width: 900px) {
-            .owned-lists-grid {
+            .owned-home-workspace {
                 grid-template-columns: 1fr;
             }
             .owned-list-wrap {
@@ -284,31 +385,13 @@
     {% if owned_objects_error %}
         <p class="note" style="color: #b42318;">{{ owned_objects_error }}</p>
     {% elif owned_objects %}
-        <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
-            <input
-                type="text"
-                id="owned-filter-rootid"
-                placeholder="Фильтр по № Паспорта/Заявки"
-                style="max-width: 260px;"
-            >
-            <input
-                type="text"
-                id="owned-filter-name"
-                placeholder="Фильтр по Названию"
-                style="flex: 1; min-width: 220px;"
-            >
-            <button type="button" id="owned-filter-clear" style="background: #e5e7eb; color: #111;">
-                &#1057;&#1073;&#1088;&#1086;&#1089;
-            </button>
-        </div>
-        <div class="owned-lists-grid">
-            <div class="owned-map-cell">
-                <h3 class="owned-list-title">Карта объектов</h3>
-                <div class="owned-map-wrap">
-                    <div id="owned-passports-map" aria-label="Карта объектов пользователя"></div>
+        <div class="owned-home-workspace">
+            <div class="owned-home-lists-stack">
+                <div class="owned-filter-toolbar">
+                    <input type="text" id="owned-filter-rootid" placeholder="Фильтр по № Паспорта/Заявки">
+                    <input type="text" id="owned-filter-name" placeholder="Фильтр по Названию">
+                    <button type="button" id="owned-filter-clear">&#1057;&#1073;&#1088;&#1086;&#1089;</button>
                 </div>
-            </div>
-            <div class="owned-lists-cell">
                 <div class="owned-lists-panel">
                     <div class="owned-list-tabs">
                         <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="passports">Актуальные паспорта</button>
@@ -448,6 +531,35 @@
                 </div>
                 </div>
             </div>
+            <div class="owned-home-map-stack">
+                <div class="owned-map-legend" aria-label="Условные обозначения карты">
+                    <span class="owned-map-legend__title">Обозначения:</span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--dt" aria-hidden="true"></span>
+                        ДТ
+                    </span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--odh" aria-hidden="true"></span>
+                        ОДХ
+                    </span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--oo" aria-hidden="true"></span>
+                        ОО
+                    </span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--request" aria-hidden="true"></span>
+                        Заявка
+                    </span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--hood" aria-hidden="true"></span>
+                        Границы районов
+                    </span>
+                </div>
+                <h3 class="owned-list-title">Карта объектов</h3>
+                <div class="owned-map-wrap">
+                    <div id="owned-passports-map" aria-label="Карта объектов пользователя"></div>
+                </div>
+            </div>
         </div>
     {% else %}
         <p class="note">&#1053;&#1077;&#1090; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1086;&#1074; &#1076;&#1083;&#1103; &#1090;&#1077;&#1082;&#1091;&#1097;&#1077;&#1075;&#1086; OwnerLegalPersonId.</p>
@@ -469,7 +581,7 @@
         style="margin-top: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid #bbf7d0; background: #f0fdf4; align-items: center; gap: 12px; flex-wrap: wrap;"
     >
         <span class="note" style="margin: 0; flex: 1; min-width: 200px;">
-            Отметьте <strong>не менее двух</strong> паспортов в списке «Актуальные паспорта» (можно из ДТ, ОДХ и ОО вместе), затем нажмите «Продолжить» и укажите номер заявки; если в выборе есть разные типы, в том же окне выберите систему для сохранения итога.
+            Отметьте <strong>не менее двух</strong> паспортов в списке «Актуальные паспорта» (можно из ДТ, ОДХ и ОО вместе), затем нажмите «Продолжить» и укажите номер заявки; если отмечены паспорта из <strong>разных</strong> таблиц, в том же окне появится выбор одной из этих таблиц для сохранения результата.
         </span>
         <button type="button" id="merge-passports-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
         <button type="button" id="merge-passports-next-btn" style="background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;">
@@ -521,15 +633,15 @@
                 style="display: none; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-top: 12px; margin-bottom: 0;"
             >
                 <legend class="note" style="font-weight: 600; padding: 0 4px;">Итоговый паспорт (куда сохранить)</legend>
-                <label style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                <label class="merge-target-option" data-merge-source="ДТ" style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
                     <span>ДТ</span>
                     <input type="radio" name="merge_target_source_ui" value="ДТ" id="merge-target-dt" />
                 </label>
-                <label style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                <label class="merge-target-option" data-merge-source="ОДХ" style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
                     <span>ОДХ</span>
                     <input type="radio" name="merge_target_source_ui" value="ОДХ" id="merge-target-odh" />
                 </label>
-                <label style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                <label class="merge-target-option" data-merge-source="ОЗН" style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
                     <span>ОО</span>
                     <input type="radio" name="merge_target_source_ui" value="ОЗН" id="merge-target-ozn" />
                 </label>
@@ -568,6 +680,60 @@
             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
                 <button type="button" id="entry-recap-id-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
                 <button type="button" id="entry-recap-id-submit-btn">Продолжить</button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        id="home-workflow-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="home-workflow-modal-title"
+        style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 999; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 560px; padding: 18px;">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px;">
+                <h3 id="home-workflow-modal-title" style="margin: 0; font-size: 18px; line-height: 1.35;">
+                    Выберите действие
+                </h3>
+                <button type="button" id="home-workflow-close-btn" style="flex-shrink: 0; background: #e5e7eb; color: #111;">&#10005;</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button
+                    type="button"
+                    id="home-workflow-primary-btn"
+                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #2563eb; background: #2563eb; color: #fff; font: inherit; font-weight: 600; cursor: pointer;"
+                >
+                    Подача заявки на первичную паспортизацию
+                </button>
+                <button
+                    type="button"
+                    id="home-workflow-secondary-btn"
+                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
+                >
+                    Работа с актуальными паспортами ОГХ и заявками
+                </button>
+                <button
+                    type="button"
+                    id="home-workflow-boundaries-btn"
+                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
+                >
+                    Редактирование действующих границ ОГХ и заявок
+                </button>
+                <button
+                    type="button"
+                    id="home-workflow-split-passport-btn"
+                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
+                >
+                    Разделить актуальный паспорт ОГХ
+                </button>
+                <button
+                    type="button"
+                    id="home-workflow-merge-btn"
+                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
+                >
+                    Объединение актуальных паспортов
+                </button>
             </div>
         </div>
     </div>
@@ -643,6 +809,7 @@
 
     <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" hidden></div>
     {{ owned_passports_geojson|json_script:"owned-passports-geojson-data" }}
+    {{ hood_work_area_geojson|json_script:"hood-work-area-geojson-data" }}
     <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -655,11 +822,82 @@
         crossorigin=""
     ></script>
     <script>
+        const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
+        const HOME_OGH_SPLIT_PASSPORT_KEY = 'home_ogh_split_passport';
+
+        function setHomeOghBoundariesEditMode(enabled) {
+            const on = Boolean(enabled);
+            if (on) {
+                try {
+                    sessionStorage.removeItem(HOME_OGH_SPLIT_PASSPORT_KEY);
+                } catch (e) {
+                    // sessionStorage may be unavailable
+                }
+                document.body.classList.remove('home--ogh-split-passport');
+            }
+            try {
+                if (on) {
+                    sessionStorage.setItem(HOME_OGH_BOUNDARIES_EDIT_KEY, '1');
+                } else {
+                    sessionStorage.removeItem(HOME_OGH_BOUNDARIES_EDIT_KEY);
+                }
+            } catch (e) {
+                // sessionStorage may be unavailable
+            }
+            document.body.classList.toggle('home--ogh-boundaries-edit', on);
+        }
+
+        function setHomeOghSplitPassportMode(enabled) {
+            const on = Boolean(enabled);
+            if (on) {
+                try {
+                    sessionStorage.removeItem(HOME_OGH_BOUNDARIES_EDIT_KEY);
+                } catch (e) {
+                    // sessionStorage may be unavailable
+                }
+                document.body.classList.remove('home--ogh-boundaries-edit');
+            }
+            try {
+                if (on) {
+                    sessionStorage.setItem(HOME_OGH_SPLIT_PASSPORT_KEY, '1');
+                } else {
+                    sessionStorage.removeItem(HOME_OGH_SPLIT_PASSPORT_KEY);
+                }
+            } catch (e) {
+                // sessionStorage may be unavailable
+            }
+            document.body.classList.toggle('home--ogh-split-passport', on);
+        }
+
+        function clearHomeOghSpecialModes() {
+            setHomeOghBoundariesEditMode(false);
+            setHomeOghSplitPassportMode(false);
+        }
+
+        function syncHomeOghSpecialModesFromStorage() {
+            try {
+                let boundaries = sessionStorage.getItem(HOME_OGH_BOUNDARIES_EDIT_KEY) === '1';
+                let split = sessionStorage.getItem(HOME_OGH_SPLIT_PASSPORT_KEY) === '1';
+                if (boundaries && split) {
+                    sessionStorage.removeItem(HOME_OGH_SPLIT_PASSPORT_KEY);
+                    split = false;
+                }
+                document.body.classList.toggle('home--ogh-boundaries-edit', boundaries);
+                document.body.classList.toggle('home--ogh-split-passport', split);
+            } catch (e) {
+                document.body.classList.remove('home--ogh-boundaries-edit');
+                document.body.classList.remove('home--ogh-split-passport');
+            }
+        }
+
+        syncHomeOghSpecialModesFromStorage();
+
         const homeBootstrapEl = document.getElementById('home-bootstrap-data');
         const needEntryRequestIdOnLoad =
             homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
         const ownedMapEl = document.getElementById('owned-passports-map');
         const ownedGeoDataEl = document.getElementById('owned-passports-geojson-data');
+        const hoodWorkAreaGeoEl = document.getElementById('hood-work-area-geojson-data');
         const listTabButtons = Array.from(document.querySelectorAll('.owned-list-tab-btn'));
         const listPanels = Array.from(document.querySelectorAll('.owned-list-panel'));
         const sourceFilterButtons = Array.from(document.querySelectorAll('.owned-source-filter-btn'));
@@ -744,6 +982,69 @@
             if (!ownedMapEl || typeof L === 'undefined') {
                 return;
             }
+            function escapeHtml(value) {
+                return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+            function pickPopupProperty(props, ...keys) {
+                if (!props) {
+                    return '';
+                }
+                for (let i = 0; i < keys.length; i += 1) {
+                    const k = keys[i];
+                    if (Object.prototype.hasOwnProperty.call(props, k) && props[k] != null && String(props[k]).trim() !== '') {
+                        return props[k];
+                    }
+                }
+                return '';
+            }
+            function formatPopupDateToDay(value) {
+                if (value == null || value === '') {
+                    return '';
+                }
+                const s = String(value).trim();
+                if (!s || ['null', 'none', '-'].includes(s.toLowerCase())) {
+                    return '';
+                }
+                const ymd = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (ymd) {
+                    return escapeHtml(ymd[3] + '.' + ymd[2] + '.' + ymd[1]);
+                }
+                const d = new Date(s);
+                if (!Number.isFinite(d.getTime())) {
+                    return escapeHtml(s);
+                }
+                const y = d.getFullYear();
+                const mo = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return escapeHtml(day + '.' + mo + '.' + y);
+            }
+            function buildPopupMetaFieldsHtml(properties) {
+                const props = properties || {};
+                const startRaw = pickPopupProperty(props, 'startdate', 'StartDate');
+                const surveyRaw = pickPopupProperty(props, 'datesurvey', 'DateSurvey');
+                const createRaw = pickPopupProperty(props, 'createtype', 'CreateType');
+                const startDis = formatPopupDateToDay(startRaw);
+                const surveyDis = formatPopupDateToDay(surveyRaw);
+                const createTxt = String(createRaw == null ? '' : createRaw).trim();
+                const createDis =
+                    createTxt && !['null', 'none', '-'].includes(createTxt.toLowerCase())
+                        ? escapeHtml(createTxt)
+                        : '—';
+                return (
+                    '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">' +
+                    '<div style="margin-top: 4px;"><strong>Дата утверждения:</strong> ' +
+                    (startDis || '—') +
+                    '</div>' +
+                    '<div style="margin-top: 4px;"><strong>Дата полевого обследования:</strong> ' +
+                    (surveyDis || '—') +
+                    '</div>' +
+                    '<div style="margin-top: 4px;"><strong>Тип создания:</strong> ' +
+                    createDis +
+                    '</div>' +
+                    '</div>'
+                );
+            }
             const mapListRows = Array.from(document.querySelectorAll('.owned-passport-row, .owned-request-row'));
             const rowByKey = new Map();
             mapListRows.forEach((row) => {
@@ -816,6 +1117,41 @@
             ownedMapEl.parentElement?.querySelectorAll('.map-basemap-btn').forEach((btn) => {
                 btn.addEventListener('click', () => setBasemap(btn.dataset.map));
             });
+
+            function parseHoodWorkAreaGeoData() {
+                if (!hoodWorkAreaGeoEl) {
+                    return { type: 'FeatureCollection', features: [] };
+                }
+                try {
+                    const parsed = JSON.parse(hoodWorkAreaGeoEl.textContent || '{}');
+                    if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
+                        return parsed;
+                    }
+                    if (Array.isArray(parsed)) {
+                        return { type: 'FeatureCollection', features: parsed };
+                    }
+                } catch (e) {
+                    // ignore
+                }
+                return { type: 'FeatureCollection', features: [] };
+            }
+
+            const hoodWorkAreaData = parseHoodWorkAreaGeoData();
+            let hoodWorkAreaLayer = null;
+            if (hoodWorkAreaData.features && hoodWorkAreaData.features.length > 0) {
+                hoodWorkAreaLayer = L.geoJSON(hoodWorkAreaData, {
+                    interactive: false,
+                    style: {
+                        color: '#5c4033',
+                        weight: 2,
+                        opacity: 0.95,
+                        fillOpacity: 0,
+                        fill: false,
+                    },
+                });
+                hoodWorkAreaLayer.addTo(map);
+                hoodWorkAreaLayer.bringToBack();
+            }
 
             const data = parseOwnedGeoData();
             const featureLayerByKey = new Map();
@@ -914,7 +1250,7 @@
                     if (source === 'list') {
                         const bounds = layerToFocus.getBounds && layerToFocus.getBounds();
                         if (bounds && bounds.isValid && bounds.isValid()) {
-                            map.fitBounds(bounds.pad(0.18));
+                            map.fitBounds(bounds.pad(0.06));
                         }
                     }
                     if (typeof layerToFocus.openPopup === 'function') {
@@ -954,19 +1290,25 @@
                         sourceLabel: normalizeOwnedSourceLabel(props.source_label || 'ДТ'),
                     });
                     featureLayer.on('click', () => focusByKey(key, 'map'));
+                    const idLabel = props.rootid ? '№ Паспорта' : '№ Заявки';
+                    const idValue = props.rootid || props.request_id || '-';
                     featureLayer.bindPopup(
                         '<div>' +
-                            '<div><strong>' + (props.rootid ? '№ Паспорта' : '№ Заявки') + ':</strong> ' + (props.rootid || props.request_id || '-') + '</div>' +
-                            '<div><strong>Название:</strong> ' + (props.name || '-') + '</div>' +
-                            '<div><strong>Источник:</strong> ' + (props.source_label || 'ДТ') + '</div>' +
+                            '<div><strong>' + idLabel + ':</strong> ' + escapeHtml(idValue) + '</div>' +
+                            '<div><strong>Название:</strong> ' + escapeHtml(props.name || '-') + '</div>' +
+                            '<div><strong>Источник:</strong> ' + escapeHtml(props.source_label || 'ДТ') + '</div>' +
+                            buildPopupMetaFieldsHtml(props) +
                         '</div>'
                     );
                 },
             }).addTo(map);
 
-            const bounds = layer.getBounds();
-            if (bounds.isValid()) {
-                map.fitBounds(bounds.pad(0.12));
+            const ownedBounds = layer.getBounds();
+            const hoodBounds = hoodWorkAreaLayer && hoodWorkAreaLayer.getBounds ? hoodWorkAreaLayer.getBounds() : null;
+            if (ownedBounds.isValid()) {
+                map.fitBounds(ownedBounds.pad(0.04));
+            } else if (hoodBounds && hoodBounds.isValid && hoodBounds.isValid()) {
+                map.fitBounds(hoodBounds.pad(0.05));
             } else {
                 map.setView([55.751244, 37.618423], 10);
             }
@@ -979,6 +1321,9 @@
                     featureLayer.bringToFront();
                 }
             });
+            if (hoodWorkAreaLayer && typeof hoodWorkAreaLayer.bringToBack === 'function') {
+                hoodWorkAreaLayer.bringToBack();
+            }
             map.attributionControl.setPrefix(
                 '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
             );
@@ -1488,6 +1833,16 @@
             }
         }
 
+        function resetMergeTargetOptionRows() {
+            if (!mergeTargetSourceFieldset) {
+                return;
+            }
+            mergeTargetSourceFieldset.querySelectorAll('.merge-target-option').forEach((row) => {
+                row.style.display = '';
+            });
+            mergeTargetSourceFieldset.style.display = 'none';
+        }
+
         function closeMergeRequestModal() {
             if (mergeRequestModal) {
                 mergeRequestModal.style.display = 'none';
@@ -1508,6 +1863,7 @@
                 mergeTargetOznRadio.checked = false;
             }
             mergeImplicitTargetSource = '';
+            resetMergeTargetOptionRows();
         }
 
         function openMergeRequestModalWithSources(sourcesSet) {
@@ -1527,24 +1883,39 @@
                 mergeTargetOznRadio.checked = false;
             }
             mergeImplicitTargetSource = '';
+
             if (mergeTargetSourceFieldset) {
-                mergeTargetSourceFieldset.style.display = '';
+                mergeTargetSourceFieldset.querySelectorAll('.merge-target-option').forEach((row) => {
+                    row.style.display = '';
+                });
             }
-            if (mergePassportsRequestIntro) {
-                mergePassportsRequestIntro.textContent =
-                    'Укажите номер заявки и выберите, в какой системе сохранить объединённый паспорт (ДТ/ОДХ/ОО).';
-            }
-            if (sourcesSet.size === 1) {
-                const onlySource = sourcesSet.values().next().value;
-                if (onlySource === 'ОЗН' && mergeTargetOznRadio) {
-                    mergeTargetOznRadio.checked = true;
-                } else if (onlySource === 'ОДХ' && mergeTargetOdhRadio) {
-                    mergeTargetOdhRadio.checked = true;
-                } else if (mergeTargetDtRadio) {
-                    mergeTargetDtRadio.checked = true;
+
+            if (sourcesSet.size <= 1) {
+                const onlySource = sourcesSet.size === 1 ? sourcesSet.values().next().value : 'ДТ';
+                mergeImplicitTargetSource = onlySource;
+                resetMergeTargetOptionRows();
+                if (mergePassportsRequestIntro) {
+                    mergePassportsRequestIntro.textContent =
+                        'Укажите номер заявки для объединённого паспорта. Все выбранные паспорта из одной таблицы — результат сохранится в той же системе.';
                 }
-            } else if (mergeTargetDtRadio) {
-                mergeTargetDtRadio.checked = true;
+            } else {
+                mergeImplicitTargetSource = '';
+                if (mergeTargetSourceFieldset) {
+                    mergeTargetSourceFieldset.style.display = 'block';
+                    mergeTargetSourceFieldset.querySelectorAll('.merge-target-option').forEach((row) => {
+                        const rowSource = normalizeMergeSourceLabel(row.dataset.mergeSource || '');
+                        const show = sourcesSet.has(rowSource);
+                        row.style.display = show ? 'flex' : 'none';
+                        const radio = row.querySelector('input[type="radio"]');
+                        if (radio && !show) {
+                            radio.checked = false;
+                        }
+                    });
+                }
+                if (mergePassportsRequestIntro) {
+                    mergePassportsRequestIntro.textContent =
+                        'Выбраны паспорта из разных таблиц. Укажите номер заявки и выберите, в какой из таблиц выбранных типов сохранить объединённый паспорт.';
+                }
             }
             if (mergeRequestModal) {
                 mergeRequestModal.style.display = 'flex';
@@ -1580,18 +1951,38 @@
                 }
                 return;
             }
-            let targetSourceValue = mergeImplicitTargetSource;
-            if (!targetSourceValue) {
-                const targetRadio = document.querySelector('input[name="merge_target_source_ui"]:checked');
-                if (!targetRadio) {
+            const checked = Array.from(document.querySelectorAll('.merge-passport-cb:checked'));
+            const allowedTargetSources = new Set(
+                checked.map((cb) => normalizeMergeSourceLabel(cb.dataset.sourceLabel))
+            );
+
+            let targetSourceValue = (mergeImplicitTargetSource || '').trim();
+            if (targetSourceValue) {
+                targetSourceValue = normalizeMergeSourceLabel(targetSourceValue);
+                if (!allowedTargetSources.has(targetSourceValue)) {
                     if (mergeRequestError) {
-                        mergeRequestError.textContent = 'Выберите тип итогового паспорта (ДТ, ОДХ или ОО).';
+                        mergeRequestError.textContent = 'Несогласованность выбора источников. Закройте окно и выберите паспорты заново.';
                     }
                     return;
                 }
-                targetSourceValue = targetRadio.value;
+            } else {
+                const targetRadio = document.querySelector(
+                    '#merge-target-source-fieldset input[name="merge_target_source_ui"]:checked'
+                );
+                if (!targetRadio) {
+                    if (mergeRequestError) {
+                        mergeRequestError.textContent = 'Выберите таблицу для сохранения объединённого паспорта.';
+                    }
+                    return;
+                }
+                targetSourceValue = normalizeMergeSourceLabel(targetRadio.value);
+                if (!allowedTargetSources.has(targetSourceValue)) {
+                    if (mergeRequestError) {
+                        mergeRequestError.textContent = 'Можно сохранить только в одну из таблиц, из которых выбраны паспорта.';
+                    }
+                    return;
+                }
             }
-            const checked = Array.from(document.querySelectorAll('.merge-passport-cb:checked'));
             if (!mergeItemsContainer || !formMergePassports || !mergeRequestIdHidden || !mergeTargetSourceHidden) {
                 return;
             }
@@ -1657,8 +2048,74 @@
             });
         }
 
+        const homeWorkflowModal = document.getElementById('home-workflow-modal');
+        const homeWorkflowPrimaryBtn = document.getElementById('home-workflow-primary-btn');
+        const homeWorkflowSecondaryBtn = document.getElementById('home-workflow-secondary-btn');
+        const homeWorkflowBoundariesBtn = document.getElementById('home-workflow-boundaries-btn');
+        const homeWorkflowSplitPassportBtn = document.getElementById('home-workflow-split-passport-btn');
+        const homeWorkflowMergeBtn = document.getElementById('home-workflow-merge-btn');
+        const homeWorkflowCloseBtn = document.getElementById('home-workflow-close-btn');
+
+        function closeHomeWorkflowModal() {
+            if (homeWorkflowModal) {
+                homeWorkflowModal.style.display = 'none';
+            }
+        }
+
+        if (homeWorkflowPrimaryBtn) {
+            homeWorkflowPrimaryBtn.addEventListener('click', () => {
+                clearHomeOghSpecialModes();
+                closeHomeWorkflowModal();
+                openEntryRequestModal('add-object');
+            });
+        }
+        if (homeWorkflowSecondaryBtn) {
+            homeWorkflowSecondaryBtn.addEventListener('click', () => {
+                clearHomeOghSpecialModes();
+                closeHomeWorkflowModal();
+            });
+        }
+        if (homeWorkflowBoundariesBtn) {
+            homeWorkflowBoundariesBtn.addEventListener('click', () => {
+                setHomeOghBoundariesEditMode(true);
+                closeHomeWorkflowModal();
+            });
+        }
+        if (homeWorkflowSplitPassportBtn) {
+            homeWorkflowSplitPassportBtn.addEventListener('click', () => {
+                setHomeOghSplitPassportMode(true);
+                closeHomeWorkflowModal();
+            });
+        }
+        if (homeWorkflowMergeBtn) {
+            homeWorkflowMergeBtn.addEventListener('click', () => {
+                clearHomeOghSpecialModes();
+                closeHomeWorkflowModal();
+                if (mergePassportsBtn) {
+                    mergePassportsBtn.click();
+                }
+            });
+        }
+        if (homeWorkflowCloseBtn) {
+            homeWorkflowCloseBtn.addEventListener('click', closeHomeWorkflowModal);
+        }
+        if (homeWorkflowModal) {
+            homeWorkflowModal.addEventListener('click', (event) => {
+                if (event.target === homeWorkflowModal) {
+                    closeHomeWorkflowModal();
+                }
+            });
+        }
+
         if (needEntryRequestIdOnLoad) {
             openEntryRequestModal('pending');
+        } else if (homeWorkflowModal) {
+            homeWorkflowModal.style.display = 'flex';
+            setTimeout(() => {
+                if (homeWorkflowPrimaryBtn && homeWorkflowModal && homeWorkflowModal.style.display === 'flex') {
+                    homeWorkflowPrimaryBtn.focus();
+                }
+            }, 0);
         }
     </script>
 {% endblock %}

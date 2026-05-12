@@ -40,6 +40,7 @@
         <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
         <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
         <button type="button" id="add-comment-point-btn" class="map-toolbar-btn map-toolbar-btn--primary">Добавить точку с комментарием</button>
+        <button type="button" id="clear-map-btn" class="map-toolbar-btn map-toolbar-btn--danger" title="Убрать с карты только нарисованные полигоны (слои из базы не затрагиваются)">Очистить карту</button>
         <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
         <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">&#1042;&#1099;&#1075;&#1088;&#1091;&#1079;&#1080;&#1090;&#1100; &#1092;&#1072;&#1081;&#1083;&#1099;</button>
     </div>
@@ -1012,6 +1013,7 @@
         const checkDgiIntersectionsButton = document.getElementById('check-dgi-intersections-btn');
         const autoRemoveIntersectionsButton = document.getElementById('auto-remove-intersections-btn');
         const addCommentPointButton = document.getElementById('add-comment-point-btn');
+        const clearMapButton = document.getElementById('clear-map-btn');
         const commentPointModal = document.getElementById('comment-point-modal');
         const commentPointText = document.getElementById('comment-point-text');
         const commentPointModalError = document.getElementById('comment-point-modal-error');
@@ -1587,6 +1589,7 @@
                                 ? (hasOwner ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(ownerDisplay) + '</div>') : '')
                                 : (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(customerDisplay) + '</div>') : '')) +
                             (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>') : '') +
+                            buildPopupMetaFieldsHtml(feature.properties || {}) +
                             '</div>'
                         );
                     } else {
@@ -1646,7 +1649,7 @@
                         '<div><strong>Реновация</strong></div>' +
                         (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase())
                             ? ''
-                            : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
+                            : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
                         '</div>'
                     );
                 }
@@ -1694,6 +1697,68 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function pickPopupProperty(props, ...keys) {
+            if (!props) {
+                return '';
+            }
+            for (let i = 0; i < keys.length; i += 1) {
+                const k = keys[i];
+                if (Object.prototype.hasOwnProperty.call(props, k) && props[k] != null && String(props[k]).trim() !== '') {
+                    return props[k];
+                }
+            }
+            return '';
+        }
+
+        function formatPopupDateToDay(value) {
+            if (value == null || value === '') {
+                return '';
+            }
+            const s = String(value).trim();
+            if (!s || ['null', 'none', '-'].includes(s.toLowerCase())) {
+                return '';
+            }
+            const ymd = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (ymd) {
+                return escapeHtml(ymd[3] + '.' + ymd[2] + '.' + ymd[1]);
+            }
+            const d = new Date(s);
+            if (!Number.isFinite(d.getTime())) {
+                return escapeHtml(s);
+            }
+            const y = d.getFullYear();
+            const mo = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return escapeHtml(day + '.' + mo + '.' + y);
+        }
+
+        function buildPopupMetaFieldsHtml(properties) {
+            const props = properties || {};
+            const startRaw = pickPopupProperty(props, 'startdate', 'StartDate');
+            const surveyRaw = pickPopupProperty(props, 'datesurvey', 'DateSurvey');
+            const createRaw = pickPopupProperty(props, 'createtype', 'CreateType');
+            const startDis = formatPopupDateToDay(startRaw);
+            const surveyDis = formatPopupDateToDay(surveyRaw);
+            const createTxt = String(createRaw == null ? '' : createRaw).trim();
+            const createDis =
+                createTxt && !['null', 'none', '-'].includes(createTxt.toLowerCase())
+                    ? escapeHtml(createTxt)
+                    : '—';
+            return (
+                '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">' +
+                '<div style="margin-top: 4px;"><strong>Дата утверждения:</strong> ' +
+                (startDis || '—') +
+                '</div>' +
+                '<div style="margin-top: 4px;"><strong>Дата полевого обследования:</strong> ' +
+                (surveyDis || '—') +
+                '</div>' +
+                '<div style="margin-top: 4px;"><strong>Тип создания:</strong> ' +
+                createDis +
+                '</div>' +
+                '</div>'
+            );
         }
 
         function calculateGeometryAreaSqMeters(geometry) {
@@ -1774,6 +1839,7 @@
                     '<div><strong>№ Заявки:</strong> ' + escapeHtml(requestId || '-') + '</div>' +
                     '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
                     ownerLines +
+                    buildPopupMetaFieldsHtml(properties) +
                     '</div>'
                 );
             }
@@ -1783,6 +1849,7 @@
                 '<div><strong>№ Паспорта:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
                 '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
                 ownerLines +
+                buildPopupMetaFieldsHtml(properties) +
                 '</div>'
             );
         }
@@ -1870,6 +1937,7 @@
                     (hasDepartment
                         ? '<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>'
                         : '') +
+                    buildPopupMetaFieldsHtml(properties) +
                     '</div>'
                 );
             }
@@ -1927,13 +1995,54 @@
             refreshObjectLayersControl();
         }
 
+        function clearMapDisplayedUserDrawings() {
+            if (!window.confirm('Убрать с карты все нарисованные полигоны? Объекты из базы на карте останутся.')) {
+                return;
+            }
+            cancelCommentPointMode();
+            cancelAddObjectMode();
+            cancelCutMode();
+            if (polygonDrawer) {
+                polygonDrawer.disable();
+                polygonDrawer = null;
+            }
+            stopFreehandMode();
+            clearDrawSnapPreview();
+            clearStartVertexFlag();
+            closeCutModeModal();
+            closeAutoRemoveModal();
+            closeDeletePolygonModal();
+            closeCommentPointModal();
+
+            editableGroup.clearLayers();
+
+            clearPopupHighlight();
+            map.closePopup();
+
+            if (editToolbar) {
+                editToolbar.disable();
+                editToolbar = new L.EditToolbar.Edit(map, { featureGroup: editableGroup });
+                if (isEditing && editableGroup.getLayers().length) {
+                    editToolbar.enable();
+                }
+            }
+
+            rebuildSnapGuideLines();
+            refreshObjectLayersControl();
+            updateRelationsButtonState();
+            if (exportLinksEl) {
+                exportLinksEl.innerHTML = '';
+            }
+            statusEl.textContent = 'С карты убраны только нарисованные полигоны; данные из базы не изменялись.';
+        }
+
         function updateRelationsButtonState() {
             const hasEditableGeometry = !!buildCurrentGeometry();
             checkRelationsButton.disabled = !hasEditableGeometry;
             const geometry = buildCurrentGeometry();
             const area = calculateGeometryAreaSqMeters(geometry);
             editableAreaInfoEl.textContent = Number.isFinite(area) && area > 0
-                ? ('Площадь редактируемого объекта: ' + area.toFixed(2) + ' м²')
+                ? ('Площадь редактируемого объекта: ' + area.toFixed(2) + ' м² (' + (area / 10000).toFixed(2) + ' га)')
                 : 'Площадь редактируемого объекта: -';
             updateEditToolbarVisibility(hasEditableGeometry);
             refreshObjectLayersControl();
@@ -3797,6 +3906,12 @@
                     closeCommentPointModal();
                     cancelCommentPointMode();
                 }
+            });
+        }
+
+        if (clearMapButton) {
+            clearMapButton.addEventListener('click', () => {
+                clearMapDisplayedUserDrawings();
             });
         }
 
