@@ -47,6 +47,7 @@ def build_default_registry() -> List[TableImportSpec]:
         TableImportSpec('id_names', FileKind.JSON, note='Columns "LegalPersonId", "name"'),
         TableImportSpec('ozn', FileKind.GEOJSON, delegate_command='import_ozn_geojson'),
         TableImportSpec('renew', FileKind.GEOJSON, delegate_command='import_renew_geojson'),
+        TableImportSpec('hood', FileKind.GEOJSON, dynamic_geojson=True, note='Rayon / okrug polygons (hood.geojson)'),
         TableImportSpec('pass_objects', FileKind.GEOJSON, dynamic_geojson=True, note='Primary GIS table; schema external to Django migrations'),
         TableImportSpec(
             getattr(settings, 'GIS_ODH_TABLE', 'odh'),

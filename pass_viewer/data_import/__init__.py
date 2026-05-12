@@ -6,6 +6,7 @@ Expected layout (by default: Django project root = directory containing manage.p
   id_names.json
   ozn.geojson
   renew.geojson
+  hood.geojson
   pass_objects.geojson
   odh.geojson
   dgi.geojson

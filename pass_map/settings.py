@@ -47,6 +47,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'pass_viewer.middleware.HoodSpatialScopeMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -146,6 +147,16 @@ GIS_OBJECT_GEOM_FIELD = 'geom'
 GIS_OBJECT_OWNER_FIELD = 'OwnerLegalPersonId'
 # Справочник для расшифровки ID (home, popup). Таблица: см. миграцию 0003_create_id_names_table.
 GIS_ID_NAMES_TABLE = os.getenv('GIS_ID_NAMES_TABLE', 'id_names')
+
+# Ограничение данных по районам (таблица hood, миграция 0012). Если таблицы нет — фильтр не включается.
+GIS_HOOD_TABLE = os.getenv('GIS_HOOD_TABLE', 'hood')
+GIS_HOOD_ACCESS_ENABLED = os.getenv('GIS_HOOD_ACCESS_ENABLED', '1') not in ('0', 'false', 'False')
+# Мин. доля площади (0–1): пересечение union геометрий пользователя с районом / площадь union (geography, м²).
+# Районы с меньшей долей не входят в hood-scope (срез «чуть-чуть» за границу). 0 = как раньше, любое ST_Intersects.
+try:
+    GIS_HOOD_MIN_OVERLAP_RATIO = float(os.getenv('GIS_HOOD_MIN_OVERLAP_RATIO', '0.05'))
+except (TypeError, ValueError):
+    GIS_HOOD_MIN_OVERLAP_RATIO = 0.05
 
 # GeoDjango library paths (macOS Homebrew).
 GDAL_LIBRARY_PATH = os.getenv('GDAL_LIBRARY_PATH', '/opt/homebrew/lib/libgdal.dylib')

@@ -28,26 +28,118 @@
             border-radius: 12px;
             background: #fff;
         }
-        .owned-lists-grid {
+        .owned-home-workspace {
             --owned-workspace-height: clamp(520px, calc(100vh - 360px), 900px);
             display: grid;
             grid-template-columns: minmax(340px, 1fr) minmax(620px, 2fr);
-            grid-template-areas:
-                "lists map";
+            grid-template-areas: "lists map";
             gap: 14px;
             width: 100%;
             align-items: stretch;
             min-height: var(--owned-workspace-height);
             max-height: var(--owned-workspace-height);
         }
-        .owned-lists-cell {
+        .owned-home-lists-stack {
             grid-area: lists;
             display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 0;
+            min-height: 0;
+            max-height: var(--owned-workspace-height);
         }
-        .owned-map-cell {
+        .owned-filter-toolbar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            flex: 0 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .owned-filter-toolbar #owned-filter-rootid {
+            max-width: 260px;
+        }
+        .owned-filter-toolbar #owned-filter-name {
+            flex: 1;
+            min-width: 140px;
+        }
+        .owned-filter-toolbar #owned-filter-clear {
+            background: #e5e7eb;
+            color: #111;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 8px 10px;
+            cursor: pointer;
+            font: inherit;
+        }
+        .owned-filter-toolbar input[type="text"] {
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font: inherit;
+            box-sizing: border-box;
+        }
+        .owned-home-map-stack {
             grid-area: map;
             display: flex;
             flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+            min-height: 0;
+            height: 100%;
+        }
+        .owned-map-legend {
+            flex: 0 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px 18px;
+            padding: 10px 12px;
+            border: 1px solid #dbe2ea;
+            border-radius: 12px;
+            background: #f8fafc;
+            font-size: 13px;
+            color: #334155;
+            box-sizing: border-box;
+        }
+        .owned-map-legend__title {
+            font-weight: 700;
+            color: #0f172a;
+            margin-right: 4px;
+        }
+        .owned-map-legend__item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        .owned-map-legend__swatch {
+            width: 18px;
+            height: 12px;
+            border-radius: 3px;
+            border: 1px solid rgba(15, 23, 42, 0.25);
+            flex-shrink: 0;
+        }
+        .owned-map-legend__swatch--dt {
+            background: rgba(56, 189, 248, 0.45);
+            border-color: #0284c7;
+        }
+        .owned-map-legend__swatch--odh {
+            background: #fff;
+            border: 2px solid #00bfff;
+            box-sizing: border-box;
+        }
+        .owned-map-legend__swatch--oo {
+            background: rgba(134, 239, 172, 0.55);
+            border-color: #16a34a;
+        }
+        .owned-map-legend__swatch--request {
+            background: rgba(240, 171, 252, 0.45);
+            border-color: #c026d3;
+        }
+        .owned-map-legend__swatch--hood {
+            background: transparent;
+            border: 2px solid #5c4033;
         }
         .owned-lists-panel {
             border: 1px solid #dbe2ea;
@@ -55,12 +147,11 @@
             background: #fff;
             padding: 10px;
             width: 100%;
-            height: 100%;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            min-height: var(--owned-workspace-height);
-            max-height: var(--owned-workspace-height);
+            flex: 1;
+            min-height: 0;
         }
         .owned-list-tabs {
             display: flex;
@@ -144,9 +235,7 @@
             overflow: hidden;
             background: #fff;
             min-height: 0;
-            height: 100%;
             flex: 1;
-            max-height: var(--owned-workspace-height);
         }
         #owned-passports-map {
             width: 100%;
@@ -255,12 +344,15 @@
             display: none;
         }
         @media (max-width: 1300px) {
-            .owned-lists-grid {
+            .owned-home-workspace {
                 grid-template-columns: 1fr;
                 grid-template-areas:
                     "map"
                     "lists";
                 min-height: 0;
+                max-height: none;
+            }
+            .owned-home-lists-stack {
                 max-height: none;
             }
             #owned-passports-map {
@@ -269,7 +361,7 @@
             }
         }
         @media (max-width: 900px) {
-            .owned-lists-grid {
+            .owned-home-workspace {
                 grid-template-columns: 1fr;
             }
             .owned-list-wrap {
@@ -284,31 +376,13 @@
     {% if owned_objects_error %}
         <p class="note" style="color: #b42318;">{{ owned_objects_error }}</p>
     {% elif owned_objects %}
-        <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
-            <input
-                type="text"
-                id="owned-filter-rootid"
-                placeholder="Фильтр по № Паспорта/Заявки"
-                style="max-width: 260px;"
-            >
-            <input
-                type="text"
-                id="owned-filter-name"
-                placeholder="Фильтр по Названию"
-                style="flex: 1; min-width: 220px;"
-            >
-            <button type="button" id="owned-filter-clear" style="background: #e5e7eb; color: #111;">
-                &#1057;&#1073;&#1088;&#1086;&#1089;
-            </button>
-        </div>
-        <div class="owned-lists-grid">
-            <div class="owned-map-cell">
-                <h3 class="owned-list-title">Карта объектов</h3>
-                <div class="owned-map-wrap">
-                    <div id="owned-passports-map" aria-label="Карта объектов пользователя"></div>
+        <div class="owned-home-workspace">
+            <div class="owned-home-lists-stack">
+                <div class="owned-filter-toolbar">
+                    <input type="text" id="owned-filter-rootid" placeholder="Фильтр по № Паспорта/Заявки">
+                    <input type="text" id="owned-filter-name" placeholder="Фильтр по Названию">
+                    <button type="button" id="owned-filter-clear">&#1057;&#1073;&#1088;&#1086;&#1089;</button>
                 </div>
-            </div>
-            <div class="owned-lists-cell">
                 <div class="owned-lists-panel">
                     <div class="owned-list-tabs">
                         <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="passports">Актуальные паспорта</button>
@@ -446,6 +520,35 @@
                         {% endif %}
                     {% endfor %}
                 </div>
+                </div>
+            </div>
+            <div class="owned-home-map-stack">
+                <div class="owned-map-legend" aria-label="Условные обозначения карты">
+                    <span class="owned-map-legend__title">Обозначения:</span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--dt" aria-hidden="true"></span>
+                        ДТ
+                    </span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--odh" aria-hidden="true"></span>
+                        ОДХ
+                    </span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--oo" aria-hidden="true"></span>
+                        ОО
+                    </span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--request" aria-hidden="true"></span>
+                        Заявка
+                    </span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--hood" aria-hidden="true"></span>
+                        Границы районов
+                    </span>
+                </div>
+                <h3 class="owned-list-title">Карта объектов</h3>
+                <div class="owned-map-wrap">
+                    <div id="owned-passports-map" aria-label="Карта объектов пользователя"></div>
                 </div>
             </div>
         </div>
@@ -643,6 +746,7 @@
 
     <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" hidden></div>
     {{ owned_passports_geojson|json_script:"owned-passports-geojson-data" }}
+    {{ hood_work_area_geojson|json_script:"hood-work-area-geojson-data" }}
     <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -660,6 +764,7 @@
             homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
         const ownedMapEl = document.getElementById('owned-passports-map');
         const ownedGeoDataEl = document.getElementById('owned-passports-geojson-data');
+        const hoodWorkAreaGeoEl = document.getElementById('hood-work-area-geojson-data');
         const listTabButtons = Array.from(document.querySelectorAll('.owned-list-tab-btn'));
         const listPanels = Array.from(document.querySelectorAll('.owned-list-panel'));
         const sourceFilterButtons = Array.from(document.querySelectorAll('.owned-source-filter-btn'));
@@ -880,6 +985,41 @@
                 btn.addEventListener('click', () => setBasemap(btn.dataset.map));
             });
 
+            function parseHoodWorkAreaGeoData() {
+                if (!hoodWorkAreaGeoEl) {
+                    return { type: 'FeatureCollection', features: [] };
+                }
+                try {
+                    const parsed = JSON.parse(hoodWorkAreaGeoEl.textContent || '{}');
+                    if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
+                        return parsed;
+                    }
+                    if (Array.isArray(parsed)) {
+                        return { type: 'FeatureCollection', features: parsed };
+                    }
+                } catch (e) {
+                    // ignore
+                }
+                return { type: 'FeatureCollection', features: [] };
+            }
+
+            const hoodWorkAreaData = parseHoodWorkAreaGeoData();
+            let hoodWorkAreaLayer = null;
+            if (hoodWorkAreaData.features && hoodWorkAreaData.features.length > 0) {
+                hoodWorkAreaLayer = L.geoJSON(hoodWorkAreaData, {
+                    interactive: false,
+                    style: {
+                        color: '#5c4033',
+                        weight: 2,
+                        opacity: 0.95,
+                        fillOpacity: 0,
+                        fill: false,
+                    },
+                });
+                hoodWorkAreaLayer.addTo(map);
+                hoodWorkAreaLayer.bringToBack();
+            }
+
             const data = parseOwnedGeoData();
             const featureLayerByKey = new Map();
             const featureStyleByKey = new Map();
@@ -977,7 +1117,7 @@
                     if (source === 'list') {
                         const bounds = layerToFocus.getBounds && layerToFocus.getBounds();
                         if (bounds && bounds.isValid && bounds.isValid()) {
-                            map.fitBounds(bounds.pad(0.18));
+                            map.fitBounds(bounds.pad(0.06));
                         }
                     }
                     if (typeof layerToFocus.openPopup === 'function') {
@@ -1030,9 +1170,12 @@
                 },
             }).addTo(map);
 
-            const bounds = layer.getBounds();
-            if (bounds.isValid()) {
-                map.fitBounds(bounds.pad(0.12));
+            const ownedBounds = layer.getBounds();
+            const hoodBounds = hoodWorkAreaLayer && hoodWorkAreaLayer.getBounds ? hoodWorkAreaLayer.getBounds() : null;
+            if (ownedBounds.isValid()) {
+                map.fitBounds(ownedBounds.pad(0.04));
+            } else if (hoodBounds && hoodBounds.isValid && hoodBounds.isValid()) {
+                map.fitBounds(hoodBounds.pad(0.05));
             } else {
                 map.setView([55.751244, 37.618423], 10);
             }
@@ -1045,6 +1188,9 @@
                     featureLayer.bringToFront();
                 }
             });
+            if (hoodWorkAreaLayer && typeof hoodWorkAreaLayer.bringToBack === 'function') {
+                hoodWorkAreaLayer.bringToBack();
+            }
             map.attributionControl.setPrefix(
                 '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
             );

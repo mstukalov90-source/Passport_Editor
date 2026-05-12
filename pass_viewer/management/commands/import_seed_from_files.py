@@ -2,7 +2,7 @@
 Load seed / reference data from JSON and GeoJSON files in the project root.
 
 Default root is Django BASE_DIR (directory containing manage.py). Filenames match table names:
-  users.json, id_names.json, ozn.geojson, renew.geojson, pass_objects.geojson, ...
+  users.json, id_names.json, ozn.geojson, renew.geojson, hood.geojson, pass_objects.geojson, ...
 
 When using --all, tables without a matching file are skipped. When using --table, the file must exist.
 

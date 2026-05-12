@@ -35,8 +35,51 @@
 <p id="export-links" class="note"></p>
 
 <style>
-    #map.edit-mode .leaflet-editing-icon { display: none !important; }
-    #map.edit-mode .leaflet-middle-icon { display: none !important; }
+    #map.edit-mode .leaflet-editing-icon {
+        width: 8px !important;
+        height: 8px !important;
+        margin-left: -4px !important;
+        margin-top: -4px !important;
+        border-radius: 50% !important;
+        border: 1px solid #111 !important;
+        background: #1f2937 !important;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55) !important;
+    }
+    #map.edit-mode .leaflet-middle-icon {
+        display: none !important;
+    }
+    .start-vertex-flag {
+        position: relative;
+        width: 16px;
+        height: 16px;
+        pointer-events: none;
+    }
+    .start-vertex-flag::before {
+        content: '';
+        position: absolute;
+        left: 2px;
+        top: 1px;
+        width: 2px;
+        height: 15px;
+        background: #334155;
+        border-radius: 2px;
+    }
+    .start-vertex-flag::after {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: 1px;
+        width: 10px;
+        height: 8px;
+        border-radius: 2px;
+        border: 1px solid #334155;
+        background:
+            linear-gradient(45deg, #111827 25%, transparent 25%, transparent 75%, #111827 75%, #111827),
+            linear-gradient(45deg, #111827 25%, transparent 25%, transparent 75%, #111827 75%, #111827);
+        background-size: 6px 6px;
+        background-position: 0 0, 3px 3px;
+        background-color: #ffffff;
+    }
     .map-toolbar-btn { border:1px solid transparent; border-radius:9px; padding:10px 14px; font-weight:600; }
     .map-toolbar-btn--primary { background:#1f6feb; color:#fff; }
     .map-toolbar-btn--success { background:#15803d; color:#fff; }
@@ -460,6 +503,69 @@
         btn.addEventListener('click', () => setBasemap(btn.dataset.map));
     });
 
+    /** Флажок на карте при рисовании (оформление как на add_object). Полигон — у первой точки; линия разреза — у последней. */
+    let splitDrawFinishFlagMarker = null;
+
+    function clearSplitDrawFinishFlag() {
+        if (splitDrawFinishFlagMarker && map.hasLayer(splitDrawFinishFlagMarker)) {
+            map.removeLayer(splitDrawFinishFlagMarker);
+        }
+        splitDrawFinishFlagMarker = null;
+    }
+
+    function getFirstVertexFromPolygonDrawer(drawer) {
+        const latlngs = drawer?._poly?.getLatLngs?.();
+        if (!Array.isArray(latlngs) || !latlngs.length) {
+            return null;
+        }
+        const first = Array.isArray(latlngs[0]) ? latlngs[0][0] : latlngs[0];
+        return first && Number.isFinite(first.lat) && Number.isFinite(first.lng) ? first : null;
+    }
+
+    function getLastVertexFromPolylineDrawer(drawer) {
+        const latlngs = drawer?._poly?.getLatLngs?.();
+        if (!Array.isArray(latlngs) || !latlngs.length) {
+            return null;
+        }
+        const last = latlngs[latlngs.length - 1];
+        return last && Number.isFinite(last.lat) && Number.isFinite(last.lng) ? last : null;
+    }
+
+    function updateSplitDrawFinishFlag() {
+        if (!isEditing) {
+            clearSplitDrawFinishFlag();
+            return;
+        }
+        let anchor = null;
+        if (selectionPolygonMode && selectionDrawer) {
+            anchor = getFirstVertexFromPolygonDrawer(selectionDrawer);
+        } else if (cutObjectMode && cutDrawer) {
+            anchor = getLastVertexFromPolylineDrawer(cutDrawer);
+        } else {
+            clearSplitDrawFinishFlag();
+            return;
+        }
+        if (!anchor) {
+            clearSplitDrawFinishFlag();
+            return;
+        }
+        if (!splitDrawFinishFlagMarker) {
+            splitDrawFinishFlagMarker = L.marker(anchor, {
+                interactive: false,
+                keyboard: false,
+                zIndexOffset: 2000,
+                icon: L.divIcon({
+                    className: '',
+                    html: '<span class="start-vertex-flag" aria-hidden="true"></span>',
+                    iconSize: [16, 16],
+                    iconAnchor: [3, 14],
+                }),
+            }).addTo(map);
+        } else {
+            splitDrawFinishFlagMarker.setLatLng(anchor);
+        }
+    }
+
     const selectedGroup = L.featureGroup().addTo(map);
     const editableGroup = L.featureGroup().addTo(map);
     let selectedLayer = null;
@@ -476,6 +582,9 @@
 
     function setEditMode(enabled) {
         isEditing = enabled;
+        if (map && map.getContainer) {
+            map.getContainer().classList.toggle('edit-mode', enabled);
+        }
         cancelButton.style.display = enabled ? 'inline-block' : 'none';
         saveButton.style.display = enabled ? 'inline-block' : 'none';
         editButton.textContent = enabled ? 'Режим редактирования включён' : 'Начать редактирование';
@@ -484,6 +593,7 @@
             cutButton.classList.remove('map-toolbar-btn--danger');
             cutButton.classList.add('map-toolbar-btn--accent');
             cancelSelectionPolygonMode();
+            clearSplitDrawFinishFlag();
             selectByPolygonButton.classList.remove('map-toolbar-btn--danger');
             selectByPolygonButton.classList.add('map-toolbar-btn--teal');
             lastPolygonSelectionOutsideRequestId = '';
@@ -713,6 +823,7 @@
         cutButton.textContent = 'Разрезать полигон';
         cutButton.classList.remove('map-toolbar-btn--danger');
         cutButton.classList.add('map-toolbar-btn--accent');
+        clearSplitDrawFinishFlag();
     }
 
     function cancelSelectionPolygonMode() {
@@ -724,6 +835,7 @@
         selectByPolygonButton.textContent = 'Выборка полигоном';
         selectByPolygonButton.classList.remove('map-toolbar-btn--danger');
         selectByPolygonButton.classList.add('map-toolbar-btn--teal');
+        clearSplitDrawFinishFlag();
     }
 
     function startCutMode() {
@@ -1254,6 +1366,16 @@
         const cutterType = 'line';
         cancelCutMode();
         void applyCutGeometry(event.layer, cutterType);
+    });
+
+    map.on(L.Draw.Event.DRAWVERTEX, () => {
+        updateSplitDrawFinishFlag();
+    });
+    map.on('draw:drawstart', () => {
+        clearSplitDrawFinishFlag();
+    });
+    map.on('draw:drawstop', () => {
+        clearSplitDrawFinishFlag();
     });
 
     cancelButton.addEventListener('click', () => {
