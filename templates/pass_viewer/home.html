@@ -221,6 +221,15 @@
             display: inline-flex;
             flex: 0 0 auto;
         }
+        body.home--ogh-boundaries-edit .owned-passport-row .owned-split-form {
+            display: none !important;
+        }
+        body.home--ogh-boundaries-edit .owned-passport-row .owned-split-btn {
+            display: none !important;
+        }
+        body.home--ogh-split-passport .owned-passport-row .owned-confirm-open-btn {
+            display: none !important;
+        }
         .owned-list-panel {
             display: none;
             min-height: 0;
@@ -676,6 +685,60 @@
     </div>
 
     <div
+        id="home-workflow-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="home-workflow-modal-title"
+        style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 999; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 560px; padding: 18px;">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px;">
+                <h3 id="home-workflow-modal-title" style="margin: 0; font-size: 18px; line-height: 1.35;">
+                    Выберите действие
+                </h3>
+                <button type="button" id="home-workflow-close-btn" style="flex-shrink: 0; background: #e5e7eb; color: #111;">&#10005;</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button
+                    type="button"
+                    id="home-workflow-primary-btn"
+                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #2563eb; background: #2563eb; color: #fff; font: inherit; font-weight: 600; cursor: pointer;"
+                >
+                    Подача заявки на первичную паспортизацию
+                </button>
+                <button
+                    type="button"
+                    id="home-workflow-secondary-btn"
+                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
+                >
+                    Работа с актуальными паспортами ОГХ и заявками
+                </button>
+                <button
+                    type="button"
+                    id="home-workflow-boundaries-btn"
+                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
+                >
+                    Редактирование действующих границ ОГХ и заявок
+                </button>
+                <button
+                    type="button"
+                    id="home-workflow-split-passport-btn"
+                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
+                >
+                    Разделить актуальный паспорт ОГХ
+                </button>
+                <button
+                    type="button"
+                    id="home-workflow-merge-btn"
+                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
+                >
+                    Объединение актуальных паспортов
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div
         id="entry-request-id-modal"
         style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1001; align-items: center; justify-content: center; padding: 16px;"
     >
@@ -759,6 +822,76 @@
         crossorigin=""
     ></script>
     <script>
+        const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
+        const HOME_OGH_SPLIT_PASSPORT_KEY = 'home_ogh_split_passport';
+
+        function setHomeOghBoundariesEditMode(enabled) {
+            const on = Boolean(enabled);
+            if (on) {
+                try {
+                    sessionStorage.removeItem(HOME_OGH_SPLIT_PASSPORT_KEY);
+                } catch (e) {
+                    // sessionStorage may be unavailable
+                }
+                document.body.classList.remove('home--ogh-split-passport');
+            }
+            try {
+                if (on) {
+                    sessionStorage.setItem(HOME_OGH_BOUNDARIES_EDIT_KEY, '1');
+                } else {
+                    sessionStorage.removeItem(HOME_OGH_BOUNDARIES_EDIT_KEY);
+                }
+            } catch (e) {
+                // sessionStorage may be unavailable
+            }
+            document.body.classList.toggle('home--ogh-boundaries-edit', on);
+        }
+
+        function setHomeOghSplitPassportMode(enabled) {
+            const on = Boolean(enabled);
+            if (on) {
+                try {
+                    sessionStorage.removeItem(HOME_OGH_BOUNDARIES_EDIT_KEY);
+                } catch (e) {
+                    // sessionStorage may be unavailable
+                }
+                document.body.classList.remove('home--ogh-boundaries-edit');
+            }
+            try {
+                if (on) {
+                    sessionStorage.setItem(HOME_OGH_SPLIT_PASSPORT_KEY, '1');
+                } else {
+                    sessionStorage.removeItem(HOME_OGH_SPLIT_PASSPORT_KEY);
+                }
+            } catch (e) {
+                // sessionStorage may be unavailable
+            }
+            document.body.classList.toggle('home--ogh-split-passport', on);
+        }
+
+        function clearHomeOghSpecialModes() {
+            setHomeOghBoundariesEditMode(false);
+            setHomeOghSplitPassportMode(false);
+        }
+
+        function syncHomeOghSpecialModesFromStorage() {
+            try {
+                let boundaries = sessionStorage.getItem(HOME_OGH_BOUNDARIES_EDIT_KEY) === '1';
+                let split = sessionStorage.getItem(HOME_OGH_SPLIT_PASSPORT_KEY) === '1';
+                if (boundaries && split) {
+                    sessionStorage.removeItem(HOME_OGH_SPLIT_PASSPORT_KEY);
+                    split = false;
+                }
+                document.body.classList.toggle('home--ogh-boundaries-edit', boundaries);
+                document.body.classList.toggle('home--ogh-split-passport', split);
+            } catch (e) {
+                document.body.classList.remove('home--ogh-boundaries-edit');
+                document.body.classList.remove('home--ogh-split-passport');
+            }
+        }
+
+        syncHomeOghSpecialModesFromStorage();
+
         const homeBootstrapEl = document.getElementById('home-bootstrap-data');
         const needEntryRequestIdOnLoad =
             homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
@@ -1915,8 +2048,74 @@
             });
         }
 
+        const homeWorkflowModal = document.getElementById('home-workflow-modal');
+        const homeWorkflowPrimaryBtn = document.getElementById('home-workflow-primary-btn');
+        const homeWorkflowSecondaryBtn = document.getElementById('home-workflow-secondary-btn');
+        const homeWorkflowBoundariesBtn = document.getElementById('home-workflow-boundaries-btn');
+        const homeWorkflowSplitPassportBtn = document.getElementById('home-workflow-split-passport-btn');
+        const homeWorkflowMergeBtn = document.getElementById('home-workflow-merge-btn');
+        const homeWorkflowCloseBtn = document.getElementById('home-workflow-close-btn');
+
+        function closeHomeWorkflowModal() {
+            if (homeWorkflowModal) {
+                homeWorkflowModal.style.display = 'none';
+            }
+        }
+
+        if (homeWorkflowPrimaryBtn) {
+            homeWorkflowPrimaryBtn.addEventListener('click', () => {
+                clearHomeOghSpecialModes();
+                closeHomeWorkflowModal();
+                openEntryRequestModal('add-object');
+            });
+        }
+        if (homeWorkflowSecondaryBtn) {
+            homeWorkflowSecondaryBtn.addEventListener('click', () => {
+                clearHomeOghSpecialModes();
+                closeHomeWorkflowModal();
+            });
+        }
+        if (homeWorkflowBoundariesBtn) {
+            homeWorkflowBoundariesBtn.addEventListener('click', () => {
+                setHomeOghBoundariesEditMode(true);
+                closeHomeWorkflowModal();
+            });
+        }
+        if (homeWorkflowSplitPassportBtn) {
+            homeWorkflowSplitPassportBtn.addEventListener('click', () => {
+                setHomeOghSplitPassportMode(true);
+                closeHomeWorkflowModal();
+            });
+        }
+        if (homeWorkflowMergeBtn) {
+            homeWorkflowMergeBtn.addEventListener('click', () => {
+                clearHomeOghSpecialModes();
+                closeHomeWorkflowModal();
+                if (mergePassportsBtn) {
+                    mergePassportsBtn.click();
+                }
+            });
+        }
+        if (homeWorkflowCloseBtn) {
+            homeWorkflowCloseBtn.addEventListener('click', closeHomeWorkflowModal);
+        }
+        if (homeWorkflowModal) {
+            homeWorkflowModal.addEventListener('click', (event) => {
+                if (event.target === homeWorkflowModal) {
+                    closeHomeWorkflowModal();
+                }
+            });
+        }
+
         if (needEntryRequestIdOnLoad) {
             openEntryRequestModal('pending');
+        } else if (homeWorkflowModal) {
+            homeWorkflowModal.style.display = 'flex';
+            setTimeout(() => {
+                if (homeWorkflowPrimaryBtn && homeWorkflowModal && homeWorkflowModal.style.display === 'flex') {
+                    homeWorkflowPrimaryBtn.focus();
+                }
+            }, 0);
         }
     </script>
 {% endblock %}
