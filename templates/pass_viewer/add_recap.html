@@ -1877,7 +1877,7 @@
             editableAreaInfoEl.style.display = 'block';
             const area = calculateGeometryAreaSqMeters(buildCurrentGeometry());
             editableAreaInfoEl.textContent = Number.isFinite(area) && area > 0
-                ? ('Площадь редактируемого объекта: ' + area.toFixed(2) + ' м²')
+                ? ('Площадь редактируемого объекта: ' + area.toFixed(2) + ' м² (' + (area / 10000).toFixed(2) + ' га)')
                 : 'Площадь редактируемого объекта: -';
         }
 

@@ -40,6 +40,7 @@
         <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
         <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
         <button type="button" id="add-comment-point-btn" class="map-toolbar-btn map-toolbar-btn--primary">Добавить точку с комментарием</button>
+        <button type="button" id="clear-map-btn" class="map-toolbar-btn map-toolbar-btn--danger" title="Убрать с карты только нарисованные полигоны (слои из базы не затрагиваются)">Очистить карту</button>
         <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
         <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">&#1042;&#1099;&#1075;&#1088;&#1091;&#1079;&#1080;&#1090;&#1100; &#1092;&#1072;&#1081;&#1083;&#1099;</button>
     </div>
@@ -1012,6 +1013,7 @@
         const checkDgiIntersectionsButton = document.getElementById('check-dgi-intersections-btn');
         const autoRemoveIntersectionsButton = document.getElementById('auto-remove-intersections-btn');
         const addCommentPointButton = document.getElementById('add-comment-point-btn');
+        const clearMapButton = document.getElementById('clear-map-btn');
         const commentPointModal = document.getElementById('comment-point-modal');
         const commentPointText = document.getElementById('comment-point-text');
         const commentPointModalError = document.getElementById('comment-point-modal-error');
@@ -1927,13 +1929,54 @@
             refreshObjectLayersControl();
         }
 
+        function clearMapDisplayedUserDrawings() {
+            if (!window.confirm('Убрать с карты все нарисованные полигоны? Объекты из базы на карте останутся.')) {
+                return;
+            }
+            cancelCommentPointMode();
+            cancelAddObjectMode();
+            cancelCutMode();
+            if (polygonDrawer) {
+                polygonDrawer.disable();
+                polygonDrawer = null;
+            }
+            stopFreehandMode();
+            clearDrawSnapPreview();
+            clearStartVertexFlag();
+            closeCutModeModal();
+            closeAutoRemoveModal();
+            closeDeletePolygonModal();
+            closeCommentPointModal();
+
+            editableGroup.clearLayers();
+
+            clearPopupHighlight();
+            map.closePopup();
+
+            if (editToolbar) {
+                editToolbar.disable();
+                editToolbar = new L.EditToolbar.Edit(map, { featureGroup: editableGroup });
+                if (isEditing && editableGroup.getLayers().length) {
+                    editToolbar.enable();
+                }
+            }
+
+            rebuildSnapGuideLines();
+            refreshObjectLayersControl();
+            updateRelationsButtonState();
+            if (exportLinksEl) {
+                exportLinksEl.innerHTML = '';
+            }
+            statusEl.textContent = 'С карты убраны только нарисованные полигоны; данные из базы не изменялись.';
+        }
+
         function updateRelationsButtonState() {
             const hasEditableGeometry = !!buildCurrentGeometry();
             checkRelationsButton.disabled = !hasEditableGeometry;
             const geometry = buildCurrentGeometry();
             const area = calculateGeometryAreaSqMeters(geometry);
             editableAreaInfoEl.textContent = Number.isFinite(area) && area > 0
-                ? ('Площадь редактируемого объекта: ' + area.toFixed(2) + ' м²')
+                ? ('Площадь редактируемого объекта: ' + area.toFixed(2) + ' м² (' + (area / 10000).toFixed(2) + ' га)')
                 : 'Площадь редактируемого объекта: -';
             updateEditToolbarVisibility(hasEditableGeometry);
             refreshObjectLayersControl();
@@ -3797,6 +3840,12 @@
                     closeCommentPointModal();
                     cancelCommentPointMode();
                 }
+            });
+        }
+
+        if (clearMapButton) {
+            clearMapButton.addEventListener('click', () => {
+                clearMapDisplayedUserDrawings();
             });
         }
 
