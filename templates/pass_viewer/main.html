@@ -822,6 +822,68 @@
                 .replace(/'/g, '&#39;');
         }
 
+        function pickPopupProperty(props, ...keys) {
+            if (!props) {
+                return '';
+            }
+            for (let i = 0; i < keys.length; i += 1) {
+                const k = keys[i];
+                if (Object.prototype.hasOwnProperty.call(props, k) && props[k] != null && String(props[k]).trim() !== '') {
+                    return props[k];
+                }
+            }
+            return '';
+        }
+
+        function formatPopupDateToDay(value) {
+            if (value == null || value === '') {
+                return '';
+            }
+            const s = String(value).trim();
+            if (!s || ['null', 'none', '-'].includes(s.toLowerCase())) {
+                return '';
+            }
+            const ymd = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (ymd) {
+                return escapeHtml(ymd[3] + '.' + ymd[2] + '.' + ymd[1]);
+            }
+            const d = new Date(s);
+            if (!Number.isFinite(d.getTime())) {
+                return escapeHtml(s);
+            }
+            const y = d.getFullYear();
+            const mo = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return escapeHtml(day + '.' + mo + '.' + y);
+        }
+
+        function buildPopupMetaFieldsHtml(properties) {
+            const props = properties || {};
+            const startRaw = pickPopupProperty(props, 'startdate', 'StartDate');
+            const surveyRaw = pickPopupProperty(props, 'datesurvey', 'DateSurvey');
+            const createRaw = pickPopupProperty(props, 'createtype', 'CreateType');
+            const startDis = formatPopupDateToDay(startRaw);
+            const surveyDis = formatPopupDateToDay(surveyRaw);
+            const createTxt = String(createRaw == null ? '' : createRaw).trim();
+            const createDis =
+                createTxt && !['null', 'none', '-'].includes(createTxt.toLowerCase())
+                    ? escapeHtml(createTxt)
+                    : '—';
+            return (
+                '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">' +
+                '<div style="margin-top: 4px;"><strong>Дата утверждения:</strong> ' +
+                (startDis || '—') +
+                '</div>' +
+                '<div style="margin-top: 4px;"><strong>Дата полевого обследования:</strong> ' +
+                (surveyDis || '—') +
+                '</div>' +
+                '<div style="margin-top: 4px;"><strong>Тип создания:</strong> ' +
+                createDis +
+                '</div>' +
+                '</div>'
+            );
+        }
+
         function calculateGeometryAreaSqMeters(geometry) {
             if (!geometry || !L?.GeometryUtil?.geodesicArea) {
                 return null;
@@ -910,6 +972,7 @@
                     '<div><strong>№ Заявки:</strong> ' + escapeHtml(requestId || '-') + '</div>' +
                     '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
                     ownerLines +
+                    buildPopupMetaFieldsHtml(properties) +
                     '</div>'
                 );
             }
@@ -919,6 +982,7 @@
                 '<div><strong>№ Паспорта:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
                 '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
                 ownerLines +
+                buildPopupMetaFieldsHtml(properties) +
                 '</div>'
             );
         }
@@ -1007,6 +1071,7 @@
                     (hasDepartment
                         ? '<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>'
                         : '') +
+                    buildPopupMetaFieldsHtml(properties) +
                     '</div>'
                 );
             }
@@ -1137,6 +1202,14 @@
         const selectedDepartmentLegalPersonId = "{{ selected_department_legal_person_id|default:''|escapejs }}";
         const selectedCustomerLegalPersonName = "{{ selected_customer_legal_person_name|default:''|escapejs }}";
         const selectedDepartmentLegalPersonName = "{{ selected_department_legal_person_name|default:''|escapejs }}";
+        const selectedStartdate = "{{ selected_startdate|default:''|escapejs }}";
+        const selectedDatesurvey = "{{ selected_datesurvey|default:''|escapejs }}";
+        const selectedCreatetype = "{{ selected_createtype|default:''|escapejs }}";
+        const selectedPassportMetaProps = {
+            startdate: selectedStartdate,
+            datesurvey: selectedDatesurvey,
+            createtype: selectedCreatetype,
+        };
         const selectedSourceLabel = "{{ selected_source_label|default:'ДТ'|escapejs }}";
         const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 10);
         map.attributionControl.setPrefix(
@@ -1779,6 +1852,7 @@
                                 ? (hasOwner ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(ownerDisplay) + '</div>') : '')
                                 : (hasCustomer ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(customerDisplay) + '</div>') : '')) +
                             (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>') : '') +
+                            buildPopupMetaFieldsHtml(feature.properties || {}) +
                             '</div>'
                         );
                     } else {
@@ -1838,7 +1912,7 @@
                         '<div><strong>Реновация</strong></div>' +
                         (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase())
                             ? ''
-                            : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + String(name) + '</div>')) +
+                            : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
                         '</div>'
                     );
                 }
@@ -1922,7 +1996,7 @@
                 style: {color: '#ff0000', weight: 3, fillOpacity: 0.25}
             }).addTo(selectedGroup);
             const popupHtml = buildObjectPopup(
-                {},
+                selectedPassportMetaProps,
                 selectedRootid || '-',
                 selectedName || '-',
                 selectedRequestId || '-',
@@ -2341,7 +2415,7 @@
                 bindEditablePolygonPopup(
                     layer,
                     buildObjectPopup(
-                        {},
+                        selectedPassportMetaProps,
                         selectedRootid || '-',
                         selectedName || '-',
                         selectedRequestId || '-',
@@ -3119,7 +3193,7 @@
             bindEditablePolygonPopup(
                 layer,
                 buildObjectPopup(
-                    {},
+                    selectedPassportMetaProps,
                     selectedRootid || '-',
                     selectedName || '-',
                     selectedRequestId || '-',
@@ -3171,7 +3245,7 @@
                 bindEditablePolygonPopup(
                     layer,
                     buildObjectPopup(
-                        {},
+                        selectedPassportMetaProps,
                         selectedRootid || '-',
                         selectedName || '-',
                         selectedRequestId || '-',

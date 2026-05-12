@@ -744,6 +744,69 @@
             if (!ownedMapEl || typeof L === 'undefined') {
                 return;
             }
+            function escapeHtml(value) {
+                return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+            function pickPopupProperty(props, ...keys) {
+                if (!props) {
+                    return '';
+                }
+                for (let i = 0; i < keys.length; i += 1) {
+                    const k = keys[i];
+                    if (Object.prototype.hasOwnProperty.call(props, k) && props[k] != null && String(props[k]).trim() !== '') {
+                        return props[k];
+                    }
+                }
+                return '';
+            }
+            function formatPopupDateToDay(value) {
+                if (value == null || value === '') {
+                    return '';
+                }
+                const s = String(value).trim();
+                if (!s || ['null', 'none', '-'].includes(s.toLowerCase())) {
+                    return '';
+                }
+                const ymd = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (ymd) {
+                    return escapeHtml(ymd[3] + '.' + ymd[2] + '.' + ymd[1]);
+                }
+                const d = new Date(s);
+                if (!Number.isFinite(d.getTime())) {
+                    return escapeHtml(s);
+                }
+                const y = d.getFullYear();
+                const mo = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return escapeHtml(day + '.' + mo + '.' + y);
+            }
+            function buildPopupMetaFieldsHtml(properties) {
+                const props = properties || {};
+                const startRaw = pickPopupProperty(props, 'startdate', 'StartDate');
+                const surveyRaw = pickPopupProperty(props, 'datesurvey', 'DateSurvey');
+                const createRaw = pickPopupProperty(props, 'createtype', 'CreateType');
+                const startDis = formatPopupDateToDay(startRaw);
+                const surveyDis = formatPopupDateToDay(surveyRaw);
+                const createTxt = String(createRaw == null ? '' : createRaw).trim();
+                const createDis =
+                    createTxt && !['null', 'none', '-'].includes(createTxt.toLowerCase())
+                        ? escapeHtml(createTxt)
+                        : '—';
+                return (
+                    '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">' +
+                    '<div style="margin-top: 4px;"><strong>Дата утверждения:</strong> ' +
+                    (startDis || '—') +
+                    '</div>' +
+                    '<div style="margin-top: 4px;"><strong>Дата полевого обследования:</strong> ' +
+                    (surveyDis || '—') +
+                    '</div>' +
+                    '<div style="margin-top: 4px;"><strong>Тип создания:</strong> ' +
+                    createDis +
+                    '</div>' +
+                    '</div>'
+                );
+            }
             const mapListRows = Array.from(document.querySelectorAll('.owned-passport-row, .owned-request-row'));
             const rowByKey = new Map();
             mapListRows.forEach((row) => {
@@ -954,11 +1017,14 @@
                         sourceLabel: normalizeOwnedSourceLabel(props.source_label || 'ДТ'),
                     });
                     featureLayer.on('click', () => focusByKey(key, 'map'));
+                    const idLabel = props.rootid ? '№ Паспорта' : '№ Заявки';
+                    const idValue = props.rootid || props.request_id || '-';
                     featureLayer.bindPopup(
                         '<div>' +
-                            '<div><strong>' + (props.rootid ? '№ Паспорта' : '№ Заявки') + ':</strong> ' + (props.rootid || props.request_id || '-') + '</div>' +
-                            '<div><strong>Название:</strong> ' + (props.name || '-') + '</div>' +
-                            '<div><strong>Источник:</strong> ' + (props.source_label || 'ДТ') + '</div>' +
+                            '<div><strong>' + idLabel + ':</strong> ' + escapeHtml(idValue) + '</div>' +
+                            '<div><strong>Название:</strong> ' + escapeHtml(props.name || '-') + '</div>' +
+                            '<div><strong>Источник:</strong> ' + escapeHtml(props.source_label || 'ДТ') + '</div>' +
+                            buildPopupMetaFieldsHtml(props) +
                         '</div>'
                     );
                 },
