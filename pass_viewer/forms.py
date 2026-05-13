@@ -1,4 +1,16 @@
 from django import forms
+from django.contrib.auth.forms import AuthenticationForm
+
+
+class RussianAuthenticationForm(AuthenticationForm):
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        'invalid_login': (
+            'Укажите правильные имя пользователя и пароль. Оба поля могут быть '
+            'чувствительны к регистру.'
+        ),
+        'inactive': 'Эта учётная запись неактивна.',
+    }
 
 
 class EntryPointForm(forms.Form):

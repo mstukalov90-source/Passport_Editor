@@ -6,19 +6,14 @@
 {% block content %}
     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px;">
         <h2 style="font-size: 18px; margin: 0;">
-            &#1054;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099; &#1087;&#1086; &#8470; &#1041;&#1072;&#1083;&#1072;&#1085;&#1089;&#1086;&#1076;&#1077;&#1088;&#1078;&#1072;&#1090;&#1077;&#1083;&#1103;
+            Объекты балансодержателя:{% if owner_id or owner_name %}
+            <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>{% endif %}
         </h2>
         <form method="post" action="{% url 'logout' %}" style="margin: 0;">
             {% csrf_token %}
             <button type="submit">&#1042;&#1099;&#1081;&#1090;&#1080;</button>
         </form>
     </div>
-    {% if owner_id or owner_name %}
-        <p class="note" style="margin-top: 0;">
-            &#8470; &#1041;&#1072;&#1083;&#1072;&#1085;&#1089;&#1086;&#1076;&#1077;&#1088;&#1078;&#1072;&#1090;&#1077;&#1083;&#1103;:
-            <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>
-        </p>
-    {% endif %}
     <style>
         .owned-list-wrap {
             max-height: none;
@@ -346,11 +341,40 @@
         body.home--merge-passports .merge-passport-cb {
             display: block !important;
         }
+        body.home--ogh-boundaries-edit #merge-passports-btn,
+        body.home--ogh-boundaries-edit #add-object-entry-btn,
+        body.home--ogh-split-passport #merge-passports-btn,
+        body.home--ogh-split-passport #add-object-entry-btn,
+        body.home--merge-passports #merge-passports-btn,
+        body.home--merge-passports #add-object-entry-btn {
+            display: none !important;
+        }
         #merge-passports-btn.is-active {
             box-shadow: inset 0 0 0 2px #15803d;
         }
         #merge-passports-toolbar {
             display: none;
+        }
+        #home-workflow-modal .home-workflow-action-btn {
+            width: 100%;
+            text-align: center;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid #2563eb;
+            background: #2563eb;
+            color: #fff;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        #home-workflow-modal .home-workflow-action-btn:hover {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+        }
+        #home-workflow-modal .home-workflow-action-btn:focus-visible {
+            outline: 2px solid #93c5fd;
+            outline-offset: 2px;
         }
         @media (max-width: 1300px) {
             .owned-home-workspace {
@@ -519,7 +543,7 @@
                                         <button
                                             type="submit"
                                             style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 8px; padding: 8px 10px;"
-                                            onclick="return confirm('Удалить объект request_id={{ item.request_id|default:'-' }}?');"
+                                            onclick="return confirm('Удалить объект заявки № {{ item.request_id|default:'-' }}?');"
                                         >
                                             Удалить
                                         </button>
@@ -612,7 +636,7 @@
     >
         <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                <h3 style="margin: 0; font-size: 18px;">Номер заявки (request_id)</h3>
+                <h3 style="margin: 0; font-size: 18px;">Заявка на объединение</h3>
                 <button type="button" id="merge-passports-request-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <p id="merge-passports-request-intro" class="note" style="margin-top: 0;">
@@ -660,7 +684,7 @@
     >
         <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                <h3 style="margin: 0; font-size: 18px;">Номер досъёма (recap_id)</h3>
+                <h3 style="margin: 0; font-size: 18px;">Заявка на досъём</h3>
                 <button type="button" id="entry-recap-id-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <p id="entry-recap-id-modal-text" class="note" style="margin-top: 0;">
@@ -699,39 +723,16 @@
                 <button type="button" id="home-workflow-close-btn" style="flex-shrink: 0; background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 10px;">
-                <button
-                    type="button"
-                    id="home-workflow-primary-btn"
-                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #2563eb; background: #2563eb; color: #fff; font: inherit; font-weight: 600; cursor: pointer;"
-                >
+                <button type="button" id="home-workflow-primary-btn" class="home-workflow-action-btn">
                     Подача заявки на первичную паспортизацию
                 </button>
-                <button
-                    type="button"
-                    id="home-workflow-secondary-btn"
-                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
-                >
-                    Работа с актуальными паспортами ОГХ и заявками
-                </button>
-                <button
-                    type="button"
-                    id="home-workflow-boundaries-btn"
-                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
-                >
+                <button type="button" id="home-workflow-boundaries-btn" class="home-workflow-action-btn">
                     Редактирование действующих границ ОГХ и заявок
                 </button>
-                <button
-                    type="button"
-                    id="home-workflow-split-passport-btn"
-                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
-                >
+                <button type="button" id="home-workflow-split-passport-btn" class="home-workflow-action-btn">
                     Разделить актуальный паспорт ОГХ
                 </button>
-                <button
-                    type="button"
-                    id="home-workflow-merge-btn"
-                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
-                >
+                <button type="button" id="home-workflow-merge-btn" class="home-workflow-action-btn">
                     Объединение актуальных паспортов
                 </button>
             </div>
@@ -744,7 +745,7 @@
     >
         <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                <h3 style="margin: 0; font-size: 18px;">Номер заявки (request_id)</h3>
+                <h3 id="entry-request-id-modal-title" style="margin: 0; font-size: 18px;">Заявка на актуализацию.</h3>
                 <button type="button" id="entry-request-id-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <p id="entry-request-id-modal-text" class="note" style="margin-top: 0;">
@@ -1074,23 +1075,14 @@
                     attribution: 'Tiles &copy; Esri',
                 }
             );
-            const mggtLayer = L.tileLayer(
-                'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}',
-                {
-                    maxNativeZoom: 17,
-                    maxZoom: 30,
-                    attribution: 'МГГТ',
-                }
-            );
-            mggtLayer.addTo(map);
+            topoLayer.addTo(map);
 
             const basemapControl = L.control({ position: 'topright' });
             basemapControl.onAdd = function () {
                 const container = L.DomUtil.create('div', 'map-basemap-control');
                 container.innerHTML =
-                    '<button type="button" class="map-basemap-btn" data-map="topo">OSM</button>' +
+                    '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
                     '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
-                    '<button type="button" class="map-basemap-btn is-active" data-map="mggt">МГГТ</button>' +
                     '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
                 L.DomEvent.disableClickPropagation(container);
                 return container;
@@ -1098,7 +1090,7 @@
             basemapControl.addTo(map);
 
             const setBasemap = (mode) => {
-                [topoLayer, satelliteLayer, mggtLayer].forEach((layer) => {
+                [topoLayer, satelliteLayer].forEach((layer) => {
                     if (map.hasLayer(layer)) {
                         map.removeLayer(layer);
                     }
@@ -1107,8 +1099,6 @@
                     topoLayer.addTo(map);
                 } else if (mode === 'sat') {
                     satelliteLayer.addTo(map);
-                } else if (mode === 'mggt') {
-                    mggtLayer.addTo(map);
                 }
                 ownedMapEl.parentElement
                     ?.querySelectorAll('.map-basemap-btn')
@@ -1534,6 +1524,7 @@
         const entryRequestInput = document.getElementById('entry-request-id-input');
         const entryRequestError = document.getElementById('entry-request-id-error');
         const entryRequestText = document.getElementById('entry-request-id-modal-text');
+        const entryRequestTitle = document.getElementById('entry-request-id-modal-title');
         const entryGeometryDetailFieldset = document.getElementById('entry-geometry-detail-fieldset');
         const entryGeometryDetailSimplified = document.getElementById('entry-geometry-detail-simplified');
         const entryGeometryDetailFull = document.getElementById('entry-geometry-detail-full');
@@ -1646,16 +1637,20 @@
             if (entryRequestError) {
                 entryRequestError.textContent = '';
             }
+            if (entryRequestTitle) {
+                entryRequestTitle.textContent =
+                    mode === 'add-object' ? 'Заявка на первичную паспортизацию' : 'Заявка на актуализацию.';
+            }
             if (entryRequestText) {
                 if (mode === 'pending') {
                     entryRequestText.textContent =
-                        'Объект найден, но в записи нет номера заявки. Введите номер заявки (request_id), чтобы открыть редактирование.';
+                        'Объект найден, но в записи нет номера заявки. Введите номер заявки, чтобы открыть редактирование.';
                 } else if (mode === 'add-object') {
                     entryRequestText.textContent =
-                        'Укажите номер заявки (request_id) перед переходом к созданию объекта.';
+                        'Укажите номер заявки перед переходом к созданию объекта.';
                 } else if (mode === 'owned') {
                     entryRequestText.textContent =
-                        'У объекта не указан номер заявки в базе. Введите номер заявки (request_id), чтобы продолжить.';
+                        'У объекта не указан номер заявки в базе. Введите номер заявки, чтобы продолжить.';
                 }
             }
             if (entryGeometryDetailFieldset) {
@@ -2050,7 +2045,6 @@
 
         const homeWorkflowModal = document.getElementById('home-workflow-modal');
         const homeWorkflowPrimaryBtn = document.getElementById('home-workflow-primary-btn');
-        const homeWorkflowSecondaryBtn = document.getElementById('home-workflow-secondary-btn');
         const homeWorkflowBoundariesBtn = document.getElementById('home-workflow-boundaries-btn');
         const homeWorkflowSplitPassportBtn = document.getElementById('home-workflow-split-passport-btn');
         const homeWorkflowMergeBtn = document.getElementById('home-workflow-merge-btn');
@@ -2067,12 +2061,6 @@
                 clearHomeOghSpecialModes();
                 closeHomeWorkflowModal();
                 openEntryRequestModal('add-object');
-            });
-        }
-        if (homeWorkflowSecondaryBtn) {
-            homeWorkflowSecondaryBtn.addEventListener('click', () => {
-                clearHomeOghSpecialModes();
-                closeHomeWorkflowModal();
             });
         }
         if (homeWorkflowBoundariesBtn) {

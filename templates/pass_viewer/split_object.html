@@ -192,6 +192,9 @@
         L.drawLocal.draw.handlers.polyline.tooltip.start = 'Кликните, чтобы начать линию.';
         L.drawLocal.draw.handlers.polyline.tooltip.cont = 'Кликайте, чтобы продолжить линию.';
         L.drawLocal.draw.handlers.polyline.tooltip.end = 'Кликните последнюю точку, чтобы завершить линию.';
+        L.drawLocal.draw.handlers.polygon.tooltip.start = 'Кликните, чтобы начать полигон.';
+        L.drawLocal.draw.handlers.polygon.tooltip.cont = 'Кликайте, чтобы продолжить полигон.';
+        L.drawLocal.draw.handlers.polygon.tooltip.end = 'Кликните первую точку, чтобы замкнуть полигон.';
         L.drawLocal.edit.toolbar.actions.save.title = 'Сохранить изменения';
         L.drawLocal.edit.toolbar.actions.save.text = 'Сохранить';
         L.drawLocal.edit.toolbar.actions.cancel.title = 'Отменить редактирование, сбросить изменения';
@@ -449,22 +452,13 @@
             attribution: 'Tiles &copy; Esri'
         }
     );
-    const mggtLayer = L.tileLayer(
-        'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}',
-        {
-            maxNativeZoom: 17,
-            maxZoom: 30,
-            attribution: 'МГГТ'
-        }
-    );
-    mggtLayer.addTo(map);
+    topoLayer.addTo(map);
     const basemapControl = L.control({position: 'topright'});
     basemapControl.onAdd = function () {
         const container = L.DomUtil.create('div', 'map-basemap-control');
         container.innerHTML =
-            '<button type="button" class="map-basemap-btn" data-map="topo">OSM</button>' +
+            '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
             '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
-            '<button type="button" class="map-basemap-btn is-active" data-map="mggt">МГГТ</button>' +
             '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
         L.DomEvent.disableClickPropagation(container);
         return container;
@@ -479,9 +473,6 @@
             if (map.hasLayer(satelliteLayer)) {
                 map.removeLayer(satelliteLayer);
             }
-            if (map.hasLayer(mggtLayer)) {
-                map.removeLayer(mggtLayer);
-            }
         };
         if (mode === 'none') {
             removeBasemapLayers();
@@ -491,9 +482,6 @@
         } else if (mode === 'sat') {
             removeBasemapLayers();
             map.addLayer(satelliteLayer);
-        } else if (mode === 'mggt') {
-            removeBasemapLayers();
-            map.addLayer(mggtLayer);
         }
         document.querySelectorAll('.map-basemap-btn').forEach((btn) => {
             btn.classList.toggle('is-active', btn.dataset.map === mode);
@@ -604,13 +592,36 @@
         refreshSplitToolbarButtons();
     }
 
+    function polygonsFromGeometry2D(g) {
+        if (!g) return [];
+        if (g.type === 'Polygon') return [g];
+        if (g.type === 'MultiPolygon') {
+            return (g.coordinates || []).map((rings) => ({ type: 'Polygon', coordinates: rings }));
+        }
+        return [];
+    }
+
+    function mergePolygonGeometries(polygons) {
+        if (!polygons.length) return null;
+        if (polygons.length === 1) return polygons[0];
+        return { type: 'MultiPolygon', coordinates: polygons.map((p) => p.coordinates) };
+    }
+
+    function buildMergedGeometryFromEditableLayers(layers) {
+        const all = [];
+        for (let i = 0; i < layers.length; i += 1) {
+            const layer = layers[i];
+            if (typeof layer.toGeoJSON !== 'function') continue;
+            const g = stripGeometryTo2D(layer.toGeoJSON().geometry);
+            all.push(...polygonsFromGeometry2D(g));
+        }
+        return mergePolygonGeometries(all);
+    }
+
     function buildCurrentGeometry() {
         if (!isEditing) return null;
-        const fc = editableGroup.toGeoJSON();
-        const geometries = (fc.features || []).map((f) => f.geometry).filter((g) => g && g.type === 'Polygon');
-        if (!geometries.length) return null;
-        if (geometries.length === 1) return geometries[0];
-        return { type: 'MultiPolygon', coordinates: geometries.map((g) => g.coordinates) };
+        const layers = editableGroup.getLayers().filter((l) => typeof l.toGeoJSON === 'function');
+        return buildMergedGeometryFromEditableLayers(layers);
     }
 
     function refreshSplitToolbarButtons() {
@@ -1213,14 +1224,50 @@
         }
         const attrsOk = await ensureAttributesForAllParts();
         if (!attrsOk) return;
+        const layersAfterAttrs = editableGroup.getLayers().filter((l) => typeof l.toGeoJSON === 'function');
+        if (!layersAfterAttrs.length) {
+            statusEl.textContent = 'Нет геометрии для выгрузки.';
+            return;
+        }
+        const byRequestId = new Map();
+        for (let i = 0; i < layersAfterAttrs.length; i += 1) {
+            const layer = layersAfterAttrs[i];
+            const rid = String(layer.feature?.properties?.request_id || '').trim();
+            if (!byRequestId.has(rid)) byRequestId.set(rid, []);
+            byRequestId.get(rid).push(layer);
+        }
+        for (const [rid, groupLayers] of byRequestId) {
+            const names = new Set(
+                groupLayers.map((l) => String(l.feature?.properties?.name || '').trim()).filter(Boolean)
+            );
+            if (names.size > 1) {
+                statusEl.textContent =
+                    'У частей с номером заявки ' +
+                    escapeHtml(rid) +
+                    ' указаны разные названия. Укажите одно название на заявку или разные номера заявок.';
+                return;
+            }
+        }
+        const requestIdsSorted = Array.from(byRequestId.keys()).sort((a, b) => {
+            const na = parseInt(a, 10);
+            const nb = parseInt(b, 10);
+            const aNum = !Number.isNaN(na) && String(na) === a;
+            const bNum = !Number.isNaN(nb) && String(nb) === b;
+            if (aNum && bNum) return na - nb;
+            return a.localeCompare(b, undefined, { numeric: true });
+        });
         saveButton.disabled = true;
         statusEl.textContent = 'Сохраняем части в базе и формируем файлы...';
         const links = [];
         try {
-            for (let i = 0; i < layers.length; i += 1) {
-                const layer = layers[i];
-                const geometry = stripGeometryTo2D(layer.toGeoJSON().geometry);
-                const props = layer.feature?.properties || {};
+            for (let g = 0; g < requestIdsSorted.length; g += 1) {
+                const rid = requestIdsSorted[g];
+                const groupLayers = byRequestId.get(rid);
+                const geometry = buildMergedGeometryFromEditableLayers(groupLayers);
+                if (!geometry) {
+                    throw new Error('Нет полигонов для заявки ' + rid + '.');
+                }
+                const props = groupLayers[0].feature?.properties || {};
                 const saveResponse = await fetch("{% url 'save_new_object' %}", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || '' },
@@ -1233,7 +1280,10 @@
                 });
                 const saveResult = await saveResponse.json();
                 if (!saveResponse.ok || !saveResult.ok) {
-                    throw new Error(saveResult.error || ('Ошибка сохранения части №' + (i + 1) + ' в базе.'));
+                    throw new Error(
+                        saveResult.error ||
+                            ('Ошибка сохранения в базе (заявка ' + rid + ', ' + groupLayers.length + ' ч.).')
+                    );
                 }
                 const response = await fetch("{% url 'export_new_object_geometry' %}", {
                     method: 'POST',
@@ -1248,9 +1298,11 @@
                     })
                 });
                 const result = await response.json();
-                if (!response.ok || !result.ok) throw new Error(result.error || 'Ошибка выгрузки части №' + (i + 1));
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.error || ('Ошибка выгрузки (заявка ' + rid + ').'));
+                }
                 links.push({
-                    idx: i + 1,
+                    partCount: groupLayers.length,
                     name: props.name,
                     requestId: props.request_id,
                     geojson: result.geojson_url,
@@ -1259,13 +1311,23 @@
             }
             exportLinksEl.innerHTML = links.map((item) =>
                 '<div style="margin:6px 0;">' +
-                '<strong>Часть ' + item.idx + '</strong> (№ заявки: ' + escapeHtml(item.requestId) +
-                ', Название: ' + escapeHtml(item.name) + ') — ' +
+                '<strong>Заявка ' +
+                escapeHtml(String(item.requestId)) +
+                '</strong>' +
+                (item.partCount > 1 ? ' (' + item.partCount + ' полигонов)' : '') +
+                ', название: ' +
+                escapeHtml(item.name) +
+                ' — ' +
                 '<a class="button-link" href="' + item.geojson + '" download>GeoJSON</a> ' +
                 '<a class="button-link" href="' + item.shp + '">SHP (ZIP)</a>' +
                 '</div>'
             ).join('');
-            statusEl.textContent = 'Все части сохранены в БД и выгружены в файлы: ' + links.length + '.';
+            statusEl.textContent =
+                'Сохранено и выгружено записей по заявкам: ' +
+                links.length +
+                ' (полигонов на карте было ' +
+                layersAfterAttrs.length +
+                ').';
         } catch (error) {
             statusEl.textContent = error.message || 'Не удалось сохранить и выгрузить части.';
         } finally {
