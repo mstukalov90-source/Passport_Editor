@@ -1538,22 +1538,13 @@
                 attribution: 'Tiles &copy; Esri'
             }
         );
-        const mggtLayer = L.tileLayer(
-            'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}',
-            {
-                maxNativeZoom: 17,
-                maxZoom: 30,
-                attribution: '\u041c\u0413\u0413\u0422'
-            }
-        );
-        mggtLayer.addTo(map);
+        topoLayer.addTo(map);
         const basemapControl = L.control({position: 'topright'});
         basemapControl.onAdd = function () {
             const container = L.DomUtil.create('div', 'map-basemap-control');
             container.innerHTML =
-                '<button type="button" class="map-basemap-btn" data-map="topo">OSM</button>' +
+                '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
                 '<button type="button" class="map-basemap-btn" data-map="sat">\u0421\u043f\u0443\u0442\u043d\u0438\u043a</button>' +
-                '<button type="button" class="map-basemap-btn is-active" data-map="mggt">\u041c\u0413\u0413\u0422</button>' +
                 '<button type="button" class="map-basemap-btn" data-map="none">\u0411\u0435\u0437 \u043f\u043e\u0434\u043b\u043e\u0436\u043a\u0438</button>';
             L.DomEvent.disableClickPropagation(container);
             return container;
@@ -2021,9 +2012,6 @@
                 if (map.hasLayer(satelliteLayer)) {
                     map.removeLayer(satelliteLayer);
                 }
-                if (map.hasLayer(mggtLayer)) {
-                    map.removeLayer(mggtLayer);
-                }
             };
             if (mode === 'none') {
                 removeBasemapLayers();
@@ -2033,9 +2021,6 @@
             } else if (mode === 'sat') {
                 removeBasemapLayers();
                 map.addLayer(satelliteLayer);
-            } else if (mode === 'mggt') {
-                removeBasemapLayers();
-                map.addLayer(mggtLayer);
             }
             document.querySelectorAll('.map-basemap-btn').forEach((btn) => {
                 btn.classList.toggle('is-active', btn.dataset.map === mode);

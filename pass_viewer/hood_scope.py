@@ -9,6 +9,10 @@ is 0, any ``ST_Intersects`` match counts (legacy behavior).
 
 The union of those hood geometries is the allowed region; all GIS reads should
 intersect it. If the hood table is missing, scope is disabled (backward compatible).
+
+When ``GIS_HOOD_APPLY_SPATIAL_SCOPE`` is false (default), no hood resolution runs and
+no spatial hood AND clauses are applied (scope mode ``skip``); code paths stay in place
+for later re-enabling.
 """
 import json
 import threading
@@ -20,7 +24,16 @@ from django.db import connection
 _local = threading.local()
 
 # Increment when hood scope SQL semantics change so session-cached WKT is refreshed.
-HOOD_SCOPE_SESSION_VERSION = 2
+HOOD_SCOPE_SESSION_VERSION = 3
+
+
+def _hood_spatial_scope_active() -> bool:
+    """Heavy hood district resolution and SQL filters; both toggles must be on."""
+    if not getattr(settings, 'GIS_HOOD_ACCESS_ENABLED', True):
+        return False
+    if not getattr(settings, 'GIS_HOOD_APPLY_SPATIAL_SCOPE', False):
+        return False
+    return True
 
 
 def _hq_quote_ident(identifier: str) -> str:
@@ -77,7 +90,7 @@ def _hood_owner_geom_union_sql_and_params(cursor, owner_legal_person_id) -> Tupl
     SQL fragment ``(sub) UNION ALL (sub) …`` of all geometries owned by ``owner_legal_person_id``,
     plus bound params. Returns (None, []) when hood access is off, hood table missing, or no owner geoms.
     """
-    if not getattr(settings, 'GIS_HOOD_ACCESS_ENABLED', True):
+    if not _hood_spatial_scope_active():
         return None, []
     if not owner_legal_person_id:
         return None, []
@@ -154,6 +167,8 @@ def get_hood_allowed_districts_geojson(cursor, owner_legal_person_id) -> dict:
     GeoJSON FeatureCollection: hood polygons included in the user's spatial scope
     (same rules as :func:`resolve_hood_scope_for_owner`). Empty collection when access is off or no rows.
     """
+    if not _hood_spatial_scope_active():
+        return {'type': 'FeatureCollection', 'features': []}
     union_sql, params = _hood_owner_geom_union_sql_and_params(cursor, owner_legal_person_id)
     if not union_sql:
         return {'type': 'FeatureCollection', 'features': []}
@@ -239,7 +254,7 @@ def resolve_hood_scope_for_owner(cursor, owner_legal_person_id) -> dict:
       mode: 'skip' | 'empty' | 'active'
       wkt: WKT string when active, else None
     """
-    if not getattr(settings, 'GIS_HOOD_ACCESS_ENABLED', True):
+    if not _hood_spatial_scope_active():
         return {'mode': 'skip', 'wkt': None}
     if not owner_legal_person_id:
         return {'mode': 'skip', 'wkt': None}
@@ -312,6 +327,25 @@ def resolve_and_bind_hood_scope(request):
     row = ExternalUser.objects.filter(login=user.username).only('owner_legal_person_id').first()
     owner_id = row.owner_legal_person_id if row else None
     if owner_id is None:
+        return
+
+    if not _hood_spatial_scope_active():
+        cache = request.session.get('hood_access_scope') or {}
+        if (
+            cache.get('owner') == str(owner_id)
+            and cache.get('mode') == 'skip'
+            and cache.get('v') == HOOD_SCOPE_SESSION_VERSION
+        ):
+            bind_hood_scope('skip', None)
+            return
+        bind_hood_scope('skip', None)
+        request.session['hood_access_scope'] = {
+            'owner': str(owner_id),
+            'mode': 'skip',
+            'wkt': None,
+            'v': HOOD_SCOPE_SESSION_VERSION,
+        }
+        request.session.modified = True
         return
 
     cache = request.session.get('hood_access_scope') or {}

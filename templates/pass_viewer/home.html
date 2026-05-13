@@ -346,11 +346,40 @@
         body.home--merge-passports .merge-passport-cb {
             display: block !important;
         }
+        body.home--ogh-boundaries-edit #merge-passports-btn,
+        body.home--ogh-boundaries-edit #add-object-entry-btn,
+        body.home--ogh-split-passport #merge-passports-btn,
+        body.home--ogh-split-passport #add-object-entry-btn,
+        body.home--merge-passports #merge-passports-btn,
+        body.home--merge-passports #add-object-entry-btn {
+            display: none !important;
+        }
         #merge-passports-btn.is-active {
             box-shadow: inset 0 0 0 2px #15803d;
         }
         #merge-passports-toolbar {
             display: none;
+        }
+        #home-workflow-modal .home-workflow-action-btn {
+            width: 100%;
+            text-align: center;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid #2563eb;
+            background: #2563eb;
+            color: #fff;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        #home-workflow-modal .home-workflow-action-btn:hover {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+        }
+        #home-workflow-modal .home-workflow-action-btn:focus-visible {
+            outline: 2px solid #93c5fd;
+            outline-offset: 2px;
         }
         @media (max-width: 1300px) {
             .owned-home-workspace {
@@ -699,39 +728,16 @@
                 <button type="button" id="home-workflow-close-btn" style="flex-shrink: 0; background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 10px;">
-                <button
-                    type="button"
-                    id="home-workflow-primary-btn"
-                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #2563eb; background: #2563eb; color: #fff; font: inherit; font-weight: 600; cursor: pointer;"
-                >
+                <button type="button" id="home-workflow-primary-btn" class="home-workflow-action-btn">
                     Подача заявки на первичную паспортизацию
                 </button>
-                <button
-                    type="button"
-                    id="home-workflow-secondary-btn"
-                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
-                >
-                    Работа с актуальными паспортами ОГХ и заявками
-                </button>
-                <button
-                    type="button"
-                    id="home-workflow-boundaries-btn"
-                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
-                >
+                <button type="button" id="home-workflow-boundaries-btn" class="home-workflow-action-btn">
                     Редактирование действующих границ ОГХ и заявок
                 </button>
-                <button
-                    type="button"
-                    id="home-workflow-split-passport-btn"
-                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
-                >
+                <button type="button" id="home-workflow-split-passport-btn" class="home-workflow-action-btn">
                     Разделить актуальный паспорт ОГХ
                 </button>
-                <button
-                    type="button"
-                    id="home-workflow-merge-btn"
-                    style="width: 100%; text-align: center; padding: 12px 14px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font: inherit; font-weight: 600; cursor: pointer;"
-                >
+                <button type="button" id="home-workflow-merge-btn" class="home-workflow-action-btn">
                     Объединение актуальных паспортов
                 </button>
             </div>
@@ -1074,23 +1080,14 @@
                     attribution: 'Tiles &copy; Esri',
                 }
             );
-            const mggtLayer = L.tileLayer(
-                'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}',
-                {
-                    maxNativeZoom: 17,
-                    maxZoom: 30,
-                    attribution: 'МГГТ',
-                }
-            );
-            mggtLayer.addTo(map);
+            topoLayer.addTo(map);
 
             const basemapControl = L.control({ position: 'topright' });
             basemapControl.onAdd = function () {
                 const container = L.DomUtil.create('div', 'map-basemap-control');
                 container.innerHTML =
-                    '<button type="button" class="map-basemap-btn" data-map="topo">OSM</button>' +
+                    '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
                     '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
-                    '<button type="button" class="map-basemap-btn is-active" data-map="mggt">МГГТ</button>' +
                     '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
                 L.DomEvent.disableClickPropagation(container);
                 return container;
@@ -1098,7 +1095,7 @@
             basemapControl.addTo(map);
 
             const setBasemap = (mode) => {
-                [topoLayer, satelliteLayer, mggtLayer].forEach((layer) => {
+                [topoLayer, satelliteLayer].forEach((layer) => {
                     if (map.hasLayer(layer)) {
                         map.removeLayer(layer);
                     }
@@ -1107,8 +1104,6 @@
                     topoLayer.addTo(map);
                 } else if (mode === 'sat') {
                     satelliteLayer.addTo(map);
-                } else if (mode === 'mggt') {
-                    mggtLayer.addTo(map);
                 }
                 ownedMapEl.parentElement
                     ?.querySelectorAll('.map-basemap-btn')
@@ -2050,7 +2045,6 @@
 
         const homeWorkflowModal = document.getElementById('home-workflow-modal');
         const homeWorkflowPrimaryBtn = document.getElementById('home-workflow-primary-btn');
-        const homeWorkflowSecondaryBtn = document.getElementById('home-workflow-secondary-btn');
         const homeWorkflowBoundariesBtn = document.getElementById('home-workflow-boundaries-btn');
         const homeWorkflowSplitPassportBtn = document.getElementById('home-workflow-split-passport-btn');
         const homeWorkflowMergeBtn = document.getElementById('home-workflow-merge-btn');
@@ -2067,12 +2061,6 @@
                 clearHomeOghSpecialModes();
                 closeHomeWorkflowModal();
                 openEntryRequestModal('add-object');
-            });
-        }
-        if (homeWorkflowSecondaryBtn) {
-            homeWorkflowSecondaryBtn.addEventListener('click', () => {
-                clearHomeOghSpecialModes();
-                closeHomeWorkflowModal();
             });
         }
         if (homeWorkflowBoundariesBtn) {
