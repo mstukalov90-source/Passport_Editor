@@ -43,7 +43,7 @@
             <span class="snap-switch__track"></span>
             <span class="snap-switch__label">&#1055;&#1088;&#1080;&#1083;&#1080;&#1087;&#1072;&#1085;&#1080;&#1077;</span>
         </label>
-        <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">Обновить смежные паспорта ДТ и площадь</button>
+        <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">Обновить смежные объекты и площадь</button>
         <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
         <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
         <button type="button" id="add-comment-point-btn" class="map-toolbar-btn map-toolbar-btn--primary">Добавить точку с комментарием</button>
@@ -2309,7 +2309,7 @@
                     statusEl.textContent = 'Обнаружено пересечение: новый полигон пересекает редактируемый объект.';
                 }
                 renderRelationLayers(data.layers || {});
-                statusEl.textContent = 'Слои обновлены: смежные паспорта ДТ и остальные связанные объекты.';
+                statusEl.textContent = 'Границы объектов и площадь обновлены.';
             } catch (error) {
                 statusEl.textContent = error.message || 'Не удалось проверить связанные объекты.';
             } finally {

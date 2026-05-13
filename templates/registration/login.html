@@ -6,7 +6,17 @@
     <h1>&#1042;&#1093;&#1086;&#1076; &#1074; &#1089;&#1080;&#1089;&#1090;&#1077;&#1084;&#1091;</h1>
     <form method="post">
         {% csrf_token %}
-        {{ form.as_p }}
+        {{ form.non_field_errors }}
+        <p>
+            <label for="{{ form.username.id_for_label }}">Имя пользователя:</label>
+            {{ form.username }}
+            {{ form.username.errors }}
+        </p>
+        <p>
+            <label for="{{ form.password.id_for_label }}">Пароль:</label>
+            {{ form.password }}
+            {{ form.password.errors }}
+        </p>
         <button type="submit">&#1042;&#1086;&#1081;&#1090;&#1080;</button>
     </form>
 {% endblock %}

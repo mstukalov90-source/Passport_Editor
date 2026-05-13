@@ -6,19 +6,14 @@
 {% block content %}
     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px;">
         <h2 style="font-size: 18px; margin: 0;">
-            &#1054;&#1073;&#1098;&#1077;&#1082;&#1090;&#1099; &#1087;&#1086; &#8470; &#1041;&#1072;&#1083;&#1072;&#1085;&#1089;&#1086;&#1076;&#1077;&#1088;&#1078;&#1072;&#1090;&#1077;&#1083;&#1103;
+            Объекты балансодержателя:{% if owner_id or owner_name %}
+            <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>{% endif %}
         </h2>
         <form method="post" action="{% url 'logout' %}" style="margin: 0;">
             {% csrf_token %}
             <button type="submit">&#1042;&#1099;&#1081;&#1090;&#1080;</button>
         </form>
     </div>
-    {% if owner_id or owner_name %}
-        <p class="note" style="margin-top: 0;">
-            &#8470; &#1041;&#1072;&#1083;&#1072;&#1085;&#1089;&#1086;&#1076;&#1077;&#1088;&#1078;&#1072;&#1090;&#1077;&#1083;&#1103;:
-            <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>
-        </p>
-    {% endif %}
     <style>
         .owned-list-wrap {
             max-height: none;
@@ -548,7 +543,7 @@
                                         <button
                                             type="submit"
                                             style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 8px; padding: 8px 10px;"
-                                            onclick="return confirm('Удалить объект request_id={{ item.request_id|default:'-' }}?');"
+                                            onclick="return confirm('Удалить объект заявки № {{ item.request_id|default:'-' }}?');"
                                         >
                                             Удалить
                                         </button>
@@ -641,7 +636,7 @@
     >
         <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                <h3 style="margin: 0; font-size: 18px;">Номер заявки (request_id)</h3>
+                <h3 style="margin: 0; font-size: 18px;">Заявка на объединение</h3>
                 <button type="button" id="merge-passports-request-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <p id="merge-passports-request-intro" class="note" style="margin-top: 0;">
@@ -689,7 +684,7 @@
     >
         <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                <h3 style="margin: 0; font-size: 18px;">Номер досъёма (recap_id)</h3>
+                <h3 style="margin: 0; font-size: 18px;">Заявка на досъём</h3>
                 <button type="button" id="entry-recap-id-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <p id="entry-recap-id-modal-text" class="note" style="margin-top: 0;">
@@ -750,7 +745,7 @@
     >
         <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                <h3 style="margin: 0; font-size: 18px;">Номер заявки (request_id)</h3>
+                <h3 id="entry-request-id-modal-title" style="margin: 0; font-size: 18px;">Заявка на актуализацию.</h3>
                 <button type="button" id="entry-request-id-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <p id="entry-request-id-modal-text" class="note" style="margin-top: 0;">
@@ -1529,6 +1524,7 @@
         const entryRequestInput = document.getElementById('entry-request-id-input');
         const entryRequestError = document.getElementById('entry-request-id-error');
         const entryRequestText = document.getElementById('entry-request-id-modal-text');
+        const entryRequestTitle = document.getElementById('entry-request-id-modal-title');
         const entryGeometryDetailFieldset = document.getElementById('entry-geometry-detail-fieldset');
         const entryGeometryDetailSimplified = document.getElementById('entry-geometry-detail-simplified');
         const entryGeometryDetailFull = document.getElementById('entry-geometry-detail-full');
@@ -1641,16 +1637,20 @@
             if (entryRequestError) {
                 entryRequestError.textContent = '';
             }
+            if (entryRequestTitle) {
+                entryRequestTitle.textContent =
+                    mode === 'add-object' ? 'Заявка на первичную паспортизацию' : 'Заявка на актуализацию.';
+            }
             if (entryRequestText) {
                 if (mode === 'pending') {
                     entryRequestText.textContent =
-                        'Объект найден, но в записи нет номера заявки. Введите номер заявки (request_id), чтобы открыть редактирование.';
+                        'Объект найден, но в записи нет номера заявки. Введите номер заявки, чтобы открыть редактирование.';
                 } else if (mode === 'add-object') {
                     entryRequestText.textContent =
-                        'Укажите номер заявки (request_id) перед переходом к созданию объекта.';
+                        'Укажите номер заявки перед переходом к созданию объекта.';
                 } else if (mode === 'owned') {
                     entryRequestText.textContent =
-                        'У объекта не указан номер заявки в базе. Введите номер заявки (request_id), чтобы продолжить.';
+                        'У объекта не указан номер заявки в базе. Введите номер заявки, чтобы продолжить.';
                 }
             }
             if (entryGeometryDetailFieldset) {
