@@ -14,7 +14,7 @@ from django.db import connection, transaction
 from pass_viewer.models import ExternalUser
 
 
-# Column order must match migration 0013_create_ods_request_table (excluding id).
+# Column order must match ods_request table (migrations 0014 + 0015; excluding id).
 ODS_REQUEST_COLUMNS: Tuple[str, ...] = (
     'BrId',
     'BrStatusName',
@@ -25,6 +25,7 @@ ODS_REQUEST_COLUMNS: Tuple[str, ...] = (
     'OwnerName',
     'GrbsName',
     'ShortObjectId',
+    'ShortObjectRootId',
     'ObjectName',
     'ObjectArea',
     'InspectionDatePlan',

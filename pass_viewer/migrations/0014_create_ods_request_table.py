@@ -3,7 +3,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('pass_viewer', '0012_create_hood_table'),
+        ('pass_viewer', '0013_externaluser_hood_scope'),
     ]
 
     operations = [

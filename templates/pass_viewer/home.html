@@ -132,6 +132,10 @@
             background: rgba(240, 171, 252, 0.45);
             border-color: #c026d3;
         }
+        .owned-map-legend__swatch--ods {
+            background: rgba(233, 213, 255, 0.75);
+            border-color: #9333ea;
+        }
         .owned-map-legend__swatch--hood {
             background: transparent;
             border: 2px solid #5c4033;
@@ -311,6 +315,26 @@
             border-color: #6ee7b7;
             background: #ecfdf5;
         }
+        .source-badge--ods {
+            color: #6b21a8;
+            border-color: #d8b4fe;
+            background: #faf5ff;
+        }
+        .owned-list-open-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.88;
+        }
+        .ods-registry-indicator {
+            display: inline-block;
+            margin-left: 6px;
+            font-size: 1.05em;
+            line-height: 1;
+            vertical-align: middle;
+            user-select: none;
+        }
+        .ods-registry-indicator--bad {
+            filter: grayscale(0.1);
+        }
         .map-basemap-control {
             display: flex;
             flex-wrap: wrap;
@@ -425,6 +449,7 @@
                         <button type="button" class="source-badge source-badge--dt owned-source-filter-btn is-active" data-source-filter="ДТ">ДТ</button>
                         <button type="button" class="source-badge source-badge--odh owned-source-filter-btn is-active" data-source-filter="ОДХ">ОДХ</button>
                         <button type="button" class="source-badge source-badge--oo owned-source-filter-btn is-active" data-source-filter="ОЗН">ОО</button>
+                        <button type="button" class="source-badge source-badge--ods owned-source-filter-btn is-active" data-source-filter="{{ ods_request_source_label|default:'ОДС' }}">{{ ods_request_source_label|default:"ОДС" }}</button>
                     </div>
                 <div class="owned-list-wrap owned-list-panel is-active" data-list-panel="passports">
                     {% for item in owned_objects %}
@@ -463,6 +488,9 @@
                                         <strong>&#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.rootid }}<br>
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
+                                    {% if item.ods_registry_root_match %}
+                                        <span class="ods-registry-indicator" title="В реестре ОДС есть ShortObjectRootId, совпадающий с номером паспорта (rootid)">✅</span>
+                                    {% endif %}
                                 </form>
                                 <form
                                     class="owned-split-form"
@@ -497,6 +525,18 @@
                                 data-name="{{ item.name|default:''|lower }}"
                                 data-source-label="{{ item.source_label|default:'ДТ' }}"
                             >
+                                {% if item.is_ods_request %}
+                                    <div style="margin: 0; flex: 1;">
+                                        <button type="button" class="owned-list-open-btn" disabled title="Открытие карты для записей реестра будет в следующей фазе">
+                                            <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}<br>
+                                            <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
+                                            {% if item.short_object_root_id %}
+                                                <br><span style="font-size: 12px; color: #64748b;"><strong>&#8470; &#1087;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072; (&#1082;&#1072;&#1082; rootid &#1074; &#1044;&#1058;/&#1054;&#1044;&#1061;/&#1054;&#1054;):</strong> {{ item.short_object_root_id }}</span>
+                                            {% endif %}
+                                        </button>
+                                    </div>
+                                    <span class="source-badge source-badge--ods">{{ item.source_label|default:ods_request_source_label }}</span>
+                                {% else %}
                                 <form
                                     class="owned-open-form"
                                     method="post"
@@ -514,6 +554,12 @@
                                         <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}<br>
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
+                                    {% if item.ods_registry_brid_labeled %}
+                                        <span
+                                            class="ods-registry-indicator{% if not item.ods_registry_brid_match %} ods-registry-indicator--bad{% endif %}"
+                                            title="{% if item.ods_registry_brid_match %}В реестре ОДС есть запись с тем же BrId, что и номер заявки.{% else %}В реестре ОДС нет записи с BrId, равным номеру этой заявки.{% endif %}"
+                                        >{% if item.ods_registry_brid_match %}✅{% else %}❌{% endif %}</span>
+                                    {% endif %}
                                 </form>
                                 <span class="source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% else %}source-badge--dt{% endif %}">
                                     {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
@@ -549,6 +595,7 @@
                                         </button>
                                     </form>
                                 {% endif %}
+                                {% endif %}
                             </div>
                         {% endif %}
                     {% endfor %}
@@ -573,6 +620,10 @@
                     <span class="owned-map-legend__item">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--request" aria-hidden="true"></span>
                         Заявка
+                    </span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--ods" aria-hidden="true"></span>
+                        {{ ods_request_source_label|default:"ОДС" }}
                     </span>
                     <span class="owned-map-legend__item">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--hood" aria-hidden="true"></span>
@@ -808,7 +859,7 @@
         </div>
     </div>
 
-    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" hidden></div>
+    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" data-ods-source-label="{{ ods_request_source_label|default:'ОДС'|escape }}" hidden></div>
     {{ owned_passports_geojson|json_script:"owned-passports-geojson-data" }}
     {{ hood_work_area_geojson|json_script:"hood-work-area-geojson-data" }}
     <link
@@ -896,6 +947,7 @@
         const homeBootstrapEl = document.getElementById('home-bootstrap-data');
         const needEntryRequestIdOnLoad =
             homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
+        const odsSourceLabelNorm = (homeBootstrapEl?.dataset.odsSourceLabel || 'ОДС').trim().toUpperCase();
         const ownedMapEl = document.getElementById('owned-passports-map');
         const ownedGeoDataEl = document.getElementById('owned-passports-geojson-data');
         const hoodWorkAreaGeoEl = document.getElementById('hood-work-area-geojson-data');
@@ -911,6 +963,9 @@
             }
             if (source === 'ОЗН' || source === 'ОО') {
                 return 'ОЗН';
+            }
+            if (odsSourceLabelNorm && source === odsSourceLabelNorm) {
+                return odsSourceLabelNorm;
             }
             return 'ДТ';
         }
@@ -969,6 +1024,9 @@
             const requestId = String(feature?.properties?.request_id || '').trim();
             if (!rootid && requestId) {
                 return { color: '#c026d3', weight: 2.5, fillOpacity: 0.28, fillColor: '#f0abfc' };
+            }
+            if (odsSourceLabelNorm && sourceLabel === odsSourceLabelNorm) {
+                return { color: '#9333ea', weight: 2.5, fillOpacity: 0.22, fillColor: '#e9d5ff' };
             }
             if (sourceLabel === 'ОДХ') {
                 return { color: '#00bfff', weight: 2.5, fillOpacity: 0.04, fillColor: '#93c5fd' };

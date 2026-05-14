@@ -145,6 +145,9 @@ GIS_OBJECT_ROOTID_FIELD = 'rootid'
 GIS_OBJECT_NAME_FIELD = 'name'
 GIS_OBJECT_GEOM_FIELD = 'geom'
 GIS_OBJECT_OWNER_FIELD = 'OwnerLegalPersonId'
+# Реестр заявок (ODS), миграция 0013. Список на главной, фаза 1 — без геометрии.
+GIS_ODS_REQUEST_TABLE = os.getenv('GIS_ODS_REQUEST_TABLE', 'ods_request')
+GIS_ODS_REQUEST_SOURCE_LABEL = os.getenv('GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС')
 # Справочник для расшифровки ID (home, popup). Таблица: см. миграцию 0003_create_id_names_table.
 GIS_ID_NAMES_TABLE = os.getenv('GIS_ID_NAMES_TABLE', 'id_names')
 

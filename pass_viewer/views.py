@@ -337,6 +337,173 @@ def _get_owned_objects(owner_legal_person_id):
     )
 
 
+def _owned_item_dedup_key(item):
+    """Ключ дедупликации: учитывает источник, чтобы строки ods_request не скрывались при совпадении с GIS."""
+    src = (item.get('source_label') or '').strip().upper()
+    if src in {'ОЗН', 'ОО'}:
+        src = 'ОЗН'
+    return (
+        (item.get('rootid') or '').strip().lower(),
+        (item.get('name') or '').strip().lower(),
+        (item.get('request_id') or '').strip().lower(),
+        src,
+    )
+
+
+def _get_owned_ods_requests(owner_legal_person_id):
+    """
+    Строки из ods_request для ownerid. Геометрии нет; фильтр hood к этим строкам не применяется (фаза 1).
+
+    ShortObjectRootId в ods_request соответствует rootid в pass_objects / odh / ozn (не ShortObjectId).
+    """
+    if not owner_legal_person_id:
+        return []
+
+    table = getattr(settings, 'GIS_ODS_REQUEST_TABLE', 'ods_request')
+    source_label = getattr(settings, 'GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС')
+    out = []
+    with connection.cursor() as cursor:
+        if not _table_exists(cursor, table) or not _column_exists(cursor, table, 'ownerid'):
+            return []
+        owner_col = _resolve_column_name(cursor, table, 'ownerid')
+        id_col = 'id'
+        if not _column_exists(cursor, table, id_col):
+            return []
+
+        id_resolved = _resolve_column_name(cursor, table, id_col)
+        brid_expr = "NULL::text"
+        if _column_exists(cursor, table, 'BrId'):
+            bc = _resolve_column_name(cursor, table, 'BrId')
+            brid_expr = f"COALESCE({_quote_ident(bc)}::text, ''::text)"
+        name_expr = "NULL::text"
+        if _column_exists(cursor, table, 'ObjectName'):
+            nc = _resolve_column_name(cursor, table, 'ObjectName')
+            name_expr = f"COALESCE({_quote_ident(nc)}::text, ''::text)"
+        rootid_plan_expr = "NULL::text"
+        if _column_exists(cursor, table, 'ShortObjectRootId'):
+            rc = _resolve_column_name(cursor, table, 'ShortObjectRootId')
+            rootid_plan_expr = f"COALESCE({_quote_ident(rc)}::text, ''::text)"
+
+        order_parts = []
+        if _column_exists(cursor, table, 'ObjectName'):
+            order_parts.append(f'{_quote_ident(_resolve_column_name(cursor, table, "ObjectName"))} ASC NULLS LAST')
+        if _column_exists(cursor, table, 'BrId'):
+            order_parts.append(f'{_quote_ident(_resolve_column_name(cursor, table, "BrId"))} ASC NULLS LAST')
+        order_parts.append(f'{_quote_ident(id_resolved)} ASC')
+        order_sql = ', '.join(order_parts)
+
+        query = (
+            f'SELECT {_quote_ident(id_resolved)}::text, {brid_expr}, {name_expr}, {rootid_plan_expr} '
+            f'FROM {_quote_ident(table)} '
+            f'WHERE {_quote_ident(owner_col)}::text = %s '
+            f'ORDER BY {order_sql} '
+            f'LIMIT 500'
+        )
+        cursor.execute(query, [str(owner_legal_person_id)])
+        rows = cursor.fetchall()
+
+        for row in rows:
+            pk = row[0] or ''
+            brid = row[1] or ''
+            oname = row[2] or ''
+            short_root_id = row[3] or ''
+            out.append(
+                {
+                    'object_key': f'ods_request:{pk}',
+                    'rootid': '',
+                    'name': oname,
+                    'request_id': brid,
+                    'source_label': source_label,
+                    'geom_json': '',
+                    'startdate': '',
+                    'datesurvey': '',
+                    'createtype': '',
+                    'is_ods_request': True,
+                    'short_object_root_id': short_root_id,
+                }
+            )
+
+    return out
+
+
+def _merge_owned_ods_requests(owned_objects, owner_legal_person_id):
+    """Добавляет строки ods_request; дедуп с существующим списком по (rootid, name, request_id, source)."""
+    merged = list(owned_objects)
+    seen = {_owned_item_dedup_key(it) for it in merged}
+    for item in _get_owned_ods_requests(owner_legal_person_id):
+        key = _owned_item_dedup_key(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(item)
+    return sorted(
+        merged,
+        key=lambda item: (
+            (item.get('name') or '').lower(),
+            (item.get('rootid') or '').lower(),
+            (item.get('request_id') or '').lower(),
+            (item.get('source_label') or '').lower(),
+        ),
+    )
+
+
+def _norm_registry_id(value):
+    return (str(value) if value is not None else '').strip().lower()
+
+
+def _annotate_and_filter_ods_registry_against_gis(owned_objects):
+    """
+    Сверка GIS с реестром ods_request: индикаторы на заявках/паспортах.
+
+    Строка ODS скрывается из списка только если её BrId (request_id у ODS-элемента)
+    совпадает с request_id какой-либо GIS-заявки (строка без rootid). Иначе ODS
+    остаётся в списке, даже если ShortObjectRootId совпадает с rootid паспорта.
+    """
+    ods_items = [x for x in owned_objects if x.get('is_ods_request')]
+    gis_items = [x for x in owned_objects if not x.get('is_ods_request')]
+
+    ods_br_ids = {_norm_registry_id(o.get('request_id')) for o in ods_items if _norm_registry_id(o.get('request_id'))}
+    ods_root_ids = {
+        _norm_registry_id(o.get('short_object_root_id'))
+        for o in ods_items
+        if _norm_registry_id(o.get('short_object_root_id'))
+    }
+
+    gis_request_ids = set()
+    for g in gis_items:
+        root = _norm_registry_id(g.get('rootid'))
+        if not root:
+            req = _norm_registry_id(g.get('request_id'))
+            if req:
+                gis_request_ids.add(req)
+
+    has_ods = bool(ods_items)
+
+    for g in gis_items:
+        root = _norm_registry_id(g.get('rootid'))
+        req = _norm_registry_id(g.get('request_id'))
+        g.pop('ods_registry_brid_match', None)
+        g.pop('ods_registry_brid_labeled', None)
+        g.pop('ods_registry_root_match', None)
+        if root:
+            g['ods_registry_root_match'] = root in ods_root_ids
+        elif has_ods and req:
+            g['ods_registry_brid_labeled'] = True
+            g['ods_registry_brid_match'] = req in ods_br_ids
+
+    out = []
+    for x in owned_objects:
+        if not x.get('is_ods_request'):
+            out.append(x)
+            continue
+        brid = _norm_registry_id(x.get('request_id'))
+        if brid and brid in gis_request_ids:
+            continue
+        out.append(x)
+
+    return out
+
+
 def _build_owned_passports_geojson(owned_objects):
     features = []
     for item in owned_objects:
@@ -2496,6 +2663,8 @@ def home(request):
         if owner_id is not None:
             owner_name = _get_id_name_lookup_value(owner_id)
             owned_objects = _get_owned_objects(owner_id)
+            owned_objects = _merge_owned_ods_requests(owned_objects, owner_id)
+            owned_objects = _annotate_and_filter_ods_registry_against_gis(owned_objects)
             recap_counts = _get_recap_counts_by_request_ids(item['request_id'] for item in owned_objects)
             for item in owned_objects:
                 request_id = (item.get('request_id') or '').strip()
@@ -2526,6 +2695,7 @@ def home(request):
             'hood_work_area_geojson': hood_work_area_geojson,
             'owned_objects_error': owned_objects_error,
             'need_entry_request_id': need_entry_request_id,
+            'ods_request_source_label': getattr(settings, 'GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС'),
         },
     )
 
