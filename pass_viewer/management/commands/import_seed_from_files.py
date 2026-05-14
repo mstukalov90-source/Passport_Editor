@@ -2,7 +2,7 @@
 Load seed / reference data from JSON and GeoJSON files in the project root.
 
 Default root is Django BASE_DIR (directory containing manage.py). Filenames match table names:
-  users.json, id_names.json, ozn.geojson, renew.geojson, hood.geojson, pass_objects.geojson, ...
+  users.json, id_names.json, ods_request.json, ozn.geojson, renew.geojson, hood.geojson, pass_objects.geojson, ...
 
 When using --all, tables without a matching file are skipped. When using --table, the file must exist.
 
@@ -23,7 +23,7 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
 from pass_viewer.data_import.geojson_dynamic import import_geojson_dynamic
-from pass_viewer.data_import.json_loaders import import_id_names, import_users
+from pass_viewer.data_import.json_loaders import import_id_names, import_ods_request, import_users
 from pass_viewer.data_import.table_registry import TableImportSpec, build_default_registry, expected_filename
 
 
@@ -183,6 +183,14 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f'[dry-run] would process up to {ins} id_names rows'))
             else:
                 self.stdout.write(self.style.SUCCESS(f'id_names: upserted ~{ins} rows'))
+            return
+
+        if spec.table == 'ods_request':
+            n, _ = import_ods_request(path, dry_run=dry_run, append=append)
+            if dry_run:
+                self.stdout.write(self.style.SUCCESS(f'[dry-run] would insert up to {n} ods_request rows'))
+            else:
+                self.stdout.write(self.style.SUCCESS(f'ods_request: inserted {n} rows'))
             return
 
         if spec.dynamic_geojson:

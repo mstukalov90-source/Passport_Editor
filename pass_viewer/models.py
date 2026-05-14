@@ -10,6 +10,7 @@ class ExternalUser(models.Model):
         blank=True,
         null=True,
     )
+    hood_scope = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'users'

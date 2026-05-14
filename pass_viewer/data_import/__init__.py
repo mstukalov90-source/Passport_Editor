@@ -4,6 +4,7 @@ Helpers for loading seed / reference data from JSON and GeoJSON files.
 Expected layout (by default: Django project root = directory containing manage.py):
   users.json
   id_names.json
+  ods_request.json
   ozn.geojson
   renew.geojson
   hood.geojson
