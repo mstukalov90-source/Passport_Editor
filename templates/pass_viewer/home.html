@@ -524,10 +524,22 @@
                                 data-request-id="{{ item.request_id|default_if_none:''|lower }}"
                                 data-name="{{ item.name|default:''|lower }}"
                                 data-source-label="{{ item.source_label|default:'ДТ' }}"
+                                {% if item.map_row_key %}data-map-row-key="{{ item.map_row_key|escape }}"{% endif %}
                             >
                                 {% if item.is_ods_request %}
                                     <div style="margin: 0; flex: 1;">
-                                        <button type="button" class="owned-list-open-btn" disabled title="Открытие карты для записей реестра будет в следующей фазе">
+                                        <button
+                                            type="button"
+                                            class="owned-list-open-btn owned-ods-action-btn"
+                                            title="Действие по заявке из реестра ОДС"
+                                            data-ods-scenario="{{ item.ods_click_scenario|default:0 }}"
+                                            data-ods-gis-ready="{% if item.ods_gis_ready %}1{% else %}0{% endif %}"
+                                            data-ods-brid="{{ item.request_id|default:'' }}"
+                                            data-short-root="{{ item.short_object_root_id|default:'' }}"
+                                            data-matched-rootid="{{ item.ods_matched_rootid|default:'' }}"
+                                            data-matched-name="{{ item.ods_matched_name|default:'' }}"
+                                            data-matched-source="{{ item.ods_matched_source_label|default:'ДТ' }}"
+                                        >
                                             <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}<br>
                                             <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                             {% if item.short_object_root_id %}
@@ -674,6 +686,16 @@
         <input type="hidden" name="source_label" value="ДТ" />
     </form>
 
+    <form id="form-ods-open-owned" method="post" action="{% url 'open_owned_object' %}" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="rootid" id="ods-open-owned-rootid" value="" />
+        <input type="hidden" name="name" id="ods-open-owned-name" value="" />
+        <input type="hidden" name="request_id" id="ods-open-owned-request-id" value="" />
+        <input type="hidden" name="source_label" id="ods-open-owned-source-label" value="ДТ" />
+        <input type="hidden" name="geometry_detail_mode" id="ods-open-owned-geom-mode" value="simplified" />
+        <input type="hidden" name="redirect_to" id="ods-open-owned-redirect-to" value="" />
+    </form>
+
     <form id="form-merge-passports" method="post" action="{% url 'open_merged_passports' %}" style="display: none;">
         {% csrf_token %}
         <input type="hidden" name="request_id" id="merge-passports-request-id-hidden" value="" />
@@ -725,6 +747,18 @@
             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
                 <button type="button" id="merge-passports-request-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
                 <button type="button" id="merge-passports-request-submit-btn">Открыть карту</button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        id="ods-gis-missing-modal"
+        style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1004; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 440px; padding: 18px;">
+            <p class="note" style="margin: 0 0 14px;">Не найден объект для работы по заявке, сформируйте заявку вручную</p>
+            <div style="display: flex; justify-content: flex-end;">
+                <button type="button" id="ods-gis-missing-ok-btn" style="background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;">ОК</button>
             </div>
         </div>
     </div>
@@ -970,7 +1004,11 @@
             return 'ДТ';
         }
 
-        function buildOwnedMapKey(rootidValue, sourceLabelValue, requestIdValue, nameValue) {
+        function buildOwnedMapKey(rootidValue, sourceLabelValue, requestIdValue, nameValue, mapRowKeyValue) {
+            const custom = String(mapRowKeyValue || '').trim().toLowerCase();
+            if (custom) {
+                return `${custom}|${normalizeOwnedSourceLabel(sourceLabelValue)}`;
+            }
             const rid = String(rootidValue || '').trim().toLowerCase();
             const req = String(requestIdValue || '').trim().toLowerCase();
             const nm = String(nameValue || '').trim().toLowerCase();
@@ -1019,9 +1057,13 @@
         }
 
         function styleOwnedFeature(feature) {
-            const sourceLabel = String(feature?.properties?.source_label || 'ДТ').toUpperCase();
-            const rootid = String(feature?.properties?.rootid || '').trim();
-            const requestId = String(feature?.properties?.request_id || '').trim();
+            const props = feature?.properties || {};
+            const sourceLabel = String(props.source_label || 'ДТ').toUpperCase();
+            const rootid = String(props.rootid || '').trim();
+            const requestId = String(props.request_id || '').trim();
+            if (props.from_ods_registry) {
+                return { color: '#7c3aed', weight: 2.5, fillOpacity: 0.26, fillColor: '#ddd6fe' };
+            }
             if (!rootid && requestId) {
                 return { color: '#c026d3', weight: 2.5, fillOpacity: 0.28, fillColor: '#f0abfc' };
             }
@@ -1111,7 +1153,8 @@
                     row.dataset.mapRootid || '',
                     row.dataset.sourceLabel || 'ДТ',
                     row.dataset.requestId || '',
-                    row.dataset.name || ''
+                    row.dataset.name || '',
+                    row.dataset.mapRowKey || ''
                 );
                 row.dataset.mapKey = key;
                 if (!rowByKey.has(key)) {
@@ -1330,7 +1373,8 @@
                         props.rootid || '',
                         props.source_label || 'ДТ',
                         props.request_id || '',
-                        props.name || ''
+                        props.name || '',
+                        props.map_row_key || ''
                     );
                     featureLayerByKey.set(key, featureLayer);
                     featureStyleByKey.set(key, styleOwnedFeature(feature));
@@ -1378,7 +1422,7 @@
 
             mapListRows.forEach((row) => {
                 const openBtn = row.querySelector('.owned-list-open-btn');
-                if (openBtn) {
+                if (openBtn && !openBtn.classList.contains('owned-ods-action-btn')) {
                     openBtn.addEventListener('click', () => {
                         focusByKey(row.dataset.mapKey || '', 'list');
                     });
@@ -1594,6 +1638,7 @@
         const addRecapBaseUrl = '{% url "add_recap" %}';
         let entryRequestMode = null;
         let pendingOwnedForm = null;
+        let pendingOdsOpenOwned = null;
 
         const entryRecapModal = document.getElementById('entry-recap-id-modal');
         const entryRecapInput = document.getElementById('entry-recap-id-input');
@@ -1689,15 +1734,25 @@
             const options = opts || {};
             entryRequestMode = mode;
             pendingOwnedForm = options.form || null;
-            if (entryRequestInput) {
-                entryRequestInput.value = '';
-            }
+            pendingOdsOpenOwned = null;
             if (entryRequestError) {
                 entryRequestError.textContent = '';
             }
+            if (entryRequestInput) {
+                if (options.prefillRequestId != null && String(options.prefillRequestId).trim() !== '') {
+                    entryRequestInput.value = String(options.prefillRequestId).trim();
+                } else {
+                    entryRequestInput.value = '';
+                }
+            }
             if (entryRequestTitle) {
-                entryRequestTitle.textContent =
-                    mode === 'add-object' ? 'Заявка на первичную паспортизацию' : 'Заявка на актуализацию.';
+                if (mode === 'add-object') {
+                    entryRequestTitle.textContent = 'Заявка на первичную паспортизацию';
+                } else if (mode === 'ods-main') {
+                    entryRequestTitle.textContent = 'Актуализация по заявке ОДС';
+                } else {
+                    entryRequestTitle.textContent = 'Заявка на актуализацию.';
+                }
             }
             if (entryRequestText) {
                 if (mode === 'pending') {
@@ -1706,10 +1761,16 @@
                 } else if (mode === 'add-object') {
                     entryRequestText.textContent =
                         'Укажите номер заявки перед переходом к созданию объекта.';
+                } else if (mode === 'ods-main') {
+                    entryRequestText.textContent =
+                        'Проверьте номер заявки (BrId) и нажмите «Продолжить», чтобы открыть карту актуализации.';
                 } else if (mode === 'owned') {
                     entryRequestText.textContent =
                         'У объекта не указан номер заявки в базе. Введите номер заявки, чтобы продолжить.';
                 }
+            }
+            if (mode === 'ods-main') {
+                pendingOdsOpenOwned = options.odsOpenOwned || null;
             }
             if (entryGeometryDetailFieldset) {
                 const showGeometryModeChoice = mode === 'owned';
@@ -1733,6 +1794,7 @@
             }
             entryRequestMode = null;
             pendingOwnedForm = null;
+            pendingOdsOpenOwned = null;
         }
 
         function handleEntryRequestCancel() {
@@ -1763,6 +1825,24 @@
             if (entryRequestMode === 'pending' && confirmPendingHidden && confirmPendingForm) {
                 confirmPendingHidden.value = raw;
                 confirmPendingForm.submit();
+            } else if (entryRequestMode === 'ods-main' && pendingOdsOpenOwned) {
+                const formOds = document.getElementById('form-ods-open-owned');
+                const rootEl = document.getElementById('ods-open-owned-rootid');
+                const nameEl = document.getElementById('ods-open-owned-name');
+                const ridEl = document.getElementById('ods-open-owned-request-id');
+                const srcEl = document.getElementById('ods-open-owned-source-label');
+                const geomEl = document.getElementById('ods-open-owned-geom-mode');
+                const redEl = document.getElementById('ods-open-owned-redirect-to');
+                if (formOds && rootEl && nameEl && ridEl && srcEl && geomEl && redEl) {
+                    rootEl.value = pendingOdsOpenOwned.rootid || '';
+                    nameEl.value = pendingOdsOpenOwned.name || '';
+                    ridEl.value = raw;
+                    srcEl.value = pendingOdsOpenOwned.source_label || 'ДТ';
+                    geomEl.value = 'simplified';
+                    redEl.value = '';
+                    formOds.submit();
+                }
+                pendingOdsOpenOwned = null;
             } else if (entryRequestMode === 'add-object' && prepareAddObjectHidden && prepareAddObjectForm) {
                 prepareAddObjectHidden.value = raw;
                 prepareAddObjectForm.submit();
@@ -2100,6 +2180,121 @@
                 }
             });
         }
+
+        const odsGisMissingModal = document.getElementById('ods-gis-missing-modal');
+        const odsGisMissingOkBtn = document.getElementById('ods-gis-missing-ok-btn');
+
+        function openOdsGisMissingModal() {
+            if (odsGisMissingModal) {
+                odsGisMissingModal.style.display = 'flex';
+            }
+        }
+
+        function closeOdsGisMissingModal() {
+            if (odsGisMissingModal) {
+                odsGisMissingModal.style.display = 'none';
+            }
+        }
+
+        function fillAndSubmitOdsOpenOwnedForm(ctx, requestIdVal, redirectToValue) {
+            const formOds = document.getElementById('form-ods-open-owned');
+            if (!formOds) {
+                return;
+            }
+            const rootEl = document.getElementById('ods-open-owned-rootid');
+            const nameEl = document.getElementById('ods-open-owned-name');
+            const ridEl = document.getElementById('ods-open-owned-request-id');
+            const srcEl = document.getElementById('ods-open-owned-source-label');
+            const geomEl = document.getElementById('ods-open-owned-geom-mode');
+            const redEl = document.getElementById('ods-open-owned-redirect-to');
+            if (!rootEl || !nameEl || !ridEl || !srcEl || !geomEl || !redEl) {
+                return;
+            }
+            rootEl.value = (ctx && ctx.rootid) || '';
+            nameEl.value = (ctx && ctx.name) || '';
+            ridEl.value = (requestIdVal || '').trim();
+            srcEl.value = (ctx && ctx.source_label) || 'ДТ';
+            geomEl.value = 'simplified';
+            redEl.value = (redirectToValue || '').trim();
+            formOds.submit();
+        }
+
+        if (odsGisMissingOkBtn) {
+            odsGisMissingOkBtn.addEventListener('click', closeOdsGisMissingModal);
+        }
+        if (odsGisMissingModal) {
+            odsGisMissingModal.addEventListener('click', (ev) => {
+                if (ev.target === odsGisMissingModal) {
+                    closeOdsGisMissingModal();
+                }
+            });
+        }
+
+        document.querySelectorAll('.owned-ods-action-btn').forEach((btn) => {
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const scenario = parseInt(btn.dataset.odsScenario || '0', 10);
+                const gisReady = btn.dataset.odsGisReady === '1';
+                const brid = (btn.dataset.odsBrid || '').trim();
+                const shortRoot = (btn.dataset.shortRoot || '').trim();
+                const ctx = {
+                    rootid: (btn.dataset.matchedRootid || '').trim(),
+                    name: (btn.dataset.matchedName || '').trim(),
+                    source_label: (btn.dataset.matchedSource || '').trim() || 'ДТ',
+                };
+                if (scenario === 1) {
+                    openEntryRequestModal('add-object', { prefillRequestId: brid || '' });
+                    return;
+                }
+                if (scenario === 2 || scenario === 3 || scenario === 4) {
+                    if (!gisReady || !shortRoot) {
+                        openOdsGisMissingModal();
+                        return;
+                    }
+                }
+                if (scenario === 2) {
+                    openEntryRequestModal('ods-main', {
+                        prefillRequestId: brid || '',
+                        odsOpenOwned: ctx,
+                    });
+                    return;
+                }
+                if (scenario === 3) {
+                    fillAndSubmitOdsOpenOwnedForm(ctx, brid, 'split_object');
+                    return;
+                }
+                if (scenario === 4) {
+                    setMergePassportsMode(true);
+                    if (mergePassportsBtn) {
+                        mergePassportsBtn.classList.add('is-active');
+                    }
+                    setOwnedListTab('passports');
+                    applyOwnedFilters();
+                    const targetNorm = shortRoot.trim().toLowerCase();
+                    document.querySelectorAll('.merge-passport-cb').forEach((cb) => {
+                        const v = (cb.value || '').trim().toLowerCase();
+                        cb.checked = Boolean(targetNorm) && v === targetNorm;
+                    });
+                    let targetRow = null;
+                    document.querySelectorAll('.owned-passport-row').forEach((row) => {
+                        const cb = row.querySelector('.merge-passport-cb');
+                        if (!cb) {
+                            return;
+                        }
+                        const v = (cb.value || '').trim().toLowerCase();
+                        if (Boolean(targetNorm) && v === targetNorm) {
+                            targetRow = row;
+                        }
+                    });
+                    if (targetRow && typeof targetRow.scrollIntoView === 'function') {
+                        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    return;
+                }
+                window.alert('Сценарий не определён.');
+            });
+        });
 
         const homeWorkflowModal = document.getElementById('home-workflow-modal');
         const homeWorkflowPrimaryBtn = document.getElementById('home-workflow-primary-btn');
