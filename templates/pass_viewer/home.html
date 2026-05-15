@@ -739,6 +739,7 @@
     <form id="form-confirm-pending" method="post" action="{% url 'confirm_entry_request_id' %}" style="display: none;">
         {% csrf_token %}
         <input type="hidden" name="request_id" id="confirm-pending-request-id" value="" />
+        <input type="hidden" name="geometry_detail_mode" id="confirm-pending-geometry-detail-mode" value="simplified" />
     </form>
     <form id="form-prepare-add-object" method="post" action="{% url 'prepare_add_object' %}" style="display: none;">
         {% csrf_token %}
@@ -760,6 +761,7 @@
         {% csrf_token %}
         <input type="hidden" name="request_id" id="merge-passports-request-id-hidden" value="" />
         <input type="hidden" name="target_source_label" id="merge-passports-target-source-hidden" value="" />
+        <input type="hidden" name="geometry_detail_mode" id="merge-passports-geometry-detail-mode" value="simplified" />
         <div id="merge-passports-items-container"></div>
     </form>
 
@@ -801,6 +803,21 @@
                 <label class="merge-target-option" data-merge-source="ОЗН" style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
                     <span>ОО</span>
                     <input type="radio" name="merge_target_source_ui" value="ОЗН" id="merge-target-ozn" />
+                </label>
+            </fieldset>
+
+            <fieldset
+                id="merge-geometry-detail-fieldset"
+                style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-top: 12px; margin-bottom: 0;"
+            >
+                <legend class="note" style="font-weight: 600; padding: 0 4px;">Геометрия выбранного паспорта</legend>
+                <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <input type="radio" name="merge_geometry_detail_ui" value="simplified" id="merge-geometry-detail-simplified" checked style="width: auto; height: auto; margin: 0; flex: 0 0 auto;" />
+                    <span style="display: inline-block;">Упрощённая (быстрее редактирование)</span>
+                </label>
+                <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <input type="radio" name="merge_geometry_detail_ui" value="full" id="merge-geometry-detail-full" style="width: auto; height: auto; margin: 0; flex: 0 0 auto;" />
+                    <span style="display: inline-block;">Полная</span>
                 </label>
             </fieldset>
             <p id="merge-passports-request-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
@@ -906,9 +923,20 @@
                 maxlength="100"
                 inputmode="numeric"
                 pattern="[0-9]*"
+                list="entry-request-id-brid-list"
                 style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
                 autocomplete="off"
             />
+            {% if ods_user_brids %}
+                <datalist id="entry-request-id-brid-list">
+                    {% for brid in ods_user_brids %}
+                        <option value="{{ brid }}"></option>
+                    {% endfor %}
+                </datalist>
+                <p class="note" style="margin: 6px 0 0; font-size: 12px; color: #64748b;">
+                    Выберите номер из списка заявок АСУ ОДС или введите свой.
+                </p>
+            {% endif %}
             <fieldset
                 id="entry-geometry-detail-fieldset"
                 style="display: none; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-top: 12px; margin-bottom: 0;"
@@ -1814,6 +1842,10 @@
             });
         }
 
+        function getEntryGeometryDetailMode() {
+            return entryGeometryDetailFull && entryGeometryDetailFull.checked ? 'full' : 'simplified';
+        }
+
         function openEntryRequestModal(mode, opts) {
             const options = opts || {};
             entryRequestMode = mode;
@@ -1857,7 +1889,7 @@
                 pendingOdsOpenOwned = options.odsOpenOwned || null;
             }
             if (entryGeometryDetailFieldset) {
-                const showGeometryModeChoice = mode === 'owned';
+                const showGeometryModeChoice = mode === 'owned' || mode === 'ods-main' || mode === 'pending';
                 entryGeometryDetailFieldset.style.display = showGeometryModeChoice ? 'block' : 'none';
                 if (entryGeometryDetailSimplified && showGeometryModeChoice) {
                     entryGeometryDetailSimplified.checked = true;
@@ -1908,6 +1940,10 @@
             }
             if (entryRequestMode === 'pending' && confirmPendingHidden && confirmPendingForm) {
                 confirmPendingHidden.value = raw;
+                const confirmPendingGeom = document.getElementById('confirm-pending-geometry-detail-mode');
+                if (confirmPendingGeom) {
+                    confirmPendingGeom.value = getEntryGeometryDetailMode();
+                }
                 confirmPendingForm.submit();
             } else if (entryRequestMode === 'ods-main' && pendingOdsOpenOwned) {
                 const formOds = document.getElementById('form-ods-open-owned');
@@ -1922,7 +1958,7 @@
                     nameEl.value = pendingOdsOpenOwned.name || '';
                     ridEl.value = raw;
                     srcEl.value = pendingOdsOpenOwned.source_label || 'ДТ';
-                    geomEl.value = 'simplified';
+                    geomEl.value = getEntryGeometryDetailMode();
                     redEl.value = '';
                     formOds.submit();
                 }
@@ -1937,8 +1973,7 @@
                 }
                 const geometryDetailInput = pendingOwnedForm.querySelector('input[name="geometry_detail_mode"]');
                 if (geometryDetailInput) {
-                    const selectedDetailMode = entryGeometryDetailFull && entryGeometryDetailFull.checked ? 'full' : 'simplified';
-                    geometryDetailInput.value = selectedDetailMode;
+                    geometryDetailInput.value = getEntryGeometryDetailMode();
                 }
                 pendingOwnedForm.submit();
             }
@@ -2019,6 +2054,13 @@
         const mergeTargetOznRadio = document.getElementById('merge-target-ozn');
         const mergeTargetSourceFieldset = document.getElementById('merge-target-source-fieldset');
         const mergePassportsRequestIntro = document.getElementById('merge-passports-request-intro');
+        const mergeGeometryDetailSimplified = document.getElementById('merge-geometry-detail-simplified');
+        const mergeGeometryDetailFull = document.getElementById('merge-geometry-detail-full');
+        const mergePassportsGeometryDetailHidden = document.getElementById('merge-passports-geometry-detail-mode');
+
+        function getMergeGeometryDetailMode() {
+            return mergeGeometryDetailFull && mergeGeometryDetailFull.checked ? 'full' : 'simplified';
+        }
 
         let mergePassportsMode = false;
         let mergeImplicitTargetSource = '';
@@ -2081,6 +2123,12 @@
             }
             mergeImplicitTargetSource = '';
             resetMergeTargetOptionRows();
+            if (mergeGeometryDetailSimplified) {
+                mergeGeometryDetailSimplified.checked = true;
+            }
+            if (mergeGeometryDetailFull) {
+                mergeGeometryDetailFull.checked = false;
+            }
         }
 
         function openMergeRequestModalWithSources(sourcesSet) {
@@ -2100,6 +2148,12 @@
                 mergeTargetOznRadio.checked = false;
             }
             mergeImplicitTargetSource = '';
+            if (mergeGeometryDetailSimplified) {
+                mergeGeometryDetailSimplified.checked = true;
+            }
+            if (mergeGeometryDetailFull) {
+                mergeGeometryDetailFull.checked = false;
+            }
 
             if (mergeTargetSourceFieldset) {
                 mergeTargetSourceFieldset.querySelectorAll('.merge-target-option').forEach((row) => {
@@ -2219,6 +2273,9 @@
             });
             mergeRequestIdHidden.value = raw;
             mergeTargetSourceHidden.value = targetSourceValue;
+            if (mergePassportsGeometryDetailHidden) {
+                mergePassportsGeometryDetailHidden.value = getMergeGeometryDetailMode();
+            }
             formMergePassports.submit();
         }
 

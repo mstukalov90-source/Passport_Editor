@@ -445,6 +445,40 @@ def _get_owned_ods_requests(owner_legal_person_id):
     return out
 
 
+def _get_owned_ods_brids(owner_legal_person_id):
+    """Уникальные BrId из ods_request для пользователя (подсказки в модалке номера заявки)."""
+    if not owner_legal_person_id:
+        return []
+    table = getattr(settings, 'GIS_ODS_REQUEST_TABLE', 'ods_request')
+    with connection.cursor() as cursor:
+        if not _table_exists(cursor, table) or not _column_exists(cursor, table, 'ownerid'):
+            return []
+        if not _column_exists(cursor, table, 'BrId'):
+            return []
+        owner_col = _resolve_column_name(cursor, table, 'ownerid')
+        brid_col = _resolve_column_name(cursor, table, 'BrId')
+        cursor.execute(
+            f'SELECT DISTINCT {_quote_ident(brid_col)}::text '
+            f'FROM {_quote_ident(table)} '
+            f'WHERE {_quote_ident(owner_col)}::text = %s '
+            f"AND TRIM(COALESCE({_quote_ident(brid_col)}::text, '')) <> '' "
+            f'ORDER BY 1 ASC NULLS LAST '
+            f'LIMIT 1000',
+            [str(owner_legal_person_id)],
+        )
+        rows = cursor.fetchall()
+    out = []
+    seen = set()
+    for row in rows:
+        brid = (row[0] if row else '') or ''
+        brid = str(brid).strip()
+        if not brid or brid in seen:
+            continue
+        seen.add(brid)
+        out.append(brid)
+    return out
+
+
 def _merge_owned_ods_requests(owned_objects, owner_legal_person_id):
     """Добавляет строки ods_request; дедуп с существующим списком по (rootid, name, request_id, source)."""
     merged = list(owned_objects)
@@ -2773,9 +2807,11 @@ def home(request):
     owned_passports_geojson = {'type': 'FeatureCollection', 'features': []}
     hood_work_area_geojson = {'type': 'FeatureCollection', 'features': []}
     owned_objects_error = None
+    ods_user_brids = []
     try:
         owner_id = _get_current_user_owner_id(request.user.username)
         if owner_id is not None:
+            ods_user_brids = _get_owned_ods_brids(owner_id)
             owner_name = _get_id_name_lookup_value(owner_id)
             owned_objects = _get_owned_objects(owner_id)
             owned_objects = _merge_owned_ods_requests(owned_objects, owner_id)
@@ -2812,6 +2848,7 @@ def home(request):
             'owned_objects_error': owned_objects_error,
             'need_entry_request_id': need_entry_request_id,
             'ods_request_source_label': getattr(settings, 'GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС'),
+            'ods_user_brids': ods_user_brids,
         },
     )
 
@@ -2839,11 +2876,18 @@ def main(request):
     selected_geometry_for_editing = layers['selected'] if layers else None
     geometry_detail_mode = str(entry_point.get('geometry_detail_mode') or '').strip().lower()
     use_full_geometry = geometry_detail_mode == 'full'
+    has_merge = len(_normalize_merge_items(entry_point)) >= 2
     should_simplify_selected = (
         bool(layers)
-        and (entry_point.get('entry_source') == 'owned_passport_list')
-        and bool((layers.get('selected_rootid') or '').strip())
+        and layers.get('selected')
         and not use_full_geometry
+        and (
+            (
+                entry_point.get('entry_source') == 'owned_passport_list'
+                and bool((layers.get('selected_rootid') or '').strip())
+            )
+            or has_merge
+        )
     )
     if should_simplify_selected:
         try:
@@ -3125,12 +3169,17 @@ def open_merged_passports(request):
     if not all(((it['rootid'], it['source_label']) in allowed_pairs) for it in merge_items):
         return redirect('home')
 
+    geometry_detail_mode = str(request.POST.get('geometry_detail_mode') or '').strip().lower()
+    if geometry_detail_mode not in {'simplified', 'full'}:
+        geometry_detail_mode = 'simplified'
     request.session['entry_point'] = {
         'rootid': '',
         'request_id': request_id,
         'name': f'Объединение {len(merge_items)} паспортов (→ {target_source_label})',
         'source_label': target_source_label,
         'merge_items': merge_items,
+        'geometry_detail_mode': geometry_detail_mode,
+        'entry_source': 'owned_passport_list',
     }
     return redirect('main')
 
@@ -3153,6 +3202,10 @@ def confirm_entry_request_id(request):
     del request.session['pending_entry_point']
     pending = dict(pending)
     pending['request_id'] = request_id
+    geometry_detail_mode = str(request.POST.get('geometry_detail_mode') or '').strip().lower()
+    if geometry_detail_mode not in {'simplified', 'full'}:
+        geometry_detail_mode = 'simplified' if (pending.get('rootid') or '').strip() else 'full'
+    pending['geometry_detail_mode'] = geometry_detail_mode
     request.session['entry_point'] = pending
     return redirect('main')
 
