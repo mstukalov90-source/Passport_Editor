@@ -146,13 +146,18 @@ GIS_OBJECT_ROOTID_FIELD = 'rootid'
 GIS_OBJECT_NAME_FIELD = 'name'
 GIS_OBJECT_GEOM_FIELD = 'geom'
 GIS_OBJECT_OWNER_FIELD = 'OwnerLegalPersonId'
+# Реестр заявок (ODS), миграция 0013. Список на главной, фаза 1 — без геометрии.
+GIS_ODS_REQUEST_TABLE = os.getenv('GIS_ODS_REQUEST_TABLE', 'ods_request')
+GIS_ODS_REQUEST_SOURCE_LABEL = os.getenv('GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС')
+# Справочник для расшифровки ID (home, popup). Таблица: см. миграцию 0003_create_id_names_table.
 GIS_ID_NAMES_TABLE = os.getenv('GIS_ID_NAMES_TABLE', 'id_names')
 
 # Ограничение данных по районам (таблица hood, миграция 0012). Если таблицы нет — фильтр не включается.
 GIS_HOOD_TABLE = os.getenv('GIS_HOOD_TABLE', 'hood')
 GIS_HOOD_ACCESS_ENABLED = os.getenv('GIS_HOOD_ACCESS_ENABLED', '1') not in ('0', 'false', 'False')
-# Тяжёлый расчёт районов (hood), WKT в сессии и ST_Intersects в SQL. По умолчанию выкл. из‑за нагрузки.
-# Включить: GIS_HOOD_APPLY_SPATIAL_SCOPE=1 (при этом GIS_HOOD_ACCESS_ENABLED тоже должен быть включён).
+# Ограничение по районам (hood). При ACCESS=0 — выкл. Пространственные фильтры (WKT, ST_Intersects)
+# выполняются только для пользователей с users.hood_scope=True (см. pass_viewer.hood_scope).
+# Переменная GIS_HOOD_APPLY_SPATIAL_SCOPE оставлена для совместимости старых .env (не используется кодом).
 GIS_HOOD_APPLY_SPATIAL_SCOPE = os.getenv('GIS_HOOD_APPLY_SPATIAL_SCOPE', '0') not in ('0', 'false', 'False')
 # Мин. доля площади (0–1): пересечение union геометрий пользователя с районом / площадь union (geography, м²).
 # Районы с меньшей долей не входят в hood-scope (срез «чуть-чуть» за границу). 0 = как раньше, любое ST_Intersects.

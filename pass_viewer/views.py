@@ -3,6 +3,7 @@ import logging
 import re
 import uuid
 import zipfile
+from datetime import timedelta
 from pathlib import Path
 
 from django.http import JsonResponse
@@ -10,6 +11,8 @@ from django.shortcuts import redirect, render
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.db import connection
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_POST
 from osgeo import gdal, ogr, osr
 
@@ -284,11 +287,15 @@ def _get_owned_objects(owner_legal_person_id):
             start_sql = _optional_column_text_sql(cursor, table, ("startdate", "StartDate"))
             survey_sql = _optional_column_text_sql(cursor, table, ("datesurvey", "DateSurvey"))
             createtype_sql = _optional_column_text_sql(cursor, table, ("createtype", "CreateType"))
+            created_at_sql = "NULL::timestamptz AS created_at"
+            if _column_exists(cursor, table, 'created_at'):
+                created_col = _resolve_column_name(cursor, table, 'created_at')
+                created_at_sql = f"{_quote_ident(created_col)} AS created_at"
 
             query = (
                 f"SELECT ctid::text, {_quote_ident(rootid_field)}::text, {_quote_ident(name_field)}::text, "
                 f"{request_id_expr}, {geom_expr}, "
-                f"{start_sql}, {survey_sql}, {createtype_sql} "
+                f"{start_sql}, {survey_sql}, {createtype_sql}, {created_at_sql} "
                 f"FROM {_quote_ident(table)} "
                 f"WHERE {_quote_ident(owner_field)} = %s "
             )
@@ -316,6 +323,7 @@ def _get_owned_objects(owner_legal_person_id):
                     'startdate': row[5] or '',
                     'datesurvey': row[6] or '',
                     'createtype': row[7] or '',
+                    'created_at': row[8] if len(row) > 8 else None,
                 }
                 key = (
                     (item['rootid'] or '').strip().lower(),
@@ -337,6 +345,319 @@ def _get_owned_objects(owner_legal_person_id):
     )
 
 
+def _owned_item_dedup_key(item):
+    """Ключ дедупликации: учитывает источник, чтобы строки ods_request не скрывались при совпадении с GIS."""
+    src = (item.get('source_label') or '').strip().upper()
+    if src in {'ОЗН', 'ОО'}:
+        src = 'ОЗН'
+    return (
+        (item.get('rootid') or '').strip().lower(),
+        (item.get('name') or '').strip().lower(),
+        (item.get('request_id') or '').strip().lower(),
+        src,
+    )
+
+
+def _get_owned_ods_requests(owner_legal_person_id):
+    """
+    Строки из ods_request для ownerid. Геометрии нет; фильтр hood к этим строкам не применяется (фаза 1).
+
+    ShortObjectRootId в ods_request соответствует rootid в pass_objects / odh / ozn (не ShortObjectId).
+    """
+    if not owner_legal_person_id:
+        return []
+
+    table = getattr(settings, 'GIS_ODS_REQUEST_TABLE', 'ods_request')
+    source_label = getattr(settings, 'GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС')
+    out = []
+    with connection.cursor() as cursor:
+        if not _table_exists(cursor, table) or not _column_exists(cursor, table, 'ownerid'):
+            return []
+        owner_col = _resolve_column_name(cursor, table, 'ownerid')
+        id_col = 'id'
+        if not _column_exists(cursor, table, id_col):
+            return []
+
+        id_resolved = _resolve_column_name(cursor, table, id_col)
+        brid_expr = "NULL::text"
+        if _column_exists(cursor, table, 'BrId'):
+            bc = _resolve_column_name(cursor, table, 'BrId')
+            brid_expr = f"COALESCE({_quote_ident(bc)}::text, ''::text)"
+        name_expr = "NULL::text"
+        if _column_exists(cursor, table, 'ObjectName'):
+            nc = _resolve_column_name(cursor, table, 'ObjectName')
+            name_expr = f"COALESCE({_quote_ident(nc)}::text, ''::text)"
+        rootid_plan_expr = "NULL::text"
+        if _column_exists(cursor, table, 'ShortObjectRootId'):
+            rc = _resolve_column_name(cursor, table, 'ShortObjectRootId')
+            rootid_plan_expr = f"COALESCE({_quote_ident(rc)}::text, ''::text)"
+        ptype_expr = "NULL::text"
+        if _column_exists(cursor, table, 'PassportizationTypeName'):
+            pc = _resolve_column_name(cursor, table, 'PassportizationTypeName')
+            ptype_expr = f"COALESCE({_quote_ident(pc)}::text, ''::text)"
+        reason_expr = "NULL::text"
+        if _column_exists(cursor, table, 'ReasonName'):
+            rnc = _resolve_column_name(cursor, table, 'ReasonName')
+            reason_expr = f"COALESCE({_quote_ident(rnc)}::text, ''::text)"
+        status_expr = "NULL::text"
+        if _column_exists(cursor, table, 'BrStatusName'):
+            sc = _resolve_column_name(cursor, table, 'BrStatusName')
+            status_expr = f"COALESCE({_quote_ident(sc)}::text, ''::text)"
+
+        order_parts = []
+        if _column_exists(cursor, table, 'ObjectName'):
+            order_parts.append(f'{_quote_ident(_resolve_column_name(cursor, table, "ObjectName"))} ASC NULLS LAST')
+        if _column_exists(cursor, table, 'BrId'):
+            order_parts.append(f'{_quote_ident(_resolve_column_name(cursor, table, "BrId"))} ASC NULLS LAST')
+        order_parts.append(f'{_quote_ident(id_resolved)} ASC')
+        order_sql = ', '.join(order_parts)
+
+        query = (
+            f'SELECT {_quote_ident(id_resolved)}::text, {brid_expr}, {name_expr}, {rootid_plan_expr}, '
+            f'{ptype_expr}, {reason_expr}, {status_expr} '
+            f'FROM {_quote_ident(table)} '
+            f'WHERE {_quote_ident(owner_col)}::text = %s '
+            f'ORDER BY {order_sql} '
+            f'LIMIT 500'
+        )
+        cursor.execute(query, [str(owner_legal_person_id)])
+        rows = cursor.fetchall()
+
+        for row in rows:
+            pk = row[0] or ''
+            brid = row[1] or ''
+            oname = row[2] or ''
+            short_root_id = row[3] or ''
+            ptype = row[4] or ''
+            rname = row[5] or ''
+            br_status = row[6] or '' if len(row) > 6 else ''
+            out.append(
+                {
+                    'object_key': f'ods_request:{pk}',
+                    'rootid': '',
+                    'name': oname,
+                    'request_id': brid,
+                    'source_label': source_label,
+                    'geom_json': '',
+                    'startdate': '',
+                    'datesurvey': '',
+                    'createtype': '',
+                    'is_ods_request': True,
+                    'short_object_root_id': short_root_id,
+                    'passportization_type_name': ptype,
+                    'reason_name': rname,
+                    'br_status_name': br_status,
+                }
+            )
+
+    return out
+
+
+def _get_owned_ods_brids(owner_legal_person_id):
+    """Уникальные BrId из ods_request для пользователя (подсказки в модалке номера заявки)."""
+    if not owner_legal_person_id:
+        return []
+    table = getattr(settings, 'GIS_ODS_REQUEST_TABLE', 'ods_request')
+    with connection.cursor() as cursor:
+        if not _table_exists(cursor, table) or not _column_exists(cursor, table, 'ownerid'):
+            return []
+        if not _column_exists(cursor, table, 'BrId'):
+            return []
+        owner_col = _resolve_column_name(cursor, table, 'ownerid')
+        brid_col = _resolve_column_name(cursor, table, 'BrId')
+        cursor.execute(
+            f'SELECT DISTINCT {_quote_ident(brid_col)}::text '
+            f'FROM {_quote_ident(table)} '
+            f'WHERE {_quote_ident(owner_col)}::text = %s '
+            f"AND TRIM(COALESCE({_quote_ident(brid_col)}::text, '')) <> '' "
+            f'ORDER BY 1 ASC NULLS LAST '
+            f'LIMIT 1000',
+            [str(owner_legal_person_id)],
+        )
+        rows = cursor.fetchall()
+    out = []
+    seen = set()
+    for row in rows:
+        brid = (row[0] if row else '') or ''
+        brid = str(brid).strip()
+        if not brid or brid in seen:
+            continue
+        seen.add(brid)
+        out.append(brid)
+    return out
+
+
+def _merge_owned_ods_requests(owned_objects, owner_legal_person_id):
+    """Добавляет строки ods_request; дедуп с существующим списком по (rootid, name, request_id, source)."""
+    merged = list(owned_objects)
+    seen = {_owned_item_dedup_key(it) for it in merged}
+    for item in _get_owned_ods_requests(owner_legal_person_id):
+        key = _owned_item_dedup_key(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(item)
+    return sorted(
+        merged,
+        key=lambda item: (
+            (item.get('name') or '').lower(),
+            (item.get('rootid') or '').lower(),
+            (item.get('request_id') or '').lower(),
+            (item.get('source_label') or '').lower(),
+        ),
+    )
+
+
+def _norm_registry_id(value):
+    return (str(value) if value is not None else '').strip().lower()
+
+
+def _ods_brid_within_validation_window(created_at, *, hours=24):
+    """True, если с created_at прошло меньше hours часов (окно валидации BrId в АСУ ОДС)."""
+    if created_at is None:
+        return False
+    if isinstance(created_at, str):
+        created_at = parse_datetime(created_at.strip()) if created_at.strip() else None
+    if created_at is None:
+        return False
+    if timezone.is_naive(created_at):
+        created_at = timezone.make_aware(created_at, timezone.get_current_timezone())
+    return (timezone.now() - created_at) < timedelta(hours=hours)
+
+
+def _classify_ods_click_scenario(passportization_type_name, reason_name, short_object_root_id):
+    """
+    1 — первичное обследование (add_object), 2 — актуализация (main), 3 — split, 4 — merge.
+    Приоритет: сначала особые ReasonName, затем тип паспортизации.
+    """
+    r = (reason_name or '').strip().lower()
+    p = (passportization_type_name or '').strip().lower()
+    sr = _norm_registry_id(short_object_root_id)
+    if 'объединение объектов' in r:
+        return 4
+    if 'выделение' in r and 'из другого объекта' in r:
+        return 3
+    if p == 'первичное обследование' and not sr:
+        return 1
+    if p in {'актуализация', 'первичное обследование'} and sr:
+        return 2
+    return 0
+
+
+def _enrich_ods_interaction_and_geometry(owned_objects):
+    """
+    Для строк ODS: сценарий клика, готовность GIS (2–4), копия геометрии с совпавшего паспорта, map_row_key для карты.
+    """
+    gis_passports = [
+        g
+        for g in owned_objects
+        if not g.get('is_ods_request') and _norm_registry_id(g.get('rootid'))
+    ]
+    by_root = {}
+    for g in gis_passports:
+        k = _norm_registry_id(g.get('rootid'))
+        if k and k not in by_root:
+            by_root[k] = g
+
+    for item in owned_objects:
+        if not item.get('is_ods_request'):
+            continue
+        ptn = item.get('passportization_type_name') or ''
+        rn = item.get('reason_name') or ''
+        scenario = _classify_ods_click_scenario(ptn, rn, item.get('short_object_root_id'))
+        item['ods_click_scenario'] = scenario
+
+        sr = _norm_registry_id(item.get('short_object_root_id'))
+        match = by_root.get(sr) if sr else None
+        item['ods_matched_rootid'] = (match.get('rootid') or '').strip() if match else ''
+        item['ods_matched_name'] = (match.get('name') or '').strip() if match else ''
+        item['ods_matched_source_label'] = (match.get('source_label') or 'ДТ') if match else ''
+
+        if match and match.get('geom_json'):
+            item['geom_json'] = match.get('geom_json') or ''
+            item['ods_uses_gis_geometry'] = True
+        else:
+            item['ods_uses_gis_geometry'] = False
+
+        ok = bool(match and sr)
+        if scenario == 1:
+            item['ods_gis_ready'] = True
+        elif scenario in (2, 3, 4):
+            item['ods_gis_ready'] = ok
+        else:
+            item['ods_gis_ready'] = False
+
+        pk = (item.get('object_key') or '').replace('ods_request:', '').strip()
+        item['map_row_key'] = f"odsrow:{pk}" if pk else f"odsrow:{(item.get('object_key') or 'x').lower()}"
+
+    return owned_objects
+
+
+def _annotate_and_filter_ods_registry_against_gis(owned_objects):
+    """
+    Сверка GIS с реестром ods_request: индикаторы на заявках/паспортах.
+
+    Строка ODS скрывается из списка только если её BrId (request_id у ODS-элемента)
+    совпадает с request_id какой-либо GIS-заявки (строка без rootid). Иначе ODS
+    остаётся в списке, даже если ShortObjectRootId совпадает с rootid паспорта.
+    """
+    ods_items = [x for x in owned_objects if x.get('is_ods_request')]
+    gis_items = [x for x in owned_objects if not x.get('is_ods_request')]
+
+    ods_br_ids = {_norm_registry_id(o.get('request_id')) for o in ods_items if _norm_registry_id(o.get('request_id'))}
+    ods_br_status_by_id = {}
+    for o in ods_items:
+        brid = _norm_registry_id(o.get('request_id'))
+        if brid and brid not in ods_br_status_by_id:
+            ods_br_status_by_id[brid] = (o.get('br_status_name') or '').strip()
+    ods_root_ids = {
+        _norm_registry_id(o.get('short_object_root_id'))
+        for o in ods_items
+        if _norm_registry_id(o.get('short_object_root_id'))
+    }
+
+    gis_request_ids = set()
+    for g in gis_items:
+        root = _norm_registry_id(g.get('rootid'))
+        if not root:
+            req = _norm_registry_id(g.get('request_id'))
+            if req:
+                gis_request_ids.add(req)
+
+    has_ods = bool(ods_items)
+
+    for g in gis_items:
+        root = _norm_registry_id(g.get('rootid'))
+        req = _norm_registry_id(g.get('request_id'))
+        g.pop('ods_registry_brid_match', None)
+        g.pop('ods_registry_brid_labeled', None)
+        g.pop('ods_registry_brid_pending', None)
+        g.pop('ods_registry_root_match', None)
+        g.pop('ods_registry_br_status_name', None)
+        if root:
+            g['ods_registry_root_match'] = root in ods_root_ids
+        elif has_ods and req:
+            g['ods_registry_brid_labeled'] = True
+            brid_match = req in ods_br_ids
+            g['ods_registry_brid_match'] = brid_match
+            if brid_match:
+                g['ods_registry_br_status_name'] = ods_br_status_by_id.get(req, '')
+            else:
+                g['ods_registry_brid_pending'] = _ods_brid_within_validation_window(g.get('created_at'))
+
+    out = []
+    for x in owned_objects:
+        if not x.get('is_ods_request'):
+            out.append(x)
+            continue
+        brid = _norm_registry_id(x.get('request_id'))
+        if brid and brid in gis_request_ids:
+            continue
+        out.append(x)
+
+    return out
+
+
 def _build_owned_passports_geojson(owned_objects):
     features = []
     for item in owned_objects:
@@ -351,20 +672,40 @@ def _build_owned_passports_geojson(owned_objects):
             continue
         if not geometry:
             continue
+        if item.get('is_ods_request'):
+            rootid = (item.get('ods_matched_rootid') or rootid or '').strip()
+            ods_source = item.get('source_label') or getattr(settings, 'GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС')
+            matched_source = item.get('ods_matched_source_label') or ''
+            props = {
+                'rootid': rootid,
+                'name': item.get('name') or '',
+                'source_label': ods_source,
+                'matched_source_label': matched_source,
+                'request_id': request_id,
+                'is_request_object': bool(request_id and not rootid),
+                'startdate': item.get('startdate') or '',
+                'datesurvey': item.get('datesurvey') or '',
+                'createtype': item.get('createtype') or '',
+                'from_ods_registry': True,
+                'map_row_key': (item.get('map_row_key') or '').strip(),
+                'brid': request_id,
+            }
+        else:
+            props = {
+                'rootid': rootid,
+                'name': item.get('name') or '',
+                'source_label': item.get('source_label') or 'ДТ',
+                'request_id': request_id,
+                'is_request_object': bool(request_id and not rootid),
+                'startdate': item.get('startdate') or '',
+                'datesurvey': item.get('datesurvey') or '',
+                'createtype': item.get('createtype') or '',
+            }
         features.append(
             {
                 'type': 'Feature',
                 'geometry': geometry,
-                'properties': {
-                    'rootid': rootid,
-                    'name': item.get('name') or '',
-                    'source_label': item.get('source_label') or 'ДТ',
-                    'request_id': request_id,
-                    'is_request_object': bool(request_id and not rootid),
-                    'startdate': item.get('startdate') or '',
-                    'datesurvey': item.get('datesurvey') or '',
-                    'createtype': item.get('createtype') or '',
-                },
+                'properties': props,
             }
         )
     return {'type': 'FeatureCollection', 'features': features}
@@ -2491,11 +2832,16 @@ def home(request):
     owned_passports_geojson = {'type': 'FeatureCollection', 'features': []}
     hood_work_area_geojson = {'type': 'FeatureCollection', 'features': []}
     owned_objects_error = None
+    ods_user_brids = []
     try:
         owner_id = _get_current_user_owner_id(request.user.username)
         if owner_id is not None:
+            ods_user_brids = _get_owned_ods_brids(owner_id)
             owner_name = _get_id_name_lookup_value(owner_id)
             owned_objects = _get_owned_objects(owner_id)
+            owned_objects = _merge_owned_ods_requests(owned_objects, owner_id)
+            owned_objects = _annotate_and_filter_ods_registry_against_gis(owned_objects)
+            owned_objects = _enrich_ods_interaction_and_geometry(owned_objects)
             recap_counts = _get_recap_counts_by_request_ids(item['request_id'] for item in owned_objects)
             for item in owned_objects:
                 request_id = (item.get('request_id') or '').strip()
@@ -2526,6 +2872,8 @@ def home(request):
             'hood_work_area_geojson': hood_work_area_geojson,
             'owned_objects_error': owned_objects_error,
             'need_entry_request_id': need_entry_request_id,
+            'ods_request_source_label': getattr(settings, 'GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС'),
+            'ods_user_brids': ods_user_brids,
         },
     )
 
@@ -2553,11 +2901,18 @@ def main(request):
     selected_geometry_for_editing = layers['selected'] if layers else None
     geometry_detail_mode = str(entry_point.get('geometry_detail_mode') or '').strip().lower()
     use_full_geometry = geometry_detail_mode == 'full'
+    has_merge = len(_normalize_merge_items(entry_point)) >= 2
     should_simplify_selected = (
         bool(layers)
-        and (entry_point.get('entry_source') == 'owned_passport_list')
-        and bool((layers.get('selected_rootid') or '').strip())
+        and layers.get('selected')
         and not use_full_geometry
+        and (
+            (
+                entry_point.get('entry_source') == 'owned_passport_list'
+                and bool((layers.get('selected_rootid') or '').strip())
+            )
+            or has_merge
+        )
     )
     if should_simplify_selected:
         try:
@@ -2839,12 +3194,17 @@ def open_merged_passports(request):
     if not all(((it['rootid'], it['source_label']) in allowed_pairs) for it in merge_items):
         return redirect('home')
 
+    geometry_detail_mode = str(request.POST.get('geometry_detail_mode') or '').strip().lower()
+    if geometry_detail_mode not in {'simplified', 'full'}:
+        geometry_detail_mode = 'simplified'
     request.session['entry_point'] = {
         'rootid': '',
         'request_id': request_id,
         'name': f'Объединение {len(merge_items)} паспортов (→ {target_source_label})',
         'source_label': target_source_label,
         'merge_items': merge_items,
+        'geometry_detail_mode': geometry_detail_mode,
+        'entry_source': 'owned_passport_list',
     }
     return redirect('main')
 
@@ -2867,6 +3227,10 @@ def confirm_entry_request_id(request):
     del request.session['pending_entry_point']
     pending = dict(pending)
     pending['request_id'] = request_id
+    geometry_detail_mode = str(request.POST.get('geometry_detail_mode') or '').strip().lower()
+    if geometry_detail_mode not in {'simplified', 'full'}:
+        geometry_detail_mode = 'simplified' if (pending.get('rootid') or '').strip() else 'full'
+    pending['geometry_detail_mode'] = geometry_detail_mode
     request.session['entry_point'] = pending
     return redirect('main')
 

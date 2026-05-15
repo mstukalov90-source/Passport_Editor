@@ -45,6 +45,11 @@ def build_default_registry() -> List[TableImportSpec]:
     return [
         TableImportSpec('users', FileKind.JSON, note='Model ExternalUser; columns login, password, OwnerLegalPersonId'),
         TableImportSpec('id_names', FileKind.JSON, note='Columns "LegalPersonId", "name"'),
+        TableImportSpec(
+            'ods_request',
+            FileKind.JSON,
+            note='ODS bidregistry_view rows from ods_request.json (migration 0014)',
+        ),
         TableImportSpec('ozn', FileKind.GEOJSON, delegate_command='import_ozn_geojson'),
         TableImportSpec('renew', FileKind.GEOJSON, delegate_command='import_renew_geojson'),
         TableImportSpec('hood', FileKind.GEOJSON, dynamic_geojson=True, note='Rayon / okrug polygons (hood.geojson)'),

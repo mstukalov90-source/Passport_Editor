@@ -132,6 +132,10 @@
             background: rgba(240, 171, 252, 0.45);
             border-color: #c026d3;
         }
+        .owned-map-legend__swatch--ods {
+            background: rgba(233, 213, 255, 0.75);
+            border-color: #9333ea;
+        }
         .owned-map-legend__swatch--hood {
             background: transparent;
             border: 2px solid #5c4033;
@@ -311,6 +315,81 @@
             border-color: #6ee7b7;
             background: #ecfdf5;
         }
+        .source-badge--ods {
+            color: #6b21a8;
+            border-color: #d8b4fe;
+            background: #faf5ff;
+        }
+        .owned-list-open-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.88;
+        }
+        .ods-registry-indicator {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 6px;
+            vertical-align: middle;
+            user-select: none;
+            border-radius: 6px;
+            border: 1px solid #d8b4fe;
+            background: #faf5ff;
+            color: #6b21a8;
+            padding: 2px 5px;
+            max-width: 100%;
+        }
+        .ods-registry-indicator--bad {
+            border-color: #fecaca;
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+        .ods-registry-indicator--pending {
+            border-color: #bfdbfe;
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+        .ods-registry-indicator__icon {
+            font-size: 1.05em;
+            line-height: 1;
+        }
+        .ods-registry-indicator__label {
+            display: none;
+            font-size: 11px;
+            line-height: 1.25;
+            white-space: normal;
+            max-width: 220px;
+        }
+        .owned-list-item:hover .ods-registry-indicator__icon {
+            display: none;
+        }
+        .owned-list-item:hover .ods-registry-indicator__label {
+            display: inline;
+        }
+        .ods-registry-status {
+            display: block;
+            margin-top: 4px;
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.3;
+        }
+        .owned-request-id-row {
+            display: inline;
+        }
+        .owned-list-open-btn .ods-registry-indicator {
+            margin-left: 6px;
+            margin-top: 0;
+            vertical-align: middle;
+        }
+        .owned-list-open-btn .ods-registry-status {
+            margin-top: 4px;
+            text-align: left;
+        }
+        .ods-registry-passport-note {
+            margin-left: 6px;
+            font-size: 11px;
+            font-weight: 500;
+            color: #6b21a8;
+            vertical-align: middle;
+        }
         .map-basemap-control {
             display: flex;
             flex-wrap: wrap;
@@ -425,6 +504,7 @@
                         <button type="button" class="source-badge source-badge--dt owned-source-filter-btn is-active" data-source-filter="ДТ">ДТ</button>
                         <button type="button" class="source-badge source-badge--odh owned-source-filter-btn is-active" data-source-filter="ОДХ">ОДХ</button>
                         <button type="button" class="source-badge source-badge--oo owned-source-filter-btn is-active" data-source-filter="ОЗН">ОО</button>
+                        <button type="button" class="source-badge source-badge--ods owned-source-filter-btn is-active" data-source-filter="{{ ods_request_source_label|default:'ОДС' }}">{{ ods_request_source_label|default:"ОДС" }}</button>
                     </div>
                 <div class="owned-list-wrap owned-list-panel is-active" data-list-panel="passports">
                     {% for item in owned_objects %}
@@ -460,7 +540,12 @@
                                     <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
                                     <input type="hidden" name="geometry_detail_mode" value="simplified">
                                     <button type="submit" class="owned-list-open-btn">
-                                        <strong>&#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.rootid }}<br>
+                                        <span class="owned-request-id-row">
+                                            <strong>&#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.rootid }}
+                                            {% if item.ods_registry_root_match %}
+                                                <span class="ods-registry-passport-note">Для этого паспорта есть заявка в АСУ ОДС</span>
+                                            {% endif %}
+                                        </span><br>
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                 </form>
@@ -496,7 +581,34 @@
                                 data-request-id="{{ item.request_id|default_if_none:''|lower }}"
                                 data-name="{{ item.name|default:''|lower }}"
                                 data-source-label="{{ item.source_label|default:'ДТ' }}"
+                                {% if item.map_row_key %}data-map-row-key="{{ item.map_row_key|escape }}"{% endif %}
                             >
+                                {% if item.is_ods_request %}
+                                    <div style="margin: 0; flex: 1;">
+                                        <button
+                                            type="button"
+                                            class="owned-list-open-btn owned-ods-action-btn"
+                                            title="Действие по заявке из реестра ОДС"
+                                            data-ods-scenario="{{ item.ods_click_scenario|default:0 }}"
+                                            data-ods-gis-ready="{% if item.ods_gis_ready %}1{% else %}0{% endif %}"
+                                            data-ods-brid="{{ item.request_id|default:'' }}"
+                                            data-short-root="{{ item.short_object_root_id|default:'' }}"
+                                            data-matched-rootid="{{ item.ods_matched_rootid|default:'' }}"
+                                            data-matched-name="{{ item.ods_matched_name|default:'' }}"
+                                            data-matched-source="{{ item.ods_matched_source_label|default:'ДТ' }}"
+                                        >
+                                            <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}<br>
+                                            <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
+                                            {% if item.short_object_root_id %}
+                                                <br><span style="font-size: 12px; color: #64748b;"><strong>&#8470; &#1087;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.short_object_root_id }}</span>
+                                            {% endif %}
+                                            {% if item.br_status_name %}
+                                                <span class="ods-registry-status">Статус: {{ item.br_status_name }}</span>
+                                            {% endif %}
+                                        </button>
+                                    </div>
+                                    <span class="source-badge source-badge--ods">{{ item.source_label|default:ods_request_source_label }}</span>
+                                {% else %}
                                 <form
                                     class="owned-open-form"
                                     method="post"
@@ -511,8 +623,19 @@
                                     <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
                                     <input type="hidden" name="geometry_detail_mode" value="full">
                                     <button type="submit" class="owned-list-open-btn">
-                                        <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}<br>
+                                        <span class="owned-request-id-row">
+                                            <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}
+                                            {% if item.ods_registry_brid_labeled %}
+                                                <span class="ods-registry-indicator{% if item.ods_registry_brid_match %} ods-registry-indicator--ok{% elif item.ods_registry_brid_pending %} ods-registry-indicator--pending{% else %} ods-registry-indicator--bad{% endif %}">
+                                                    <span class="ods-registry-indicator__icon" aria-hidden="true">{% if item.ods_registry_brid_match %}✅{% elif item.ods_registry_brid_pending %}🔄{% else %}❌{% endif %}</span>
+                                                    <span class="ods-registry-indicator__label">{% if item.ods_registry_brid_match %}Заявка подтверждена АСУ ОДС{% elif item.ods_registry_brid_pending %}Валидация заявки АСУ ОДС до 24 часов{% else %}Заявка не подтверждена АСУ ОДС{% endif %}</span>
+                                                </span>
+                                            {% endif %}
+                                        </span><br>
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
+                                        {% if item.ods_registry_brid_match and item.ods_registry_br_status_name %}
+                                            <span class="ods-registry-status">Статус: {{ item.ods_registry_br_status_name }}</span>
+                                        {% endif %}
                                     </button>
                                 </form>
                                 <span class="source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% else %}source-badge--dt{% endif %}">
@@ -549,6 +672,7 @@
                                         </button>
                                     </form>
                                 {% endif %}
+                                {% endif %}
                             </div>
                         {% endif %}
                     {% endfor %}
@@ -573,6 +697,10 @@
                     <span class="owned-map-legend__item">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--request" aria-hidden="true"></span>
                         Заявка
+                    </span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--ods" aria-hidden="true"></span>
+                        {{ ods_request_source_label|default:"ОДС" }}
                     </span>
                     <span class="owned-map-legend__item">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--hood" aria-hidden="true"></span>
@@ -616,6 +744,7 @@
     <form id="form-confirm-pending" method="post" action="{% url 'confirm_entry_request_id' %}" style="display: none;">
         {% csrf_token %}
         <input type="hidden" name="request_id" id="confirm-pending-request-id" value="" />
+        <input type="hidden" name="geometry_detail_mode" id="confirm-pending-geometry-detail-mode" value="simplified" />
     </form>
     <form id="form-prepare-add-object" method="post" action="{% url 'prepare_add_object' %}" style="display: none;">
         {% csrf_token %}
@@ -623,10 +752,21 @@
         <input type="hidden" name="source_label" value="ДТ" />
     </form>
 
+    <form id="form-ods-open-owned" method="post" action="{% url 'open_owned_object' %}" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="rootid" id="ods-open-owned-rootid" value="" />
+        <input type="hidden" name="name" id="ods-open-owned-name" value="" />
+        <input type="hidden" name="request_id" id="ods-open-owned-request-id" value="" />
+        <input type="hidden" name="source_label" id="ods-open-owned-source-label" value="ДТ" />
+        <input type="hidden" name="geometry_detail_mode" id="ods-open-owned-geom-mode" value="simplified" />
+        <input type="hidden" name="redirect_to" id="ods-open-owned-redirect-to" value="" />
+    </form>
+
     <form id="form-merge-passports" method="post" action="{% url 'open_merged_passports' %}" style="display: none;">
         {% csrf_token %}
         <input type="hidden" name="request_id" id="merge-passports-request-id-hidden" value="" />
         <input type="hidden" name="target_source_label" id="merge-passports-target-source-hidden" value="" />
+        <input type="hidden" name="geometry_detail_mode" id="merge-passports-geometry-detail-mode" value="simplified" />
         <div id="merge-passports-items-container"></div>
     </form>
 
@@ -670,10 +810,37 @@
                     <input type="radio" name="merge_target_source_ui" value="ОЗН" id="merge-target-ozn" />
                 </label>
             </fieldset>
+
+            <fieldset
+                id="merge-geometry-detail-fieldset"
+                style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-top: 12px; margin-bottom: 0;"
+            >
+                <legend class="note" style="font-weight: 600; padding: 0 4px;">Геометрия выбранного паспорта</legend>
+                <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <input type="radio" name="merge_geometry_detail_ui" value="simplified" id="merge-geometry-detail-simplified" checked style="width: auto; height: auto; margin: 0; flex: 0 0 auto;" />
+                    <span style="display: inline-block;">Упрощённая (быстрее редактирование)</span>
+                </label>
+                <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <input type="radio" name="merge_geometry_detail_ui" value="full" id="merge-geometry-detail-full" style="width: auto; height: auto; margin: 0; flex: 0 0 auto;" />
+                    <span style="display: inline-block;">Полная</span>
+                </label>
+            </fieldset>
             <p id="merge-passports-request-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
                 <button type="button" id="merge-passports-request-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
                 <button type="button" id="merge-passports-request-submit-btn">Открыть карту</button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        id="ods-gis-missing-modal"
+        style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1004; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 440px; padding: 18px;">
+            <p class="note" style="margin: 0 0 14px;">Не найден объект для работы по заявке, сформируйте заявку вручную</p>
+            <div style="display: flex; justify-content: flex-end;">
+                <button type="button" id="ods-gis-missing-ok-btn" style="background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;">ОК</button>
             </div>
         </div>
     </div>
@@ -723,6 +890,9 @@
                 <button type="button" id="home-workflow-close-btn" style="flex-shrink: 0; background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button type="button" id="home-workflow-ods-requests-btn" class="home-workflow-action-btn">
+                    Работа с заявками из АСУ ОДС
+                </button>
                 <button type="button" id="home-workflow-primary-btn" class="home-workflow-action-btn">
                     Подача заявки на первичную паспортизацию
                 </button>
@@ -758,9 +928,20 @@
                 maxlength="100"
                 inputmode="numeric"
                 pattern="[0-9]*"
+                list="entry-request-id-brid-list"
                 style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
                 autocomplete="off"
             />
+            {% if ods_user_brids %}
+                <datalist id="entry-request-id-brid-list">
+                    {% for brid in ods_user_brids %}
+                        <option value="{{ brid }}"></option>
+                    {% endfor %}
+                </datalist>
+                <p class="note" style="margin: 6px 0 0; font-size: 12px; color: #64748b;">
+                    Выберите номер из списка заявок АСУ ОДС или введите свой.
+                </p>
+            {% endif %}
             <fieldset
                 id="entry-geometry-detail-fieldset"
                 style="display: none; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-top: 12px; margin-bottom: 0;"
@@ -808,7 +989,7 @@
         </div>
     </div>
 
-    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" hidden></div>
+    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" data-ods-source-label="{{ ods_request_source_label|default:'ОДС'|escape }}" hidden></div>
     {{ owned_passports_geojson|json_script:"owned-passports-geojson-data" }}
     {{ hood_work_area_geojson|json_script:"hood-work-area-geojson-data" }}
     <link
@@ -896,6 +1077,7 @@
         const homeBootstrapEl = document.getElementById('home-bootstrap-data');
         const needEntryRequestIdOnLoad =
             homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
+        const odsSourceLabelNorm = (homeBootstrapEl?.dataset.odsSourceLabel || 'ОДС').trim().toUpperCase();
         const ownedMapEl = document.getElementById('owned-passports-map');
         const ownedGeoDataEl = document.getElementById('owned-passports-geojson-data');
         const hoodWorkAreaGeoEl = document.getElementById('hood-work-area-geojson-data');
@@ -912,10 +1094,17 @@
             if (source === 'ОЗН' || source === 'ОО') {
                 return 'ОЗН';
             }
+            if (odsSourceLabelNorm && source === odsSourceLabelNorm) {
+                return odsSourceLabelNorm;
+            }
             return 'ДТ';
         }
 
-        function buildOwnedMapKey(rootidValue, sourceLabelValue, requestIdValue, nameValue) {
+        function buildOwnedMapKey(rootidValue, sourceLabelValue, requestIdValue, nameValue, mapRowKeyValue) {
+            const custom = String(mapRowKeyValue || '').trim().toLowerCase();
+            if (custom) {
+                return `${custom}|${normalizeOwnedSourceLabel(sourceLabelValue)}`;
+            }
             const rid = String(rootidValue || '').trim().toLowerCase();
             const req = String(requestIdValue || '').trim().toLowerCase();
             const nm = String(nameValue || '').trim().toLowerCase();
@@ -964,11 +1153,18 @@
         }
 
         function styleOwnedFeature(feature) {
-            const sourceLabel = String(feature?.properties?.source_label || 'ДТ').toUpperCase();
-            const rootid = String(feature?.properties?.rootid || '').trim();
-            const requestId = String(feature?.properties?.request_id || '').trim();
+            const props = feature?.properties || {};
+            const sourceLabel = String(props.source_label || 'ДТ').toUpperCase();
+            const rootid = String(props.rootid || '').trim();
+            const requestId = String(props.request_id || '').trim();
+            if (props.from_ods_registry) {
+                return { color: '#7c3aed', weight: 2.5, fillOpacity: 0.26, fillColor: '#ddd6fe' };
+            }
             if (!rootid && requestId) {
                 return { color: '#c026d3', weight: 2.5, fillOpacity: 0.28, fillColor: '#f0abfc' };
+            }
+            if (odsSourceLabelNorm && sourceLabel === odsSourceLabelNorm) {
+                return { color: '#9333ea', weight: 2.5, fillOpacity: 0.22, fillColor: '#e9d5ff' };
             }
             if (sourceLabel === 'ОДХ') {
                 return { color: '#00bfff', weight: 2.5, fillOpacity: 0.04, fillColor: '#93c5fd' };
@@ -1053,7 +1249,8 @@
                     row.dataset.mapRootid || '',
                     row.dataset.sourceLabel || 'ДТ',
                     row.dataset.requestId || '',
-                    row.dataset.name || ''
+                    row.dataset.name || '',
+                    row.dataset.mapRowKey || ''
                 );
                 row.dataset.mapKey = key;
                 if (!rowByKey.has(key)) {
@@ -1272,7 +1469,8 @@
                         props.rootid || '',
                         props.source_label || 'ДТ',
                         props.request_id || '',
-                        props.name || ''
+                        props.name || '',
+                        props.map_row_key || ''
                     );
                     featureLayerByKey.set(key, featureLayer);
                     featureStyleByKey.set(key, styleOwnedFeature(feature));
@@ -1282,14 +1480,25 @@
                     featureLayer.on('click', () => focusByKey(key, 'map'));
                     const idLabel = props.rootid ? '№ Паспорта' : '№ Заявки';
                     const idValue = props.rootid || props.request_id || '-';
-                    featureLayer.bindPopup(
+                    let sourceDisplay = escapeHtml(props.source_label || 'ДТ');
+                    if (props.from_ods_registry) {
+                        const brid = String(props.brid || props.request_id || '').trim();
+                        const odsLabel = escapeHtml(props.source_label || 'ОДС');
+                        sourceDisplay = odsLabel + ', Заявка № ' + (brid ? escapeHtml(brid) : '—');
+                    }
+                    let popupHtml =
                         '<div>' +
                             '<div><strong>' + idLabel + ':</strong> ' + escapeHtml(idValue) + '</div>' +
                             '<div><strong>Название:</strong> ' + escapeHtml(props.name || '-') + '</div>' +
-                            '<div><strong>Источник:</strong> ' + escapeHtml(props.source_label || 'ДТ') + '</div>' +
-                            buildPopupMetaFieldsHtml(props) +
-                        '</div>'
-                    );
+                            '<div><strong>Источник:</strong> ' + sourceDisplay + '</div>';
+                    if (props.from_ods_registry && props.matched_source_label) {
+                        popupHtml +=
+                            '<div><strong>Источник GIS:</strong> ' +
+                            escapeHtml(props.matched_source_label) +
+                            '</div>';
+                    }
+                    popupHtml += buildPopupMetaFieldsHtml(props) + '</div>';
+                    featureLayer.bindPopup(popupHtml);
                 },
             }).addTo(map);
 
@@ -1320,19 +1529,29 @@
 
             mapListRows.forEach((row) => {
                 const openBtn = row.querySelector('.owned-list-open-btn');
-                if (openBtn) {
+                if (openBtn && !openBtn.classList.contains('owned-ods-action-btn')) {
                     openBtn.addEventListener('click', () => {
                         focusByKey(row.dataset.mapKey || '', 'list');
                     });
                 }
                 row.addEventListener('click', (event) => {
-                    if (event.target.closest('button, form, input, a, label')) {
+                    if (event.target.closest('.owned-ods-action-btn')) {
                         return;
                     }
-                    if (!row.classList.contains('owned-passport-row')) {
+                    if (
+                        event.target.closest(
+                            'form.owned-open-form button[type="submit"], .owned-split-form, .owned-split-btn, .add-recap-entry-btn, .owned-confirm-open-btn, input, a, label'
+                        )
+                    ) {
                         return;
                     }
-                    focusByKey(row.dataset.mapKey || '', 'list');
+                    const mapKey = row.dataset.mapKey || '';
+                    if (!mapKey) {
+                        return;
+                    }
+                    if (row.classList.contains('owned-passport-row') || row.classList.contains('owned-request-row')) {
+                        focusByKey(mapKey, 'list');
+                    }
                 });
                 row.addEventListener('mouseenter', () => {
                     hoverByKey(row.dataset.mapKey || '');
@@ -1536,6 +1755,7 @@
         const addRecapBaseUrl = '{% url "add_recap" %}';
         let entryRequestMode = null;
         let pendingOwnedForm = null;
+        let pendingOdsOpenOwned = null;
 
         const entryRecapModal = document.getElementById('entry-recap-id-modal');
         const entryRecapInput = document.getElementById('entry-recap-id-input');
@@ -1627,19 +1847,33 @@
             });
         }
 
+        function getEntryGeometryDetailMode() {
+            return entryGeometryDetailFull && entryGeometryDetailFull.checked ? 'full' : 'simplified';
+        }
+
         function openEntryRequestModal(mode, opts) {
             const options = opts || {};
             entryRequestMode = mode;
             pendingOwnedForm = options.form || null;
-            if (entryRequestInput) {
-                entryRequestInput.value = '';
-            }
+            pendingOdsOpenOwned = null;
             if (entryRequestError) {
                 entryRequestError.textContent = '';
             }
+            if (entryRequestInput) {
+                if (options.prefillRequestId != null && String(options.prefillRequestId).trim() !== '') {
+                    entryRequestInput.value = String(options.prefillRequestId).trim();
+                } else {
+                    entryRequestInput.value = '';
+                }
+            }
             if (entryRequestTitle) {
-                entryRequestTitle.textContent =
-                    mode === 'add-object' ? 'Заявка на первичную паспортизацию' : 'Заявка на актуализацию.';
+                if (mode === 'add-object') {
+                    entryRequestTitle.textContent = 'Заявка на первичную паспортизацию';
+                } else if (mode === 'ods-main') {
+                    entryRequestTitle.textContent = 'Открытие карты по заявке ОДС';
+                } else {
+                    entryRequestTitle.textContent = 'Заявка на актуализацию.';
+                }
             }
             if (entryRequestText) {
                 if (mode === 'pending') {
@@ -1648,13 +1882,19 @@
                 } else if (mode === 'add-object') {
                     entryRequestText.textContent =
                         'Укажите номер заявки перед переходом к созданию объекта.';
+                } else if (mode === 'ods-main') {
+                    entryRequestText.textContent =
+                        'Проверьте номер заявки и нажмите «Продолжить», чтобы открыть карту.';
                 } else if (mode === 'owned') {
                     entryRequestText.textContent =
                         'У объекта не указан номер заявки в базе. Введите номер заявки, чтобы продолжить.';
                 }
             }
+            if (mode === 'ods-main') {
+                pendingOdsOpenOwned = options.odsOpenOwned || null;
+            }
             if (entryGeometryDetailFieldset) {
-                const showGeometryModeChoice = mode === 'owned';
+                const showGeometryModeChoice = mode === 'owned' || mode === 'ods-main' || mode === 'pending';
                 entryGeometryDetailFieldset.style.display = showGeometryModeChoice ? 'block' : 'none';
                 if (entryGeometryDetailSimplified && showGeometryModeChoice) {
                     entryGeometryDetailSimplified.checked = true;
@@ -1675,6 +1915,7 @@
             }
             entryRequestMode = null;
             pendingOwnedForm = null;
+            pendingOdsOpenOwned = null;
         }
 
         function handleEntryRequestCancel() {
@@ -1704,7 +1945,29 @@
             }
             if (entryRequestMode === 'pending' && confirmPendingHidden && confirmPendingForm) {
                 confirmPendingHidden.value = raw;
+                const confirmPendingGeom = document.getElementById('confirm-pending-geometry-detail-mode');
+                if (confirmPendingGeom) {
+                    confirmPendingGeom.value = getEntryGeometryDetailMode();
+                }
                 confirmPendingForm.submit();
+            } else if (entryRequestMode === 'ods-main' && pendingOdsOpenOwned) {
+                const formOds = document.getElementById('form-ods-open-owned');
+                const rootEl = document.getElementById('ods-open-owned-rootid');
+                const nameEl = document.getElementById('ods-open-owned-name');
+                const ridEl = document.getElementById('ods-open-owned-request-id');
+                const srcEl = document.getElementById('ods-open-owned-source-label');
+                const geomEl = document.getElementById('ods-open-owned-geom-mode');
+                const redEl = document.getElementById('ods-open-owned-redirect-to');
+                if (formOds && rootEl && nameEl && ridEl && srcEl && geomEl && redEl) {
+                    rootEl.value = pendingOdsOpenOwned.rootid || '';
+                    nameEl.value = pendingOdsOpenOwned.name || '';
+                    ridEl.value = raw;
+                    srcEl.value = pendingOdsOpenOwned.source_label || 'ДТ';
+                    geomEl.value = getEntryGeometryDetailMode();
+                    redEl.value = '';
+                    formOds.submit();
+                }
+                pendingOdsOpenOwned = null;
             } else if (entryRequestMode === 'add-object' && prepareAddObjectHidden && prepareAddObjectForm) {
                 prepareAddObjectHidden.value = raw;
                 prepareAddObjectForm.submit();
@@ -1715,8 +1978,7 @@
                 }
                 const geometryDetailInput = pendingOwnedForm.querySelector('input[name="geometry_detail_mode"]');
                 if (geometryDetailInput) {
-                    const selectedDetailMode = entryGeometryDetailFull && entryGeometryDetailFull.checked ? 'full' : 'simplified';
-                    geometryDetailInput.value = selectedDetailMode;
+                    geometryDetailInput.value = getEntryGeometryDetailMode();
                 }
                 pendingOwnedForm.submit();
             }
@@ -1797,6 +2059,13 @@
         const mergeTargetOznRadio = document.getElementById('merge-target-ozn');
         const mergeTargetSourceFieldset = document.getElementById('merge-target-source-fieldset');
         const mergePassportsRequestIntro = document.getElementById('merge-passports-request-intro');
+        const mergeGeometryDetailSimplified = document.getElementById('merge-geometry-detail-simplified');
+        const mergeGeometryDetailFull = document.getElementById('merge-geometry-detail-full');
+        const mergePassportsGeometryDetailHidden = document.getElementById('merge-passports-geometry-detail-mode');
+
+        function getMergeGeometryDetailMode() {
+            return mergeGeometryDetailFull && mergeGeometryDetailFull.checked ? 'full' : 'simplified';
+        }
 
         let mergePassportsMode = false;
         let mergeImplicitTargetSource = '';
@@ -1859,6 +2128,12 @@
             }
             mergeImplicitTargetSource = '';
             resetMergeTargetOptionRows();
+            if (mergeGeometryDetailSimplified) {
+                mergeGeometryDetailSimplified.checked = true;
+            }
+            if (mergeGeometryDetailFull) {
+                mergeGeometryDetailFull.checked = false;
+            }
         }
 
         function openMergeRequestModalWithSources(sourcesSet) {
@@ -1878,6 +2153,12 @@
                 mergeTargetOznRadio.checked = false;
             }
             mergeImplicitTargetSource = '';
+            if (mergeGeometryDetailSimplified) {
+                mergeGeometryDetailSimplified.checked = true;
+            }
+            if (mergeGeometryDetailFull) {
+                mergeGeometryDetailFull.checked = false;
+            }
 
             if (mergeTargetSourceFieldset) {
                 mergeTargetSourceFieldset.querySelectorAll('.merge-target-option').forEach((row) => {
@@ -1997,6 +2278,9 @@
             });
             mergeRequestIdHidden.value = raw;
             mergeTargetSourceHidden.value = targetSourceValue;
+            if (mergePassportsGeometryDetailHidden) {
+                mergePassportsGeometryDetailHidden.value = getMergeGeometryDetailMode();
+            }
             formMergePassports.submit();
         }
 
@@ -2043,7 +2327,127 @@
             });
         }
 
+        const odsGisMissingModal = document.getElementById('ods-gis-missing-modal');
+        const odsGisMissingOkBtn = document.getElementById('ods-gis-missing-ok-btn');
+
+        function openOdsGisMissingModal() {
+            if (odsGisMissingModal) {
+                odsGisMissingModal.style.display = 'flex';
+            }
+        }
+
+        function closeOdsGisMissingModal() {
+            if (odsGisMissingModal) {
+                odsGisMissingModal.style.display = 'none';
+            }
+        }
+
+        function fillAndSubmitOdsOpenOwnedForm(ctx, requestIdVal, redirectToValue) {
+            const formOds = document.getElementById('form-ods-open-owned');
+            if (!formOds) {
+                return;
+            }
+            const rootEl = document.getElementById('ods-open-owned-rootid');
+            const nameEl = document.getElementById('ods-open-owned-name');
+            const ridEl = document.getElementById('ods-open-owned-request-id');
+            const srcEl = document.getElementById('ods-open-owned-source-label');
+            const geomEl = document.getElementById('ods-open-owned-geom-mode');
+            const redEl = document.getElementById('ods-open-owned-redirect-to');
+            if (!rootEl || !nameEl || !ridEl || !srcEl || !geomEl || !redEl) {
+                return;
+            }
+            rootEl.value = (ctx && ctx.rootid) || '';
+            nameEl.value = (ctx && ctx.name) || '';
+            ridEl.value = (requestIdVal || '').trim();
+            srcEl.value = (ctx && ctx.source_label) || 'ДТ';
+            geomEl.value = 'simplified';
+            redEl.value = (redirectToValue || '').trim();
+            formOds.submit();
+        }
+
+        if (odsGisMissingOkBtn) {
+            odsGisMissingOkBtn.addEventListener('click', closeOdsGisMissingModal);
+        }
+        if (odsGisMissingModal) {
+            odsGisMissingModal.addEventListener('click', (ev) => {
+                if (ev.target === odsGisMissingModal) {
+                    closeOdsGisMissingModal();
+                }
+            });
+        }
+
+        document.querySelectorAll('.owned-ods-action-btn').forEach((btn) => {
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const scenario = parseInt(btn.dataset.odsScenario || '0', 10);
+                const gisReady = btn.dataset.odsGisReady === '1';
+                const brid = (btn.dataset.odsBrid || '').trim();
+                const shortRoot = (btn.dataset.shortRoot || '').trim();
+                const ctx = {
+                    rootid: (btn.dataset.matchedRootid || '').trim(),
+                    name: (btn.dataset.matchedName || '').trim(),
+                    source_label: (btn.dataset.matchedSource || '').trim() || 'ДТ',
+                };
+                if (scenario === 1) {
+                    openEntryRequestModal('add-object', { prefillRequestId: brid || '' });
+                    return;
+                }
+                if (scenario === 2) {
+                    if (!gisReady || !shortRoot) {
+                        openOdsGisMissingModal();
+                        return;
+                    }
+                    openEntryRequestModal('ods-main', {
+                        prefillRequestId: brid || '',
+                        odsOpenOwned: ctx,
+                    });
+                    return;
+                }
+                if (scenario === 3 || scenario === 4) {
+                    if (!gisReady || !shortRoot) {
+                        openOdsGisMissingModal();
+                        return;
+                    }
+                }
+                if (scenario === 3) {
+                    fillAndSubmitOdsOpenOwnedForm(ctx, brid, 'split_object');
+                    return;
+                }
+                if (scenario === 4) {
+                    setMergePassportsMode(true);
+                    if (mergePassportsBtn) {
+                        mergePassportsBtn.classList.add('is-active');
+                    }
+                    setOwnedListTab('passports');
+                    applyOwnedFilters();
+                    const targetNorm = shortRoot.trim().toLowerCase();
+                    document.querySelectorAll('.merge-passport-cb').forEach((cb) => {
+                        const v = (cb.value || '').trim().toLowerCase();
+                        cb.checked = Boolean(targetNorm) && v === targetNorm;
+                    });
+                    let targetRow = null;
+                    document.querySelectorAll('.owned-passport-row').forEach((row) => {
+                        const cb = row.querySelector('.merge-passport-cb');
+                        if (!cb) {
+                            return;
+                        }
+                        const v = (cb.value || '').trim().toLowerCase();
+                        if (Boolean(targetNorm) && v === targetNorm) {
+                            targetRow = row;
+                        }
+                    });
+                    if (targetRow && typeof targetRow.scrollIntoView === 'function') {
+                        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    return;
+                }
+                window.alert('Сценарий не определён.');
+            });
+        });
+
         const homeWorkflowModal = document.getElementById('home-workflow-modal');
+        const homeWorkflowOdsRequestsBtn = document.getElementById('home-workflow-ods-requests-btn');
         const homeWorkflowPrimaryBtn = document.getElementById('home-workflow-primary-btn');
         const homeWorkflowBoundariesBtn = document.getElementById('home-workflow-boundaries-btn');
         const homeWorkflowSplitPassportBtn = document.getElementById('home-workflow-split-passport-btn');
@@ -2056,6 +2460,18 @@
             }
         }
 
+        if (homeWorkflowOdsRequestsBtn) {
+            homeWorkflowOdsRequestsBtn.addEventListener('click', () => {
+                clearHomeOghSpecialModes();
+                closeHomeWorkflowModal();
+                setOwnedListTab('requests');
+                applyOwnedFilters();
+                const requestsPanel = document.querySelector('.owned-list-panel[data-list-panel="requests"]');
+                if (requestsPanel && typeof requestsPanel.scrollIntoView === 'function') {
+                    requestsPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            });
+        }
         if (homeWorkflowPrimaryBtn) {
             homeWorkflowPrimaryBtn.addEventListener('click', () => {
                 clearHomeOghSpecialModes();
@@ -2100,8 +2516,9 @@
         } else if (homeWorkflowModal) {
             homeWorkflowModal.style.display = 'flex';
             setTimeout(() => {
-                if (homeWorkflowPrimaryBtn && homeWorkflowModal && homeWorkflowModal.style.display === 'flex') {
-                    homeWorkflowPrimaryBtn.focus();
+                const firstWorkflowBtn = homeWorkflowOdsRequestsBtn || homeWorkflowPrimaryBtn;
+                if (firstWorkflowBtn && homeWorkflowModal && homeWorkflowModal.style.display === 'flex') {
+                    firstWorkflowBtn.focus();
                 }
             }, 0);
         }

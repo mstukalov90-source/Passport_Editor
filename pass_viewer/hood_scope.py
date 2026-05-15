@@ -10,9 +10,9 @@ is 0, any ``ST_Intersects`` match counts (legacy behavior).
 The union of those hood geometries is the allowed region; all GIS reads should
 intersect it. If the hood table is missing, scope is disabled (backward compatible).
 
-When ``GIS_HOOD_APPLY_SPATIAL_SCOPE`` is false (default), no hood resolution runs and
-no spatial hood AND clauses are applied (scope mode ``skip``); code paths stay in place
-for later re-enabling.
+``GIS_HOOD_ACCESS_ENABLED`` must be on. Spatial hood union/WKT and SQL filters run only
+for users with ``users.hood_scope`` (model ``ExternalUser``); other logins stay in
+mode ``skip``.
 """
 import json
 import threading
@@ -24,16 +24,14 @@ from django.db import connection
 _local = threading.local()
 
 # Increment when hood scope SQL semantics change so session-cached WKT is refreshed.
-HOOD_SCOPE_SESSION_VERSION = 3
+HOOD_SCOPE_SESSION_VERSION = 6
 
 
 def _hood_spatial_scope_active() -> bool:
-    """Heavy hood district resolution and SQL filters; both toggles must be on."""
+    """True when hood spatial filters may run: ``GIS_HOOD_ACCESS_ENABLED`` and ``users.hood_scope`` for this request."""
     if not getattr(settings, 'GIS_HOOD_ACCESS_ENABLED', True):
         return False
-    if not getattr(settings, 'GIS_HOOD_APPLY_SPATIAL_SCOPE', False):
-        return False
-    return True
+    return bool(getattr(_local, 'user_hood_scope_required', False))
 
 
 def _hq_quote_ident(identifier: str) -> str:
@@ -307,6 +305,7 @@ def clear_hood_scope():
     _local.mode = 'skip'
     _local.wkt = None
     _local.bound = False
+    _local.user_hood_scope_required = False
 
 
 def bind_hood_scope(mode: str, wkt: Optional[str]):
@@ -324,15 +323,23 @@ def resolve_and_bind_hood_scope(request):
         from pass_viewer.models import ExternalUser
     except Exception:
         return
-    row = ExternalUser.objects.filter(login=user.username).only('owner_legal_person_id').first()
+    row = ExternalUser.objects.filter(login=user.username).only(
+        'owner_legal_person_id',
+        'hood_scope',
+    ).first()
+    if row is not None:
+        _local.user_hood_scope_required = bool(row.hood_scope)
     owner_id = row.owner_legal_person_id if row else None
     if owner_id is None:
         return
+
+    user_hood_scope = bool(row.hood_scope)
 
     if not _hood_spatial_scope_active():
         cache = request.session.get('hood_access_scope') or {}
         if (
             cache.get('owner') == str(owner_id)
+            and cache.get('hood_scope') is user_hood_scope
             and cache.get('mode') == 'skip'
             and cache.get('v') == HOOD_SCOPE_SESSION_VERSION
         ):
@@ -341,6 +348,7 @@ def resolve_and_bind_hood_scope(request):
         bind_hood_scope('skip', None)
         request.session['hood_access_scope'] = {
             'owner': str(owner_id),
+            'hood_scope': user_hood_scope,
             'mode': 'skip',
             'wkt': None,
             'v': HOOD_SCOPE_SESSION_VERSION,
@@ -351,6 +359,7 @@ def resolve_and_bind_hood_scope(request):
     cache = request.session.get('hood_access_scope') or {}
     if (
         cache.get('owner') == str(owner_id)
+        and cache.get('hood_scope') is user_hood_scope
         and cache.get('mode')
         and cache.get('v') == HOOD_SCOPE_SESSION_VERSION
     ):
@@ -361,6 +370,7 @@ def resolve_and_bind_hood_scope(request):
         scope = resolve_hood_scope_for_owner(cursor, owner_id)
     request.session['hood_access_scope'] = {
         'owner': str(owner_id),
+        'hood_scope': user_hood_scope,
         'mode': scope['mode'],
         'wkt': scope.get('wkt'),
         'v': HOOD_SCOPE_SESSION_VERSION,
