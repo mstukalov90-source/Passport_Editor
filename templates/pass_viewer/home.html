@@ -366,6 +366,25 @@
             color: #64748b;
             line-height: 1.3;
         }
+        .owned-request-id-row {
+            display: inline;
+        }
+        .owned-list-open-btn .ods-registry-indicator {
+            margin-left: 6px;
+            margin-top: 0;
+            vertical-align: middle;
+        }
+        .owned-list-open-btn .ods-registry-status {
+            margin-top: 4px;
+            text-align: left;
+        }
+        .ods-registry-passport-note {
+            margin-left: 6px;
+            font-size: 11px;
+            font-weight: 500;
+            color: #6b21a8;
+            vertical-align: middle;
+        }
         .map-basemap-control {
             display: flex;
             flex-wrap: wrap;
@@ -516,15 +535,14 @@
                                     <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
                                     <input type="hidden" name="geometry_detail_mode" value="simplified">
                                     <button type="submit" class="owned-list-open-btn">
-                                        <strong>&#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.rootid }}<br>
+                                        <span class="owned-request-id-row">
+                                            <strong>&#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.rootid }}
+                                            {% if item.ods_registry_root_match %}
+                                                <span class="ods-registry-passport-note">Для этого паспорта есть заявка в АСУ ОДС</span>
+                                            {% endif %}
+                                        </span><br>
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
-                                    {% if item.ods_registry_root_match %}
-                                        <span class="ods-registry-indicator ods-registry-indicator--passport">
-                                            <span class="ods-registry-indicator__icon" aria-hidden="true">✅</span>
-                                            <span class="ods-registry-indicator__label">Для этого паспорта есть заявка в АСУ ОДС</span>
-                                        </span>
-                                    {% endif %}
                                 </form>
                                 <form
                                     class="owned-split-form"
@@ -579,6 +597,9 @@
                                             {% if item.short_object_root_id %}
                                                 <br><span style="font-size: 12px; color: #64748b;"><strong>&#8470; &#1087;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.short_object_root_id }}</span>
                                             {% endif %}
+                                            {% if item.br_status_name %}
+                                                <span class="ods-registry-status">Статус: {{ item.br_status_name }}</span>
+                                            {% endif %}
                                         </button>
                                     </div>
                                     <span class="source-badge source-badge--ods">{{ item.source_label|default:ods_request_source_label }}</span>
@@ -597,18 +618,20 @@
                                     <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
                                     <input type="hidden" name="geometry_detail_mode" value="full">
                                     <button type="submit" class="owned-list-open-btn">
-                                        <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}<br>
+                                        <span class="owned-request-id-row">
+                                            <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}
+                                            {% if item.ods_registry_brid_labeled %}
+                                                <span class="ods-registry-indicator{% if item.ods_registry_brid_match %} ods-registry-indicator--ok{% else %} ods-registry-indicator--bad{% endif %}">
+                                                    <span class="ods-registry-indicator__icon" aria-hidden="true">{% if item.ods_registry_brid_match %}✅{% else %}❌{% endif %}</span>
+                                                    <span class="ods-registry-indicator__label">{% if item.ods_registry_brid_match %}Заявка подтверждена АСУ ОДС{% else %}Заявка не подтверждена АСУ ОДС{% endif %}</span>
+                                                </span>
+                                            {% endif %}
+                                        </span><br>
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
-                                    </button>
-                                    {% if item.ods_registry_brid_labeled %}
-                                        <span class="ods-registry-indicator{% if item.ods_registry_brid_match %} ods-registry-indicator--ok{% else %} ods-registry-indicator--bad{% endif %}">
-                                            <span class="ods-registry-indicator__icon" aria-hidden="true">{% if item.ods_registry_brid_match %}✅{% else %}❌{% endif %}</span>
-                                            <span class="ods-registry-indicator__label">{% if item.ods_registry_brid_match %}Заявка подтверждена АСУ ОДС{% else %}Заявка не подтверждена АСУ ОДС{% endif %}</span>
-                                        </span>
                                         {% if item.ods_registry_brid_match and item.ods_registry_br_status_name %}
                                             <span class="ods-registry-status">Статус: {{ item.ods_registry_br_status_name }}</span>
                                         {% endif %}
-                                    {% endif %}
+                                    </button>
                                 </form>
                                 <span class="source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% else %}source-badge--dt{% endif %}">
                                     {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
@@ -1424,11 +1447,17 @@
                     featureLayer.on('click', () => focusByKey(key, 'map'));
                     const idLabel = props.rootid ? '№ Паспорта' : '№ Заявки';
                     const idValue = props.rootid || props.request_id || '-';
+                    let sourceDisplay = escapeHtml(props.source_label || 'ДТ');
+                    if (props.from_ods_registry) {
+                        const brid = String(props.brid || props.request_id || '').trim();
+                        const odsLabel = escapeHtml(props.source_label || 'ОДС');
+                        sourceDisplay = odsLabel + ', Заявка № ' + (brid ? escapeHtml(brid) : '—');
+                    }
                     let popupHtml =
                         '<div>' +
                             '<div><strong>' + idLabel + ':</strong> ' + escapeHtml(idValue) + '</div>' +
                             '<div><strong>Название:</strong> ' + escapeHtml(props.name || '-') + '</div>' +
-                            '<div><strong>Источник:</strong> ' + escapeHtml(props.source_label || 'ДТ') + '</div>';
+                            '<div><strong>Источник:</strong> ' + sourceDisplay + '</div>';
                     if (props.from_ods_registry && props.matched_source_label) {
                         popupHtml +=
                             '<div><strong>Источник GIS:</strong> ' +
