@@ -391,6 +391,10 @@ def _get_owned_ods_requests(owner_legal_person_id):
         if _column_exists(cursor, table, 'ReasonName'):
             rnc = _resolve_column_name(cursor, table, 'ReasonName')
             reason_expr = f"COALESCE({_quote_ident(rnc)}::text, ''::text)"
+        status_expr = "NULL::text"
+        if _column_exists(cursor, table, 'BrStatusName'):
+            sc = _resolve_column_name(cursor, table, 'BrStatusName')
+            status_expr = f"COALESCE({_quote_ident(sc)}::text, ''::text)"
 
         order_parts = []
         if _column_exists(cursor, table, 'ObjectName'):
@@ -402,7 +406,7 @@ def _get_owned_ods_requests(owner_legal_person_id):
 
         query = (
             f'SELECT {_quote_ident(id_resolved)}::text, {brid_expr}, {name_expr}, {rootid_plan_expr}, '
-            f'{ptype_expr}, {reason_expr} '
+            f'{ptype_expr}, {reason_expr}, {status_expr} '
             f'FROM {_quote_ident(table)} '
             f'WHERE {_quote_ident(owner_col)}::text = %s '
             f'ORDER BY {order_sql} '
@@ -418,6 +422,7 @@ def _get_owned_ods_requests(owner_legal_person_id):
             short_root_id = row[3] or ''
             ptype = row[4] or ''
             rname = row[5] or ''
+            br_status = row[6] or '' if len(row) > 6 else ''
             out.append(
                 {
                     'object_key': f'ods_request:{pk}',
@@ -433,6 +438,7 @@ def _get_owned_ods_requests(owner_legal_person_id):
                     'short_object_root_id': short_root_id,
                     'passportization_type_name': ptype,
                     'reason_name': rname,
+                    'br_status_name': br_status,
                 }
             )
 
@@ -464,20 +470,21 @@ def _norm_registry_id(value):
     return (str(value) if value is not None else '').strip().lower()
 
 
-def _classify_ods_click_scenario(passportization_type_name, reason_name):
+def _classify_ods_click_scenario(passportization_type_name, reason_name, short_object_root_id):
     """
     1 — первичное обследование (add_object), 2 — актуализация (main), 3 — split, 4 — merge.
     Приоритет: сначала особые ReasonName, затем тип паспортизации.
     """
     r = (reason_name or '').strip().lower()
     p = (passportization_type_name or '').strip().lower()
+    sr = _norm_registry_id(short_object_root_id)
     if 'объединение объектов' in r:
         return 4
     if 'выделение' in r and 'из другого объекта' in r:
         return 3
-    if p == 'первичное обследование':
+    if p == 'первичное обследование' and not sr:
         return 1
-    if p == 'актуализация':
+    if p in {'актуализация', 'первичное обследование'} and sr:
         return 2
     return 0
 
@@ -502,7 +509,7 @@ def _enrich_ods_interaction_and_geometry(owned_objects):
             continue
         ptn = item.get('passportization_type_name') or ''
         rn = item.get('reason_name') or ''
-        scenario = _classify_ods_click_scenario(ptn, rn)
+        scenario = _classify_ods_click_scenario(ptn, rn, item.get('short_object_root_id'))
         item['ods_click_scenario'] = scenario
 
         sr = _norm_registry_id(item.get('short_object_root_id'))
@@ -543,6 +550,11 @@ def _annotate_and_filter_ods_registry_against_gis(owned_objects):
     gis_items = [x for x in owned_objects if not x.get('is_ods_request')]
 
     ods_br_ids = {_norm_registry_id(o.get('request_id')) for o in ods_items if _norm_registry_id(o.get('request_id'))}
+    ods_br_status_by_id = {}
+    for o in ods_items:
+        brid = _norm_registry_id(o.get('request_id'))
+        if brid and brid not in ods_br_status_by_id:
+            ods_br_status_by_id[brid] = (o.get('br_status_name') or '').strip()
     ods_root_ids = {
         _norm_registry_id(o.get('short_object_root_id'))
         for o in ods_items
@@ -565,11 +577,14 @@ def _annotate_and_filter_ods_registry_against_gis(owned_objects):
         g.pop('ods_registry_brid_match', None)
         g.pop('ods_registry_brid_labeled', None)
         g.pop('ods_registry_root_match', None)
+        g.pop('ods_registry_br_status_name', None)
         if root:
             g['ods_registry_root_match'] = root in ods_root_ids
         elif has_ods and req:
             g['ods_registry_brid_labeled'] = True
             g['ods_registry_brid_match'] = req in ods_br_ids
+            if req in ods_br_ids:
+                g['ods_registry_br_status_name'] = ods_br_status_by_id.get(req, '')
 
     out = []
     for x in owned_objects:
@@ -600,10 +615,13 @@ def _build_owned_passports_geojson(owned_objects):
             continue
         if item.get('is_ods_request'):
             rootid = (item.get('ods_matched_rootid') or rootid or '').strip()
+            ods_source = item.get('source_label') or getattr(settings, 'GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС')
+            matched_source = item.get('ods_matched_source_label') or ''
             props = {
                 'rootid': rootid,
                 'name': item.get('name') or '',
-                'source_label': item.get('ods_matched_source_label') or item.get('source_label') or 'ДТ',
+                'source_label': ods_source,
+                'matched_source_label': matched_source,
                 'request_id': request_id,
                 'is_request_object': bool(request_id and not rootid),
                 'startdate': item.get('startdate') or '',

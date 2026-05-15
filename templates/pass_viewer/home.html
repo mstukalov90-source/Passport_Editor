@@ -325,15 +325,46 @@
             opacity: 0.88;
         }
         .ods-registry-indicator {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
             margin-left: 6px;
-            font-size: 1.05em;
-            line-height: 1;
             vertical-align: middle;
             user-select: none;
+            border-radius: 6px;
+            border: 1px solid #d8b4fe;
+            background: #faf5ff;
+            color: #6b21a8;
+            padding: 2px 5px;
+            max-width: 100%;
         }
         .ods-registry-indicator--bad {
-            filter: grayscale(0.1);
+            border-color: #fecaca;
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+        .ods-registry-indicator__icon {
+            font-size: 1.05em;
+            line-height: 1;
+        }
+        .ods-registry-indicator__label {
+            display: none;
+            font-size: 11px;
+            line-height: 1.25;
+            white-space: normal;
+            max-width: 220px;
+        }
+        .owned-list-item:hover .ods-registry-indicator__icon {
+            display: none;
+        }
+        .owned-list-item:hover .ods-registry-indicator__label {
+            display: inline;
+        }
+        .ods-registry-status {
+            display: block;
+            margin-top: 4px;
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.3;
         }
         .map-basemap-control {
             display: flex;
@@ -489,7 +520,10 @@
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                     {% if item.ods_registry_root_match %}
-                                        <span class="ods-registry-indicator" title="В реестре ОДС есть ShortObjectRootId, совпадающий с номером паспорта (rootid)">✅</span>
+                                        <span class="ods-registry-indicator ods-registry-indicator--passport">
+                                            <span class="ods-registry-indicator__icon" aria-hidden="true">✅</span>
+                                            <span class="ods-registry-indicator__label">Для этого паспорта есть заявка в АСУ ОДС</span>
+                                        </span>
                                     {% endif %}
                                 </form>
                                 <form
@@ -543,7 +577,7 @@
                                             <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}<br>
                                             <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                             {% if item.short_object_root_id %}
-                                                <br><span style="font-size: 12px; color: #64748b;"><strong>&#8470; &#1087;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072; (&#1082;&#1072;&#1082; rootid &#1074; &#1044;&#1058;/&#1054;&#1044;&#1061;/&#1054;&#1054;):</strong> {{ item.short_object_root_id }}</span>
+                                                <br><span style="font-size: 12px; color: #64748b;"><strong>&#8470; &#1087;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.short_object_root_id }}</span>
                                             {% endif %}
                                         </button>
                                     </div>
@@ -567,10 +601,13 @@
                                         <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                     {% if item.ods_registry_brid_labeled %}
-                                        <span
-                                            class="ods-registry-indicator{% if not item.ods_registry_brid_match %} ods-registry-indicator--bad{% endif %}"
-                                            title="{% if item.ods_registry_brid_match %}В реестре ОДС есть запись с тем же BrId, что и номер заявки.{% else %}В реестре ОДС нет записи с BrId, равным номеру этой заявки.{% endif %}"
-                                        >{% if item.ods_registry_brid_match %}✅{% else %}❌{% endif %}</span>
+                                        <span class="ods-registry-indicator{% if item.ods_registry_brid_match %} ods-registry-indicator--ok{% else %} ods-registry-indicator--bad{% endif %}">
+                                            <span class="ods-registry-indicator__icon" aria-hidden="true">{% if item.ods_registry_brid_match %}✅{% else %}❌{% endif %}</span>
+                                            <span class="ods-registry-indicator__label">{% if item.ods_registry_brid_match %}Заявка подтверждена АСУ ОДС{% else %}Заявка не подтверждена АСУ ОДС{% endif %}</span>
+                                        </span>
+                                        {% if item.ods_registry_brid_match and item.ods_registry_br_status_name %}
+                                            <span class="ods-registry-status">Статус: {{ item.ods_registry_br_status_name }}</span>
+                                        {% endif %}
                                     {% endif %}
                                 </form>
                                 <span class="source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% else %}source-badge--dt{% endif %}">
@@ -808,6 +845,9 @@
                 <button type="button" id="home-workflow-close-btn" style="flex-shrink: 0; background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button type="button" id="home-workflow-ods-requests-btn" class="home-workflow-action-btn">
+                    Работа с заявками из АСУ ОДС
+                </button>
                 <button type="button" id="home-workflow-primary-btn" class="home-workflow-action-btn">
                     Подача заявки на первичную паспортизацию
                 </button>
@@ -1384,14 +1424,19 @@
                     featureLayer.on('click', () => focusByKey(key, 'map'));
                     const idLabel = props.rootid ? '№ Паспорта' : '№ Заявки';
                     const idValue = props.rootid || props.request_id || '-';
-                    featureLayer.bindPopup(
+                    let popupHtml =
                         '<div>' +
                             '<div><strong>' + idLabel + ':</strong> ' + escapeHtml(idValue) + '</div>' +
                             '<div><strong>Название:</strong> ' + escapeHtml(props.name || '-') + '</div>' +
-                            '<div><strong>Источник:</strong> ' + escapeHtml(props.source_label || 'ДТ') + '</div>' +
-                            buildPopupMetaFieldsHtml(props) +
-                        '</div>'
-                    );
+                            '<div><strong>Источник:</strong> ' + escapeHtml(props.source_label || 'ДТ') + '</div>';
+                    if (props.from_ods_registry && props.matched_source_label) {
+                        popupHtml +=
+                            '<div><strong>Источник GIS:</strong> ' +
+                            escapeHtml(props.matched_source_label) +
+                            '</div>';
+                    }
+                    popupHtml += buildPopupMetaFieldsHtml(props) + '</div>';
+                    featureLayer.bindPopup(popupHtml);
                 },
             }).addTo(map);
 
@@ -1428,13 +1473,23 @@
                     });
                 }
                 row.addEventListener('click', (event) => {
-                    if (event.target.closest('button, form, input, a, label')) {
+                    if (event.target.closest('.owned-ods-action-btn')) {
                         return;
                     }
-                    if (!row.classList.contains('owned-passport-row')) {
+                    if (
+                        event.target.closest(
+                            'form.owned-open-form button[type="submit"], .owned-split-form, .owned-split-btn, .add-recap-entry-btn, .owned-confirm-open-btn, input, a, label'
+                        )
+                    ) {
                         return;
                     }
-                    focusByKey(row.dataset.mapKey || '', 'list');
+                    const mapKey = row.dataset.mapKey || '';
+                    if (!mapKey) {
+                        return;
+                    }
+                    if (row.classList.contains('owned-passport-row') || row.classList.contains('owned-request-row')) {
+                        focusByKey(mapKey, 'list');
+                    }
                 });
                 row.addEventListener('mouseenter', () => {
                     hoverByKey(row.dataset.mapKey || '');
@@ -1749,7 +1804,7 @@
                 if (mode === 'add-object') {
                     entryRequestTitle.textContent = 'Заявка на первичную паспортизацию';
                 } else if (mode === 'ods-main') {
-                    entryRequestTitle.textContent = 'Актуализация по заявке ОДС';
+                    entryRequestTitle.textContent = 'Открытие карты по заявке ОДС';
                 } else {
                     entryRequestTitle.textContent = 'Заявка на актуализацию.';
                 }
@@ -1763,7 +1818,7 @@
                         'Укажите номер заявки перед переходом к созданию объекта.';
                 } else if (mode === 'ods-main') {
                     entryRequestText.textContent =
-                        'Проверьте номер заявки (BrId) и нажмите «Продолжить», чтобы открыть карту актуализации.';
+                        'Проверьте номер заявки и нажмите «Продолжить», чтобы открыть карту.';
                 } else if (mode === 'owned') {
                     entryRequestText.textContent =
                         'У объекта не указан номер заявки в базе. Введите номер заявки, чтобы продолжить.';
@@ -2247,18 +2302,22 @@
                     openEntryRequestModal('add-object', { prefillRequestId: brid || '' });
                     return;
                 }
-                if (scenario === 2 || scenario === 3 || scenario === 4) {
+                if (scenario === 2) {
                     if (!gisReady || !shortRoot) {
                         openOdsGisMissingModal();
                         return;
                     }
-                }
-                if (scenario === 2) {
                     openEntryRequestModal('ods-main', {
                         prefillRequestId: brid || '',
                         odsOpenOwned: ctx,
                     });
                     return;
+                }
+                if (scenario === 3 || scenario === 4) {
+                    if (!gisReady || !shortRoot) {
+                        openOdsGisMissingModal();
+                        return;
+                    }
                 }
                 if (scenario === 3) {
                     fillAndSubmitOdsOpenOwnedForm(ctx, brid, 'split_object');
@@ -2297,6 +2356,7 @@
         });
 
         const homeWorkflowModal = document.getElementById('home-workflow-modal');
+        const homeWorkflowOdsRequestsBtn = document.getElementById('home-workflow-ods-requests-btn');
         const homeWorkflowPrimaryBtn = document.getElementById('home-workflow-primary-btn');
         const homeWorkflowBoundariesBtn = document.getElementById('home-workflow-boundaries-btn');
         const homeWorkflowSplitPassportBtn = document.getElementById('home-workflow-split-passport-btn');
@@ -2309,6 +2369,18 @@
             }
         }
 
+        if (homeWorkflowOdsRequestsBtn) {
+            homeWorkflowOdsRequestsBtn.addEventListener('click', () => {
+                clearHomeOghSpecialModes();
+                closeHomeWorkflowModal();
+                setOwnedListTab('requests');
+                applyOwnedFilters();
+                const requestsPanel = document.querySelector('.owned-list-panel[data-list-panel="requests"]');
+                if (requestsPanel && typeof requestsPanel.scrollIntoView === 'function') {
+                    requestsPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            });
+        }
         if (homeWorkflowPrimaryBtn) {
             homeWorkflowPrimaryBtn.addEventListener('click', () => {
                 clearHomeOghSpecialModes();
@@ -2353,8 +2425,9 @@
         } else if (homeWorkflowModal) {
             homeWorkflowModal.style.display = 'flex';
             setTimeout(() => {
-                if (homeWorkflowPrimaryBtn && homeWorkflowModal && homeWorkflowModal.style.display === 'flex') {
-                    homeWorkflowPrimaryBtn.focus();
+                const firstWorkflowBtn = homeWorkflowOdsRequestsBtn || homeWorkflowPrimaryBtn;
+                if (firstWorkflowBtn && homeWorkflowModal && homeWorkflowModal.style.display === 'flex') {
+                    firstWorkflowBtn.focus();
                 }
             }, 0);
         }
