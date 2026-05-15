@@ -3,6 +3,7 @@ import logging
 import re
 import uuid
 import zipfile
+from datetime import timedelta
 from pathlib import Path
 
 from django.http import JsonResponse
@@ -10,6 +11,8 @@ from django.shortcuts import redirect, render
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.db import connection
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_POST
 from osgeo import gdal, ogr, osr
 
@@ -284,11 +287,15 @@ def _get_owned_objects(owner_legal_person_id):
             start_sql = _optional_column_text_sql(cursor, table, ("startdate", "StartDate"))
             survey_sql = _optional_column_text_sql(cursor, table, ("datesurvey", "DateSurvey"))
             createtype_sql = _optional_column_text_sql(cursor, table, ("createtype", "CreateType"))
+            created_at_sql = "NULL::timestamptz AS created_at"
+            if _column_exists(cursor, table, 'created_at'):
+                created_col = _resolve_column_name(cursor, table, 'created_at')
+                created_at_sql = f"{_quote_ident(created_col)} AS created_at"
 
             query = (
                 f"SELECT ctid::text, {_quote_ident(rootid_field)}::text, {_quote_ident(name_field)}::text, "
                 f"{request_id_expr}, {geom_expr}, "
-                f"{start_sql}, {survey_sql}, {createtype_sql} "
+                f"{start_sql}, {survey_sql}, {createtype_sql}, {created_at_sql} "
                 f"FROM {_quote_ident(table)} "
                 f"WHERE {_quote_ident(owner_field)} = %s "
             )
@@ -316,6 +323,7 @@ def _get_owned_objects(owner_legal_person_id):
                     'startdate': row[5] or '',
                     'datesurvey': row[6] or '',
                     'createtype': row[7] or '',
+                    'created_at': row[8] if len(row) > 8 else None,
                 }
                 key = (
                     (item['rootid'] or '').strip().lower(),
@@ -504,6 +512,19 @@ def _norm_registry_id(value):
     return (str(value) if value is not None else '').strip().lower()
 
 
+def _ods_brid_within_validation_window(created_at, *, hours=24):
+    """True, если с created_at прошло меньше hours часов (окно валидации BrId в АСУ ОДС)."""
+    if created_at is None:
+        return False
+    if isinstance(created_at, str):
+        created_at = parse_datetime(created_at.strip()) if created_at.strip() else None
+    if created_at is None:
+        return False
+    if timezone.is_naive(created_at):
+        created_at = timezone.make_aware(created_at, timezone.get_current_timezone())
+    return (timezone.now() - created_at) < timedelta(hours=hours)
+
+
 def _classify_ods_click_scenario(passportization_type_name, reason_name, short_object_root_id):
     """
     1 — первичное обследование (add_object), 2 — актуализация (main), 3 — split, 4 — merge.
@@ -610,15 +631,19 @@ def _annotate_and_filter_ods_registry_against_gis(owned_objects):
         req = _norm_registry_id(g.get('request_id'))
         g.pop('ods_registry_brid_match', None)
         g.pop('ods_registry_brid_labeled', None)
+        g.pop('ods_registry_brid_pending', None)
         g.pop('ods_registry_root_match', None)
         g.pop('ods_registry_br_status_name', None)
         if root:
             g['ods_registry_root_match'] = root in ods_root_ids
         elif has_ods and req:
             g['ods_registry_brid_labeled'] = True
-            g['ods_registry_brid_match'] = req in ods_br_ids
-            if req in ods_br_ids:
+            brid_match = req in ods_br_ids
+            g['ods_registry_brid_match'] = brid_match
+            if brid_match:
                 g['ods_registry_br_status_name'] = ods_br_status_by_id.get(req, '')
+            else:
+                g['ods_registry_brid_pending'] = _ods_brid_within_validation_window(g.get('created_at'))
 
     out = []
     for x in owned_objects:

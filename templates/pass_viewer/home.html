@@ -342,6 +342,11 @@
             background: #fef2f2;
             color: #b91c1c;
         }
+        .ods-registry-indicator--pending {
+            border-color: #bfdbfe;
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
         .ods-registry-indicator__icon {
             font-size: 1.05em;
             line-height: 1;
@@ -621,9 +626,9 @@
                                         <span class="owned-request-id-row">
                                             <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}
                                             {% if item.ods_registry_brid_labeled %}
-                                                <span class="ods-registry-indicator{% if item.ods_registry_brid_match %} ods-registry-indicator--ok{% else %} ods-registry-indicator--bad{% endif %}">
-                                                    <span class="ods-registry-indicator__icon" aria-hidden="true">{% if item.ods_registry_brid_match %}✅{% else %}❌{% endif %}</span>
-                                                    <span class="ods-registry-indicator__label">{% if item.ods_registry_brid_match %}Заявка подтверждена АСУ ОДС{% else %}Заявка не подтверждена АСУ ОДС{% endif %}</span>
+                                                <span class="ods-registry-indicator{% if item.ods_registry_brid_match %} ods-registry-indicator--ok{% elif item.ods_registry_brid_pending %} ods-registry-indicator--pending{% else %} ods-registry-indicator--bad{% endif %}">
+                                                    <span class="ods-registry-indicator__icon" aria-hidden="true">{% if item.ods_registry_brid_match %}✅{% elif item.ods_registry_brid_pending %}🔄{% else %}❌{% endif %}</span>
+                                                    <span class="ods-registry-indicator__label">{% if item.ods_registry_brid_match %}Заявка подтверждена АСУ ОДС{% elif item.ods_registry_brid_pending %}Валидация заявки АСУ ОДС до 24 часов{% else %}Заявка не подтверждена АСУ ОДС{% endif %}</span>
                                                 </span>
                                             {% endif %}
                                         </span><br>
