@@ -133,3 +133,6 @@ postgres-data/
 pgdata/
 *.pid
 .cursor/
+docs/
+.doc
+.docx
