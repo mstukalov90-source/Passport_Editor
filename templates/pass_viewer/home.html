@@ -14,7 +14,8 @@
 {% block container_class %}container--wide{% endblock %}
 
 {% block content %}
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px;">
+    <div class="owned-home-shell">
+    <div class="owned-home-header">
         <h2 style="font-size: 18px; margin: 0;">
             Объекты балансодержателя:{% if owner_id or owner_name %}
             <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>{% endif %}
@@ -25,6 +26,50 @@
         </form>
     </div>
     <style>
+        main.container.container--wide:has(.owned-home-shell) {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 48px);
+            min-height: calc(100vh - 48px);
+            overflow: hidden;
+        }
+        @media (max-width: 768px) {
+            main.container.container--wide:has(.owned-home-shell) {
+                height: calc(100vh - 16px);
+                min-height: calc(100vh - 16px);
+            }
+        }
+        .owned-home-shell {
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 10px;
+        }
+        .owned-home-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .owned-home-main {
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .owned-home-footer {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .owned-home-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
         .owned-list-wrap {
             max-height: none;
             height: 100%;
@@ -34,15 +79,15 @@
             background: #fff;
         }
         .owned-home-workspace {
-            --owned-workspace-height: clamp(520px, calc(100vh - 360px), 900px);
             display: grid;
             grid-template-columns: minmax(340px, 1fr) minmax(620px, 2fr);
             grid-template-areas: "lists map";
             gap: 14px;
             width: 100%;
             align-items: stretch;
-            min-height: var(--owned-workspace-height);
-            max-height: var(--owned-workspace-height);
+            flex: 1;
+            height: 100%;
+            min-height: 520px;
         }
         .owned-home-lists-stack {
             grid-area: lists;
@@ -51,7 +96,7 @@
             gap: 10px;
             min-width: 0;
             min-height: 0;
-            max-height: var(--owned-workspace-height);
+            height: 100%;
         }
         .owned-filter-toolbar {
             display: flex;
@@ -468,17 +513,15 @@
         @media (max-width: 1300px) {
             .owned-home-workspace {
                 grid-template-columns: 1fr;
+                grid-template-rows: minmax(360px, 1fr) minmax(200px, 1fr);
                 grid-template-areas:
                     "map"
                     "lists";
-                min-height: 0;
-                max-height: none;
             }
-            .owned-home-lists-stack {
-                max-height: none;
+            .owned-home-map-stack {
+                min-height: 0;
             }
             #owned-passports-map {
-                height: 46vh;
                 min-height: 360px;
             }
         }
@@ -486,15 +529,13 @@
             .owned-home-workspace {
                 grid-template-columns: 1fr;
             }
-            .owned-list-wrap {
-                max-height: 52vh;
-            }
             .owned-list-open-btn {
                 font-size: 14px;
             }
         }
     </style>
 
+    <div class="owned-home-main">
     {% if owned_objects_error %}
         <p class="note" style="color: #b42318;">{{ owned_objects_error }}</p>
     {% elif owned_objects %}
@@ -727,8 +768,10 @@
     {% else %}
         <p class="note">&#1053;&#1077;&#1090; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1086;&#1074; &#1076;&#1083;&#1103; &#1090;&#1077;&#1082;&#1091;&#1097;&#1077;&#1075;&#1086; OwnerLegalPersonId.</p>
     {% endif %}
+    </div>
 
-    <div style="margin-top: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+    <footer class="owned-home-footer">
+    <div class="owned-home-actions">
         <button type="button" id="manual-open-btn" style="display: none;">
             &#1042;&#1074;&#1077;&#1089;&#1090;&#1080; &#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072; / &#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; &#1074;&#1088;&#1091;&#1095;&#1085;&#1091;&#1102;
         </button>
@@ -741,7 +784,7 @@
     </div>
     <div
         id="merge-passports-toolbar"
-        style="margin-top: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid #bbf7d0; background: #f0fdf4; align-items: center; gap: 12px; flex-wrap: wrap;"
+        style="padding: 10px 12px; border-radius: 10px; border: 1px solid #bbf7d0; background: #f0fdf4; align-items: center; gap: 12px; flex-wrap: wrap;"
     >
         <span class="note" style="margin: 0; flex: 1; min-width: 200px;">
             Отметьте <strong>не менее двух</strong> паспортов в списке «Актуальные паспорта» (можно из ДТ, ОДХ и ОО вместе), затем нажмите «Продолжить» и укажите номер заявки; если отмечены паспорта из <strong>разных</strong> таблиц, в том же окне появится выбор одной из этих таблиц для сохранения результата.
@@ -750,6 +793,8 @@
         <button type="button" id="merge-passports-next-btn" style="background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;">
             Продолжить
         </button>
+    </div>
+    </footer>
     </div>
 
     <form id="form-confirm-pending" method="post" action="{% url 'confirm_entry_request_id' %}" style="display: none;">

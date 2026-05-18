@@ -862,6 +862,11 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
             }).addTo(targetGroup);
         }
         
+        function renderReferenceSignalLayers(dgiGeo, odhGeo, oznGeo) {
+            addSignalTapeLayer(dgiSignalGroup, dgiGeo, 'ДГИ');
+            addSignalTapeLayer(odhSignalGroup, odhGeo, 'ОДХ');
+            addSignalTapeLayer(oznSignalGroup, oznGeo, 'ОЗН');
+        }
         function renderRenewLayer(renewGeo) {
             addSignalTapeLayer(renewGroup, renewGeo, 'Реновация');
         }
@@ -1022,44 +1027,56 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
             snapDebugEl.textContent = 'Snap debug: вершина привязана на ' + target.distance.toFixed(2) + ' м.';
         }
 
-        function renderRelationLayers(layers) {
-            adjacentDtPassportsGroup.clearLayers();
-            requestObjectsGroup.clearLayers();
-            const ensureSelectedRequestObject = (geojsonObject) => {
-                const selectedRequestId = String(requestId || '').trim();
-                if (!selectedRequestId || !selectedGeometry) {
-                    return normalizeGeoJson(geojsonObject);
-                }
-                const normalized = normalizeGeoJson(geojsonObject);
-                const selectedFeature = {
-                    type: 'Feature',
-                    properties: {
-                        rootid: '-',
-                        name: objectName || '-',
-                        request_id: selectedRequestId,
-                    },
-                    geometry: selectedGeometry,
-                };
-                if (!normalized || normalized.type !== 'FeatureCollection' || !Array.isArray(normalized.features)) {
-                    return {type: 'FeatureCollection', features: [selectedFeature]};
-                }
-                const hasSelected = normalized.features.some((feature) => {
-                    const featureRequestId = String(feature?.properties?.request_id || '').trim();
-                    return featureRequestId === selectedRequestId;
-                });
-                if (hasSelected) {
-                    return normalized;
-                }
-                return {
-                    ...normalized,
-                    features: [...normalized.features, selectedFeature],
-                };
+        function ensureSelectedRequestObject(geojsonObject) {
+            const selectedRequestId = String(requestId || '').trim();
+            if (!selectedRequestId || !selectedGeometry) {
+                return normalizeGeoJson(geojsonObject);
+            }
+            const normalized = normalizeGeoJson(geojsonObject);
+            const selectedFeature = {
+                type: 'Feature',
+                properties: {
+                    rootid: '-',
+                    name: objectName || '-',
+                    request_id: selectedRequestId,
+                },
+                geometry: selectedGeometry,
             };
+            if (!normalized || normalized.type !== 'FeatureCollection' || !Array.isArray(normalized.features)) {
+                return {type: 'FeatureCollection', features: [selectedFeature]};
+            }
+            const hasSelected = normalized.features.some((feature) => {
+                const featureRequestId = String(feature?.properties?.request_id || '').trim();
+                return featureRequestId === selectedRequestId;
+            });
+            if (hasSelected) {
+                return normalized;
+            }
+            return {
+                ...normalized,
+                features: [...normalized.features, selectedFeature],
+            };
+        }
+
+        function excludeSelectedRootidFromCollection(geojson) {
+            const selectedRootidText = (selectedRootid || '').trim();
+            if (!geojson || geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
+                return geojson;
+            }
+            if (!selectedRootidText) {
+                return geojson;
+            }
+            return {
+                ...geojson,
+                features: geojson.features.filter((feature) => {
+                    const rootid = String(feature?.properties?.rootid ?? '').trim();
+                    return rootid !== selectedRootidText;
+                }),
+            };
+        }
+
+        function renderExternalReferenceLayers(layers) {
             const parsed = {
-                intersects: filterByRequestedName(layers.intersects),
-                touches: filterByRequestedName(layers.touches),
-                nearby: filterByRequestedName(layers.nearby),
-                request_objects: ensureSelectedRequestObject(layers.request_objects),
                 dgi: normalizeGeoJson(layers.dgi),
                 odh: normalizeGeoJson(layers.odh),
                 ozn: normalizeGeoJson(layers.ozn),
@@ -1068,46 +1085,71 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
                 oozt: normalizeGeoJson(layers.oozt),
                 rzd: normalizeGeoJson(layers.rzd),
             };
-            parsed.odh = filterOutSelectedRootid(parsed.odh, selectedRootid);
-            parsed.ozn = filterOutSelectedRootid(parsed.ozn, selectedRootid);
-            const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsed.intersects, parsed.touches, parsed.nearby);
+            parsed.odh = excludeSelectedRootidFromCollection(parsed.odh);
+            parsed.ozn = excludeSelectedRootidFromCollection(parsed.ozn);
+            renderReferenceSignalLayers(parsed.dgi, parsed.odh, parsed.ozn);
+            renderRecapsLayer(parsed.recaps);
+            renderRenewLayer(parsed.renew);
+            addSignalTapeLayer(ooztSignalGroup, parsed.oozt, 'ООЗТ');
+            addSignalTapeLayer(rzdSignalGroup, parsed.rzd, 'РЖД');
+        }
+
+        function renderAdjacentAndRequestLayers(intersects, touches, nearby, requestObjects) {
+            adjacentDtPassportsGroup.clearLayers();
+            requestObjectsGroup.clearLayers();
+            let parsedIntersects = filterByRequestedName(intersects);
+            let parsedTouches = filterByRequestedName(touches);
+            let parsedNearby = filterByRequestedName(nearby);
+            let parsedRequestObjects = ensureSelectedRequestObject(requestObjects);
+            parsedIntersects = excludeSelectedRootidFromCollection(parsedIntersects);
+            parsedTouches = excludeSelectedRootidFromCollection(parsedTouches);
+            parsedNearby = excludeSelectedRootidFromCollection(parsedNearby);
+            parsedRequestObjects = excludeSelectedRootidFromCollection(parsedRequestObjects);
+            const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsedIntersects, parsedTouches, parsedNearby);
             if (mergedAdjacentDt) {
                 L.geoJSON(mergedAdjacentDt, {
                     style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
                     onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
                 }).addTo(adjacentDtPassportsGroup);
             }
-            if (parsed.request_objects) {
-                L.geoJSON(parsed.request_objects, {
+            if (parsedRequestObjects) {
+                L.geoJSON(parsedRequestObjects, {
                     style: {color: '#c026d3', weight: 2, fillColor: '#f0abfc', fillOpacity: 0.28},
                     onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
                 }).addTo(requestObjectsGroup);
             }
-            addSignalTapeLayer(dgiSignalGroup, parsed.dgi, 'ДГИ');
-            addSignalTapeLayer(odhSignalGroup, parsed.odh, 'ОДХ');
-            addSignalTapeLayer(oznSignalGroup, parsed.ozn, 'ОЗН');
-            renderRecapsLayer(parsed.recaps);
-            renderRenewLayer(parsed.renew);
-            addSignalTapeLayer(ooztSignalGroup, parsed.oozt, 'ООЗТ');
-            addSignalTapeLayer(rzdSignalGroup, parsed.rzd, 'РЖД');
+        }
+
+        function renderRelationLayers(layers) {
+            renderExternalReferenceLayers(layers);
+            renderAdjacentAndRequestLayers(
+                layers.intersects,
+                layers.touches,
+                layers.nearby,
+                layers.request_objects,
+            );
             rebuildSnapGuideLines();
             refreshObjectLayersControl();
             updateEditableAreaInfo();
         }
 
-        renderRelationLayers({
-            intersects: JSON.parse(document.getElementById('intersects-geometry-data').textContent),
-            touches: JSON.parse(document.getElementById('touches-geometry-data').textContent),
-            nearby: JSON.parse(document.getElementById('nearby-geometry-data').textContent),
-            request_objects: JSON.parse(document.getElementById('request-objects-geometry-data').textContent),
-            dgi: JSON.parse(document.getElementById('dgi-geometry-data').textContent),
-            odh: JSON.parse(document.getElementById('odh-geometry-data').textContent),
-            ozn: JSON.parse(document.getElementById('ozn-geometry-data').textContent),
-            renew: JSON.parse(document.getElementById('renew-geometry-data').textContent),
-            oozt: JSON.parse(document.getElementById('oozt-geometry-data').textContent),
-            rzd: JSON.parse(document.getElementById('rzd-geometry-data').textContent),
-            recaps: JSON.parse(document.getElementById('recaps-geometry-data').textContent),
+        renderExternalReferenceLayers({
+            dgi: parseGeometryData('dgi-geometry-data'),
+            odh: parseGeometryData('odh-geometry-data'),
+            ozn: parseGeometryData('ozn-geometry-data'),
+            renew: parseGeometryData('renew-geometry-data'),
+            recaps: parseGeometryData('recaps-geometry-data'),
+            oozt: parseGeometryData('oozt-geometry-data'),
+            rzd: parseGeometryData('rzd-geometry-data'),
         });
+        renderAdjacentAndRequestLayers(
+            parseGeometryData('intersects-geometry-data'),
+            parseGeometryData('touches-geometry-data'),
+            parseGeometryData('nearby-geometry-data'),
+            parseGeometryData('request-objects-geometry-data'),
+        );
+        rebuildSnapGuideLines();
+        refreshObjectLayersControl();
         updateEditableAreaInfo();
 
         function buildCurrentGeometry() {

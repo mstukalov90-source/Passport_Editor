@@ -559,6 +559,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
             applyOwnedMapSourceFilters = applyMapFilters;
             applyOwnedMapSourceFilters();
+
+            const ownedMapWrap = ownedMapEl.closest('.owned-map-wrap');
+            if (ownedMapWrap && typeof ResizeObserver !== 'undefined') {
+                const mapResizeObserver = new ResizeObserver(() => {
+                    map.invalidateSize(false);
+                });
+                mapResizeObserver.observe(ownedMapWrap);
+            }
         }
         initOwnedMap();
 
