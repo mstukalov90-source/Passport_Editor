@@ -18,6 +18,13 @@ from osgeo import gdal, ogr, osr
 
 from .forms import EntryPointForm
 from .models import ExternalUser
+from .page_config import (
+    add_object_page_config,
+    add_recap_page_config,
+    home_page_config,
+    main_page_config,
+    split_object_page_config,
+)
 from .hood_scope import (
     geometry_intersects_allowed_hood,
     get_hood_allowed_districts_geojson,
@@ -2924,6 +2931,10 @@ def home(request):
             'need_entry_request_id': need_entry_request_id,
             'ods_request_source_label': getattr(settings, 'GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС'),
             'ods_user_brids': ods_user_brids,
+            'page_config': home_page_config(
+                need_entry_request_id=need_entry_request_id,
+                ods_source_label=getattr(settings, 'GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС'),
+            ),
         },
     )
 
@@ -3015,6 +3026,33 @@ def main(request):
             'oozt_geometry_json': reference_layers['oozt'],
             'rzd_geometry_json': reference_layers['rzd'],
             'query_error': query_error,
+            'page_config': main_page_config(
+                selected_rootid=layers['selected_rootid'] if layers else '',
+                selected_name=layers['selected_name'] if layers else '',
+                selected_request_id=layers['selected_request_id'] if layers else '',
+                selected_ctid=layers.get('selected_ctid') if layers else '',
+                effective_request_id=effective_request_id,
+                selected_customer_legal_person_id=(
+                    layers['selected_customer_legal_person_id'] if layers else ''
+                ),
+                selected_department_legal_person_id=(
+                    layers['selected_department_legal_person_id'] if layers else ''
+                ),
+                selected_customer_legal_person_name=(
+                    layers['selected_customer_legal_person_name'] if layers else ''
+                ),
+                selected_department_legal_person_name=(
+                    layers['selected_department_legal_person_name'] if layers else ''
+                ),
+                selected_startdate=layers.get('selected_startdate') if layers else '',
+                selected_datesurvey=layers.get('selected_datesurvey') if layers else '',
+                selected_createtype=layers.get('selected_createtype') if layers else '',
+                selected_source_label=(
+                    layers['selected_source_label']
+                    if layers
+                    else _normalize_source_label(entry_point.get('source_label'))
+                ),
+            ),
         },
     )
 
@@ -3054,6 +3092,15 @@ def split_object(request):
                 layers['selected_source_label'] if layers else _normalize_source_label(entry_point.get('source_label'))
             ),
             'query_error': query_error,
+            'page_config': split_object_page_config(
+                selected_name=layers['selected_name'] if layers else '',
+                selected_request_id=layers['selected_request_id'] if layers else '',
+                selected_source_label=(
+                    layers['selected_source_label']
+                    if layers
+                    else _normalize_source_label(entry_point.get('source_label'))
+                ),
+            ),
         },
     )
 
@@ -3387,6 +3434,11 @@ def add_object(request):
             'selected_rootid': (entry_point.get('rootid') or '').strip(),
             'selected_source_label': _normalize_source_label(entry_point.get('source_label')),
             'effective_request_id': effective_request_id,
+            'page_config': add_object_page_config(
+                effective_request_id=effective_request_id,
+                selected_rootid=(entry_point.get('rootid') or '').strip(),
+                selected_source_label=_normalize_source_label(entry_point.get('source_label')),
+            ),
         },
     )
 
@@ -3449,6 +3501,13 @@ def add_recap(request):
             'oozt_geometry_json': reference_layers['oozt'],
             'rzd_geometry_json': reference_layers['rzd'],
             'initial_recap_id': initial_recap_id,
+            'page_config': add_recap_page_config(
+                request_id=selected_object['request_id'] or request_id,
+                name=selected_object['name'] or name,
+                selected_source_label=selected_object.get('source_label') or source_label,
+                selected_rootid=selected_object['rootid'] or '',
+                initial_recap_id=initial_recap_id,
+            ),
         },
     )
 
