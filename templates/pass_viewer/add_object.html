@@ -473,7 +473,8 @@
         }
         .layer-panel-swatch--renew {
             border-color: #b45309;
-            background: rgba(245, 158, 11, 0.25);
+            border-style: dashed;
+            background: repeating-linear-gradient(45deg, #f59e0b 0 6px, #ffffff 6px 12px);
         }
         .layer-panel-swatch--oozt {
             border-color: #16a34a;
@@ -1537,9 +1538,10 @@
             const isDgi = sourceLabel === 'ДГИ';
             const isOozt = sourceLabel === 'ООЗТ';
             const isRzd = sourceLabel === 'РЖД';
+            const isRenew = sourceLabel === 'Реновация';
             const isOdh = sourceLabel === 'ОДХ';
             const isOzn = sourceLabel === 'ОЗН';
-            const isSignalTape = isDgi || isOozt || isRzd;
+            const isSignalTape = isDgi || isOozt || isRzd || isRenew;
             if (!isSignalTape && !isOdh && !isOzn) {
                 L.geoJSON(geo, {
                     interactive: false,
@@ -1548,7 +1550,7 @@
             }
             L.geoJSON(geo, {
                 style: {
-                    color: isOdh ? '#00bfff' : (isOzn || isOozt) ? '#16a34a' : '#dc2626',
+                    color: isOdh ? '#00bfff' : (isOzn || isOozt) ? '#16a34a' : isRenew ? '#b45309' : '#dc2626',
                     weight: 4,
                     opacity: 0.95,
                     dashArray: (isOdh || isOzn) ? null : '10 8',
@@ -1580,6 +1582,17 @@
                             '<div><strong>РЖД</strong></div>' +
                             (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(rzdName) + '</div>')) +
                             (!commentText || ['null', 'none', '-'].includes(commentText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Комментарий:</strong> ' + escapeHtml(rzdComment) + '</div>')) +
+                            '</div>'
+                        );
+                    } else if (isRenew) {
+                        const renewName = feature?.properties?.name ?? '-';
+                        const nameText = String(renewName ?? '').trim();
+                        layer.bindPopup(
+                            '<div style="min-width: 220px;">' +
+                            '<div><strong>Реновация</strong></div>' +
+                            (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase())
+                                ? ''
+                                : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(renewName) + '</div>')) +
                             '</div>'
                         );
                     } else if (isDgi) {
@@ -1653,7 +1666,9 @@
                             ? {patternId: 'oozt-signal-tape-pattern', stripe: '#16a34a', bg: '#ffffff', stroke: '#16a34a'}
                             : isRzd
                                 ? {patternId: 'rzd-signal-tape-pattern', stripe: '#dc2626', bg: '#16a34a', stroke: '#dc2626'}
-                                : {patternId: 'dgi-signal-tape-pattern', stripe: '#dc2626', bg: '#ffffff', stroke: '#dc2626'};
+                                : isRenew
+                                    ? {patternId: 'renew-signal-tape-pattern', stripe: '#f59e0b', bg: '#ffffff', stroke: '#b45309'}
+                                    : {patternId: 'dgi-signal-tape-pattern', stripe: '#dc2626', bg: '#ffffff', stroke: '#dc2626'};
                         layer._passViewerRestoreDgiDom = function () {
                             const patternId = ensureSignalPattern(
                                 tapeConfig.patternId,
@@ -1693,26 +1708,7 @@
             addSignalTapeLayer(oznSignalGroup, oznGeo, 'ОЗН');
         }
         function renderRenewLayer(renewGeo) {
-            renewGroup.clearLayers();
-            const geo = normalizeGeoJson(renewGeo);
-            if (!geo) {
-                return;
-            }
-            L.geoJSON(geo, {
-                style: {color: '#b45309', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.25},
-                onEachFeature: (feature, layer) => {
-                    const name = feature?.properties?.name ?? '-';
-                    const nameText = String(name ?? '').trim();
-                    layer.bindPopup(
-                        '<div style="min-width: 220px;">' +
-                        '<div><strong>Реновация</strong></div>' +
-                        (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase())
-                            ? ''
-                            : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>')) +
-                        '</div>'
-                    );
-                }
-            }).addTo(renewGroup);
+            addSignalTapeLayer(renewGroup, renewGeo, 'Реновация');
         }
 
         function renderRecapsLayer(recapsGeo) {
