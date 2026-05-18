@@ -111,7 +111,7 @@
             <div class="layer-management-panel__column">
                 <label class="layer-management-panel__column-title">
                     <input type="checkbox" data-layer-group="external" checked />
-                    <span>Границы ДГИ и Реновация</span>
+                    <span>Границы ДГИ, Реновация, ООЗТ и РЖД</span>
                 </label>
                 <label class="layer-panel-row">
                     <input type="checkbox" data-layer-key="dgi" checked />
@@ -124,6 +124,18 @@
                     <span class="layer-panel-row__name">Реновация</span>
                     <span class="layer-panel-row__count" data-layer-count-for="renew">(0)</span>
                     <span class="layer-panel-swatch layer-panel-swatch--renew"></span>
+                </label>
+                <label class="layer-panel-row">
+                    <input type="checkbox" data-layer-key="oozt" checked />
+                    <span class="layer-panel-row__name">ООЗТ</span>
+                    <span class="layer-panel-row__count" data-layer-count-for="oozt">(0)</span>
+                    <span class="layer-panel-swatch layer-panel-swatch--oozt"></span>
+                </label>
+                <label class="layer-panel-row">
+                    <input type="checkbox" data-layer-key="rzd" checked />
+                    <span class="layer-panel-row__name">РЖД</span>
+                    <span class="layer-panel-row__count" data-layer-count-for="rzd">(0)</span>
+                    <span class="layer-panel-swatch layer-panel-swatch--rzd"></span>
                 </label>
             </div>
         </div>
@@ -163,6 +175,14 @@
             <label class="modal-label auto-remove-option">
                 ДГИ
                 <input type="checkbox" id="auto-remove-dgi" checked />
+            </label>
+            <label class="modal-label auto-remove-option">
+                ООЗТ
+                <input type="checkbox" id="auto-remove-oozt" checked />
+            </label>
+            <label class="modal-label auto-remove-option">
+                РЖД
+                <input type="checkbox" id="auto-remove-rzd" checked />
             </label>
             <p id="auto-remove-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
@@ -450,6 +470,16 @@
             border-color: #b45309;
             background: rgba(245, 158, 11, 0.25);
         }
+        .layer-panel-swatch--oozt {
+            border-color: #16a34a;
+            border-style: dashed;
+            background: repeating-linear-gradient(45deg, #16a34a 0 6px, #ffffff 6px 12px);
+        }
+        .layer-panel-swatch--rzd {
+            border-color: #dc2626;
+            border-style: dashed;
+            background: repeating-linear-gradient(45deg, #dc2626 0 6px, #16a34a 6px 12px);
+        }
         .layer-panel-swatch--requests {
             border-color: #c026d3;
             background: rgba(240, 171, 252, 0.28);
@@ -699,6 +729,8 @@
     {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
     {{ ozn_geometry_json|default_if_none:"null"|json_script:"ozn-geometry-data" }}
     {{ renew_geometry_json|default_if_none:"null"|json_script:"renew-geometry-data" }}
+    {{ oozt_geometry_json|default_if_none:"null"|json_script:"oozt-geometry-data" }}
+    {{ rzd_geometry_json|default_if_none:"null"|json_script:"rzd-geometry-data" }}
     {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
     {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
     <script>
@@ -1183,6 +1215,8 @@
         const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
         const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
         const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
+        const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
+        const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
         const dbLoadingModal = document.getElementById('db-loading-modal');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
         const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
@@ -1281,6 +1315,8 @@
         const odhSignalGroup = L.featureGroup().addTo(map);
         const oznSignalGroup = L.featureGroup().addTo(map);
         const renewGroup = L.featureGroup().addTo(map);
+        const ooztSignalGroup = L.featureGroup().addTo(map);
+        const rzdSignalGroup = L.featureGroup().addTo(map);
         const recapsGroup = L.featureGroup().addTo(map);
         const commentPointsGroup = L.featureGroup().addTo(map);
         let drawControl = null;
@@ -1638,6 +1674,8 @@
             odh: odhSignalGroup,
             dgi: dgiSignalGroup,
             renew: renewGroup,
+            oozt: ooztSignalGroup,
+            rzd: rzdSignalGroup,
             requests: requestObjectsGroup,
             recaps: recapsGroup,
             comments: commentPointsGroup,
@@ -1645,7 +1683,7 @@
         const layerGroups = {
             municipal: ['selected', 'dt', 'oo', 'odh'],
             requests: ['requests', 'recaps', 'comments'],
-            external: ['dgi', 'renew'],
+            external: ['dgi', 'renew', 'oozt', 'rzd'],
         };
 
         function setLayerVisible(layerKey, isVisible) {
@@ -1688,6 +1726,8 @@
                 odh: countGroupFeatures(odhSignalGroup),
                 dgi: countGroupFeatures(dgiSignalGroup),
                 renew: countGroupFeatures(renewGroup),
+                oozt: countGroupFeatures(ooztSignalGroup),
+                rzd: countGroupFeatures(rzdSignalGroup),
                 requests: countGroupFeatures(requestObjectsGroup),
                 recaps: countGroupFeatures(recapsGroup),
                 comments: countGroupFeatures(commentPointsGroup),
@@ -1727,7 +1767,7 @@
             if (!geo) {
                 return;
             }
-            const ensureSignalPattern = (patternId, colorHex) => {
+            const ensureSignalPattern = (patternId, stripeColorHex, backgroundColorHex) => {
                 const svg = map.getPanes().overlayPane.querySelector('svg');
                 if (!svg) {
                     return null;
@@ -1745,30 +1785,33 @@
                     pattern.setAttribute('height', '24');
                     pattern.setAttribute('patternTransform', 'rotate(45)');
 
-                    const whiteRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                    whiteRect.setAttribute('x', '0');
-                    whiteRect.setAttribute('y', '0');
-                    whiteRect.setAttribute('width', '24');
-                    whiteRect.setAttribute('height', '24');
-                    whiteRect.setAttribute('fill', '#ffffff');
+                    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    bgRect.setAttribute('x', '0');
+                    bgRect.setAttribute('y', '0');
+                    bgRect.setAttribute('width', '24');
+                    bgRect.setAttribute('height', '24');
+                    bgRect.setAttribute('fill', backgroundColorHex);
 
-                    const redRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                    redRect.setAttribute('x', '0');
-                    redRect.setAttribute('y', '0');
-                    redRect.setAttribute('width', '12');
-                    redRect.setAttribute('height', '24');
-                    redRect.setAttribute('fill', colorHex);
+                    const stripeRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    stripeRect.setAttribute('x', '0');
+                    stripeRect.setAttribute('y', '0');
+                    stripeRect.setAttribute('width', '12');
+                    stripeRect.setAttribute('height', '24');
+                    stripeRect.setAttribute('fill', stripeColorHex);
 
-                    pattern.appendChild(whiteRect);
-                    pattern.appendChild(redRect);
+                    pattern.appendChild(bgRect);
+                    pattern.appendChild(stripeRect);
                     defs.appendChild(pattern);
                 }
                 return patternId;
             };
             const isDgi = sourceLabel === 'ДГИ';
+            const isOozt = sourceLabel === 'ООЗТ';
+            const isRzd = sourceLabel === 'РЖД';
             const isOdh = sourceLabel === 'ОДХ';
             const isOzn = sourceLabel === 'ОЗН';
-            if (!isDgi && !isOdh && !isOzn) {
+            const isSignalTape = isDgi || isOozt || isRzd;
+            if (!isSignalTape && !isOdh && !isOzn) {
                 L.geoJSON(geo, {
                     interactive: false,
                     style: {color: '#ffffff', weight: 7, opacity: 0.95, fillOpacity: 0}
@@ -1776,14 +1819,41 @@
             }
             L.geoJSON(geo, {
                 style: {
-                    color: isOdh ? '#00bfff' : isOzn ? '#16a34a' : '#dc2626',
+                    color: isOdh ? '#00bfff' : (isOzn || isOozt) ? '#16a34a' : '#dc2626',
                     weight: 4,
                     opacity: 0.95,
                     dashArray: (isOdh || isOzn) ? null : '10 8',
                     fillOpacity: isOzn ? 0.25 : 0,
                 },
                 onEachFeature: (feature, layer) => {
-                    if (isDgi) {
+                    if (isOozt) {
+                        const ooztType = feature?.properties?.type ?? '-';
+                        const ooztNomer1 = feature?.properties?.nomer1 ?? '-';
+                        const ooztComment = feature?.properties?.comment ?? '-';
+                        const typeText = String(ooztType ?? '').trim();
+                        const nomer1Text = String(ooztNomer1 ?? '').trim();
+                        const commentText = String(ooztComment ?? '').trim();
+                        layer.bindPopup(
+                            '<div style="min-width: 220px;">' +
+                            '<div><strong>ООЗТ</strong></div>' +
+                            (!typeText || ['null', 'none', '-'].includes(typeText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Тип:</strong> ' + escapeHtml(ooztType) + '</div>')) +
+                            (!nomer1Text || ['null', 'none', '-'].includes(nomer1Text.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Номер:</strong> ' + escapeHtml(ooztNomer1) + '</div>')) +
+                            (!commentText || ['null', 'none', '-'].includes(commentText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Комментарий:</strong> ' + escapeHtml(ooztComment) + '</div>')) +
+                            '</div>'
+                        );
+                    } else if (isRzd) {
+                        const rzdName = feature?.properties?.name ?? '-';
+                        const rzdComment = feature?.properties?.comment_ ?? '-';
+                        const nameText = String(rzdName ?? '').trim();
+                        const commentText = String(rzdComment ?? '').trim();
+                        layer.bindPopup(
+                            '<div style="min-width: 220px;">' +
+                            '<div><strong>РЖД</strong></div>' +
+                            (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(rzdName) + '</div>')) +
+                            (!commentText || ['null', 'none', '-'].includes(commentText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Комментарий:</strong> ' + escapeHtml(rzdComment) + '</div>')) +
+                            '</div>'
+                        );
+                    } else if (isDgi) {
                         const descr = feature?.properties?.descr ?? '-';
                         const address = feature?.properties?.address ?? '-';
                         const vri = feature?.properties?.vri ?? '-';
@@ -1849,11 +1919,17 @@
                     } else {
                         layer.bindPopup('<strong>' + sourceLabel + '</strong>');
                     }
-                    if (isDgi) {
+                    if (isSignalTape) {
+                        const tapeConfig = isOozt
+                            ? {patternId: 'oozt-signal-tape-pattern', stripe: '#16a34a', bg: '#ffffff', stroke: '#16a34a'}
+                            : isRzd
+                                ? {patternId: 'rzd-signal-tape-pattern', stripe: '#dc2626', bg: '#16a34a', stroke: '#dc2626'}
+                                : {patternId: 'dgi-signal-tape-pattern', stripe: '#dc2626', bg: '#ffffff', stroke: '#dc2626'};
                         layer._passViewerRestoreDgiDom = function () {
                             const patternId = ensureSignalPattern(
-                                'dgi-signal-tape-pattern',
-                                '#dc2626'
+                                tapeConfig.patternId,
+                                tapeConfig.stripe,
+                                tapeConfig.bg
                             );
                             const el = layer.getElement && layer.getElement();
                             if (!patternId || !el) {
@@ -1869,7 +1945,7 @@
                                         : '10 8';
                             el.setAttribute('fill', 'url(#' + patternId + ')');
                             el.setAttribute('fill-opacity', '0.25');
-                            el.setAttribute('stroke', '#dc2626');
+                            el.setAttribute('stroke', tapeConfig.stroke);
                             el.setAttribute('stroke-width', '2');
                             if (dash) {
                                 el.setAttribute('stroke-dasharray', dash);
@@ -1948,6 +2024,8 @@
         );
         renderRecapsLayer(parseGeometryData('recaps-geometry-data'));
         renderRenewLayer(parseGeometryData('renew-geometry-data'));
+        addSignalTapeLayer(ooztSignalGroup, parseGeometryData('oozt-geometry-data'), 'ООЗТ');
+        addSignalTapeLayer(rzdSignalGroup, parseGeometryData('rzd-geometry-data'), 'РЖД');
 
         const mergedAdjacentDtInitial = mergeAdjacentDtPassportsGeoJson(intersectsGeometry, touchesGeometry, nearbyGeometry);
         if (mergedAdjacentDtInitial) {
@@ -2218,6 +2296,8 @@
                 ozn: normalizeGeoJson(layers.ozn),
                 renew: normalizeGeoJson(layers.renew),
                 recaps: normalizeGeoJson(layers.recaps),
+                oozt: normalizeGeoJson(layers.oozt),
+                rzd: normalizeGeoJson(layers.rzd),
             };
             const selectedRootidText = (selectedRootid || '').trim();
             const excludeSelectedRootid = (geojson) => {
@@ -2244,6 +2324,8 @@
             renderReferenceSignalLayers(parsed.dgi, parsed.odh, parsed.ozn);
             renderRecapsLayer(parsed.recaps);
             renderRenewLayer(parsed.renew);
+            addSignalTapeLayer(ooztSignalGroup, parsed.oozt, 'ООЗТ');
+            addSignalTapeLayer(rzdSignalGroup, parsed.rzd, 'РЖД');
             const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsed.intersects, parsed.touches, parsed.nearby);
             if (mergedAdjacentDt) {
                 L.geoJSON(mergedAdjacentDt, {
@@ -2383,6 +2465,12 @@
             }
             if (autoRemoveDgiCheckbox.checked) {
                 sources.push('dgi');
+            }
+            if (autoRemoveOoztCheckbox.checked) {
+                sources.push('oozt');
+            }
+            if (autoRemoveRzdCheckbox.checked) {
+                sources.push('rzd');
             }
             return sources;
         }
@@ -2562,7 +2650,7 @@
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
             collectSnapGuideLines(selectedGeo, snapGuideLines);
-            [adjacentDtPassportsGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, oznSignalGroup, renewGroup, recapsGroup].forEach((group) => {
+            [adjacentDtPassportsGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, oznSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);

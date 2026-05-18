@@ -1939,6 +1939,8 @@ def _get_new_object_relations(geometry, source_label='ДТ', request_id_filter=N
         'ozn': ref_layers['ozn'],
         'renew': ref_layers['renew'],
         'recaps': ref_layers['recaps'],
+        'oozt': ref_layers['oozt'],
+        'rzd': ref_layers['rzd'],
         'dgi_intersects': dgi_intersects,
         'odh_intersects': odh_intersects,
     }
@@ -1989,8 +1991,12 @@ def _remove_intersections_from_geometry(
         return None
 
     source_tokens = {str(value).strip().lower() for value in (selected_sources or []) if str(value).strip()}
-    allowed_tokens = {'dt', 'odh', 'ozn', 'dgi'}
-    requested_tokens = [token for token in ('dt', 'odh', 'ozn', 'dgi') if token in source_tokens and token in allowed_tokens]
+    allowed_tokens = {'dt', 'odh', 'ozn', 'dgi', 'oozt', 'rzd'}
+    requested_tokens = [
+        token
+        for token in ('dt', 'odh', 'ozn', 'dgi', 'oozt', 'rzd')
+        if token in source_tokens and token in allowed_tokens
+    ]
     if not requested_tokens:
         return geometry_norm
 
@@ -2006,6 +2012,8 @@ def _remove_intersections_from_geometry(
         'odh': getattr(settings, 'GIS_ODH_TABLE', 'odh'),
         'ozn': getattr(settings, 'GIS_OZN_TABLE', 'ozn'),
         'dgi': getattr(settings, 'GIS_DGI_TABLE', 'dgi'),
+        'oozt': getattr(settings, 'GIS_OOZT_TABLE', 'oozt'),
+        'rzd': getattr(settings, 'GIS_RZD_TABLE', 'rzd'),
     }
 
     union_parts = []
@@ -2518,14 +2526,38 @@ def _get_reference_layer_geojson(
                     "AS owner_legal_person_name"
                 )
                 break
+        extra_select_suffix = ""
+        extra_json_frag = ""
+        if source_label_norm == 'ООЗТ':
+            type_select_expr = "NULL::text AS type"
+            comment_select_expr = "NULL::text AS comment"
+            nomer1_select_expr = "NULL::text AS nomer1"
+            if _column_exists(cursor, table_name, 'type'):
+                type_field = _resolve_column_name(cursor, table_name, 'type')
+                type_select_expr = f"t.{_quote_ident(type_field)}::text AS type"
+            if _column_exists(cursor, table_name, 'comment'):
+                comment_field = _resolve_column_name(cursor, table_name, 'comment')
+                comment_select_expr = f"t.{_quote_ident(comment_field)}::text AS comment"
+            if _column_exists(cursor, table_name, 'nomer1'):
+                nomer1_field = _resolve_column_name(cursor, table_name, 'nomer1')
+                nomer1_select_expr = f"t.{_quote_ident(nomer1_field)}::text AS nomer1"
+            extra_select_suffix = f", {type_select_expr}, {comment_select_expr}, {nomer1_select_expr}"
+            extra_json_frag = ", 'type', type::text, 'comment', comment::text, 'nomer1', nomer1::text"
+        elif source_label_norm == 'РЖД':
+            comment_select_expr = "NULL::text AS comment_"
+            if _column_exists(cursor, table_name, 'comment_'):
+                comment_field = _resolve_column_name(cursor, table_name, 'comment_')
+                comment_select_expr = f"t.{_quote_ident(comment_field)}::text AS comment_"
+            extra_select_suffix = f", {comment_select_expr}"
+            extra_json_frag = ", 'comment_', comment_::text"
         include_gis_meta = source_label_norm in ('ОДХ', 'ОЗН')
         meta_sql_fragment = _gis_object_meta_sql_fragment(cursor, table_name, "t") if include_gis_meta else ""
-        meta_select_suffix = f", {meta_sql_fragment}" if meta_sql_fragment else ""
+        meta_select_suffix = (f", {meta_sql_fragment}" if meta_sql_fragment else "") + extra_select_suffix
         meta_json_frag = (
             ", 'startdate', startdate::text, 'datesurvey', datesurvey::text, 'createtype', createtype::text"
             if include_gis_meta
             else ""
-        )
+        ) + extra_json_frag
         hood_ref_pfx, hood_ref_prm = get_hood_cte_prefix_sql()
         ref_with_input = (hood_ref_pfx + "input AS (") if hood_ref_pfx else "WITH input AS ("
         hood_ref_t = get_hood_intersects_ha_sql(f"t.{_quote_ident(geom_field)}")
@@ -2759,7 +2791,7 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100, request_id_fil
 
 
 def _get_reference_layers(geometry=None, distance_meters=100, request_id_filter=None):
-    layers = {'dgi': None, 'odh': None, 'ozn': None, 'renew': None, 'recaps': None}
+    layers = {'dgi': None, 'odh': None, 'ozn': None, 'renew': None, 'recaps': None, 'oozt': None, 'rzd': None}
     try:
         layers['dgi'] = _get_reference_layer_geojson('dgi', 'ДГИ', geometry=geometry, distance_meters=distance_meters)
     except Exception:
@@ -2794,6 +2826,24 @@ def _get_reference_layers(geometry=None, distance_meters=100, request_id_filter=
         )
     except Exception:
         layers['recaps'] = None
+    try:
+        layers['oozt'] = _get_reference_layer_geojson(
+            getattr(settings, 'GIS_OOZT_TABLE', 'oozt'),
+            'ООЗТ',
+            geometry=geometry,
+            distance_meters=distance_meters,
+        )
+    except Exception:
+        layers['oozt'] = None
+    try:
+        layers['rzd'] = _get_reference_layer_geojson(
+            getattr(settings, 'GIS_RZD_TABLE', 'rzd'),
+            'РЖД',
+            geometry=geometry,
+            distance_meters=distance_meters,
+        )
+    except Exception:
+        layers['rzd'] = None
     return layers
 
 
@@ -2962,6 +3012,8 @@ def main(request):
             'ozn_geometry_json': reference_layers['ozn'],
             'renew_geometry_json': reference_layers['renew'],
             'recaps_geometry_json': reference_layers['recaps'],
+            'oozt_geometry_json': reference_layers['oozt'],
+            'rzd_geometry_json': reference_layers['rzd'],
             'query_error': query_error,
         },
     )
@@ -3329,6 +3381,8 @@ def add_object(request):
             'ozn_geometry_json': None,
             'renew_geometry_json': None,
             'recaps_geometry_json': None,
+            'oozt_geometry_json': None,
+            'rzd_geometry_json': None,
             'request_objects_geometry_json': None,
             'selected_rootid': (entry_point.get('rootid') or '').strip(),
             'selected_source_label': _normalize_source_label(entry_point.get('source_label')),
@@ -3392,6 +3446,8 @@ def add_recap(request):
             'ozn_geometry_json': reference_layers['ozn'],
             'renew_geometry_json': reference_layers['renew'],
             'recaps_geometry_json': reference_layers['recaps'],
+            'oozt_geometry_json': reference_layers['oozt'],
+            'rzd_geometry_json': reference_layers['rzd'],
             'initial_recap_id': initial_recap_id,
         },
     )
