@@ -166,6 +166,9 @@ try:
 except (TypeError, ValueError):
     GIS_HOOD_MIN_OVERLAP_RATIO = 0.05
 
+GIS_OOZT_TABLE = os.getenv('GIS_OOZT_TABLE', 'oozt')
+GIS_RZD_TABLE = os.getenv('GIS_RZD_TABLE', 'rzd')
+
 # GeoDjango library paths (macOS Homebrew).
 GDAL_LIBRARY_PATH = os.getenv('GDAL_LIBRARY_PATH', '/opt/homebrew/lib/libgdal.dylib')
 GEOS_LIBRARY_PATH = os.getenv('GEOS_LIBRARY_PATH', '/opt/homebrew/lib/libgeos_c.dylib')
