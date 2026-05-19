@@ -67,6 +67,7 @@
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxNativeZoom: 19,
             maxZoom: 30,
+            crossOrigin: 'anonymous',
             attribution: '&copy; OpenStreetMap contributors',
         });
         const satelliteLayer = L.tileLayer(
@@ -74,6 +75,7 @@
             {
                 maxNativeZoom: 19,
                 maxZoom: 30,
+                crossOrigin: 'anonymous',
                 attribution: 'Tiles &copy; Esri',
             },
         );

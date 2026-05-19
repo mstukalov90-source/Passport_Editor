@@ -76,9 +76,6 @@ function buildEditableDeletePopupHtml(baseHtml) {
         const snapDebugEl = {set textContent(_) {}};
         const snapDebugFixedEl = {set textContent(_) {}};
         const exportLinksEl = document.getElementById('export-links');
-        const pdfExtentActionsEl = document.getElementById('pdf-extent-actions');
-        const pdfExtentConfirmBtn = document.getElementById('pdf-extent-confirm');
-        const pdfExtentCancelBtn = document.getElementById('pdf-extent-cancel');
         const PdfExport = PV.PdfExport;
         const saveModal = document.getElementById('save-modal');
         const saveModalCancel = document.getElementById('save-modal-cancel');
@@ -444,6 +441,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxNativeZoom: 19,
             maxZoom: 30,
+            crossOrigin: 'anonymous',
             attribution: '&copy; OpenStreetMap contributors'
         });
         const satelliteLayer = L.tileLayer(
@@ -451,6 +449,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
             {
                 maxNativeZoom: 19,
                 maxZoom: 30,
+                crossOrigin: 'anonymous',
                 attribution: 'Tiles &copy; Esri'
             }
         );
@@ -2507,7 +2506,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         let lastPdfExportContext = null;
         let pdfExportInProgress = false;
 
-        async function fetchIntersectsLayerForPdfExport(geometry) {
+        async function fetchPdfExportData(geometry) {
             const hasNewPolygon = typeof hasNewPolygonBeyondSelected === 'function' && hasNewPolygonBeyondSelected();
             const selectedGeometryForCheck =
                 hasNewPolygon && typeof toIntersectionGeometry === 'function'
@@ -2540,32 +2539,91 @@ function buildEditableDeletePopupHtml(baseHtml) {
             if (!response.ok || !data.ok) {
                 throw new Error(data.error || 'Не удалось получить пересечения для PDF.');
             }
-            return PdfExport.mergePdfIntersectFeatureCollections(
-                data.layers?.intersects,
-                data.layers?.dgi_intersects,
-                data.layers?.odh_intersects
+            const layers = data.layers || {};
+            const intersections = PdfExport.mergePdfIntersectFeatureCollections(
+                layers.intersects,
+                layers.dgi_intersects,
+                layers.odh_intersects
             );
-        }
-
-        function createPdfCaptureHooks() {
-            let vertexFlagWasOnMap = false;
+            const adjacentDt = mergeAdjacentDtPassportsGeoJson(layers.intersects, layers.touches, layers.nearby);
             return {
-                beforeCapture() {
-                    clearDrawSnapPreview();
-                    if (startVertexFlagMarker && map.hasLayer(startVertexFlagMarker)) {
-                        vertexFlagWasOnMap = true;
-                        map.removeLayer(startVertexFlagMarker);
-                    }
-                },
-                afterCapture() {
-                    if (vertexFlagWasOnMap && startVertexFlagMarker) {
-                        startVertexFlagMarker.addTo(map);
-                    }
+                intersections,
+                mapLayers: {
+                    selected: {
+                        type: 'FeatureCollection',
+                        features: [{type: 'Feature', geometry, properties: {}}],
+                    },
+                    adjacentDt: filterOutSelectedRootid(adjacentDt, selectedRootid),
+                    odh: filterOutSelectedRootid(normalizeGeoJson(layers.odh), selectedRootid),
+                    ozn: filterOutSelectedRootid(normalizeGeoJson(layers.ozn), selectedRootid),
                 },
             };
         }
 
-        async function runPdfExportDownload(frameRect) {
+        async function captureMapCanvasForPdf(mapLayers) {
+            const editLayerGroups = [
+                editableGroup,
+                selectedGroup,
+                requestObjectsGroup,
+                dgiSignalGroup,
+                renewGroup,
+                ooztSignalGroup,
+                rzdSignalGroup,
+                recapsGroup,
+                commentPointsGroup,
+            ];
+            const savedAdjacentDt = adjacentDtPassportsGroup.toGeoJSON();
+            const savedOdh = odhSignalGroup.toGeoJSON();
+            const savedOzn = oznSignalGroup.toGeoJSON();
+
+            const restore = PdfExport.prepareMapForPdfCapture(map, {
+                mapLayers,
+                hiddenGroups: editLayerGroups,
+                renderMapLayers: (layers) => {
+                    addSignalTapeLayer(odhSignalGroup, layers.odh, 'ОДХ');
+                    addSignalTapeLayer(oznSignalGroup, layers.ozn, 'ОЗН');
+                    adjacentDtPassportsGroup.clearLayers();
+                    if (layers.adjacentDt) {
+                        L.geoJSON(layers.adjacentDt, {
+                            style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
+                        }).addTo(adjacentDtPassportsGroup);
+                    }
+                },
+            });
+
+            try {
+                return await PdfExport.captureLeafletMapPngCanvas(map, {
+                    beforeCapture: () => {
+                        clearDrawSnapPreview();
+                        let vertexFlagWasOnMap = false;
+                        if (startVertexFlagMarker && map.hasLayer(startVertexFlagMarker)) {
+                            vertexFlagWasOnMap = true;
+                            map.removeLayer(startVertexFlagMarker);
+                        }
+                        return () => {
+                            if (vertexFlagWasOnMap && startVertexFlagMarker) {
+                                startVertexFlagMarker.addTo(map);
+                            }
+                        };
+                    },
+                });
+            } finally {
+                restore();
+                adjacentDtPassportsGroup.clearLayers();
+                if (savedAdjacentDt && Array.isArray(savedAdjacentDt.features) && savedAdjacentDt.features.length) {
+                    L.geoJSON(savedAdjacentDt, {
+                        style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
+                        onEachFeature: (feature, layer) =>
+                            layer.bindPopup(buildObjectPopup(feature.properties || {})),
+                    }).addTo(adjacentDtPassportsGroup);
+                }
+                addSignalTapeLayer(odhSignalGroup, savedOdh, 'ОДХ');
+                addSignalTapeLayer(oznSignalGroup, savedOzn, 'ОЗН');
+                refreshObjectLayersControl();
+            }
+        }
+
+        async function runPdfExportDownload() {
             if (pdfExportInProgress) {
                 return;
             }
@@ -2578,32 +2636,32 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 window.alert('Нет геометрии для PDF. Сначала выполните выгрузку файлов.');
                 return;
             }
-            if (!frameRect || !frameRect.width || !frameRect.height) {
-                window.alert('Не удалось определить область снимка для PDF.');
-                return;
-            }
             pdfExportInProgress = true;
             const prevStatus = statusEl.textContent;
             try {
-                statusEl.textContent = 'Готовим PDF: запрос пересечений...';
-                const intersectsGeo = await fetchIntersectsLayerForPdfExport(ctx.geometry);
-                statusEl.textContent = 'Готовим PDF: снимок карты...';
-                const mapCanvas = await PdfExport.captureMapInFrame(
-                    map,
-                    frameRect,
-                    createPdfCaptureHooks()
-                );
+                statusEl.textContent = 'Готовим PDF: запрос данных...';
+                const exportData = await fetchPdfExportData(ctx.geometry);
                 const features =
-                    intersectsGeo && intersectsGeo.type === 'FeatureCollection' && Array.isArray(intersectsGeo.features)
-                        ? intersectsGeo.features
+                    exportData.intersections &&
+                    exportData.intersections.type === 'FeatureCollection' &&
+                    Array.isArray(exportData.intersections.features)
+                        ? exportData.intersections.features
                         : [];
+                statusEl.textContent = 'Готовим PDF: снимок карты...';
+                let mapCanvas = null;
+                try {
+                    mapCanvas = await captureMapCanvasForPdf(exportData.mapLayers);
+                } catch (mapErr) {
+                    /* при неудаче карты — продолжаем без неё */
+                    mapCanvas = null;
+                }
                 statusEl.textContent = 'Готовим PDF: список пересечений...';
                 const fname = await PdfExport.buildAndSavePdf({
-                    mapCanvas,
                     objectInfo: PdfExport.buildObjectInfoFromContext(ctx),
                     features,
                     buildIntersectionHtml: buildPdfIntersectionPopupHtml,
                     fileName: PdfExport.buildExportFileName(ctx),
+                    mapCanvas,
                 });
                 statusEl.textContent = 'PDF сохранён: ' + fname;
             } catch (err) {
@@ -2614,34 +2672,6 @@ function buildEditableDeletePopupHtml(baseHtml) {
             }
         }
 
-        function beginPdfFrameComposition() {
-            if (pdfExportInProgress || PdfExport.isFrameModeActive()) {
-                return;
-            }
-            if (typeof html2canvas === 'undefined' || !window.jspdf?.jsPDF || !PdfExport) {
-                window.alert('Библиотеки PDF не загрузились. Обновите страницу.');
-                return;
-            }
-            const ctx = lastPdfExportContext;
-            if (!ctx || !ctx.geometry) {
-                window.alert('Нет геометрии для PDF. Сначала выполните выгрузку файлов.');
-                return;
-            }
-            const restoreStatus = statusEl.textContent;
-            PdfExport.startFrameComposition({
-                map,
-                statusEl,
-                actionsEl: pdfExtentActionsEl,
-                confirmBtn: pdfExtentConfirmBtn,
-                cancelBtn: pdfExtentCancelBtn,
-                restoreStatus,
-                onConfirm: (frameRect) => {
-                    void runPdfExportDownload(frameRect);
-                },
-                onCancel: () => {},
-            });
-        }
-
         function bindPdfExportLink() {
             const a = exportLinksEl.querySelector('[data-export-pdf-link="1"]');
             if (!a) {
@@ -2649,7 +2679,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
             }
             a.addEventListener('click', (event) => {
                 event.preventDefault();
-                beginPdfFrameComposition();
+                void runPdfExportDownload();
             });
         }
 

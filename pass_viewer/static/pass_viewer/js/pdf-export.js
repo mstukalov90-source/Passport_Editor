@@ -3,16 +3,13 @@
 
     const PassViewer = (global.PassViewer = global.PassViewer || {});
 
-    const PDF_FRAME_ASPECT = 287 / 200;
-    const PDF_FRAME_MAX_FILL = 0.88;
     const PDF_BLOCK_WIDTH_PX = 794;
     const PDF_MARGIN_MM = 10;
     const PDF_BLOCK_GAP_MM = 4;
-    const PDF_HTML2CANVAS_SCALE = 1;
-    const PDF_MAP_OUTPUT_SCALE = 2;
     const PDF_BLOCK_CANVAS_SCALE = 1.75;
-
-    let frameState = null;
+    const PDF_MAP_TARGET_WIDTH_PX = 1400;
+    const PDF_MAP_TARGET_HEIGHT_PX = 990;
+    const PDF_MAP_SELECTED_STYLE = {color: '#ff0000', weight: 3, fillOpacity: 0.25};
 
     function stripPopupButtons(html) {
         return String(html || '').replace(/<button[\s\S]*?<\/button>/gi, '');
@@ -56,298 +53,6 @@
         pushFc(dgiFc);
         pushFc(odhFc);
         return {type: 'FeatureCollection', features: out};
-    }
-
-    function waitForVisibleTilesLoaded(mapElement, timeoutMs) {
-        const started = Date.now();
-        return new Promise((resolve) => {
-            const tick = () => {
-                const tiles = mapElement.querySelectorAll('img.leaflet-tile');
-                let pending = 0;
-                tiles.forEach((img) => {
-                    if (!img.complete || img.naturalWidth === 0) {
-                        pending += 1;
-                    }
-                });
-                if (pending === 0 || Date.now() - started > timeoutMs) {
-                    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-                    return;
-                }
-                setTimeout(tick, 90);
-            };
-            setTimeout(tick, 100);
-        });
-    }
-
-    function leafletRedrawAllVectorLayers(leafletMap) {
-        const visit = (layer) => {
-            if (!layer) {
-                return;
-            }
-            if (typeof layer.eachLayer === 'function') {
-                layer.eachLayer(visit);
-                return;
-            }
-            if (typeof layer.redraw === 'function') {
-                try {
-                    layer.redraw();
-                } catch (e) {
-                    /* ignore */
-                }
-            }
-        };
-        leafletMap.eachLayer(visit);
-    }
-
-    function parseTranslateFromTransform(transform) {
-        if (!transform || transform === 'none') {
-            return {x: 0, y: 0};
-        }
-        const matrixMatch = transform.match(/^matrix\((.+)\)$/);
-        if (matrixMatch) {
-            const parts = matrixMatch[1].split(',').map((s) => parseFloat(s.trim()));
-            if (parts.length >= 6) {
-                return {x: parts[4] || 0, y: parts[5] || 0};
-            }
-        }
-        const matrix3dMatch = transform.match(/^matrix3d\((.+)\)$/);
-        if (matrix3dMatch) {
-            const parts = matrix3dMatch[1].split(',').map((s) => parseFloat(s.trim()));
-            if (parts.length >= 16) {
-                return {x: parts[12] || 0, y: parts[13] || 0};
-            }
-        }
-        const translate3dMatch = transform.match(/translate3d\(([^)]+)\)/);
-        if (translate3dMatch) {
-            const parts = translate3dMatch[1].split(',').map((s) => parseFloat(s.trim()));
-            return {x: parts[0] || 0, y: parts[1] || 0};
-        }
-        const translateMatch = transform.match(/translate\(([^)]+)\)/);
-        if (translateMatch) {
-            const parts = translateMatch[1].split(',').map((s) => parseFloat(s.trim()));
-            return {x: parts[0] || 0, y: parts[1] || 0};
-        }
-        return {x: 0, y: 0};
-    }
-
-    function flattenElementTransform(el, stash) {
-        if (!el || !stash) {
-            return;
-        }
-        const computed = window.getComputedStyle(el);
-        const transform = computed.transform || el.style.transform;
-        if (!transform || transform === 'none') {
-            return;
-        }
-        const {x, y} = parseTranslateFromTransform(transform);
-        if (x === 0 && y === 0) {
-            return;
-        }
-        stash.push({
-            el,
-            transform: el.style.transform,
-            left: el.style.left,
-            top: el.style.top,
-        });
-        const leftBase = parseFloat(computed.left) || 0;
-        const topBase = parseFloat(computed.top) || 0;
-        el.style.transform = 'none';
-        el.style.left = leftBase + x + 'px';
-        el.style.top = topBase + y + 'px';
-    }
-
-    function flattenLeafletMapForCapture(map) {
-        const stash = [];
-        const mapDiv = map.getContainer();
-        const paneSelectors = [
-            '.leaflet-map-pane',
-            '.leaflet-tile-pane',
-            '.leaflet-overlay-pane',
-            '.leaflet-shadow-pane',
-            '.leaflet-marker-pane',
-        ];
-        paneSelectors.forEach((sel) => {
-            const pane = mapDiv.querySelector(sel);
-            if (pane) {
-                flattenElementTransform(pane, stash);
-            }
-        });
-        mapDiv.querySelectorAll('img.leaflet-tile').forEach((img) => {
-            flattenElementTransform(img, stash);
-        });
-        mapDiv.querySelectorAll('.leaflet-overlay-pane .leaflet-zoom-animated').forEach((el) => {
-            flattenElementTransform(el, stash);
-        });
-        return stash;
-    }
-
-    function restoreLeafletMapAfterCapture(stash) {
-        if (!stash || !stash.length) {
-            return;
-        }
-        stash.forEach((item) => {
-            item.el.style.transform = item.transform;
-            item.el.style.left = item.left;
-            item.el.style.top = item.top;
-        });
-    }
-
-    function zeroRendererPaddingForCapture(map) {
-        const stash = [];
-        const visit = (layer) => {
-            if (!layer) {
-                return;
-            }
-            if (typeof layer.eachLayer === 'function') {
-                layer.eachLayer(visit);
-                return;
-            }
-            const renderer = layer._renderer;
-            if (renderer && renderer.options && typeof renderer.options.padding === 'number') {
-                stash.push({renderer, padding: renderer.options.padding});
-                renderer.options.padding = 0;
-            }
-        };
-        map.eachLayer(visit);
-        return stash;
-    }
-
-    function restoreRendererPaddingAfterCapture(stash) {
-        if (!stash || !stash.length) {
-            return;
-        }
-        stash.forEach((item) => {
-            item.renderer.options.padding = item.padding;
-        });
-    }
-
-    function upscaleCanvas(source, factor) {
-        if (!source || !factor || factor <= 1) {
-            return source;
-        }
-        const out = document.createElement('canvas');
-        out.width = Math.round(source.width * factor);
-        out.height = Math.round(source.height * factor);
-        const ctx = out.getContext('2d');
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(source, 0, 0, out.width, out.height);
-        return out;
-    }
-
-    function computeCenteredFrameRect(mapEl) {
-        const w = mapEl.clientWidth;
-        const h = mapEl.clientHeight;
-        const maxW = w * PDF_FRAME_MAX_FILL;
-        const maxH = h * PDF_FRAME_MAX_FILL;
-        let fw;
-        let fh;
-        if (maxW / maxH > PDF_FRAME_ASPECT) {
-            fh = maxH;
-            fw = fh * PDF_FRAME_ASPECT;
-        } else {
-            fw = maxW;
-            fh = fw / PDF_FRAME_ASPECT;
-        }
-        return {
-            left: (w - fw) / 2,
-            top: (h - fh) / 2,
-            width: fw,
-            height: fh,
-        };
-    }
-
-    function cropCanvasToRect(fullCanvas, frameRect, scale) {
-        let x = Math.floor(frameRect.left * scale);
-        let y = Math.floor(frameRect.top * scale);
-        let w = Math.ceil(frameRect.width * scale);
-        let h = Math.ceil(frameRect.height * scale);
-        x = Math.max(0, x);
-        y = Math.max(0, y);
-        if (x + w > fullCanvas.width) {
-            w = fullCanvas.width - x;
-        }
-        if (y + h > fullCanvas.height) {
-            h = fullCanvas.height - y;
-        }
-        if (w <= 0 || h <= 0) {
-            return fullCanvas;
-        }
-        const out = document.createElement('canvas');
-        out.width = w;
-        out.height = h;
-        out.getContext('2d').drawImage(fullCanvas, x, y, w, h, 0, 0, w, h);
-        return out;
-    }
-
-    function applyFrameRectToWindow(windowEl, frameRect) {
-        windowEl.style.left = frameRect.left + 'px';
-        windowEl.style.top = frameRect.top + 'px';
-        windowEl.style.width = frameRect.width + 'px';
-        windowEl.style.height = frameRect.height + 'px';
-    }
-
-    function mountPdfFrameOverlay(map) {
-        const mapDiv = map.getContainer();
-        const existing = mapDiv.querySelector('.pdf-frame-overlay');
-        if (existing) {
-            existing.remove();
-        }
-        const frameRect = computeCenteredFrameRect(mapDiv);
-        const overlay = document.createElement('div');
-        overlay.className = 'pdf-frame-overlay';
-        const hint = document.createElement('p');
-        hint.className = 'pdf-frame-overlay__hint';
-        hint.textContent = 'Подгоните карту под рамку (альбом A4)';
-        const windowEl = document.createElement('div');
-        windowEl.className = 'pdf-frame-overlay__window';
-        applyFrameRectToWindow(windowEl, frameRect);
-        overlay.appendChild(hint);
-        overlay.appendChild(windowEl);
-        mapDiv.appendChild(overlay);
-        mapDiv.classList.add('map--pdf-frame-mode');
-        return {overlay, windowEl, frameRect};
-    }
-
-    function layoutPdfFrameOverlay(map) {
-        if (!frameState || !frameState.windowEl) {
-            return null;
-        }
-        const mapDiv = map.getContainer();
-        const frameRect = computeCenteredFrameRect(mapDiv);
-        applyFrameRectToWindow(frameState.windowEl, frameRect);
-        frameState.frameRect = frameRect;
-        return frameRect;
-    }
-
-    function addMapCanvasAsFullFirstPdfPage(pdf, canvas) {
-        const pageW = pdf.internal.pageSize.getWidth();
-        const pageH = pdf.internal.pageSize.getHeight();
-        const marginMm = 5;
-        const innerW = pageW - 2 * marginMm;
-        const innerH = pageH - 2 * marginMm;
-        const imgRatio = canvas.width / canvas.height;
-        const boxRatio = innerW / innerH;
-        if (Math.abs(imgRatio - boxRatio) < 0.02) {
-            pdf.addImage(canvas.toDataURL('image/png', 0.93), 'PNG', marginMm, marginMm, innerW, innerH);
-            return;
-        }
-        let drawW;
-        let drawH;
-        let offX;
-        let offY;
-        if (imgRatio > boxRatio) {
-            drawH = innerH;
-            drawW = drawH * imgRatio;
-            offX = marginMm + (innerW - drawW) / 2;
-            offY = marginMm;
-        } else {
-            drawW = innerW;
-            drawH = drawW / imgRatio;
-            offX = marginMm;
-            offY = marginMm + (innerH - drawH) / 2;
-        }
-        pdf.addImage(canvas.toDataURL('image/png', 0.93), 'PNG', offX, offY, drawW, drawH);
     }
 
     function formatAreaText(geometry) {
@@ -512,18 +217,247 @@
         }
     }
 
-    async function captureMapInFrame(map, frameRect, hooks) {
-        const mapDiv = map.getContainer();
-        const htmlScale = PDF_HTML2CANVAS_SCALE;
+    function waitForVisibleTilesLoaded(mapElement, timeoutMs) {
+        const started = Date.now();
+        return new Promise((resolve) => {
+            const tick = () => {
+                const tiles = mapElement.querySelectorAll('img.leaflet-tile');
+                let pending = 0;
+                tiles.forEach((img) => {
+                    if (!img.complete || img.naturalWidth === 0) {
+                        pending += 1;
+                    }
+                });
+                if (pending === 0 || Date.now() - started > timeoutMs) {
+                    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+                    return;
+                }
+                setTimeout(tick, 90);
+            };
+            setTimeout(tick, 100);
+        });
+    }
 
-        if (hooks && typeof hooks.beforeCapture === 'function') {
-            hooks.beforeCapture();
+    function leafletRedrawAllVectorLayers(leafletMap) {
+        const visit = (layer) => {
+            if (!layer) {
+                return;
+            }
+            if (typeof layer.eachLayer === 'function') {
+                layer.eachLayer(visit);
+                return;
+            }
+            if (typeof layer.redraw === 'function') {
+                try {
+                    layer.redraw();
+                } catch (e) {
+                    /* ignore */
+                }
+            }
+        };
+        leafletMap.eachLayer(visit);
+    }
+
+    /* Ensure active tile layers request CORS-anonymous so html2canvas can read pixels. */
+    function ensureTileLayerCors(leafletMap) {
+        const restores = [];
+        leafletMap.eachLayer((layer) => {
+            if (!layer || typeof layer.redraw !== 'function' || !layer._url) {
+                return;
+            }
+            const opts = layer.options || {};
+            if (opts.crossOrigin === 'anonymous' || opts.crossOrigin === true) {
+                return;
+            }
+            const prev = opts.crossOrigin;
+            opts.crossOrigin = 'anonymous';
+            try {
+                layer.redraw();
+            } catch (e) {
+                /* ignore */
+            }
+            restores.push(() => {
+                opts.crossOrigin = prev;
+            });
+        });
+        return () => {
+            restores.forEach((fn) => {
+                try {
+                    fn();
+                } catch (e) {
+                    /* ignore */
+                }
+            });
+        };
+    }
+
+    function collectBoundsFromGeoJson(geojson) {
+        const bounds = L.latLngBounds([]);
+        if (!geojson) {
+            return bounds;
+        }
+        try {
+            const tmp = L.geoJSON(geojson);
+            const b = tmp.getBounds();
+            if (b && b.isValid && b.isValid()) {
+                bounds.extend(b);
+            }
+        } catch (e) {
+            /* ignore */
+        }
+        return bounds;
+    }
+
+    /* Hide groups and apply layers to the live map; return a function that restores state. */
+    function prepareMapForPdfCapture(leafletMap, options) {
+        const {
+            mapLayers = {},
+            renderMapLayers,
+            hiddenGroups = [],
+            beforeRender,
+            selectedStyle = PDF_MAP_SELECTED_STYLE,
+            targetWidthPx = PDF_MAP_TARGET_WIDTH_PX,
+            targetHeightPx = PDF_MAP_TARGET_HEIGHT_PX,
+        } = options || {};
+
+        const restorations = [];
+
+        if (typeof beforeRender === 'function') {
+            try {
+                beforeRender();
+            } catch (e) {
+                /* ignore */
+            }
         }
 
-        const overlay = mapDiv.querySelector('.pdf-frame-overlay');
-        const prevOverlayDisplay = overlay ? overlay.style.display : '';
-        if (overlay) {
-            overlay.style.display = 'none';
+        hiddenGroups.forEach((group) => {
+            if (group && leafletMap.hasLayer(group)) {
+                leafletMap.removeLayer(group);
+                restorations.push(() => group.addTo(leafletMap));
+            }
+        });
+
+        const mapDiv = leafletMap.getContainer();
+        const prevInlineStyles = {
+            width: mapDiv.style.width,
+            height: mapDiv.style.height,
+            minHeight: mapDiv.style.minHeight,
+            maxWidth: mapDiv.style.maxWidth,
+            maxHeight: mapDiv.style.maxHeight,
+        };
+        mapDiv.style.width = targetWidthPx + 'px';
+        mapDiv.style.height = targetHeightPx + 'px';
+        mapDiv.style.minHeight = targetHeightPx + 'px';
+        mapDiv.style.maxWidth = 'none';
+        mapDiv.style.maxHeight = 'none';
+        try {
+            leafletMap.invalidateSize(false);
+        } catch (e) {
+            /* ignore */
+        }
+        restorations.push(() => {
+            mapDiv.style.width = prevInlineStyles.width;
+            mapDiv.style.height = prevInlineStyles.height;
+            mapDiv.style.minHeight = prevInlineStyles.minHeight;
+            mapDiv.style.maxWidth = prevInlineStyles.maxWidth;
+            mapDiv.style.maxHeight = prevInlineStyles.maxHeight;
+            try {
+                leafletMap.invalidateSize(false);
+            } catch (e) {
+                /* ignore */
+            }
+        });
+
+        const selectedGeo = mapLayers.selected;
+        if (selectedGeo) {
+            const pdfSelectedGroup = L.featureGroup().addTo(leafletMap);
+            try {
+                L.geoJSON(selectedGeo, {style: selectedStyle}).addTo(pdfSelectedGroup);
+            } catch (e) {
+                /* ignore */
+            }
+            restorations.push(() => {
+                if (leafletMap.hasLayer(pdfSelectedGroup)) {
+                    leafletMap.removeLayer(pdfSelectedGroup);
+                }
+                pdfSelectedGroup.clearLayers();
+            });
+        }
+
+        if (typeof renderMapLayers === 'function') {
+            try {
+                renderMapLayers(mapLayers);
+            } catch (e) {
+                /* ignore */
+            }
+        }
+
+        const restoreCors = ensureTileLayerCors(leafletMap);
+        restorations.push(restoreCors);
+
+        /* Центрируем на выбранном объекте, padding ≤ 50% размеров объекта (pad(0.5)).
+           Соседи попадают в кадр только если лежат внутри этой области.
+           Если selected недоступен — fallback на union всех слоёв. */
+        let targetBounds = null;
+        const selBounds = collectBoundsFromGeoJson(mapLayers.selected);
+        if (selBounds && selBounds.isValid && selBounds.isValid()) {
+            try {
+                targetBounds = selBounds.pad(0.5);
+            } catch (e) {
+                targetBounds = selBounds;
+            }
+        } else {
+            const unionBounds = L.latLngBounds([]);
+            [mapLayers.adjacentDt, mapLayers.odh, mapLayers.ozn].forEach((geo) => {
+                const b = collectBoundsFromGeoJson(geo);
+                if (b && b.isValid && b.isValid()) {
+                    unionBounds.extend(b);
+                }
+            });
+            if (unionBounds.isValid && unionBounds.isValid()) {
+                targetBounds = unionBounds;
+            }
+        }
+
+        if (targetBounds) {
+            try {
+                leafletMap.invalidateSize(false);
+                leafletMap.fitBounds(targetBounds, {padding: [0, 0], maxZoom: 22, animate: false});
+            } catch (e) {
+                /* ignore */
+            }
+        }
+
+        return function restoreMapAfterPdfCapture() {
+            for (let i = restorations.length - 1; i >= 0; i -= 1) {
+                try {
+                    restorations[i]();
+                } catch (e) {
+                    /* ignore */
+                }
+            }
+        };
+    }
+
+    /* Snapshot the visible Leaflet map container into a PNG canvas. */
+    async function captureLeafletMapPngCanvas(leafletMap, hooks) {
+        const {
+            beforeCapture,
+            afterCapture,
+        } = hooks || {};
+
+        const mapDiv = leafletMap.getContainer();
+        const restoreCallbacks = [];
+
+        if (typeof beforeCapture === 'function') {
+            try {
+                const r = beforeCapture();
+                if (typeof r === 'function') {
+                    restoreCallbacks.push(r);
+                }
+            } catch (e) {
+                /* ignore */
+            }
         }
 
         mapDiv.classList.add('pass-viewer-pdf-capture');
@@ -532,26 +466,32 @@
         if (controls) {
             controls.style.display = 'none';
         }
+        const dragWas = leafletMap.dragging && leafletMap.dragging.enabled();
+        if (dragWas) {
+            leafletMap.dragging.disable();
+        }
+        const wheelWas = leafletMap.scrollWheelZoom && leafletMap.scrollWheelZoom.enabled();
+        if (wheelWas) {
+            leafletMap.scrollWheelZoom.disable();
+        }
 
         let canvas;
-        let transformStash = null;
-        let rendererStash = null;
         try {
-            map.invalidateSize(false);
+            leafletMap.invalidateSize(false);
             mapDiv.scrollTop = 0;
             mapDiv.scrollLeft = 0;
             await waitForVisibleTilesLoaded(mapDiv, 3200);
             await new Promise((r) => setTimeout(r, 80));
-            rendererStash = zeroRendererPaddingForCapture(map);
-            leafletRedrawAllVectorLayers(map);
-            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 40))));
-            transformStash = flattenLeafletMapForCapture(map);
+            leafletRedrawAllVectorLayers(leafletMap);
+            await new Promise((r) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 40)))
+            );
             const w = mapDiv.clientWidth;
             const h = mapDiv.clientHeight;
-            const fullCanvas = await html2canvas(mapDiv, {
+            canvas = await html2canvas(mapDiv, {
                 useCORS: true,
                 allowTaint: false,
-                scale: htmlScale,
+                scale: 1,
                 logging: false,
                 backgroundColor: '#f1f5f9',
                 foreignObjectRendering: false,
@@ -562,133 +502,78 @@
                 windowWidth: w,
                 windowHeight: h,
             });
-            const cropped = cropCanvasToRect(fullCanvas, frameRect, htmlScale);
-            canvas = upscaleCanvas(cropped, PDF_MAP_OUTPUT_SCALE);
         } finally {
-            restoreLeafletMapAfterCapture(transformStash);
-            restoreRendererPaddingAfterCapture(rendererStash);
             mapDiv.classList.remove('pass-viewer-pdf-capture');
             if (controls) {
                 controls.style.display = prevCtrl;
             }
-            if (overlay) {
-                overlay.style.display = prevOverlayDisplay;
+            if (dragWas) {
+                leafletMap.dragging.enable();
             }
-            if (hooks && typeof hooks.afterCapture === 'function') {
-                hooks.afterCapture();
+            if (wheelWas) {
+                leafletMap.scrollWheelZoom.enable();
+            }
+            restoreCallbacks.forEach((fn) => {
+                try {
+                    fn();
+                } catch (e) {
+                    /* ignore */
+                }
+            });
+            if (typeof afterCapture === 'function') {
+                try {
+                    afterCapture();
+                } catch (e) {
+                    /* ignore */
+                }
             }
         }
         return canvas;
     }
 
-    function cleanupFrameComposition() {
-        if (!frameState) {
-            return;
+    function drawCanvasContainOnCurrentPage(pdf, canvas, marginMm) {
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const innerW = pageW - 2 * marginMm;
+        const innerH = pageH - 2 * marginMm;
+        const imgRatio = canvas.width / canvas.height;
+        const boxRatio = innerW / innerH;
+        let drawW;
+        let drawH;
+        let offX;
+        let offY;
+        if (imgRatio > boxRatio) {
+            drawW = innerW;
+            drawH = drawW / imgRatio;
+            offX = marginMm;
+            offY = marginMm + (innerH - drawH) / 2;
+        } else {
+            drawH = innerH;
+            drawW = drawH * imgRatio;
+            offX = marginMm + (innerW - drawW) / 2;
+            offY = marginMm;
         }
-        const st = frameState;
-        frameState = null;
-        if (st.map) {
-            const mapDiv = st.map.getContainer();
-            mapDiv.classList.remove('map--pdf-frame-mode');
-            const overlay = mapDiv.querySelector('.pdf-frame-overlay');
-            if (overlay) {
-                overlay.remove();
-            }
-            if (st.onResize) {
-                st.map.off('resize', st.onResize);
-            }
-        }
-        if (st.actionsEl) {
-            st.actionsEl.style.display = 'none';
-        }
-        if (st.onEnd) {
-            st.onEnd();
-        }
+        pdf.addImage(canvas.toDataURL('image/png', 0.93), 'PNG', offX, offY, drawW, drawH);
     }
 
-    function startFrameComposition(opts) {
-        if (frameState) {
-            cleanupFrameComposition();
-        }
-        const map = opts.map;
-        if (!map) {
-            return;
-        }
-        if (opts.onStart) {
-            opts.onStart();
-        }
-
-        const actionsEl = opts.actionsEl;
-        const confirmBtn = opts.confirmBtn;
-        const cancelBtn = opts.cancelBtn;
-        const statusEl = opts.statusEl;
-
-        if (actionsEl) {
-            actionsEl.style.display = 'flex';
-        }
-        if (statusEl) {
-            statusEl.textContent =
-                'Сдвиньте и масштабируйте карту, чтобы объект попал в рамку. Затем нажмите «Подтвердить снимок».';
-        }
-
-        const mounted = mountPdfFrameOverlay(map);
-        const onResize = () => {
-            layoutPdfFrameOverlay(map);
-        };
-        map.on('resize', onResize);
-
-        const confirmHandler = () => {
-            const frameRect = layoutPdfFrameOverlay(map) || mounted.frameRect;
-            cleanupFrameComposition();
-            if (opts.onConfirm) {
-                opts.onConfirm(frameRect);
-            }
-        };
-
-        const cancelHandler = () => {
-            cleanupFrameComposition();
-            if (statusEl && opts.restoreStatus) {
-                statusEl.textContent = opts.restoreStatus;
-            }
-            if (opts.onCancel) {
-                opts.onCancel();
-            }
-        };
-
-        if (confirmBtn) {
-            confirmBtn.onclick = confirmHandler;
-        }
-        if (cancelBtn) {
-            cancelBtn.onclick = cancelHandler;
-        }
-
-        frameState = {
-            map,
-            overlay: mounted.overlay,
-            windowEl: mounted.windowEl,
-            frameRect: mounted.frameRect,
-            actionsEl,
-            onResize,
-            onEnd: opts.onEnd,
-        };
-    }
-
-    function isFrameModeActive() {
-        return !!frameState;
+    function addMapLandscapePage(pdf, canvas) {
+        pdf.addPage('a4', 'l');
+        drawCanvasContainOnCurrentPage(pdf, canvas, 5);
     }
 
     async function buildAndSavePdf(options) {
-        const {
-            mapCanvas,
-            objectInfo,
-            features,
-            buildIntersectionHtml,
-            fileName,
-        } = options;
+        const {objectInfo, features, buildIntersectionHtml, fileName, mapCanvas} = options;
 
-        const pdf = new global.jspdf.jsPDF({unit: 'mm', format: 'a4', orientation: 'landscape'});
-        addMapCanvasAsFullFirstPdfPage(pdf, mapCanvas);
-        pdf.addPage('a4', 'p');
+        const initialOrientation = mapCanvas ? 'l' : 'p';
+        const pdf = new global.jspdf.jsPDF({
+            unit: 'mm',
+            format: 'a4',
+            orientation: initialOrientation,
+        });
+        if (mapCanvas) {
+            drawCanvasContainOnCurrentPage(pdf, mapCanvas, 5);
+            pdf.addPage('a4', 'p');
+        }
         await addPortraitContentPages(pdf, objectInfo, features, buildIntersectionHtml);
         pdf.save(fileName);
         return fileName;
@@ -711,12 +596,11 @@
     PassViewer.PdfExport = {
         mergePdfIntersectFeatureCollections,
         stripPopupButtons,
-        captureMapInFrame,
         buildAndSavePdf,
         buildExportFileName,
         buildObjectInfoFromContext,
-        startFrameComposition,
-        cancelFrameComposition: cleanupFrameComposition,
-        isFrameModeActive,
+        prepareMapForPdfCapture,
+        captureLeafletMapPngCanvas,
+        addMapLandscapePage,
     };
 })(typeof window !== 'undefined' ? window : global);
