@@ -441,6 +441,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxNativeZoom: 19,
             maxZoom: 30,
+            crossOrigin: 'anonymous',
             attribution: '&copy; OpenStreetMap contributors'
         });
         const satelliteLayer = L.tileLayer(
@@ -448,6 +449,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
             {
                 maxNativeZoom: 19,
                 maxZoom: 30,
+                crossOrigin: 'anonymous',
                 attribution: 'Tiles &copy; Esri'
             }
         );
@@ -2504,7 +2506,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         let lastPdfExportContext = null;
         let pdfExportInProgress = false;
 
-        async function fetchIntersectsLayerForPdfExport(geometry) {
+        async function fetchPdfExportData(geometry) {
             const hasNewPolygon = typeof hasNewPolygonBeyondSelected === 'function' && hasNewPolygonBeyondSelected();
             const selectedGeometryForCheck =
                 hasNewPolygon && typeof toIntersectionGeometry === 'function'
@@ -2537,11 +2539,88 @@ function buildEditableDeletePopupHtml(baseHtml) {
             if (!response.ok || !data.ok) {
                 throw new Error(data.error || 'Не удалось получить пересечения для PDF.');
             }
-            return PdfExport.mergePdfIntersectFeatureCollections(
-                data.layers?.intersects,
-                data.layers?.dgi_intersects,
-                data.layers?.odh_intersects
+            const layers = data.layers || {};
+            const intersections = PdfExport.mergePdfIntersectFeatureCollections(
+                layers.intersects,
+                layers.dgi_intersects,
+                layers.odh_intersects
             );
+            const adjacentDt = mergeAdjacentDtPassportsGeoJson(layers.intersects, layers.touches, layers.nearby);
+            return {
+                intersections,
+                mapLayers: {
+                    selected: {
+                        type: 'FeatureCollection',
+                        features: [{type: 'Feature', geometry, properties: {}}],
+                    },
+                    adjacentDt: filterOutSelectedRootid(adjacentDt, selectedRootid),
+                    odh: filterOutSelectedRootid(normalizeGeoJson(layers.odh), selectedRootid),
+                    ozn: filterOutSelectedRootid(normalizeGeoJson(layers.ozn), selectedRootid),
+                },
+            };
+        }
+
+        async function captureMapCanvasForPdf(mapLayers) {
+            const editLayerGroups = [
+                editableGroup,
+                selectedGroup,
+                requestObjectsGroup,
+                dgiSignalGroup,
+                renewGroup,
+                ooztSignalGroup,
+                rzdSignalGroup,
+                recapsGroup,
+                commentPointsGroup,
+            ];
+            const savedAdjacentDt = adjacentDtPassportsGroup.toGeoJSON();
+            const savedOdh = odhSignalGroup.toGeoJSON();
+            const savedOzn = oznSignalGroup.toGeoJSON();
+
+            const restore = PdfExport.prepareMapForPdfCapture(map, {
+                mapLayers,
+                hiddenGroups: editLayerGroups,
+                renderMapLayers: (layers) => {
+                    addSignalTapeLayer(odhSignalGroup, layers.odh, 'ОДХ');
+                    addSignalTapeLayer(oznSignalGroup, layers.ozn, 'ОЗН');
+                    adjacentDtPassportsGroup.clearLayers();
+                    if (layers.adjacentDt) {
+                        L.geoJSON(layers.adjacentDt, {
+                            style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
+                        }).addTo(adjacentDtPassportsGroup);
+                    }
+                },
+            });
+
+            try {
+                return await PdfExport.captureLeafletMapPngCanvas(map, {
+                    beforeCapture: () => {
+                        clearDrawSnapPreview();
+                        let vertexFlagWasOnMap = false;
+                        if (startVertexFlagMarker && map.hasLayer(startVertexFlagMarker)) {
+                            vertexFlagWasOnMap = true;
+                            map.removeLayer(startVertexFlagMarker);
+                        }
+                        return () => {
+                            if (vertexFlagWasOnMap && startVertexFlagMarker) {
+                                startVertexFlagMarker.addTo(map);
+                            }
+                        };
+                    },
+                });
+            } finally {
+                restore();
+                adjacentDtPassportsGroup.clearLayers();
+                if (savedAdjacentDt && Array.isArray(savedAdjacentDt.features) && savedAdjacentDt.features.length) {
+                    L.geoJSON(savedAdjacentDt, {
+                        style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
+                        onEachFeature: (feature, layer) =>
+                            layer.bindPopup(buildObjectPopup(feature.properties || {})),
+                    }).addTo(adjacentDtPassportsGroup);
+                }
+                addSignalTapeLayer(odhSignalGroup, savedOdh, 'ОДХ');
+                addSignalTapeLayer(oznSignalGroup, savedOzn, 'ОЗН');
+                refreshObjectLayersControl();
+            }
         }
 
         async function runPdfExportDownload() {
@@ -2560,18 +2639,29 @@ function buildEditableDeletePopupHtml(baseHtml) {
             pdfExportInProgress = true;
             const prevStatus = statusEl.textContent;
             try {
-                statusEl.textContent = 'Готовим PDF: запрос пересечений...';
-                const intersectsGeo = await fetchIntersectsLayerForPdfExport(ctx.geometry);
+                statusEl.textContent = 'Готовим PDF: запрос данных...';
+                const exportData = await fetchPdfExportData(ctx.geometry);
                 const features =
-                    intersectsGeo && intersectsGeo.type === 'FeatureCollection' && Array.isArray(intersectsGeo.features)
-                        ? intersectsGeo.features
+                    exportData.intersections &&
+                    exportData.intersections.type === 'FeatureCollection' &&
+                    Array.isArray(exportData.intersections.features)
+                        ? exportData.intersections.features
                         : [];
+                statusEl.textContent = 'Готовим PDF: снимок карты...';
+                let mapCanvas = null;
+                try {
+                    mapCanvas = await captureMapCanvasForPdf(exportData.mapLayers);
+                } catch (mapErr) {
+                    /* при неудаче карты — продолжаем без неё */
+                    mapCanvas = null;
+                }
                 statusEl.textContent = 'Готовим PDF: список пересечений...';
                 const fname = await PdfExport.buildAndSavePdf({
                     objectInfo: PdfExport.buildObjectInfoFromContext(ctx),
                     features,
                     buildIntersectionHtml: buildPdfIntersectionPopupHtml,
                     fileName: PdfExport.buildExportFileName(ctx),
+                    mapCanvas,
                 });
                 statusEl.textContent = 'PDF сохранён: ' + fname;
             } catch (err) {
@@ -2644,7 +2734,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 exportLinksEl.innerHTML =
                     '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
                     '<a class="button-link" href="' + exportResult.shapefile_url + '">Скачать SHP (ZIP)</a> ' +
-                    '<a class="button-link" href="#" data-export-pdf-link="1">Скачать PDF (пересечения)</a>';
+                    '<a class="button-link" href="#" data-export-pdf-link="1">Скачать PDF (карта и пересечения)</a>';
                 bindPdfExportLink();
             } catch (error) {
                 saveModalErrorEl.textContent = error.message || 'Ошибка сохранения объекта.';

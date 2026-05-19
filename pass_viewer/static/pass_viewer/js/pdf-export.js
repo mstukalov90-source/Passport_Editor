@@ -7,6 +7,9 @@
     const PDF_MARGIN_MM = 10;
     const PDF_BLOCK_GAP_MM = 4;
     const PDF_BLOCK_CANVAS_SCALE = 1.75;
+    const PDF_MAP_TARGET_WIDTH_PX = 1400;
+    const PDF_MAP_TARGET_HEIGHT_PX = 990;
+    const PDF_MAP_SELECTED_STYLE = {color: '#ff0000', weight: 3, fillOpacity: 0.25};
 
     function stripPopupButtons(html) {
         return String(html || '').replace(/<button[\s\S]*?<\/button>/gi, '');
@@ -214,14 +217,353 @@
         }
     }
 
-    async function buildAndSavePdf(options) {
-        const {objectInfo, features, buildIntersectionHtml, fileName} = options;
+    function waitForVisibleTilesLoaded(mapElement, timeoutMs) {
+        const started = Date.now();
+        return new Promise((resolve) => {
+            const tick = () => {
+                const tiles = mapElement.querySelectorAll('img.leaflet-tile');
+                let pending = 0;
+                tiles.forEach((img) => {
+                    if (!img.complete || img.naturalWidth === 0) {
+                        pending += 1;
+                    }
+                });
+                if (pending === 0 || Date.now() - started > timeoutMs) {
+                    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+                    return;
+                }
+                setTimeout(tick, 90);
+            };
+            setTimeout(tick, 100);
+        });
+    }
 
+    function leafletRedrawAllVectorLayers(leafletMap) {
+        const visit = (layer) => {
+            if (!layer) {
+                return;
+            }
+            if (typeof layer.eachLayer === 'function') {
+                layer.eachLayer(visit);
+                return;
+            }
+            if (typeof layer.redraw === 'function') {
+                try {
+                    layer.redraw();
+                } catch (e) {
+                    /* ignore */
+                }
+            }
+        };
+        leafletMap.eachLayer(visit);
+    }
+
+    /* Ensure active tile layers request CORS-anonymous so html2canvas can read pixels. */
+    function ensureTileLayerCors(leafletMap) {
+        const restores = [];
+        leafletMap.eachLayer((layer) => {
+            if (!layer || typeof layer.redraw !== 'function' || !layer._url) {
+                return;
+            }
+            const opts = layer.options || {};
+            if (opts.crossOrigin === 'anonymous' || opts.crossOrigin === true) {
+                return;
+            }
+            const prev = opts.crossOrigin;
+            opts.crossOrigin = 'anonymous';
+            try {
+                layer.redraw();
+            } catch (e) {
+                /* ignore */
+            }
+            restores.push(() => {
+                opts.crossOrigin = prev;
+            });
+        });
+        return () => {
+            restores.forEach((fn) => {
+                try {
+                    fn();
+                } catch (e) {
+                    /* ignore */
+                }
+            });
+        };
+    }
+
+    function collectBoundsFromGeoJson(geojson) {
+        const bounds = L.latLngBounds([]);
+        if (!geojson) {
+            return bounds;
+        }
+        try {
+            const tmp = L.geoJSON(geojson);
+            const b = tmp.getBounds();
+            if (b && b.isValid && b.isValid()) {
+                bounds.extend(b);
+            }
+        } catch (e) {
+            /* ignore */
+        }
+        return bounds;
+    }
+
+    /* Hide groups and apply layers to the live map; return a function that restores state. */
+    function prepareMapForPdfCapture(leafletMap, options) {
+        const {
+            mapLayers = {},
+            renderMapLayers,
+            hiddenGroups = [],
+            beforeRender,
+            selectedStyle = PDF_MAP_SELECTED_STYLE,
+            targetWidthPx = PDF_MAP_TARGET_WIDTH_PX,
+            targetHeightPx = PDF_MAP_TARGET_HEIGHT_PX,
+        } = options || {};
+
+        const restorations = [];
+
+        if (typeof beforeRender === 'function') {
+            try {
+                beforeRender();
+            } catch (e) {
+                /* ignore */
+            }
+        }
+
+        hiddenGroups.forEach((group) => {
+            if (group && leafletMap.hasLayer(group)) {
+                leafletMap.removeLayer(group);
+                restorations.push(() => group.addTo(leafletMap));
+            }
+        });
+
+        const mapDiv = leafletMap.getContainer();
+        const prevInlineStyles = {
+            width: mapDiv.style.width,
+            height: mapDiv.style.height,
+            minHeight: mapDiv.style.minHeight,
+            maxWidth: mapDiv.style.maxWidth,
+            maxHeight: mapDiv.style.maxHeight,
+        };
+        mapDiv.style.width = targetWidthPx + 'px';
+        mapDiv.style.height = targetHeightPx + 'px';
+        mapDiv.style.minHeight = targetHeightPx + 'px';
+        mapDiv.style.maxWidth = 'none';
+        mapDiv.style.maxHeight = 'none';
+        try {
+            leafletMap.invalidateSize(false);
+        } catch (e) {
+            /* ignore */
+        }
+        restorations.push(() => {
+            mapDiv.style.width = prevInlineStyles.width;
+            mapDiv.style.height = prevInlineStyles.height;
+            mapDiv.style.minHeight = prevInlineStyles.minHeight;
+            mapDiv.style.maxWidth = prevInlineStyles.maxWidth;
+            mapDiv.style.maxHeight = prevInlineStyles.maxHeight;
+            try {
+                leafletMap.invalidateSize(false);
+            } catch (e) {
+                /* ignore */
+            }
+        });
+
+        const selectedGeo = mapLayers.selected;
+        if (selectedGeo) {
+            const pdfSelectedGroup = L.featureGroup().addTo(leafletMap);
+            try {
+                L.geoJSON(selectedGeo, {style: selectedStyle}).addTo(pdfSelectedGroup);
+            } catch (e) {
+                /* ignore */
+            }
+            restorations.push(() => {
+                if (leafletMap.hasLayer(pdfSelectedGroup)) {
+                    leafletMap.removeLayer(pdfSelectedGroup);
+                }
+                pdfSelectedGroup.clearLayers();
+            });
+        }
+
+        if (typeof renderMapLayers === 'function') {
+            try {
+                renderMapLayers(mapLayers);
+            } catch (e) {
+                /* ignore */
+            }
+        }
+
+        const restoreCors = ensureTileLayerCors(leafletMap);
+        restorations.push(restoreCors);
+
+        const bounds = L.latLngBounds([]);
+        const sources = [
+            mapLayers.selected,
+            mapLayers.adjacentDt,
+            mapLayers.odh,
+            mapLayers.ozn,
+        ];
+        sources.forEach((geo) => {
+            const b = collectBoundsFromGeoJson(geo);
+            if (b && b.isValid && b.isValid()) {
+                bounds.extend(b);
+            }
+        });
+
+        if (bounds.isValid && bounds.isValid()) {
+            try {
+                leafletMap.invalidateSize(false);
+                leafletMap.fitBounds(bounds, {padding: [30, 30], maxZoom: 19, animate: false});
+            } catch (e) {
+                /* ignore */
+            }
+        }
+
+        return function restoreMapAfterPdfCapture() {
+            for (let i = restorations.length - 1; i >= 0; i -= 1) {
+                try {
+                    restorations[i]();
+                } catch (e) {
+                    /* ignore */
+                }
+            }
+        };
+    }
+
+    /* Snapshot the visible Leaflet map container into a PNG canvas. */
+    async function captureLeafletMapPngCanvas(leafletMap, hooks) {
+        const {
+            beforeCapture,
+            afterCapture,
+        } = hooks || {};
+
+        const mapDiv = leafletMap.getContainer();
+        const restoreCallbacks = [];
+
+        if (typeof beforeCapture === 'function') {
+            try {
+                const r = beforeCapture();
+                if (typeof r === 'function') {
+                    restoreCallbacks.push(r);
+                }
+            } catch (e) {
+                /* ignore */
+            }
+        }
+
+        mapDiv.classList.add('pass-viewer-pdf-capture');
+        const controls = mapDiv.querySelector('.leaflet-control-container');
+        const prevCtrl = controls ? controls.style.display : '';
+        if (controls) {
+            controls.style.display = 'none';
+        }
+        const dragWas = leafletMap.dragging && leafletMap.dragging.enabled();
+        if (dragWas) {
+            leafletMap.dragging.disable();
+        }
+        const wheelWas = leafletMap.scrollWheelZoom && leafletMap.scrollWheelZoom.enabled();
+        if (wheelWas) {
+            leafletMap.scrollWheelZoom.disable();
+        }
+
+        let canvas;
+        try {
+            leafletMap.invalidateSize(false);
+            mapDiv.scrollTop = 0;
+            mapDiv.scrollLeft = 0;
+            await waitForVisibleTilesLoaded(mapDiv, 3200);
+            await new Promise((r) => setTimeout(r, 80));
+            leafletRedrawAllVectorLayers(leafletMap);
+            await new Promise((r) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 40)))
+            );
+            const w = mapDiv.clientWidth;
+            const h = mapDiv.clientHeight;
+            canvas = await html2canvas(mapDiv, {
+                useCORS: true,
+                allowTaint: false,
+                scale: 1,
+                logging: false,
+                backgroundColor: '#f1f5f9',
+                foreignObjectRendering: false,
+                x: 0,
+                y: 0,
+                width: w,
+                height: h,
+                windowWidth: w,
+                windowHeight: h,
+            });
+        } finally {
+            mapDiv.classList.remove('pass-viewer-pdf-capture');
+            if (controls) {
+                controls.style.display = prevCtrl;
+            }
+            if (dragWas) {
+                leafletMap.dragging.enable();
+            }
+            if (wheelWas) {
+                leafletMap.scrollWheelZoom.enable();
+            }
+            restoreCallbacks.forEach((fn) => {
+                try {
+                    fn();
+                } catch (e) {
+                    /* ignore */
+                }
+            });
+            if (typeof afterCapture === 'function') {
+                try {
+                    afterCapture();
+                } catch (e) {
+                    /* ignore */
+                }
+            }
+        }
+        return canvas;
+    }
+
+    function drawCanvasContainOnCurrentPage(pdf, canvas, marginMm) {
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const innerW = pageW - 2 * marginMm;
+        const innerH = pageH - 2 * marginMm;
+        const imgRatio = canvas.width / canvas.height;
+        const boxRatio = innerW / innerH;
+        let drawW;
+        let drawH;
+        let offX;
+        let offY;
+        if (imgRatio > boxRatio) {
+            drawW = innerW;
+            drawH = drawW / imgRatio;
+            offX = marginMm;
+            offY = marginMm + (innerH - drawH) / 2;
+        } else {
+            drawH = innerH;
+            drawW = drawH * imgRatio;
+            offX = marginMm + (innerW - drawW) / 2;
+            offY = marginMm;
+        }
+        pdf.addImage(canvas.toDataURL('image/png', 0.93), 'PNG', offX, offY, drawW, drawH);
+    }
+
+    function addMapLandscapePage(pdf, canvas) {
+        pdf.addPage('a4', 'l');
+        drawCanvasContainOnCurrentPage(pdf, canvas, 5);
+    }
+
+    async function buildAndSavePdf(options) {
+        const {objectInfo, features, buildIntersectionHtml, fileName, mapCanvas} = options;
+
+        const initialOrientation = mapCanvas ? 'l' : 'p';
         const pdf = new global.jspdf.jsPDF({
             unit: 'mm',
             format: 'a4',
-            orientation: 'p',
+            orientation: initialOrientation,
         });
+        if (mapCanvas) {
+            drawCanvasContainOnCurrentPage(pdf, mapCanvas, 5);
+            pdf.addPage('a4', 'p');
+        }
         await addPortraitContentPages(pdf, objectInfo, features, buildIntersectionHtml);
         pdf.save(fileName);
         return fileName;
@@ -247,5 +589,8 @@
         buildAndSavePdf,
         buildExportFileName,
         buildObjectInfoFromContext,
+        prepareMapForPdfCapture,
+        captureLeafletMapPngCanvas,
+        addMapLandscapePage,
     };
 })(typeof window !== 'undefined' ? window : global);
