@@ -1,0 +1,53 @@
+/* Split page: compact flat toolbar (overrides gradient editor toolbar) */
+.pass-viewer-page--split .map-toolbar-btn {
+    border: 1px solid transparent;
+    border-radius: 9px;
+    padding: 10px 14px;
+    font-weight: 600;
+    transition: none;
+    box-shadow: none;
+    filter: none;
+    transform: none;
+}
+.pass-viewer-page--split .map-toolbar-btn:hover,
+.pass-viewer-page--split .map-toolbar-btn:active {
+    filter: none;
+    box-shadow: none;
+    transform: none;
+}
+.pass-viewer-page--split .map-toolbar-btn--primary {
+    background: #1f6feb;
+    color: #fff;
+}
+.pass-viewer-page--split .map-toolbar-btn--success {
+    background: #15803d;
+    color: #fff;
+}
+.pass-viewer-page--split .map-toolbar-btn--teal {
+    background: #0d9488;
+    color: #fff;
+}
+.pass-viewer-page--split .map-toolbar-btn--accent {
+    background: #7c3aed;
+    color: #fff;
+}
+.pass-viewer-page--split .map-toolbar-btn--danger {
+    background: #dc2626;
+    color: #fff;
+}
+.pass-viewer-page--split .map-toolbar-btn--muted {
+    background: #e5e7eb;
+    color: #111827;
+    border-color: #d1d5db;
+}
+.pass-viewer-page--split .map-basemap-control {
+    display: inline-flex;
+    gap: 6px;
+    max-width: none;
+    justify-content: flex-start;
+}
+.pass-viewer-page--split .map-basemap-btn.is-active {
+    background: #1d4ed8;
+    color: #fff;
+    border-color: #1d4ed8;
+}

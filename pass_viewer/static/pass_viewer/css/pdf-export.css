@@ -1,0 +1,49 @@
+/* Во время снимка для PDF: без вершин leafet-draw и маркера «стартовой» вершины */
+#map.pass-viewer-pdf-capture .leaflet-editing-icon,
+#map.pass-viewer-pdf-capture .leaflet-marker-pane .leaflet-div-icon,
+#map.pass-viewer-pdf-capture .start-vertex-flag {
+    display: none !important;
+}
+.pdf-extent-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 8px 0 12px;
+}
+#map.map--pdf-frame-mode {
+    cursor: grab;
+}
+#map.map--pdf-frame-mode:active {
+    cursor: grabbing;
+}
+.pdf-frame-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10000;
+    pointer-events: none;
+    overflow: hidden;
+}
+.pdf-frame-overlay__hint {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    z-index: 10002;
+    white-space: nowrap;
+}
+.pdf-frame-overlay__window {
+    position: absolute;
+    box-sizing: border-box;
+    border: 2px solid #0369a1;
+    border-radius: 2px;
+    box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.45);
+    z-index: 10001;
+}

@@ -1,0 +1,131 @@
+.map-layer-groups-control {
+    position: absolute;
+    top: 72px;
+    right: 8px;
+    z-index: 700;
+    display: block;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    max-width: 360px;
+    max-height: 42vh;
+    overflow-y: auto;
+}
+.map-layer-groups-control label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0;
+}
+.map-layer-groups-control input[type="checkbox"] {
+    margin: 0;
+}
+/* Leaflet по умолчанию задаёт label { display: block } — из‑за этого чекбокс уезжает над текстом */
+.leaflet-control-layers-overlays label,
+.leaflet-control-layers-base label,
+.leaflet-control-layers-list label {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+}
+.leaflet-control-layers-overlays label span,
+.leaflet-control-layers-base label span {
+    order: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 1.25;
+}
+.leaflet-control-layers-overlays input.leaflet-control-layers-selector,
+.leaflet-control-layers-base input.leaflet-control-layers-selector {
+    order: 2;
+    flex: 0 0 auto;
+    margin: 0 !important;
+    position: static !important;
+    top: auto !important;
+}
+.map-layer-groups-control .layer-item-label {
+    background: #fff59d !important;
+    display: block !important;
+    color: #111827 !important;
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    white-space: nowrap;
+}
+.map-layer-groups-control .layer-group-label {
+    background: #ffd6d6 !important;
+    display: block !important;
+    color: #0f172a !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    white-space: nowrap;
+}
+.map-layer-groups-control .layer-group-title {
+    margin: 6px 0 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #111827;
+}
+.map-layer-groups-control .layer-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0;
+}
+.map-layer-groups-control .layer-children {
+    padding-left: 18px;
+    margin-bottom: 6px;
+}
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+    padding: 16px;
+}
+.modal-card {
+    width: 100%;
+    max-width: 460px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+    padding: 16px;
+}
+.modal-label {
+    display: block;
+    font-size: 13px;
+    color: #334155;
+    margin: 10px 0 6px;
+}
+.auto-remove-option {
+    display: flex !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-top: 8px !important;
+}
+.auto-remove-option input[type="checkbox"] {
+    margin: 0 !important;
+    flex: 0 0 auto !important;
+}
+.modal-input {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
