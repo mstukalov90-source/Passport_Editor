@@ -395,24 +395,34 @@
         const restoreCors = ensureTileLayerCors(leafletMap);
         restorations.push(restoreCors);
 
-        const bounds = L.latLngBounds([]);
-        const sources = [
-            mapLayers.selected,
-            mapLayers.adjacentDt,
-            mapLayers.odh,
-            mapLayers.ozn,
-        ];
-        sources.forEach((geo) => {
-            const b = collectBoundsFromGeoJson(geo);
-            if (b && b.isValid && b.isValid()) {
-                bounds.extend(b);
+        /* Центрируем на выбранном объекте, padding ≤ 50% размеров объекта (pad(0.5)).
+           Соседи попадают в кадр только если лежат внутри этой области.
+           Если selected недоступен — fallback на union всех слоёв. */
+        let targetBounds = null;
+        const selBounds = collectBoundsFromGeoJson(mapLayers.selected);
+        if (selBounds && selBounds.isValid && selBounds.isValid()) {
+            try {
+                targetBounds = selBounds.pad(0.5);
+            } catch (e) {
+                targetBounds = selBounds;
             }
-        });
+        } else {
+            const unionBounds = L.latLngBounds([]);
+            [mapLayers.adjacentDt, mapLayers.odh, mapLayers.ozn].forEach((geo) => {
+                const b = collectBoundsFromGeoJson(geo);
+                if (b && b.isValid && b.isValid()) {
+                    unionBounds.extend(b);
+                }
+            });
+            if (unionBounds.isValid && unionBounds.isValid()) {
+                targetBounds = unionBounds;
+            }
+        }
 
-        if (bounds.isValid && bounds.isValid()) {
+        if (targetBounds) {
             try {
                 leafletMap.invalidateSize(false);
-                leafletMap.fitBounds(bounds, {padding: [30, 30], maxZoom: 19, animate: false});
+                leafletMap.fitBounds(targetBounds, {padding: [0, 0], maxZoom: 22, animate: false});
             } catch (e) {
                 /* ignore */
             }
