@@ -158,9 +158,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const snapDebugEl = {set textContent(_) {}};
         const snapDebugFixedEl = {set textContent(_) {}};
         const exportLinksEl = document.getElementById('export-links');
-        const pdfExtentActionsEl = document.getElementById('pdf-extent-actions');
-        const pdfExtentConfirmBtn = document.getElementById('pdf-extent-confirm');
-        const pdfExtentCancelBtn = document.getElementById('pdf-extent-cancel');
         const PdfExport = PV.PdfExport;
         const selectedSourceLabel = cfg.selectedSourceLabel || "ДТ";
         const selectedRootid = cfg.selectedRootid || "";
@@ -2309,25 +2306,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             );
         }
 
-        function createPdfCaptureHooks() {
-            let vertexFlagWasOnMap = false;
-            return {
-                beforeCapture() {
-                    clearDrawSnapPreview();
-                    if (startVertexFlagMarker && map.hasLayer(startVertexFlagMarker)) {
-                        vertexFlagWasOnMap = true;
-                        map.removeLayer(startVertexFlagMarker);
-                    }
-                },
-                afterCapture() {
-                    if (vertexFlagWasOnMap && startVertexFlagMarker) {
-                        startVertexFlagMarker.addTo(map);
-                    }
-                },
-            };
-        }
-
-        async function runPdfExportDownload(frameRect) {
+        async function runPdfExportDownload() {
             if (pdfExportInProgress) {
                 return;
             }
@@ -2340,28 +2319,17 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 window.alert('Нет геометрии для PDF. Сначала выполните выгрузку файлов.');
                 return;
             }
-            if (!frameRect || !frameRect.width || !frameRect.height) {
-                window.alert('Не удалось определить область снимка для PDF.');
-                return;
-            }
             pdfExportInProgress = true;
             const prevStatus = statusEl.textContent;
             try {
                 statusEl.textContent = 'Готовим PDF: запрос пересечений...';
                 const intersectsGeo = await fetchIntersectsLayerForPdfExport(ctx.geometry);
-                statusEl.textContent = 'Готовим PDF: снимок карты...';
-                const mapCanvas = await PdfExport.captureMapInFrame(
-                    map,
-                    frameRect,
-                    createPdfCaptureHooks()
-                );
                 const features =
                     intersectsGeo && intersectsGeo.type === 'FeatureCollection' && Array.isArray(intersectsGeo.features)
                         ? intersectsGeo.features
                         : [];
                 statusEl.textContent = 'Готовим PDF: список пересечений...';
                 const fname = await PdfExport.buildAndSavePdf({
-                    mapCanvas,
                     objectInfo: PdfExport.buildObjectInfoFromContext(ctx),
                     features,
                     buildIntersectionHtml: buildPdfIntersectionPopupHtml,
@@ -2376,34 +2344,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             }
         }
 
-        function beginPdfFrameComposition() {
-            if (pdfExportInProgress || PdfExport.isFrameModeActive()) {
-                return;
-            }
-            if (typeof html2canvas === 'undefined' || !window.jspdf?.jsPDF || !PdfExport) {
-                window.alert('Библиотеки PDF не загрузились. Обновите страницу.');
-                return;
-            }
-            const ctx = lastPdfExportContext;
-            if (!ctx || !ctx.geometry) {
-                window.alert('Нет геометрии для PDF. Сначала выполните выгрузку файлов.');
-                return;
-            }
-            const restoreStatus = statusEl.textContent;
-            PdfExport.startFrameComposition({
-                map,
-                statusEl,
-                actionsEl: pdfExtentActionsEl,
-                confirmBtn: pdfExtentConfirmBtn,
-                cancelBtn: pdfExtentCancelBtn,
-                restoreStatus,
-                onConfirm: (frameRect) => {
-                    void runPdfExportDownload(frameRect);
-                },
-                onCancel: () => {},
-            });
-        }
-
         function bindPdfExportLink() {
             const a = exportLinksEl.querySelector('[data-export-pdf-link="1"]');
             if (!a) {
@@ -2411,7 +2351,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             }
             a.addEventListener('click', (event) => {
                 event.preventDefault();
-                beginPdfFrameComposition();
+                void runPdfExportDownload();
             });
         }
 
@@ -2475,7 +2415,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 exportLinksEl.innerHTML =
                     '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
                     '<a class="button-link" href="' + exportResult.shapefile_url + '">Скачать SHP (ZIP)</a> ' +
-                    '<a class="button-link" href="#" data-export-pdf-link="1">Скачать PDF (карта и пересечения)</a>';
+                    '<a class="button-link" href="#" data-export-pdf-link="1">Скачать PDF (пересечения)</a>';
                 bindPdfExportLink();
             } catch (error) {
                 saveModalErrorEl.textContent = error.message || 'Ошибка сохранения объекта.';
