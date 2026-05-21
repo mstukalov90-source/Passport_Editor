@@ -90,6 +90,7 @@ def add_recap_page_config(
     name='',
     selected_source_label='ДТ',
     selected_rootid='',
+    selected_row_ctid='',
     initial_recap_id='',
 ):
     urls = _editor_api_urls()
@@ -102,6 +103,7 @@ def add_recap_page_config(
         objectName=name or '',
         selectedSourceLabel=selected_source_label or 'ДТ',
         selectedRootid=selected_rootid or '',
+        selectedRowCtid=selected_row_ctid or '',
         initialRecapId=initial_recap_id or '',
         features={'pdf': False, 'selectedGeometry': True},
     )

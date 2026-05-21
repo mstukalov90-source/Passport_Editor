@@ -1994,6 +1994,11 @@ def _get_dgi_intersection_percent(geometry):
         return float(row[0]) if row and row[0] is not None else 0.0
 
 
+def _is_meaningful_gis_rootid(rootid):
+    text = str(rootid or '').strip()
+    return bool(text) and text.lower() not in {'-', 'none', 'null'}
+
+
 def _remove_intersections_from_geometry(
     geometry,
     selected_sources,
@@ -2001,6 +2006,7 @@ def _remove_intersections_from_geometry(
     selected_geometry=None,
     selected_rootid='',
     selected_request_id='',
+    selected_row_ctid='',
 ):
     geometry_norm = _to_intersection_geometry(geometry)
     if not geometry_norm:
@@ -2019,6 +2025,7 @@ def _remove_intersections_from_geometry(
     selected_geometry_norm = _to_intersection_geometry(selected_geometry)
     selected_rootid_text = str(selected_rootid or '').strip()
     selected_request_id_text = str(selected_request_id or '').strip()
+    selected_row_ctid_text = str(selected_row_ctid or '').strip()
     geometry_json = json.dumps(geometry_norm)
     selected_geometry_json = json.dumps(selected_geometry_norm) if selected_geometry_norm else None
     normalized_source = _normalize_source_label(source_label)
@@ -2054,11 +2061,14 @@ def _remove_intersections_from_geometry(
                 or (token == 'ozn' and normalized_source == 'ОЗН')
             ):
                 exclude_conditions = []
-                if selected_rootid_text:
+                if selected_row_ctid_text:
+                    exclude_conditions.append("t.ctid::text = %s")
+                    exclude_selected_params.append(selected_row_ctid_text)
+                elif _is_meaningful_gis_rootid(selected_rootid_text):
                     rootid_field = _resolve_column_name(cursor, table_name, settings.GIS_OBJECT_ROOTID_FIELD)
                     exclude_conditions.append(f"t.{_quote_ident(rootid_field)}::text = %s")
                     exclude_selected_params.append(selected_rootid_text)
-                if selected_request_id_text:
+                elif selected_request_id_text:
                     request_id_field = _resolve_column_name(
                         cursor,
                         table_name,
@@ -3524,6 +3534,7 @@ def add_recap(request):
                 name=selected_object['name'] or name,
                 selected_source_label=selected_object.get('source_label') or source_label,
                 selected_rootid=selected_object['rootid'] or '',
+                selected_row_ctid=selected_object['object_key'] or object_key,
                 initial_recap_id=initial_recap_id,
             ),
         },
@@ -3625,6 +3636,7 @@ def auto_remove_intersections(request):
     selected_geometry = _to_intersection_geometry(payload.get('selected_geometry'))
     selected_rootid = (payload.get('selected_rootid') or '').strip()
     selected_request_id = (payload.get('selected_request_id') or '').strip()
+    selected_row_ctid = (payload.get('selected_row_ctid') or '').strip()
 
     try:
         cleaned_geometry = _remove_intersections_from_geometry(
@@ -3634,6 +3646,7 @@ def auto_remove_intersections(request):
             selected_geometry=selected_geometry,
             selected_rootid=selected_rootid,
             selected_request_id=selected_request_id,
+            selected_row_ctid=selected_row_ctid,
         )
     except Exception:
         logger.exception('auto_remove_intersections: failed subtracting intersections')

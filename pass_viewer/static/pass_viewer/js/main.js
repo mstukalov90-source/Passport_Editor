@@ -1486,8 +1486,9 @@ function buildEditableDeletePopupHtml(baseHtml) {
                         selected_sources: selectedSources,
                         source_label: selectedSourceLabel,
                         selected_geometry: selectedGeometry,
-                        selected_rootid: selectedRootid,
-                        selected_request_id: selectedRequestId
+                        selected_row_ctid: selectedRowCtid || null,
+                        selected_rootid: selectedRowCtid ? null : (selectedRootid || null),
+                        selected_request_id: selectedRowCtid ? null : (selectedRequestId || null),
                     })
                 });
                 const data = await response.json();
