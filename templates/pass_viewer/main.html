@@ -182,30 +182,33 @@
         <div class="modal-card">
             <h3 style="margin: 0 0 10px;">Автоматическое удаление пересечений</h3>
             <p class="note" style="margin-top: 0;">Выберите слои, с которыми нужно убрать пересечения:</p>
-            <label class="modal-label auto-remove-option">
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dt">
                 ДТ
-                <input type="checkbox" id="auto-remove-dt" checked />
+                <input type="checkbox" id="auto-remove-dt" />
             </label>
-            <label class="modal-label auto-remove-option">
+            <label class="modal-label auto-remove-option" data-auto-remove-source="odh">
                 ОДХ
-                <input type="checkbox" id="auto-remove-odh" checked />
+                <input type="checkbox" id="auto-remove-odh" />
             </label>
-            <label class="modal-label auto-remove-option">
+            <label class="modal-label auto-remove-option" data-auto-remove-source="ozn">
                 ОО
-                <input type="checkbox" id="auto-remove-ozn" checked />
+                <input type="checkbox" id="auto-remove-ozn" />
             </label>
-            <label class="modal-label auto-remove-option">
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi">
                 ДГИ
-                <input type="checkbox" id="auto-remove-dgi" checked />
+                <input type="checkbox" id="auto-remove-dgi" />
             </label>
-            <label class="modal-label auto-remove-option">
+            <label class="modal-label auto-remove-option" data-auto-remove-source="oozt">
                 ООЗТ
-                <input type="checkbox" id="auto-remove-oozt" checked />
+                <input type="checkbox" id="auto-remove-oozt" />
             </label>
-            <label class="modal-label auto-remove-option">
+            <label class="modal-label auto-remove-option" data-auto-remove-source="rzd">
                 РЖД
-                <input type="checkbox" id="auto-remove-rzd" checked />
+                <input type="checkbox" id="auto-remove-rzd" />
             </label>
+            <p id="auto-remove-no-layers" class="note" style="display:none; margin-top: 8px;">
+                Нет отображённых слоёв. Включите нужные слои в панели управления картой.
+            </p>
             <p id="auto-remove-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
                 <button type="button" id="auto-remove-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>

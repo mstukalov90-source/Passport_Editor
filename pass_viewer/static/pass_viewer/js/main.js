@@ -93,6 +93,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
+        const autoRemoveNoLayersEl = document.getElementById('auto-remove-no-layers');
         const dbLoadingModal = document.getElementById('db-loading-modal');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
         const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
@@ -1319,14 +1320,79 @@ function buildEditableDeletePopupHtml(baseHtml) {
             checkDgiIntersections();
         });
 
+        const autoRemoveSourceToGroup = {
+            dt: adjacentDtPassportsGroup,
+            odh: odhSignalGroup,
+            ozn: oznSignalGroup,
+            dgi: dgiSignalGroup,
+            oozt: ooztSignalGroup,
+            rzd: rzdSignalGroup,
+        };
+        const autoRemoveOptionLabels = autoRemoveModal
+            ? Array.from(autoRemoveModal.querySelectorAll('[data-auto-remove-source]'))
+            : [];
+        const autoRemoveNoLayersMessage =
+            'Нет отображённых слоёв. Включите нужные слои в панели управления картой.';
+
+        function isAutoRemoveSourceDisplayed(source) {
+            const group = autoRemoveSourceToGroup[source];
+            if (!group) {
+                return false;
+            }
+            return map.hasLayer(group) && countGroupFeatures(group) > 0;
+        }
+
+        function resetAutoRemoveCheckboxes() {
+            [
+                autoRemoveDtCheckbox,
+                autoRemoveOdhCheckbox,
+                autoRemoveOznCheckbox,
+                autoRemoveDgiCheckbox,
+                autoRemoveOoztCheckbox,
+                autoRemoveRzdCheckbox,
+            ].forEach((el) => {
+                if (el) {
+                    el.checked = false;
+                }
+            });
+        }
+
+        function refreshAutoRemoveModalOptions() {
+            let visibleCount = 0;
+            autoRemoveOptionLabels.forEach((label) => {
+                const source = label.dataset.autoRemoveSource;
+                const checkbox = label.querySelector('input[type="checkbox"]');
+                const displayed = isAutoRemoveSourceDisplayed(source);
+                label.classList.toggle('auto-remove-option--hidden', !displayed);
+                if (!displayed && checkbox) {
+                    checkbox.checked = false;
+                }
+                if (displayed) {
+                    visibleCount += 1;
+                }
+            });
+            if (autoRemoveNoLayersEl) {
+                autoRemoveNoLayersEl.style.display = visibleCount === 0 ? 'block' : 'none';
+            }
+            if (autoRemoveModalSubmit) {
+                autoRemoveModalSubmit.disabled = visibleCount === 0;
+            }
+            return visibleCount;
+        }
+
         function openAutoRemoveModal() {
             autoRemoveModalErrorEl.textContent = '';
+            resetAutoRemoveCheckboxes();
+            refreshAutoRemoveModalOptions();
             autoRemoveModal.style.display = 'flex';
         }
 
         function closeAutoRemoveModal() {
             autoRemoveModal.style.display = 'none';
             autoRemoveModalErrorEl.textContent = '';
+            if (autoRemoveModalSubmit) {
+                autoRemoveModalSubmit.disabled = false;
+            }
         }
 
         function getAutoRemoveSources() {
@@ -1394,6 +1460,11 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 statusEl.textContent = 'Сначала выберите или отредактируйте объект.';
                 return;
             }
+            const visibleLayerCount = refreshAutoRemoveModalOptions();
+            if (!visibleLayerCount) {
+                autoRemoveModalErrorEl.textContent = autoRemoveNoLayersMessage;
+                return;
+            }
             const selectedSources = getAutoRemoveSources();
             if (!selectedSources.length) {
                 autoRemoveModalErrorEl.textContent = 'Выберите хотя бы один источник.';
@@ -1415,8 +1486,9 @@ function buildEditableDeletePopupHtml(baseHtml) {
                         selected_sources: selectedSources,
                         source_label: selectedSourceLabel,
                         selected_geometry: selectedGeometry,
-                        selected_rootid: selectedRootid,
-                        selected_request_id: selectedRequestId
+                        selected_row_ctid: selectedRowCtid || null,
+                        selected_rootid: selectedRowCtid ? null : (selectedRootid || null),
+                        selected_request_id: selectedRowCtid ? null : (selectedRequestId || null),
                     })
                 });
                 const data = await response.json();

@@ -38,7 +38,7 @@ PAGE_MAP = {
     'main': 'main.js',
     'home': 'home.js',
     'add_recap': 'add-recap.js',
-    'split_object': 'split-object.js',
+    # split_object: maintained manually under pass_viewer/js/split/ (not generated from _extracted)
 }
 
 

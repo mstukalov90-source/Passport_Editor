@@ -136,6 +136,7 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
         const objectName = cfg.objectName || "";
         const selectedSourceLabel = cfg.selectedSourceLabel || "ДТ";
         const selectedRootid = cfg.selectedRootid || "";
+        const selectedRowCtid = cfg.selectedRowCtid || "";
 
         const statusEl = document.getElementById('edit-status');
         const editableAreaInfoEl = document.getElementById('editable-area-info');
@@ -174,6 +175,7 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
         const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
+        const autoRemoveNoLayersEl = document.getElementById('auto-remove-no-layers');
         const dbLoadingModal = document.getElementById('db-loading-modal');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
         const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
@@ -1152,6 +1154,11 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
         refreshObjectLayersControl();
         updateEditableAreaInfo();
 
+        function hasDossierPolygon() {
+            const dossierGeo = dossierGroup.toGeoJSON();
+            return Array.isArray(dossierGeo?.features) && dossierGeo.features.length > 0;
+        }
+
         function buildCurrentGeometry() {
             const geo = dossierGroup.toGeoJSON();
             if (geo.features && geo.features.length) {
@@ -1351,8 +1358,7 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
                 statusEl.textContent = 'Нет геометрии для проверки связей.';
                 return;
             }
-            const dossierGeo = dossierGroup.toGeoJSON();
-            const hasNewPolygon = Array.isArray(dossierGeo?.features) && dossierGeo.features.length > 0;
+            const hasNewPolygon = hasDossierPolygon();
             checkRelationsButton.disabled = true;
             statusEl.textContent = 'Ищем смежные паспорта ДТ (пересечение, общая граница, до 10 м)...';
             showDbLoadingModal();
@@ -1422,14 +1428,79 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
             }
         }
 
+        const autoRemoveSourceToGroup = {
+            dt: adjacentDtPassportsGroup,
+            odh: odhSignalGroup,
+            ozn: oznSignalGroup,
+            dgi: dgiSignalGroup,
+            oozt: ooztSignalGroup,
+            rzd: rzdSignalGroup,
+        };
+        const autoRemoveOptionLabels = autoRemoveModal
+            ? Array.from(autoRemoveModal.querySelectorAll('[data-auto-remove-source]'))
+            : [];
+        const autoRemoveNoLayersMessage =
+            'Нет отображённых слоёв. Включите нужные слои в панели управления картой.';
+
+        function isAutoRemoveSourceDisplayed(source) {
+            const group = autoRemoveSourceToGroup[source];
+            if (!group) {
+                return false;
+            }
+            return map.hasLayer(group) && countGroupFeatures(group) > 0;
+        }
+
+        function resetAutoRemoveCheckboxes() {
+            [
+                autoRemoveDtCheckbox,
+                autoRemoveOdhCheckbox,
+                autoRemoveOznCheckbox,
+                autoRemoveDgiCheckbox,
+                autoRemoveOoztCheckbox,
+                autoRemoveRzdCheckbox,
+            ].forEach((el) => {
+                if (el) {
+                    el.checked = false;
+                }
+            });
+        }
+
+        function refreshAutoRemoveModalOptions() {
+            let visibleCount = 0;
+            autoRemoveOptionLabels.forEach((label) => {
+                const source = label.dataset.autoRemoveSource;
+                const checkbox = label.querySelector('input[type="checkbox"]');
+                const displayed = isAutoRemoveSourceDisplayed(source);
+                label.classList.toggle('auto-remove-option--hidden', !displayed);
+                if (!displayed && checkbox) {
+                    checkbox.checked = false;
+                }
+                if (displayed) {
+                    visibleCount += 1;
+                }
+            });
+            if (autoRemoveNoLayersEl) {
+                autoRemoveNoLayersEl.style.display = visibleCount === 0 ? 'block' : 'none';
+            }
+            if (autoRemoveModalSubmit) {
+                autoRemoveModalSubmit.disabled = visibleCount === 0;
+            }
+            return visibleCount;
+        }
+
         function openAutoRemoveModal() {
             autoRemoveModalErrorEl.textContent = '';
+            resetAutoRemoveCheckboxes();
+            refreshAutoRemoveModalOptions();
             autoRemoveModal.style.display = 'flex';
         }
 
         function closeAutoRemoveModal() {
             autoRemoveModal.style.display = 'none';
             autoRemoveModalErrorEl.textContent = '';
+            if (autoRemoveModalSubmit) {
+                autoRemoveModalSubmit.disabled = false;
+            }
         }
 
         function getAutoRemoveSources() {
@@ -1478,6 +1549,12 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
                 statusEl.textContent = 'Нет геометрии для автоматического удаления пересечений.';
                 return;
             }
+            const hasNewPolygon = hasDossierPolygon();
+            const visibleLayerCount = refreshAutoRemoveModalOptions();
+            if (!visibleLayerCount) {
+                autoRemoveModalErrorEl.textContent = autoRemoveNoLayersMessage;
+                return;
+            }
             const selectedSources = getAutoRemoveSources();
             if (!selectedSources.length) {
                 autoRemoveModalErrorEl.textContent = 'Выберите хотя бы один источник.';
@@ -1498,8 +1575,9 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
                         geometry,
                         selected_sources: selectedSources,
                         source_label: selectedSourceLabel,
-                        selected_geometry: selectedGeometry,
-                        selected_request_id: requestId
+                        selected_row_ctid: hasNewPolygon ? (selectedRowCtid || null) : null,
+                        selected_rootid: hasNewPolygon ? (selectedRootid || null) : null,
+                        selected_geometry: hasNewPolygon ? selectedGeometry : null,
                     })
                 });
                 const data = await response.json();

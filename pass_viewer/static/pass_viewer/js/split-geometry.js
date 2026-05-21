@@ -7,7 +7,7 @@
             if (geometry.type === 'GeometryCollection') {
                 return {
                     type: 'GeometryCollection',
-                    geometries: (geometry.geometries || []).map(stripGeometryTo2D).filter(Boolean),
+                    geometries: (geometry.geometries || []).map(PassViewer.stripGeometryTo2D).filter(Boolean),
                 };
             }
             const stripCoords = (coords) => {
@@ -98,95 +98,6 @@
             if (Math.abs(o3) < eps && PassViewer.pointOnSegment2d(a, c, d, eps)) return true;
             if (Math.abs(o4) < eps && PassViewer.pointOnSegment2d(b, c, d, eps)) return true;
             return false;
-        }
-
-    PassViewer.findBestParentPolygonIndex = function findBestParentPolygonIndex(childGeom, parts) {
-            if (!childGeom || childGeom.type !== 'Polygon' || !parts.length) return -1;
-            const verts = outerRingVertices2d(childGeom);
-            if (!verts.length) return -1;
-            const c = PassViewer.centroidPolygonLonLat(childGeom);
-            let minx = verts[0][0];
-            let maxx = verts[0][0];
-            let miny = verts[0][1];
-            let maxy = verts[0][1];
-            verts.forEach((v) => {
-                minx = Math.min(minx, v[0]);
-                maxx = Math.max(maxx, v[0]);
-                miny = Math.min(miny, v[1]);
-                maxy = Math.max(maxy, v[1]);
-            });
-            const bboxCenter = [(minx + maxx) / 2, (miny + maxy) / 2];
-            let bestIdx = -1;
-            let bestScore = -1;
-            for (let i = 0; i < parts.length; i += 1) {
-                const coords = parts[i].geometry.coordinates;
-                let score = 0;
-                if (c && PassViewer.pointInPolygonCoords2D(c, coords)) score += 1000;
-                score += countPointsInsidePolygonCoords2d(verts, coords);
-                if (PassViewer.pointInPolygonCoords2D(bboxCenter, coords)) score += 200;
-                if (score > bestScore || (score === bestScore && (bestIdx < 0 || i < bestIdx))) {
-                    bestScore = score;
-                    bestIdx = i;
-                }
-            }
-            return bestScore > 0 ? bestIdx : -1;
-        }
-
-    PassViewer.tagEditablePartsAfterLineCut = function tagEditablePartsAfterLineCut(cutterLineGeometry, preCutParts, preTouchedParentIndices) {
-            const parts = preCutParts && preCutParts.length ? preCutParts : null;
-            const parentTouched = preTouchedParentIndices || new Set();
-            const prPass = (selectedRequestId || '').trim();
-            const nmPass = (selectedName || '').trim();
-            editableGroup.eachLayer((layer) => {
-                if (typeof layer.toGeoJSON !== 'function') return;
-                const g = PassViewer.stripGeometryTo2D(layer.toGeoJSON().geometry);
-                layer.feature = layer.feature || { type: 'Feature', properties: {}, geometry: g };
-                layer.feature.properties = layer.feature.properties || {};
-                const p = layer.feature.properties;
-                delete p[POLYGON_LINE_CUT_TOUCHED];
-                delete p[LINE_CUT_OUTSIDE_SELECTION_PRESERVE];
-
-                if (!parts) {
-                    if (prPass) p.request_id = prPass;
-                    if (nmPass) p.name = nmPass;
-                    p[POLYGON_LINE_CUT_TOUCHED] = false;
-                    bindPartPopup(layer);
-                    return;
-                }
-
-                let parentIdx = PassViewer.findBestParentPolygonIndex(g, parts);
-                if (
-                    parentIdx < 0 &&
-                    parentTouched.size === 1 &&
-                    lineGeometryTouchesPolygon2d(g, cutterLineGeometry)
-                ) {
-                    parentIdx = parentTouched.values().next().value;
-                }
-
-                let touched = false;
-                if (parentIdx >= 0) {
-                    touched = parentTouched.has(parentIdx);
-                    if (!touched) {
-                        const src = parts[parentIdx].properties || {};
-                        p.request_id = (String(src.request_id || '').trim() || prPass);
-                        p.name = (String(src.name || '').trim() || nmPass);
-                        if (src[POLYGON_SELECTION_INSIDE_LOCK]) {
-                            p[POLYGON_SELECTION_INSIDE_LOCK] = true;
-                        }
-                        if (src[LINE_CUT_OUTSIDE_SELECTION_PRESERVE]) {
-                            p[LINE_CUT_OUTSIDE_SELECTION_PRESERVE] = true;
-                        }
-                    } else {
-                        delete p.request_id;
-                        delete p.name;
-                    }
-                } else {
-                    if (prPass) p.request_id = prPass;
-                    if (nmPass) p.name = nmPass;
-                }
-                p[POLYGON_LINE_CUT_TOUCHED] = touched;
-                bindPartPopup(layer);
-            });
         }
 
 })(typeof window !== 'undefined' ? window : global);

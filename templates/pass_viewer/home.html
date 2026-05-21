@@ -24,10 +24,13 @@
             Объекты балансодержателя:{% if owner_id or owner_name %}
             <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>{% endif %}
         </h2>
-        <form method="post" action="{% url 'logout' %}" style="margin: 0;">
-            {% csrf_token %}
-            <button type="submit">&#1042;&#1099;&#1081;&#1090;&#1080;</button>
-        </form>
+        <div class="owned-home-header-actions">
+            <button type="button" id="user-guide-open-btn" class="user-guide-open-btn">Инструкция пользования</button>
+            <form method="post" action="{% url 'logout' %}" style="margin: 0;">
+                {% csrf_token %}
+                <button type="submit">&#1042;&#1099;&#1081;&#1090;&#1080;</button>
+            </form>
+        </div>
     </div>
 
     <div class="owned-home-main">
@@ -537,6 +540,25 @@
                     <button type="button" id="manual-cancel-btn" style="background: #e5e7eb; color: #111;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div
+        id="user-guide-modal"
+        class="user-guide-modal-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="user-guide-modal-title"
+        hidden
+    >
+        <div class="user-guide-modal-card">
+            <div class="user-guide-modal-header">
+                <h3 id="user-guide-modal-title">Руководство пользователя</h3>
+                <button type="button" id="user-guide-close-btn" class="user-guide-close-btn" aria-label="Закрыть">&#10005;</button>
+            </div>
+            <div id="user-guide-modal-body" class="user-guide-modal-body user-guide-content">
+                {{ user_guide_html|safe }}
+            </div>
         </div>
     </div>
 
