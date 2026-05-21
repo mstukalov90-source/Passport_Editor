@@ -25,6 +25,7 @@ from .page_config import (
     main_page_config,
     split_object_page_config,
 )
+from .user_guide import load_user_guide_html
 from .hood_scope import (
     geometry_intersects_allowed_hood,
     get_hood_allowed_districts_geojson,
@@ -2963,6 +2964,7 @@ def home(request):
                 need_entry_request_id=need_entry_request_id,
                 ods_source_label=getattr(settings, 'GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС'),
             ),
+            'user_guide_html': load_user_guide_html(),
         },
     )
 

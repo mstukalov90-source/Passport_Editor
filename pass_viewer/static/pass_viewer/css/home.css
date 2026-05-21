@@ -24,6 +24,131 @@ main.container.container--wide:has(.owned-home-shell) {
     align-items: flex-start;
     gap: 12px;
 }
+.owned-home-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.user-guide-open-btn {
+    background: #e5e7eb;
+    color: #111;
+    white-space: nowrap;
+}
+.user-guide-open-btn:hover {
+    background: #d1d5db;
+}
+.user-guide-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 1005;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+.user-guide-modal-overlay.is-open {
+    display: flex;
+}
+.user-guide-modal-card {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e3e6ec;
+    width: 100%;
+    max-width: 920px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+}
+.user-guide-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0;
+}
+.user-guide-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.35;
+}
+.user-guide-close-btn {
+    flex-shrink: 0;
+    background: #e5e7eb;
+    color: #111;
+}
+.user-guide-modal-body {
+    overflow: auto;
+    padding: 18px 22px 24px;
+}
+.user-guide-content h1 {
+    font-size: 22px;
+    margin: 0 0 14px;
+}
+.user-guide-content h2 {
+    font-size: 18px;
+    margin: 22px 0 10px;
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+}
+.user-guide-content h2:first-child {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+}
+.user-guide-content h3 {
+    font-size: 16px;
+    margin: 16px 0 8px;
+}
+.user-guide-content p,
+.user-guide-content li {
+    font-size: 14px;
+    line-height: 1.55;
+    color: #334155;
+}
+.user-guide-content ul,
+.user-guide-content ol {
+    margin: 8px 0 12px;
+    padding-left: 22px;
+}
+.user-guide-content table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 12px 0 16px;
+}
+.user-guide-content th,
+.user-guide-content td {
+    border: 1px solid #dbe2ea;
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+}
+.user-guide-content th {
+    background: #f8fafc;
+    font-weight: 600;
+}
+.user-guide-content hr {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 20px 0;
+}
+.user-guide-content img.user-guide-img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 12px 0 16px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+.user-guide-content a {
+    color: #2563eb;
+}
 .owned-home-main {
     min-height: 0;
     display: flex;

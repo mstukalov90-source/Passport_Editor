@@ -1468,6 +1468,52 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             });
         }
 
+        const userGuideModal = document.getElementById('user-guide-modal');
+        const userGuideOpenBtn = document.getElementById('user-guide-open-btn');
+        const userGuideCloseBtn = document.getElementById('user-guide-close-btn');
+        let userGuidePreviousOverflow = '';
+
+        function openUserGuideModal() {
+            if (!userGuideModal) {
+                return;
+            }
+            userGuidePreviousOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            userGuideModal.hidden = false;
+            userGuideModal.classList.add('is-open');
+            if (userGuideCloseBtn) {
+                userGuideCloseBtn.focus();
+            }
+        }
+
+        function closeUserGuideModal() {
+            if (!userGuideModal) {
+                return;
+            }
+            userGuideModal.classList.remove('is-open');
+            userGuideModal.hidden = true;
+            document.body.style.overflow = userGuidePreviousOverflow;
+        }
+
+        if (userGuideOpenBtn) {
+            userGuideOpenBtn.addEventListener('click', openUserGuideModal);
+        }
+        if (userGuideCloseBtn) {
+            userGuideCloseBtn.addEventListener('click', closeUserGuideModal);
+        }
+        if (userGuideModal) {
+            userGuideModal.addEventListener('click', (event) => {
+                if (event.target === userGuideModal) {
+                    closeUserGuideModal();
+                }
+            });
+        }
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && userGuideModal && userGuideModal.classList.contains('is-open')) {
+                closeUserGuideModal();
+            }
+        });
+
         if (needEntryRequestIdOnLoad) {
             openEntryRequestModal('pending');
         } else if (homeWorkflowModal) {
