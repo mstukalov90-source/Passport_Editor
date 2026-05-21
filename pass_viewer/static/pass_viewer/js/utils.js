@@ -72,7 +72,7 @@
             if (geometry.type === 'Polygon') {
                 features.push({
                     type: 'Feature',
-                    properties: feature.properties || {},
+                    properties: { ...(feature.properties || {}) },
                     geometry: geometry,
                 });
                 return;
@@ -81,7 +81,7 @@
                 geometry.coordinates.forEach((polyCoords) => {
                     features.push({
                         type: 'Feature',
-                        properties: feature.properties || {},
+                        properties: { ...(feature.properties || {}) },
                         geometry: { type: 'Polygon', coordinates: polyCoords },
                     });
                 });

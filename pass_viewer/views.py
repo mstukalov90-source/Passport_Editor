@@ -58,6 +58,15 @@ def _sql_geojson_param_as_valid_geom2d(placeholder: str = '%s') -> str:
     )
 
 
+def _sql_table_geom_valid_expr(qualified_geom_expr: str) -> str:
+    """ST_MakeValid только для невалидных строк; иначе сырая геометрия (без раздувания)."""
+    return (
+        f'CASE WHEN ST_IsValid({qualified_geom_expr}) '
+        f'THEN {qualified_geom_expr} '
+        f'ELSE ST_MakeValid({qualified_geom_expr}) END'
+    )
+
+
 def _quote_ident(identifier):
     return '"' + str(identifier).replace('"', '""') + '"'
 
@@ -2034,6 +2043,9 @@ def _remove_intersections_from_geometry(
             if not table_name or not _table_exists(cursor, table_name):
                 continue
             geom_field = _resolve_column_name(cursor, table_name, settings.GIS_OBJECT_GEOM_FIELD)
+            geom_q = _quote_ident(geom_field)
+            raw_geom = f"t.{geom_q}"
+            geom_v = _sql_table_geom_valid_expr(raw_geom)
             exclude_selected_clause = ""
             exclude_selected_params = []
             if (
@@ -2055,15 +2067,17 @@ def _remove_intersections_from_geometry(
                     exclude_conditions.append(f"t.{_quote_ident(request_id_field)}::text = %s")
                     exclude_selected_params.append(selected_request_id_text)
                 if selected_geometry_json:
-                    exclude_conditions.append(f"(s.geom IS NOT NULL AND ST_Equals(t.{_quote_ident(geom_field)}, s.geom))")
+                    exclude_conditions.append(f"(s.geom IS NOT NULL AND ST_Equals({geom_v}, s.geom))")
                 if exclude_conditions:
                     exclude_selected_clause = " AND NOT (" + " OR ".join(exclude_conditions) + ")"
-            hood_m_suf, hood_m_prm = get_hood_intersects_sql_suffix(f"t.{_quote_ident(geom_field)}")
+            hood_m_suf, hood_m_prm = get_hood_intersects_sql_suffix(geom_v)
             union_parts.append(
-                f"SELECT ST_CollectionExtract(ST_MakeValid(t.{_quote_ident(geom_field)}), 3) AS geom "
+                f"SELECT ST_CollectionExtract({geom_v}, 3) AS geom "
                 f"FROM {_quote_ident(table_name)} t, input i"
                 f"{' LEFT JOIN selected s ON TRUE' if selected_geometry_json else ''} "
-                f"WHERE ST_Intersects(t.{_quote_ident(geom_field)}, i.geom)"
+                f"WHERE {raw_geom} && i.geom"
+                f" AND ST_Intersects({geom_v}, i.geom)"
+                f" AND ST_Area(ST_Intersection({geom_v}, i.geom)) > 1e-10"
                 f"{exclude_selected_clause}"
                 f"{hood_m_suf}"
             )
@@ -2459,6 +2473,9 @@ def _get_reference_layer_geojson(
         owner_field_candidates.insert(0, getattr(settings, 'GIS_OZN_OWNER_FIELD', 'ownerlegalpersonalid'))
     with connection.cursor() as cursor:
         geom_field = _resolve_column_name(cursor, table_name, geom_field_pref)
+        geom_q = _quote_ident(geom_field)
+        raw_geom = f"t.{geom_q}"
+        geom_v = _sql_table_geom_valid_expr(raw_geom)
         rootid_field_pref = settings.GIS_OBJECT_ROOTID_FIELD
         name_field_pref = settings.GIS_OBJECT_NAME_FIELD
         descr_field_pref = 'descr'
@@ -2636,10 +2653,11 @@ def _get_reference_layer_geojson(
                     f" SELECT t.{_quote_ident(geom_field)} AS geom, "
                     f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr}{meta_select_suffix} "
                     f"FROM {_quote_ident(table_name)} t, input i"
-                    f" WHERE ST_Intersects(t.{_quote_ident(geom_field)}, i.geom)"
+                    f" WHERE {raw_geom} && i.geom"
+                    f" AND ST_Intersects({geom_v}, i.geom)"
                     "   AND NOT EXISTS ("
                     "       SELECT 1 FROM input_parts p"
-                    f"       WHERE ST_Equals(t.{_quote_ident(geom_field)}, p.geom)"
+                    f"       WHERE ST_Equals({geom_v}, p.geom)"
                     "   )"
                     f"{hood_ref_t}"
                     ") "
@@ -2654,13 +2672,13 @@ def _get_reference_layer_geojson(
                     f" SELECT t.{_quote_ident(geom_field)} AS geom, "
                     f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}, {sobstv_rr_select_expr}, {customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr}{meta_select_suffix} "
                     f"FROM {_quote_ident(table_name)} t, input i"
-                    f" WHERE t.{_quote_ident(geom_field)} && ST_Envelope(ST_Buffer(i.geom::geography, %s)::geometry)"
+                    f" WHERE {raw_geom} && ST_Envelope(ST_Buffer(i.geom::geography, %s)::geometry)"
                     "   AND (ST_DWithin("
-                    f"   t.{_quote_ident(geom_field)}::geography,"
+                    f"   {raw_geom}::geography,"
                     "   ST_Boundary(i.geom)::geography,"
                     "   %s"
                     " ) OR ST_Intersects("
-                    f"   t.{_quote_ident(geom_field)},"
+                    f"   {geom_v},"
                     "   i.geom"
                     f" )){hood_ref_t}"
                     ") "
