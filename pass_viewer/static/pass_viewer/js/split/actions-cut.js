@@ -90,11 +90,17 @@
                             ...e,
                         }));
                     }
-                    p[Split.PROP.LINE_CUT_TOUCHED] = true;
                 }
+            } else if (
+                parentTouched.size > 0 &&
+                Split.lineGeometryTouchesPolygon2d(g, cutterLineGeometry)
+            ) {
+                touched = true;
+                p[Split.PROP.PART_ID] = state.nextPartId('-orphan');
+                delete p.request_id;
+                delete p.name;
             } else {
                 p[Split.PROP.PART_ID] = state.nextPartId('-orphan');
-                p[Split.PROP.LINE_CUT_TOUCHED] = true;
             }
 
             if (touched) {

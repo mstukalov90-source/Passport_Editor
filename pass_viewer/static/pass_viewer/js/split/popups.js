@@ -92,13 +92,16 @@
                 .openOn(map);
 
             let settled = false;
+            let savedByUser = false;
             const finish = (value) => {
                 if (settled) return;
                 settled = true;
                 resolve(value);
             };
 
-            popup.on('remove', () => finish(false));
+            popup.on('remove', () => {
+                if (!savedByUser) finish(false);
+            });
 
             setTimeout(() => {
                 const root = document.getElementById(popupId);
@@ -134,8 +137,9 @@
                         delete p[Split.PROP.LINE_CUT_TOUCHED];
                     }
                     Split.bindReadOnlyPartPopup(layer);
-                    map.closePopup(popup);
+                    savedByUser = true;
                     finish(true);
+                    map.closePopup(popup);
                 });
             }, 0);
         });
@@ -314,6 +318,7 @@
 
         if (!needPrompt.length) return true;
 
+        // Последовательно: Leaflet держит один popup на карте; каждый следующий — после «Сохранить».
         for (let i = 0; i < needPrompt.length; i += 1) {
             const layer = needPrompt[i];
             if (opts.onlyLineCutTouched) {
