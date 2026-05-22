@@ -166,6 +166,40 @@ docker exec passport_db psql -U postgres -d geodb -c \
 
 Только веб (без сброса сессий): `docker restart passport_web`.
 
+## Ежедневное обновление `ods_request` (09:00 МСК)
+
+Выгрузка ОДС приходит как `ods_request.json`. Раз в сутки cron проверяет файл в контейнере; если он есть — таблица `ods_request` перезаписывается, файл удаляется. Если файла нет — запуск завершается без ошибки (БД не трогается).
+
+**Команда (внутри контейнера или локально):**
+
+```bash
+python manage.py sync_ods_request_if_present
+python manage.py sync_ods_request_if_present --dry-run   # только подсчёт строк
+```
+
+**Положить файл на VPS перед 9:00** (путь в контейнере — `/app/ods_request.json`):
+
+```bash
+docker cp /path/on/host/ods_request.json passport_web:/app/ods_request.json
+```
+
+**Cron на хосте** (`crontab -e` у `root`):
+
+```cron
+0 9 * * * TZ=Europe/Moscow /opt/passport_editor_new/scripts/sync_ods_request_daily.sh >> /var/log/ods_request_sync.log 2>&1
+```
+
+Обёртка: `scripts/sync_ods_request_daily.sh` (вызов `docker exec passport_web …`). После деплоя кода: `chmod +x /opt/passport_editor_new/scripts/sync_ods_request_daily.sh`.
+
+**Проверка вручную:**
+
+```bash
+/opt/passport_editor_new/scripts/sync_ods_request_daily.sh
+tail -20 /var/log/ods_request_sync.log
+```
+
+При ошибке импорта (битый JSON) файл **не** удаляется; транзакция откатывает изменения в БД.
+
 ## Известные нюансы
 
 - **Ветка `main` без `docker-compose.yml`** — деплой только через **`deploy/vps-docker`**.
