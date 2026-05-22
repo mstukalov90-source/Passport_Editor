@@ -7,3 +7,7 @@ services:
   web:
     image: passport_editor_new-web:latest
     build: !reset null
+    # Код с диска после git pull (образ — только Python/GDAL-зависимости)
+    volumes:
+      - .:/app
+      - media_data:/app/media

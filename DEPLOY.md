@@ -36,7 +36,7 @@ cd /opt/passport_editor_new
 sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d
 ```
 
-Файл [`docker-compose.images.yml`](docker-compose.images.yml) — только override образов, в git.
+Файл [`docker-compose.images.yml`](docker-compose.images.yml) — override образов и монтирование `.:/app` (код с диска после `git pull`).
 
 ### Git на MGGT и токен развёртывания (hub.mos.ru)
 
@@ -281,10 +281,11 @@ python manage.py sync_ods_request_if_present
 python manage.py sync_ods_request_if_present --dry-run   # только подсчёт строк
 ```
 
-**Положить файл на VPS перед 9:00** (путь в контейнере — `/app/ods_request.json`):
+**Положить файл на VPS перед 9:00** (с bind mount достаточно каталога проекта):
 
 ```bash
-docker cp /path/on/host/ods_request.json passport_web:/app/ods_request.json
+cp /path/on/host/ods_request.json /opt/passport_editor_new/ods_request.json
+# или: sudo docker cp ... passport_web:/app/ods_request.json
 ```
 
 **Cron на хосте** (`crontab -e` у `root`):
