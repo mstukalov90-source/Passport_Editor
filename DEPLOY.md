@@ -38,71 +38,54 @@ sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d
 
 Файл [`docker-compose.images.yml`](docker-compose.images.yml) — только override образов, в git.
 
-### Git на MGGT и Deploy Key (hub.mos.ru)
+### Git на MGGT и токен развёртывания (hub.mos.ru)
 
-На сервере установлен **git** (`/usr/bin/git`). Каталог `/opt/passport_editor_new` изначально заливался через `rsync`; для обновлений удобнее **git pull** с hub.mos.ru.
+На hub.mos.ru для этого проекта доступны **токены развёртывания** (Deploy Token), не Deploy keys. На сервере `172.21.197.77` настроено:
 
-**Проверка (на сервере под `pasp-ssh-user`):**
+- remote: `https://hub.mos.ru/m.stukalov90/Passport_Editor.git`
+- учётные данные: `~/.git-credentials` (права `600`), `git config credential.helper store`
+- ветка: `deploy/mggt-docker`, каталог `/opt/passport_editor_new`
 
-```bash
-git --version
-ssh -T git@hub.mos.ru
-```
+Токен и имя пользователя токена (**не** название вроде `mggt-…-readonly`, а значение поля «Имя пользователя», например `moshub+deploy-token-…`) **не коммитить** и не писать в этот файл.
 
-| Результат `ssh -T` | Значение |
-|--------------------|----------|
-| `Welcome to GitLab, @...` | Deploy Key работает, можно клонировать |
-| `Permission denied (publickey)` | ключ не добавлен в GitLab или неверный `~/.ssh/config` |
-
-#### 1. SSH-ключ на сервере (если ещё нет)
+**Проверка:**
 
 ```bash
-ssh pasp-ssh-user@172.21.197.77
-test -f ~/.ssh/id_ed25519 || ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -C "passport-editor-mggt"
-cat ~/.ssh/id_ed25519.pub   # скопировать в GitLab (см. шаг 2)
+cd /opt/passport_editor_new
+git fetch origin deploy/mggt-docker
+git status -sb
 ```
 
-Публичный ключ **не коммитить** в репозиторий.
+#### Создать новый токен (если истёк или заменяете)
 
-#### 2. Добавить Deploy Key в GitLab
+1. `https://hub.mos.ru/m.stukalov90/Passport_Editor` → **Settings** → **Repository** → **Deploy tokens**
+2. Имя: `mggt-172.21.197.77-readonly`, право **`read_repository`**, без write
+3. Сохранить **имя пользователя** и **токен** (показывается один раз)
 
-1. Открыть: `https://hub.mos.ru/m.stukalov90/Passport_Editor`
-2. **Settings** → **Repository** → **Deploy keys** → **Add new key**
-3. **Title:** `mggt-172.21.197.77-readonly`
-4. **Key:** вставить вывод `cat ~/.ssh/id_ed25519.pub` с сервера
-5. **Write access:** выключить (для прода достаточно read)
-6. Сохранить
+На сервере обновить `~/.git-credentials` (одна строка):
 
-#### 3. SSH config для hub.mos.ru
+```text
+https://ИМЯ_ПОЛЬЗОВАТЕЛЯ_ТОКЕНА:ТОКЕН@hub.mos.ru
+```
 
 ```bash
-cat >> ~/.ssh/config << 'EOF'
-Host hub.mos.ru
-  HostName hub.mos.ru
-  User git
-  IdentityFile ~/.ssh/id_ed25519
-  IdentitiesOnly yes
-EOF
-chmod 600 ~/.ssh/config
-ssh-keyscan -H hub.mos.ru >> ~/.ssh/known_hosts 2>/dev/null
-ssh -T git@hub.mos.ru
+chmod 600 ~/.git-credentials
+git config --global credential.helper store
 ```
 
-#### 4. Привязать `/opt/passport_editor_new` к репозиторию
+#### Первичная привязка каталога (если git ещё не инициализирован)
 
-`.env` уже на диске — **не перезаписывать**. Если git ещё не инициализирован:
+`.env` на диске — **не перезаписывать** (в `.gitignore`).
 
 ```bash
 cd /opt/passport_editor_new
 git init
-git remote add origin git@hub.mos.ru:m.stukalov90/Passport_Editor.git
+git remote add origin https://hub.mos.ru/m.stukalov90/Passport_Editor.git
 git fetch origin deploy/mggt-docker
-git checkout -B deploy/mggt-docker origin/deploy/mggt-docker
+git checkout -f -B deploy/mggt-docker origin/deploy/mggt-docker
 ```
 
-Если `git init` ругается на существующие файлы — они должны совпасть с веткой; при расхождении сначала бэкап `.env`, затем `git checkout -f deploy/mggt-docker` (осторожно: затрёт незакоммиченные правки в коде).
-
-#### 5. Обновление кода через git (без пересборки образа)
+#### Обновление кода через git (без пересборки образа)
 
 ```bash
 cd /opt/passport_editor_new
