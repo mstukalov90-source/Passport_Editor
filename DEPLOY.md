@@ -38,6 +38,90 @@ sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d
 
 Файл [`docker-compose.images.yml`](docker-compose.images.yml) — только override образов, в git.
 
+### Git на MGGT и Deploy Key (hub.mos.ru)
+
+На сервере установлен **git** (`/usr/bin/git`). Каталог `/opt/passport_editor_new` изначально заливался через `rsync`; для обновлений удобнее **git pull** с hub.mos.ru.
+
+**Проверка (на сервере под `pasp-ssh-user`):**
+
+```bash
+git --version
+ssh -T git@hub.mos.ru
+```
+
+| Результат `ssh -T` | Значение |
+|--------------------|----------|
+| `Welcome to GitLab, @...` | Deploy Key работает, можно клонировать |
+| `Permission denied (publickey)` | ключ не добавлен в GitLab или неверный `~/.ssh/config` |
+
+#### 1. SSH-ключ на сервере (если ещё нет)
+
+```bash
+ssh pasp-ssh-user@172.21.197.77
+test -f ~/.ssh/id_ed25519 || ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -C "passport-editor-mggt"
+cat ~/.ssh/id_ed25519.pub   # скопировать в GitLab (см. шаг 2)
+```
+
+Публичный ключ **не коммитить** в репозиторий.
+
+#### 2. Добавить Deploy Key в GitLab
+
+1. Открыть: `https://hub.mos.ru/m.stukalov90/Passport_Editor`
+2. **Settings** → **Repository** → **Deploy keys** → **Add new key**
+3. **Title:** `mggt-172.21.197.77-readonly`
+4. **Key:** вставить вывод `cat ~/.ssh/id_ed25519.pub` с сервера
+5. **Write access:** выключить (для прода достаточно read)
+6. Сохранить
+
+#### 3. SSH config для hub.mos.ru
+
+```bash
+cat >> ~/.ssh/config << 'EOF'
+Host hub.mos.ru
+  HostName hub.mos.ru
+  User git
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+EOF
+chmod 600 ~/.ssh/config
+ssh-keyscan -H hub.mos.ru >> ~/.ssh/known_hosts 2>/dev/null
+ssh -T git@hub.mos.ru
+```
+
+#### 4. Привязать `/opt/passport_editor_new` к репозиторию
+
+`.env` уже на диске — **не перезаписывать**. Если git ещё не инициализирован:
+
+```bash
+cd /opt/passport_editor_new
+git init
+git remote add origin git@hub.mos.ru:m.stukalov90/Passport_Editor.git
+git fetch origin deploy/mggt-docker
+git checkout -B deploy/mggt-docker origin/deploy/mggt-docker
+```
+
+Если `git init` ругается на существующие файлы — они должны совпасть с веткой; при расхождении сначала бэкап `.env`, затем `git checkout -f deploy/mggt-docker` (осторожно: затрёт незакоммиченные правки в коде).
+
+#### 5. Обновление кода через git (без пересборки образа)
+
+```bash
+cd /opt/passport_editor_new
+git fetch origin deploy/mggt-docker
+git reset --hard origin/deploy/mggt-docker
+sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d
+```
+
+Флаг **`--build` не использовать** на RED OS (registry недоступен), пока образ не обновляли через `docker save`/`load` с другой машины.
+
+#### 6. Если старый VPS (`77.222.63.161`) выключен
+
+| Задача | Без старого сервера |
+|--------|---------------------|
+| Обновить Python/шаблоны | `git pull` + `compose up -d` (без `--build`) |
+| Обновить образ приложения | Собрать на Mac/CI → `docker save` → `docker load` на MGGT |
+| Свежий дамп БД | Хранить локальные архивы `geodb.dump`; старый VPS недоступен |
+| Образ PostGIS | Уже в Docker на MGGT; при сбое — `docker save` из бэкапа |
+
 ## Ветки — зачем так
 
 - **`main`** — весь код, миграции, шаблоны, `pass_viewer/static/…`. **Без** `docker-compose.yml`.
@@ -50,7 +134,7 @@ sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d
 
 ## Первичный деплой на новый VPS (сделано 2026-05-22)
 
-1. Код: `rsync` ветки `deploy/mggt-docker` в `/opt/passport_editor_new` (на сервере нет `git`, hub.mos.ru без Deploy Key).
+1. Код: `rsync` ветки `deploy/mggt-docker` (далее — git + Deploy Key, см. раздел выше).
 2. `.env`: скопирован со старого VPS; в `DJANGO_ALLOWED_HOSTS` добавлен `172.21.197.77`; `POSTGIS_DB_HOST=db`, `POSTGIS_DB_PORT=5432`.
 3. Образы: `postgis/postgis:16-3.4` и `passport_editor_new-web:latest` со старого VPS.
 4. БД: `pg_dump -Fc` с `77.222.63.161` → `pg_restore` на новом; сверка `pass_objects` / `oozt` / `rzd` / `users` — совпало.
@@ -77,13 +161,13 @@ git push origin deploy/mggt-docker          # и при необходимост
 
 ### 2. На VPS (обновление кода)
 
-**Через git** (если на сервере настроен доступ к hub.mos.ru):
+**Через git** (после настройки Deploy Key — см. «Git на MGGT»):
 
 ```bash
 cd /opt/passport_editor_new
 git fetch origin deploy/mggt-docker
 git reset --hard origin/deploy/mggt-docker
-sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --build
+sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d
 ```
 
 **Через rsync** (как при первичном деплое):
@@ -92,7 +176,7 @@ sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --b
 # с локальной машины, ветка deploy/mggt-docker
 rsync -avz --exclude 'venv/' --exclude '.git/' --exclude '.env' \
   ./ pasp-ssh-user@172.21.197.77:/opt/passport_editor_new/
-ssh pasp-ssh-user@172.21.197.77 'cd /opt/passport_editor_new && sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --build'
+ssh pasp-ssh-user@172.21.197.77 'cd /opt/passport_editor_new && sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d'
 ```
 
 Если `--build` недоступен (нет registry) — пересобрать образ на старом/другом хосте, `docker save`, загрузить на прод, затем `up -d` с `docker-compose.images.yml`.
