@@ -1,0 +1,9 @@
+# Override для VPS без доступа к Docker Hub (RED OS: registry.red-soft.ru недоступен).
+# Образы загружаются со старого сервера: docker save → scp → docker load.
+# Запуск: docker compose -f docker-compose.yml -f docker-compose.images.yml up -d
+services:
+  db:
+    image: postgis/postgis:16-3.4
+  web:
+    image: passport_editor_new-web:latest
+    build: !reset null

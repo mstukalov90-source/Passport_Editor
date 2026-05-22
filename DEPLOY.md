@@ -6,33 +6,55 @@
 
 | Что | Значение |
 |-----|----------|
-| Сервер | `77.222.63.161` (SSH пользователь `root`) |
+| **Прод-сервер** | `172.21.197.77` (SSH пользователь `pasp-ssh-user`, Docker через `sudo`) |
 | Каталог на сервере | `/opt/passport_editor_new` |
-| Репозиторий | `https://github.com/mstukalov90-source/Passport_Editor.git` |
+| Репозиторий | `git@hub.mos.ru:m.stukalov90/Passport_Editor.git` (корп. GitLab) |
+| Резерв / миграция | старый VPS `77.222.63.161` (`root`, ключ `~/PY/id_rsa/id_rsa`) |
 | Разработка | ветка **`main`** (локально: `/Users/mihail/PY/GeoDjango`) |
-| Прод | ветка **`deploy/vps-docker`** (`docker-compose.yml`, `.env`, правки под VPS) |
+| Прод (MGGT) | ветка **`deploy/mggt-docker`** (`docker-compose.yml`, `docker-compose.images.yml`, `.env`) |
+| Старый VPS (архив) | `77.222.63.161`, ветка **`deploy/vps-docker`** — дампы и откат |
 
-**SSH:** ключ на локальной машине, например `~/PY/id_rsa/id_rsa` (в чат и в git не класть).
+**SSH:** ключ на локальной машине `~/PY/id_rsa/id_rsa` для старого VPS; на новый — настроенный доступ `pasp-ssh-user@172.21.197.77` (в чат и в git не класть).
 
 | Контейнер | Назначение |
 |-----------|------------|
 | `passport_web` | Django + Gunicorn, снаружи **порт 80** → `8000` внутри |
 | `passport_db` | PostGIS 16, снаружи **5433** → `5432` внутри |
-| `portainer` | панель Docker (локально на сервере) |
+
+Отдельный **Nginx не используется** — `/static/` и `/media/` отдаёт Gunicorn через маршруты в `pass_map/urls.py`.
 
 Секреты: **`/opt/passport_editor_new/.env`** (`DJANGO_*`, `POSTGIS_*` и т.д.) — не в репозитории.
 
 **Локальная БД для разработки:** Docker-контейнер `postgis-db`, БД `geodb` (как на проде по имени).
 
-## Две ветки — зачем так
+### RED OS: Docker Hub недоступен
+
+На `172.21.197.77` `docker pull` идёт через `registry.red-soft.ru` и падает. Образы **не тянутся**, а **загружаются** со старого VPS (`docker save` → `scp` → `docker load`). Запуск:
+
+```bash
+cd /opt/passport_editor_new
+sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d
+```
+
+Файл [`docker-compose.images.yml`](docker-compose.images.yml) — только override образов, в git.
+
+## Ветки — зачем так
 
 - **`main`** — весь код, миграции, шаблоны, `pass_viewer/static/…`. **Без** `docker-compose.yml`.
-- **`deploy/vps-docker`** — то же после merge из `main`, плюс:
-  - `docker-compose.yml` (migrate → **collectstatic** → gunicorn);
-  - `pass_map/urls.py` с раздачей **`/media/`** и **`/static/`** при `DEBUG=False`;
-  - зафиксированные merge-коммиты продакшена.
+- **`deploy/mggt-docker`** — прод на **172.21.197.77** (RED OS): merge из `main` плюс:
+  - `docker-compose.yml`, **`docker-compose.images.yml`** (образы без Docker Hub);
+  - `pass_map/urls.py` с раздачей **`/media/`** и **`/static/`** при `DEBUG=False`.
+- **`deploy/vps-docker`** — прежний прод на **77.222.63.161**; не смешивать с MGGT.
 
-После деплоя для разработки снова: `git checkout main`.
+После работы с деплоем: `git checkout main`.
+
+## Первичный деплой на новый VPS (сделано 2026-05-22)
+
+1. Код: `rsync` ветки `deploy/mggt-docker` в `/opt/passport_editor_new` (на сервере нет `git`, hub.mos.ru без Deploy Key).
+2. `.env`: скопирован со старого VPS; в `DJANGO_ALLOWED_HOSTS` добавлен `172.21.197.77`; `POSTGIS_DB_HOST=db`, `POSTGIS_DB_PORT=5432`.
+3. Образы: `postgis/postgis:16-3.4` и `passport_editor_new-web:latest` со старого VPS.
+4. БД: `pg_dump -Fc` с `77.222.63.161` → `pg_restore` на новом; сверка `pass_objects` / `oozt` / `rzd` / `users` — совпало.
+5. Проверка: `curl -I http://172.21.197.77/` (302), `/static/pass_viewer/js/home.js` (200).
 
 ## Обычное обновление (только код, БД не трогаем)
 
@@ -42,32 +64,43 @@
 
 ```bash
 cd /Users/mihail/PY/GeoDjango   # или свой путь к клону
-git fetch origin main deploy/vps-docker
-git checkout deploy/vps-docker
-git reset --hard origin/deploy/vps-docker
+git fetch origin main deploy/mggt-docker
+git checkout deploy/mggt-docker
+git reset --hard origin/deploy/mggt-docker
 git merge -X theirs --no-edit origin/main   # при конфликтах — код из main
-git push origin deploy/vps-docker
+git push origin deploy/mggt-docker          # и при необходимости: git push hub deploy/mggt-docker
 ```
 
 При merge из `main` в деплой-ветку **не затирать** без проверки:
 - `docker-compose.yml` (должен остаться `collectstatic`);
 - `pass_map/urls.py` (маршруты `media/` и `static/` через `serve`).
 
-Если после merge их нет — вернуть из предыдущего коммита `deploy/vps-docker` или дописать вручную (см. раздел «Продакшен: статика и media»).
+### 2. На VPS (обновление кода)
 
-### 2. На VPS
+**Через git** (если на сервере настроен доступ к hub.mos.ru):
 
 ```bash
 cd /opt/passport_editor_new
-git fetch origin deploy/vps-docker
-git reset --hard origin/deploy/vps-docker
-docker compose up -d --build
+git fetch origin deploy/mggt-docker
+git reset --hard origin/deploy/mggt-docker
+sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --build
 ```
+
+**Через rsync** (как при первичном деплое):
+
+```bash
+# с локальной машины, ветка deploy/mggt-docker
+rsync -avz --exclude 'venv/' --exclude '.git/' --exclude '.env' \
+  ./ pasp-ssh-user@172.21.197.77:/opt/passport_editor_new/
+ssh pasp-ssh-user@172.21.197.77 'cd /opt/passport_editor_new && sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --build'
+```
+
+Если `--build` недоступен (нет registry) — пересобрать образ на старом/другом хосте, `docker save`, загрузить на прод, затем `up -d` с `docker-compose.images.yml`.
 
 ### 3. Проверка
 
 ```bash
-docker logs --tail 50 passport_web
+sudo docker logs --tail 50 passport_web
 ```
 
 Ожидаемо в логах:
@@ -78,8 +111,8 @@ docker logs --tail 50 passport_web
 Снаружи:
 
 ```bash
-curl -I http://77.222.63.161/
-curl -I http://77.222.63.161/static/pass_viewer/js/home.js   # ожидается 200
+curl -I http://172.21.197.77/
+curl -I http://172.21.197.77/static/pass_viewer/js/home.js   # ожидается 200
 ```
 
 ### 4. Вернуться к разработке
@@ -91,55 +124,59 @@ git pull origin main
 
 ## Обновление с полной перезаливкой БД
 
-Когда на локальной машине новые таблицы/столбцы **и заполненные данные**, а на прод нужна копия 1:1.
+Когда нужна копия данных 1:1 со старого или dev-окружения.
 
-Примеры таблиц, которые переносились дампом (не исчерпывающий список): `pass_objects`, `hood`, `ods_request`, `oozt`, `rzd`, `dgi`, `odh`, `ozn`, `renew`, `users`, …
+Примеры таблиц для сверки: `pass_objects`, `hood`, `ods_request`, `oozt`, `rzd`, `dgi`, `odh`, `ozn`, `renew`, `users`, …
 
-1. **Сначала** выкатить код (раздел выше), чтобы версии миграций и приложения совпадали с дампом.
-2. Остановить веб, пересоздать `geodb`, залить дамп **без** `--clean` (с `--clean` часто падает на `DROP EXTENSION postgis`).
+1. **Сначала** выкатить код (раздел выше).
+2. Остановить веб, пересоздать `geodb`, залить дамп **без** `--clean`.
 
-**На VPS:**
+**Дамп на старом VPS (`77.222.63.161`):**
 
 ```bash
-docker stop passport_web
-docker exec passport_db psql -U postgres -d postgres -c \
-  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='geodb' AND pid <> pg_backend_pid();"
-docker exec passport_db dropdb -U postgres --if-exists geodb
-docker exec passport_db createdb -U postgres geodb
+ssh -i ~/PY/id_rsa/id_rsa -o IdentitiesOnly=yes root@77.222.63.161
+docker exec passport_db pg_dump -U postgres -d geodb --no-owner --no-privileges -Fc > /tmp/geodb.dump
 ```
 
-**С локальной машины** (подставить путь к ключу; контейнер БД должен быть запущен):
+**На новом VPS (`172.21.197.77`):**
+
+```bash
+sudo docker stop passport_web
+sudo docker exec passport_db psql -U postgres -d postgres -c \
+  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='geodb' AND pid <> pg_backend_pid();"
+sudo docker exec passport_db dropdb -U postgres --if-exists geodb
+sudo docker exec passport_db createdb -U postgres geodb
+sudo docker exec -i passport_db pg_restore -U postgres -d geodb --no-owner --no-privileges < /tmp/geodb.dump
+sudo docker start passport_web
+```
+
+**Сверка** (пример):
+
+```bash
+# старый VPS
+ssh -i ~/PY/id_rsa/id_rsa root@77.222.63.161 \
+  "docker exec passport_db psql -U postgres -d geodb -At -c \
+  \"SELECT 'pass_objects',count(*) FROM pass_objects UNION ALL SELECT 'users',count(*) FROM users;\""
+
+# новый VPS
+ssh pasp-ssh-user@172.21.197.77 \
+  "sudo docker exec passport_db psql -U postgres -d geodb -At -c \
+  \"SELECT 'pass_objects',count(*) FROM pass_objects UNION ALL SELECT 'users',count(*) FROM users;\""
+```
+
+**С локальной dev-машины** (pipe, plain SQL, без `--clean`):
 
 ```bash
 docker exec postgis-db pg_dump -U postgres -d geodb --no-owner --no-privileges \
-  | ssh -i ~/.ssh/ВАШ_КЛЮЧ -o IdentitiesOnly=yes root@77.222.63.161 \
-  "docker exec -i passport_db psql -v ON_ERROR_STOP=1 -U postgres -d geodb"
+  | ssh pasp-ssh-user@172.21.197.77 \
+  "sudo docker exec -i passport_db psql -v ON_ERROR_STOP=1 -U postgres -d geodb"
 ```
-
-**Снова поднять веб:**
-
-```bash
-ssh -i ~/.ssh/ВАШ_КЛЮЧ root@77.222.63.161 "docker start passport_web"
-```
-
-**Сверка данных** (пример — подставить свои таблицы):
-
-```bash
-# локально
-docker exec postgis-db psql -U postgres -d geodb -At -c \
-  "SELECT 'oozt',count(*) FROM oozt UNION ALL SELECT 'rzd',count(*) FROM rzd UNION ALL SELECT 'pass_objects',count(*) FROM pass_objects;"
-
-# на VPS — те же цифры
-ssh ... "docker exec passport_db psql -U postgres -d geodb -At -c \"...\""
-```
-
-После заливки `passport_web` при старте снова выполнит `migrate` — обычно `No migrations to apply`.
 
 ## Продакшен: статика и media
 
 С v1.1.x JS вынесен в `pass_viewer/static/pass_viewer/js/`, в шаблонах — `{% static '…' %}`.
 
-На проде **`DEBUG=False`**, поэтому в **`deploy/vps-docker`** обязательно:
+На проде **`DEBUG=False`**, поэтому в **`deploy/mggt-docker`** (и **`deploy/vps-docker`**) обязательно:
 
 1. **`docker-compose.yml`** — перед Gunicorn:
    ```text
@@ -153,26 +190,28 @@ ssh ... "docker exec passport_db psql -U postgres -d geodb -At -c \"...\""
 
 Без этого: карта/форма без JS (404 на `/static/…`) или не качаются экспорты из `/media/exports/…`.
 
-Локально при `runserver` и `DEBUG=True` статика часто отдаётся автоматически; на VPS — только через `collectstatic` + маршруты выше.
+Volume **`media_data`** хранит `/app/media` (экспорты). При миграции с старого VPS — архив volume и распаковка в новый (через контейнер `postgis/postgis`, т.к. `alpine` на RED OS не тянется).
 
-## Перезапуск и сброс сессий (зависание / разлогинить всех)
+## Перезапуск и сброс сессий
 
 ```bash
 cd /opt/passport_editor_new
-docker compose restart
-docker exec passport_db psql -U postgres -d geodb -c \
+sudo docker compose -f docker-compose.yml -f docker-compose.images.yml restart
+sudo docker exec passport_db psql -U postgres -d geodb -c \
   "TRUNCATE django_session RESTART IDENTITY CASCADE;"
 ```
 
-Только веб (без сброса сессий): `docker restart passport_web`.
+Только веб: `sudo docker restart passport_web`.
 
 ## Известные нюансы
 
-- **Ветка `main` без `docker-compose.yml`** — деплой только через **`deploy/vps-docker`**.
-- **Merge `main` → deploy:** при конфликтах в шаблонах/views обычно берём **`main`** (`-X theirs` при checkout на `deploy/vps-docker` и merge `origin/main`). Файлы инфраструктуры деплоя — проверять руками.
-- **Чистая БД без дампа:** ранние миграции завязаны на `pass_objects` / `odh`; для пустого прода надёжнее полный дамп с dev-машины, если нужны реальные данные.
-- **Push с VPS на GitHub** часто не настроен (HTTPS без токена) — коммиты в `deploy/vps-docker` делаем **локально** и пушим оттуда.
-- **Долгая заливка БД:** SSH может оборваться в конце; если счётчики строк на VPS совпали с локальными — дамп применился; при необходимости `docker start passport_web`.
+- **Ветка `main` без `docker-compose.yml`** — деплой MGGT через **`deploy/mggt-docker`**, старый VPS — **`deploy/vps-docker`**.
+- **`.env` на новом VPS:** `POSTGIS_DB_HOST=db`, `POSTGIS_DB_PORT=5432`; в `DJANGO_ALLOWED_HOSTS` — IP/домен нового сервера.
+- **RED OS / registry.red-soft.ru:** использовать `docker-compose.images.yml` и перенос образов `docker save`/`load`.
+- **HTTPS:** в текущем стеке нет TLS; только HTTP :80. HTTPS — отдельный reverse-proxy или балансировщик.
+- **Merge `main` → deploy:** при конфликтах в шаблонах/views обычно берём **`main`**. Файлы инфраструктуры деплоя — проверять руками.
+- **Чистая БД без дампа:** для реальных данных надёжнее полный дамп.
+- **Долгая заливка БД:** SSH может оборваться; сверять `count(*)` по ключевым таблицам.
 
 ## Безопасность
 
@@ -181,4 +220,4 @@ docker exec passport_db psql -U postgres -d geodb -c \
 
 ---
 
-*Последнее согласованное состояние продакшена: merge `main` (v1.1.6+) в `deploy/vps-docker`, `collectstatic`, дамп `geodb` с локального `postgis-db`.*
+*Последнее состояние продакшена MGGT: `172.21.197.77`, ветка `deploy/mggt-docker`, дамп `geodb` со старого VPS `77.222.63.161` (ветка `deploy/vps-docker`), образы через `docker-compose.images.yml`.*
