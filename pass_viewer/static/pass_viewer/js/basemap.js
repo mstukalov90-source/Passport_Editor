@@ -2,6 +2,14 @@
     'use strict';
     const PassViewer = (global.PassViewer = global.PassViewer || {});
 
+    const MGGT_TILE_URL =
+        'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}';
+    const ERROR_TILE_URL =
+        'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    /** Максимальный z, на котором сервер МГГТ отдаёт реальные тайлы; выше — Leaflet масштабирует уже загруженные. */
+    const MGGT_MAX_NATIVE_ZOOM = 17;
+    const MAP_MAX_ZOOM = 30;
+
     PassViewer.bindPopupHighlight = function bindPopupHighlight(map) {
         let popupHighlightLayer = null;
         const POPUP_HIGHLIGHT_WEIGHT_DELTA = 3;
@@ -63,29 +71,63 @@
         return { clearPopupHighlight, applyPopupHighlight };
     };
 
-    PassViewer.attachBasemapControl = function attachBasemapControl(map) {
+    function bindTileLayerErrorHandling(layer, label) {
+        let notified = false;
+        layer.on('tileerror', () => {
+            if (notified) {
+                return;
+            }
+            notified = true;
+            console.warn(`[PassViewer] Подложка «${label}»: тайлы недоступны`);
+        });
+    }
+
+    PassViewer.createBasemapLayers = function createBasemapLayers() {
+        const commonTileOpts = { maxNativeZoom: 19, maxZoom: MAP_MAX_ZOOM };
+        const mggtLayer = L.tileLayer(MGGT_TILE_URL, {
+            minZoom: 0,
+            maxNativeZoom: MGGT_MAX_NATIVE_ZOOM,
+            maxZoom: MAP_MAX_ZOOM,
+            attribution: '© МГГТ',
+            errorTileUrl: ERROR_TILE_URL,
+            detectRetina: false,
+            updateWhenZooming: false,
+            updateWhenIdle: true,
+        });
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxNativeZoom: 19,
-            maxZoom: 30,
+            ...commonTileOpts,
             crossOrigin: 'anonymous',
             attribution: '&copy; OpenStreetMap contributors',
+            errorTileUrl: ERROR_TILE_URL,
         });
         const satelliteLayer = L.tileLayer(
             'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
             {
-                maxNativeZoom: 19,
-                maxZoom: 30,
+                ...commonTileOpts,
                 crossOrigin: 'anonymous',
                 attribution: 'Tiles &copy; Esri',
+                errorTileUrl: ERROR_TILE_URL,
             },
         );
-        topoLayer.addTo(map);
+        bindTileLayerErrorHandling(mggtLayer, 'МГГТ');
+        bindTileLayerErrorHandling(topoLayer, 'OSM');
+        bindTileLayerErrorHandling(satelliteLayer, 'Спутник');
+        return { mggtLayer, topoLayer, satelliteLayer };
+    };
+
+    PassViewer.attachBasemapControl = function attachBasemapControl(map, options) {
+        const scopeRoot = options && options.scopeRoot;
+        const { mggtLayer, topoLayer, satelliteLayer } = PassViewer.createBasemapLayers();
+        const basemapLayers = [mggtLayer, topoLayer, satelliteLayer];
+
+        mggtLayer.addTo(map);
 
         const basemapControl = L.control({ position: 'topright' });
         basemapControl.onAdd = function () {
             const container = L.DomUtil.create('div', 'map-basemap-control');
             container.innerHTML =
-                '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
+                '<button type="button" class="map-basemap-btn is-active" data-map="mggt">МГГТ</button>' +
+                '<button type="button" class="map-basemap-btn" data-map="topo">OSM</button>' +
                 '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
                 '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
             L.DomEvent.disableClickPropagation(container);
@@ -93,32 +135,32 @@
         };
         basemapControl.addTo(map);
 
+        function buttonScope() {
+            return scopeRoot || map.getContainer();
+        }
+
         function setBasemap(mode) {
-            const removeBasemapLayers = () => {
-                if (map.hasLayer(topoLayer)) {
-                    map.removeLayer(topoLayer);
+            basemapLayers.forEach((layer) => {
+                if (map.hasLayer(layer)) {
+                    map.removeLayer(layer);
                 }
-                if (map.hasLayer(satelliteLayer)) {
-                    map.removeLayer(satelliteLayer);
-                }
-            };
-            if (mode === 'none') {
-                removeBasemapLayers();
+            });
+            if (mode === 'mggt') {
+                map.addLayer(mggtLayer);
             } else if (mode === 'topo') {
-                removeBasemapLayers();
                 map.addLayer(topoLayer);
             } else if (mode === 'sat') {
-                removeBasemapLayers();
                 map.addLayer(satelliteLayer);
             }
-            document.querySelectorAll('.map-basemap-btn').forEach((btn) => {
+            buttonScope().querySelectorAll('.map-basemap-btn').forEach((btn) => {
                 btn.classList.toggle('is-active', btn.dataset.map === mode);
             });
         }
+
         map.getContainer().querySelectorAll('.map-basemap-btn').forEach((btn) => {
             btn.addEventListener('click', () => setBasemap(btn.dataset.map));
         });
 
-        return { setBasemap, topoLayer, satelliteLayer };
+        return { setBasemap, mggtLayer, topoLayer, satelliteLayer };
     };
 })(typeof window !== 'undefined' ? window : global);
