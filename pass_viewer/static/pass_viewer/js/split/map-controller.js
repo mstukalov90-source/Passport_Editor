@@ -17,46 +17,8 @@
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
 
-        const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxNativeZoom: 19,
-            maxZoom: 30,
-            attribution: '&copy; OpenStreetMap contributors',
-        });
-        const satelliteLayer = L.tileLayer(
-            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            {
-                maxNativeZoom: 19,
-                maxZoom: 30,
-                attribution: 'Tiles &copy; Esri',
-            }
-        );
-        topoLayer.addTo(map);
+        PV.attachBasemapControl(map);
         map.invalidateSize();
-
-        const basemapControl = L.control({ position: 'topright' });
-        basemapControl.onAdd = function () {
-            const container = L.DomUtil.create('div', 'map-basemap-control');
-            container.innerHTML =
-                '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
-            L.DomEvent.disableClickPropagation(container);
-            return container;
-        };
-        basemapControl.addTo(map);
-
-        function setBasemap(mode) {
-            if (map.hasLayer(topoLayer)) map.removeLayer(topoLayer);
-            if (map.hasLayer(satelliteLayer)) map.removeLayer(satelliteLayer);
-            if (mode === 'topo') map.addLayer(topoLayer);
-            else if (mode === 'sat') map.addLayer(satelliteLayer);
-            document.querySelectorAll('.map-basemap-btn').forEach((btn) => {
-                btn.classList.toggle('is-active', btn.dataset.map === mode);
-            });
-        }
-        map.getContainer().querySelectorAll('.map-basemap-btn').forEach((btn) => {
-            btn.addEventListener('click', () => setBasemap(btn.dataset.map));
-        });
 
         const selectedGroup = L.featureGroup().addTo(map);
         const editableGroup = L.featureGroup().addTo(map);

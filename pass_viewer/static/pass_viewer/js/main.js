@@ -439,33 +439,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
             pendingCommentLatLng = null;
         }
 
-        const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxNativeZoom: 19,
-            maxZoom: 30,
-            crossOrigin: 'anonymous',
-            attribution: '&copy; OpenStreetMap contributors'
-        });
-        const satelliteLayer = L.tileLayer(
-            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            {
-                maxNativeZoom: 19,
-                maxZoom: 30,
-                crossOrigin: 'anonymous',
-                attribution: 'Tiles &copy; Esri'
-            }
-        );
-        topoLayer.addTo(map);
-        const basemapControl = L.control({position: 'topright'});
-        basemapControl.onAdd = function () {
-            const container = L.DomUtil.create('div', 'map-basemap-control');
-            container.innerHTML =
-                '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="sat">\u0421\u043f\u0443\u0442\u043d\u0438\u043a</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="none">\u0411\u0435\u0437 \u043f\u043e\u0434\u043b\u043e\u0436\u043a\u0438</button>';
-            L.DomEvent.disableClickPropagation(container);
-            return container;
-        };
-        basemapControl.addTo(map);
+        PV.attachBasemapControl(map);
 
         const selectedGeometry = parseGeometryData('selected-geometry-data');
         const selectedGeometryForEditing = parseGeometryData('selected-geometry-for-editing-data') || selectedGeometry;
@@ -960,31 +934,6 @@ function buildEditableDeletePopupHtml(baseHtml) {
         refreshObjectLayersControl();
         loadCommentPointsForMap();
 
-        function setBasemap(mode) {
-            const removeBasemapLayers = () => {
-                if (map.hasLayer(topoLayer)) {
-                    map.removeLayer(topoLayer);
-                }
-                if (map.hasLayer(satelliteLayer)) {
-                    map.removeLayer(satelliteLayer);
-                }
-            };
-            if (mode === 'none') {
-                removeBasemapLayers();
-            } else if (mode === 'topo') {
-                removeBasemapLayers();
-                map.addLayer(topoLayer);
-            } else if (mode === 'sat') {
-                removeBasemapLayers();
-                map.addLayer(satelliteLayer);
-            }
-            document.querySelectorAll('.map-basemap-btn').forEach((btn) => {
-                btn.classList.toggle('is-active', btn.dataset.map === mode);
-            });
-        }
-        map.getContainer().querySelectorAll('.map-basemap-btn').forEach((btn) => {
-            btn.addEventListener('click', () => setBasemap(btn.dataset.map));
-        });
         function askSnapRadiusMeters(currentValue) {
             const raw = window.prompt('Введите радиус прилипания в метрах:', String(currentValue));
             if (raw === null) {

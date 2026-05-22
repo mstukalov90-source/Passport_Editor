@@ -27,7 +27,7 @@
     border-radius: 10px;
     padding: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
-    max-width: 220px;
+    max-width: 280px;
     justify-content: flex-end;
 }
 .map-basemap-btn {
