@@ -136,3 +136,6 @@ pgdata/
 docs/
 *.doc
 *.docx
+.codegraph/
+*.json
+*.geojson
