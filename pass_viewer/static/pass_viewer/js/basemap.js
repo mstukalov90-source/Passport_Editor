@@ -2,6 +2,10 @@
     'use strict';
     const PassViewer = (global.PassViewer = global.PassViewer || {});
 
+    /** VPS/deploy: без внутренней подложки МГГТ; на main ветке — true. */
+    const ENABLE_MGGT_BASEMAP = false;
+    const DEFAULT_BASEMAP_MODE = 'topo';
+
     const MGGT_TILE_URL =
         'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}';
     const ERROR_TILE_URL =
@@ -84,16 +88,20 @@
 
     PassViewer.createBasemapLayers = function createBasemapLayers() {
         const commonTileOpts = { maxNativeZoom: 19, maxZoom: MAP_MAX_ZOOM };
-        const mggtLayer = L.tileLayer(MGGT_TILE_URL, {
-            minZoom: 0,
-            maxNativeZoom: MGGT_MAX_NATIVE_ZOOM,
-            maxZoom: MAP_MAX_ZOOM,
-            attribution: '© МГГТ',
-            errorTileUrl: ERROR_TILE_URL,
-            detectRetina: false,
-            updateWhenZooming: false,
-            updateWhenIdle: true,
-        });
+        let mggtLayer = null;
+        if (ENABLE_MGGT_BASEMAP) {
+            mggtLayer = L.tileLayer(MGGT_TILE_URL, {
+                minZoom: 0,
+                maxNativeZoom: MGGT_MAX_NATIVE_ZOOM,
+                maxZoom: MAP_MAX_ZOOM,
+                attribution: '© МГГТ',
+                errorTileUrl: ERROR_TILE_URL,
+                detectRetina: false,
+                updateWhenZooming: false,
+                updateWhenIdle: true,
+            });
+            bindTileLayerErrorHandling(mggtLayer, 'МГГТ');
+        }
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             ...commonTileOpts,
             crossOrigin: 'anonymous',
@@ -109,7 +117,6 @@
                 errorTileUrl: ERROR_TILE_URL,
             },
         );
-        bindTileLayerErrorHandling(mggtLayer, 'МГГТ');
         bindTileLayerErrorHandling(topoLayer, 'OSM');
         bindTileLayerErrorHandling(satelliteLayer, 'Спутник');
         return { mggtLayer, topoLayer, satelliteLayer };
@@ -118,18 +125,36 @@
     PassViewer.attachBasemapControl = function attachBasemapControl(map, options) {
         const scopeRoot = options && options.scopeRoot;
         const { mggtLayer, topoLayer, satelliteLayer } = PassViewer.createBasemapLayers();
-        const basemapLayers = [mggtLayer, topoLayer, satelliteLayer];
+        const basemapLayers = [mggtLayer, topoLayer, satelliteLayer].filter(Boolean);
 
-        mggtLayer.addTo(map);
+        const initialMode =
+            DEFAULT_BASEMAP_MODE === 'mggt' && ENABLE_MGGT_BASEMAP ? 'mggt' : DEFAULT_BASEMAP_MODE;
+        if (initialMode === 'mggt' && mggtLayer) {
+            mggtLayer.addTo(map);
+        } else if (initialMode === 'topo') {
+            topoLayer.addTo(map);
+        } else if (initialMode === 'sat') {
+            satelliteLayer.addTo(map);
+        }
 
         const basemapControl = L.control({ position: 'topright' });
         basemapControl.onAdd = function () {
             const container = L.DomUtil.create('div', 'map-basemap-control');
-            container.innerHTML =
-                '<button type="button" class="map-basemap-btn is-active" data-map="mggt">МГГТ</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="topo">OSM</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
+            const buttons = [];
+            if (ENABLE_MGGT_BASEMAP) {
+                buttons.push(
+                    '<button type="button" class="map-basemap-btn" data-map="mggt">МГГТ</button>',
+                );
+            }
+            buttons.push(
+                '<button type="button" class="map-basemap-btn" data-map="topo">OSM</button>',
+                '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>',
+                '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>',
+            );
+            container.innerHTML = buttons.join('');
+            container.querySelectorAll('.map-basemap-btn').forEach((btn) => {
+                btn.classList.toggle('is-active', btn.dataset.map === initialMode);
+            });
             L.DomEvent.disableClickPropagation(container);
             return container;
         };
@@ -145,7 +170,7 @@
                     map.removeLayer(layer);
                 }
             });
-            if (mode === 'mggt') {
+            if (mode === 'mggt' && ENABLE_MGGT_BASEMAP && mggtLayer) {
                 map.addLayer(mggtLayer);
             } else if (mode === 'topo') {
                 map.addLayer(topoLayer);
