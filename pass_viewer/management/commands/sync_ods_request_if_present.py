@@ -1,7 +1,7 @@
 """
 Daily sync: reload ods_request from ods_request.json if the file exists.
 
-Intended for cron at 09:00 Europe/Moscow. If the file is missing, exits 0 without
+Intended for cron at 12:00 Europe/Moscow. If the file is missing, exits 0 without
 touching the database. On success, deletes the JSON file.
 
 Examples:
