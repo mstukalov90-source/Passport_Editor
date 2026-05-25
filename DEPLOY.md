@@ -30,6 +30,7 @@
 - **`deploy/vps-docker`** — то же после merge из `main`, плюс:
   - `docker-compose.yml` (migrate → **collectstatic** → gunicorn);
   - `pass_map/urls.py` с раздачей **`/media/`** и **`/static/`** при `DEBUG=False`;
+  - **`pass_viewer/static/pass_viewer/js/basemap.js`** — намеренно **без подложки МГГТ**, по умолчанию **OSM** (см. раздел ниже);
   - зафиксированные merge-коммиты продакшена.
 
 После деплоя для разработки снова: `git checkout main`.
@@ -51,7 +52,8 @@ git push origin deploy/vps-docker
 
 При merge из `main` в деплой-ветку **не затирать** без проверки:
 - `docker-compose.yml` (должен остаться `collectstatic`);
-- `pass_map/urls.py` (маршруты `media/` и `static/` через `serve`).
+- `pass_map/urls.py` (маршруты `media/` и `static/` через `serve`);
+- `pass_viewer/static/pass_viewer/js/basemap.js` — на VPS должны остаться `ENABLE_MGGT_BASEMAP = false` и `DEFAULT_BASEMAP_MODE = 'topo'` (при конфликте — **версия из `deploy/vps-docker`**, не из `main`).
 
 Если после merge их нет — вернуть из предыдущего коммита `deploy/vps-docker` или дописать вручную (см. раздел «Продакшен: статика и media»).
 
@@ -155,6 +157,28 @@ ssh ... "docker exec passport_db psql -U postgres -d geodb -At -c \"...\""
 
 Локально при `runserver` и `DEBUG=True` статика часто отдаётся автоматически; на VPS — только через `collectstatic` + маршруты выше.
 
+## Продакшен: подложка карты (OSM, без МГГТ)
+
+На VPS **нет доступа** к внутреннему тайловому серверу МГГТ (`http://ngtst.mggt:8080/...`). В локальной разработке на **`main`** подложка МГГТ по умолчанию; на **`deploy/vps-docker`** в [`pass_viewer/static/pass_viewer/js/basemap.js`](pass_viewer/static/pass_viewer/js/basemap.js) зафиксировано иное поведение:
+
+```javascript
+const ENABLE_MGGT_BASEMAP = false;
+const DEFAULT_BASEMAP_MODE = 'topo';
+```
+
+**На проде:** переключатель **OSM | Спутник | Без подложки**, стартовая подложка — **OSM** (home, main, add_object, split_object, add_recap). Кнопки и слоя «МГГТ» нет.
+
+**На `main`:** не менять эти флаги — МГГТ нужен в корпоративной сети при разработке.
+
+После merge `main` → `deploy/vps-docker` при конфликте в `basemap.js` оставить **деплой-версию** или вручную восстановить `ENABLE_MGGT_BASEMAP = false`. После `docker compose up -d --build` проверить:
+
+```bash
+curl -s http://77.222.63.161/static/pass_viewer/js/basemap.js | grep ENABLE_MGGT_BASEMAP
+# ожидается: const ENABLE_MGGT_BASEMAP = false;
+```
+
+В браузере — жёсткое обновление (Ctrl+Shift+R), чтобы подтянуть новый JS.
+
 ## Перезапуск и сброс сессий (зависание / разлогинить всех)
 
 ```bash
@@ -203,7 +227,7 @@ tail -20 /var/log/ods_request_sync.log
 ## Известные нюансы
 
 - **Ветка `main` без `docker-compose.yml`** — деплой только через **`deploy/vps-docker`**.
-- **Merge `main` → deploy:** при конфликтах в шаблонах/views обычно берём **`main`** (`-X theirs` при checkout на `deploy/vps-docker` и merge `origin/main`). Файлы инфраструктуры деплоя — проверять руками.
+- **Merge `main` → deploy:** при конфликтах в шаблонах/views обычно берём **`main`** (`-X theirs` при checkout на `deploy/vps-docker` и merge `origin/main`). Файлы инфраструктуры деплоя — проверять руками. Исключение: **`basemap.js`** — оставлять VPS-вариант без МГГТ.
 - **Чистая БД без дампа:** ранние миграции завязаны на `pass_objects` / `odh`; для пустого прода надёжнее полный дамп с dev-машины, если нужны реальные данные.
 - **Push с VPS на GitHub** часто не настроен (HTTPS без токена) — коммиты в `deploy/vps-docker` делаем **локально** и пушим оттуда.
 - **Долгая заливка БД:** SSH может оборваться в конце; если счётчики строк на VPS совпали с локальными — дамп применился; при необходимости `docker start passport_web`.
@@ -215,4 +239,4 @@ tail -20 /var/log/ods_request_sync.log
 
 ---
 
-*Последнее согласованное состояние продакшена: merge `main` (v1.1.6+) в `deploy/vps-docker`, `collectstatic`, дамп `geodb` с локального `postgis-db`.*
+*Последнее согласованное состояние продакшена: `deploy/vps-docker` — `collectstatic`, подложка OSM без МГГТ (`basemap.js`), дамп `geodb` с локального `postgis-db` при необходимости.*
