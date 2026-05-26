@@ -852,22 +852,47 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             });
         }
 
-        function buildCurrentGeometry() {
-            const featureCollection = editableGroup.toGeoJSON();
-            const geometries = (featureCollection.features || [])
-                .map((feature) => feature.geometry)
-                .filter((geometry) => geometry && (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon'));
+        let pendingRepairedGeometryForSave = null;
 
-            if (!geometries.length) {
+        function clearPendingRepairedGeometry() {
+            pendingRepairedGeometryForSave = null;
+        }
+
+        function exportGeometryFromRaw(geometry) {
+            const editableGeo = toEditableFeatureCollection(geometry);
+            if (!editableGeo || !editableGeo.features.length) {
                 return null;
             }
-            if (geometries.length === 1) {
-                return geometries[0];
+            return buildExportGeometry(editableGeo);
+        }
+
+        function getEditableGeometryForSave() {
+            if (pendingRepairedGeometryForSave) {
+                return pendingRepairedGeometryForSave;
             }
-            return {
-                type: 'GeometryCollection',
-                geometries: geometries
-            };
+            const resumeEditToolbar = !!(editToolbar && isEditing);
+            if (editToolbar) {
+                editToolbar.disable();
+            }
+            let result = null;
+            const layerGeometries = mps.readGeometriesFromLeafletGroup
+                ? mps.readGeometriesFromLeafletGroup(editableGroup)
+                : [];
+            if (layerGeometries.length) {
+                result = mps.mergePolygonGeometriesForExport(layerGeometries);
+            }
+            if (!result) {
+                const featureCollection = editableGroup.toGeoJSON();
+                result = buildExportGeometry(featureCollection);
+            }
+            if (resumeEditToolbar && editToolbar) {
+                editToolbar.enable();
+            }
+            return result;
+        }
+
+        function buildCurrentGeometry() {
+            return getEditableGeometryForSave();
         }
 
         function clearRelationLayers() {
@@ -896,6 +921,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             closeCommentPointModal();
 
             editableGroup.clearLayers();
+            clearPendingRepairedGeometry();
 
             clearPopupHighlight();
             map.closePopup();
@@ -1678,10 +1704,16 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 );
                 editableGroup.addLayer(layer);
             });
-            if (editToolbar) {
-                editToolbar.disable();
-                editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
-                editToolbar.enable();
+            if (isEditing) {
+                requestAnimationFrame(() => {
+                    if (editToolbar) {
+                        editToolbar.disable();
+                    }
+                    editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
+                    if (editableGroup.getLayers().length) {
+                        editToolbar.enable();
+                    }
+                });
             }
             rebuildSnapGuideLines();
             startSnapBindingLoop();
@@ -1732,6 +1764,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 if (!applyGeometryToEditableGroup(data.geometry)) {
                     throw new Error('Не удалось применить обновлённую геометрию.');
                 }
+                pendingRepairedGeometryForSave = exportGeometryFromRaw(data.geometry);
                 closeAutoRemoveModal();
                 statusEl.textContent = 'Пересечения автоматически удалены.';
                 await checkRelations();
@@ -1957,6 +1990,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         }
 
         function finishCreatedPolygon(layer) {
+            clearPendingRepairedGeometry();
             editableGroup.addLayer(layer);
             bindEditablePolygonPopup(
                 layer,
@@ -2200,6 +2234,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         });
 
         map.on(L.Draw.Event.EDITED, () => {
+            clearPendingRepairedGeometry();
             statusEl.textContent = 'Геометрия обновлена. Пересчитываем связанные объекты...';
             updateRelationsButtonState();
             checkRelations();
@@ -2287,28 +2322,29 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     geometry,
                     getCookie('csrftoken')
                 );
+                if (editToolbar) {
+                    editToolbar.disable();
+                }
+                pendingRepairedGeometryForSave = exportGeometryFromRaw(data.geometry);
                 if (!applyGeometryToEditableGroup(data.geometry)) {
+                    pendingRepairedGeometryForSave = null;
                     throw new Error('Не удалось применить исправленную геометрию.');
                 }
-                const bounds = editableGroup.getBounds();
-                if (bounds.isValid()) {
-                    map.fitBounds(bounds.pad(0.1));
-                }
-                const saveTargetLabel = getSaveTargetSourceLabel();
-                const geometryAfterFix = buildExportGeometry(editableGroup.toGeoJSON());
-                const stillInvalid =
-                    mps.validateMultipolygonTargetGeometry &&
-                    mps.validateMultipolygonTargetGeometry(geometryAfterFix, saveTargetLabel);
                 saveModalErrorEl.textContent = '';
-                if (stillInvalid) {
-                    setSaveModalGeometryError(stillInvalid);
-                } else if (saveModalSuccessEl) {
+                hideSaveModalFixUi();
+                if (saveModalSuccessEl) {
                     saveModalSuccessEl.textContent =
                         'Полигон исправлен. Проверьте контур на карте и нажмите «Сохранить».';
                     saveModalSuccessEl.style.display = '';
                 }
                 updateRelationsButtonState();
                 statusEl.textContent = 'Полигон исправлен. Проверьте контур и сохраните объект.';
+                requestAnimationFrame(() => {
+                    const bounds = editableGroup.getBounds();
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds.pad(0.1));
+                    }
+                });
             } catch (error) {
                 setSaveModalGeometryError(error.message || 'Не удалось исправить полигон.');
             } finally {
@@ -2560,12 +2596,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 statusEl.textContent = 'Сначала включите режим редактирования.';
                 return;
             }
-            const editedGeojson = editableGroup.toGeoJSON();
-            if (!editedGeojson.features.length) {
-                statusEl.textContent = 'Нет геометрии для сохранения.';
-                return;
-            }
-            const geometryToSave = buildExportGeometry(editedGeojson);
+            const geometryToSave = getEditableGeometryForSave();
             if (!geometryToSave) {
                 statusEl.textContent = 'Не удалось собрать геометрию для сохранения.';
                 return;
@@ -2597,6 +2628,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             statusEl.textContent = 'Сохраняем объект в базе...';
             try {
                 const saveResult = await saveObjectToDb(geometryToSave, name, requestId, saveTargetLabel);
+                clearPendingRepairedGeometry();
                 statusEl.textContent = 'Объект сохранён в базе. Формируем файлы...';
                 const exportResult = await exportObjectFiles(geometryToSave, {
                     name: name,

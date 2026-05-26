@@ -88,6 +88,68 @@
         return null;
     }
 
+    function closeRingCoordinates(coords) {
+        if (!coords.length) {
+            return coords;
+        }
+        const first = coords[0];
+        const last = coords[coords.length - 1];
+        if (first[0] !== last[0] || first[1] !== last[1]) {
+            coords.push([first[0], first[1]]);
+        }
+        return coords;
+    }
+
+    function layerLatLngsToPolygonCoordinates(latlngs) {
+        if (!latlngs || !latlngs.length) {
+            return null;
+        }
+        const ringFromLatLngs = (ring) => {
+            if (!Array.isArray(ring) || !ring.length) {
+                return null;
+            }
+            const coords = ring.map((ll) => [ll.lng, ll.lat]);
+            return closeRingCoordinates(coords);
+        };
+        if (latlngs[0] && latlngs[0].lat !== undefined) {
+            const outer = ringFromLatLngs(latlngs);
+            return outer ? [outer] : null;
+        }
+        const rings = latlngs.map(ringFromLatLngs).filter(Boolean);
+        return rings.length ? rings : null;
+    }
+
+    function readGeometriesFromLeafletGroup(featureGroup) {
+        if (!featureGroup || typeof featureGroup.eachLayer !== 'function') {
+            return [];
+        }
+        const geometries = [];
+        featureGroup.eachLayer((layer) => {
+            if (typeof layer.getLatLngs !== 'function') {
+                return;
+            }
+            const coordinates = layerLatLngsToPolygonCoordinates(layer.getLatLngs());
+            if (!coordinates) {
+                return;
+            }
+            geometries.push({ type: 'Polygon', coordinates });
+        });
+        return geometries;
+    }
+
+    function mergePolygonGeometriesForExport(geometries) {
+        if (!geometries || !geometries.length) {
+            return null;
+        }
+        if (geometries.length === 1) {
+            return geometries[0];
+        }
+        return {
+            type: 'MultiPolygon',
+            coordinates: geometries.map((geometry) => geometry.coordinates),
+        };
+    }
+
     async function repairMultipolygonGeometry(url, geometry, csrfToken) {
         const response = await fetch(url, {
             method: 'POST',
@@ -115,5 +177,7 @@
         isMultipolygonSaveError,
         validateMultipolygonTargetGeometry,
         repairMultipolygonGeometry,
+        readGeometriesFromLeafletGroup,
+        mergePolygonGeometriesForExport,
     };
 })(typeof window !== 'undefined' ? window : global);
