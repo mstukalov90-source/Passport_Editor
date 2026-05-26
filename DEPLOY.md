@@ -22,6 +22,8 @@
 
 Секреты: **`/opt/passport_editor_new/.env`** (`DJANGO_*`, `POSTGIS_*` и т.д.) — не в репозитории.
 
+На VPS в `.env` обязательно: **`DJANGO_ENABLE_ADMIN=0`** (маршрут `/admin/` не монтируется).
+
 **Локальная БД для разработки:** Docker-контейнер `postgis-db`, БД `geodb` (как на проде по имени).
 
 ## Две ветки — зачем так
@@ -80,6 +82,7 @@ docker logs --tail 50 passport_web
 ```bash
 curl -I http://77.222.63.161/
 curl -I http://77.222.63.161/static/pass_viewer/js/home.js   # ожидается 200
+curl -s -o /dev/null -w "%{http_code}" http://77.222.63.161/admin/   # ожидается 404
 ```
 
 ### 4. Вернуться к разработке
@@ -199,6 +202,50 @@ tail -20 /var/log/ods_request_sync.log
 ```
 
 При ошибке импорта (битый JSON) файл **не** удаляется; транзакция откатывает изменения в БД.
+
+## Ночная уборка (04:20 МСК)
+
+Два задания cron: старые файлы экспорта и «сироты» в GIS-таблицах.
+
+| Задача | Команда | Условие |
+|--------|---------|---------|
+| `media/exports` | `cleanup_media_exports` | файлы старше **7** суток |
+| `pass_objects`, `odh`, `ozn` | `cleanup_orphan_gis_rows` | непустой `request_id` нет в `ods_request."BrId"`, `created_at` старше **40** суток |
+
+**Команды (внутри контейнера или локально):**
+
+```bash
+python manage.py cleanup_media_exports
+python manage.py cleanup_media_exports --dry-run
+
+python manage.py cleanup_orphan_gis_rows
+python manage.py cleanup_orphan_gis_rows --dry-run
+```
+
+**Cron на хосте** (`crontab -e` у `root`):
+
+```cron
+20 4 * * * TZ=Europe/Moscow /opt/passport_editor_new/scripts/cleanup_media_exports_daily.sh >> /var/log/cleanup_media_exports.log 2>&1
+20 4 * * * TZ=Europe/Moscow /opt/passport_editor_new/scripts/cleanup_orphan_gis_daily.sh >> /var/log/cleanup_orphan_gis.log 2>&1
+```
+
+Обёртки: `scripts/cleanup_media_exports_daily.sh`, `scripts/cleanup_orphan_gis_daily.sh`. После деплоя:
+
+```bash
+chmod +x /opt/passport_editor_new/scripts/cleanup_media_exports_daily.sh
+chmod +x /opt/passport_editor_new/scripts/cleanup_orphan_gis_daily.sh
+```
+
+**Проверка вручную:**
+
+```bash
+/opt/passport_editor_new/scripts/cleanup_media_exports_daily.sh
+/opt/passport_editor_new/scripts/cleanup_orphan_gis_daily.sh
+tail -20 /var/log/cleanup_media_exports.log
+tail -20 /var/log/cleanup_orphan_gis.log
+```
+
+Строки с пустым `request_id` не удаляются. Таблицы `recaps`, `dgi`, `renew` не затрагиваются.
 
 ## Известные нюансы
 

@@ -23,7 +23,6 @@ from django.urls import include, path
 from pass_viewer.forms import RussianAuthenticationForm
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
     path(
         "accounts/login/",
         auth_views.LoginView.as_view(authentication_form=RussianAuthenticationForm),
@@ -32,6 +31,9 @@ urlpatterns = [
     path("accounts/", include("django.contrib.auth.urls")),
     path("", include("pass_viewer.urls")),
 ]
+
+if settings.ENABLE_DJANGO_ADMIN:
+    urlpatterns = [path("admin/", admin.site.urls), *urlpatterns]
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

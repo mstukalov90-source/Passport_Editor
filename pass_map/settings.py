@@ -171,3 +171,6 @@ GIS_RZD_TABLE = os.getenv("GIS_RZD_TABLE", "rzd")
 # GeoDjango library paths (macOS Homebrew).
 GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH", "/opt/homebrew/lib/libgdal.dylib")
 GEOS_LIBRARY_PATH = os.getenv("GEOS_LIBRARY_PATH", "/opt/homebrew/lib/libgeos_c.dylib")
+
+# Django admin at /admin/ (on VPS set DJANGO_ENABLE_ADMIN=0 in .env).
+ENABLE_DJANGO_ADMIN = os.getenv("DJANGO_ENABLE_ADMIN", "1") not in ("0", "false", "False")
