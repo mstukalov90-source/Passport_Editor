@@ -179,9 +179,13 @@
                 Если в выбранной таблице уже есть строка с этим номером заявки для вашего владельца, она будет перезаписана.
             </p>
             <p id="save-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
-            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
-                <button type="button" id="save-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
-                <button type="button" id="save-modal-submit" class="map-toolbar-btn map-toolbar-btn--success">&#1057;&#1086;&#1093;&#1088;&#1072;&#1085;&#1080;&#1090;&#1100;</button>
+            <p id="save-modal-success" class="note" style="margin: 8px 0 0; color: #15803d; display: none;"></p>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:14px; flex-wrap:wrap;">
+                <button type="button" id="save-modal-fix-polygon" class="map-toolbar-btn" style="display:none;">Исправить полигон</button>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-left:auto;">
+                    <button type="button" id="save-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
+                    <button type="button" id="save-modal-submit" class="map-toolbar-btn map-toolbar-btn--success">&#1057;&#1086;&#1093;&#1088;&#1072;&#1085;&#1080;&#1090;&#1100;</button>
+                </div>
             </div>
         </div>
     </div>

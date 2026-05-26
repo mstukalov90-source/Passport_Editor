@@ -172,9 +172,13 @@
             <label class="modal-label" for="new-object-request-id">Номер заявки</label>
             <input id="new-object-request-id" class="modal-input" type="text" maxlength="100" inputmode="numeric" pattern="[0-9]*" />
             <p id="save-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
-            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
-                <button type="button" id="save-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
-                <button type="button" id="save-modal-submit" class="map-toolbar-btn map-toolbar-btn--success">Сохранить</button>
+            <p id="save-modal-success" class="note" style="margin: 8px 0 0; color: #15803d; display: none;"></p>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:14px; flex-wrap:wrap;">
+                <button type="button" id="save-modal-fix-polygon" class="map-toolbar-btn" style="display:none;">Исправить полигон</button>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-left:auto;">
+                    <button type="button" id="save-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
+                    <button type="button" id="save-modal-submit" class="map-toolbar-btn map-toolbar-btn--success">Сохранить</button>
+                </div>
             </div>
         </div>
     </div>

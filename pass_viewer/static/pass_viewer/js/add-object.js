@@ -118,6 +118,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const newObjectNameInput = document.getElementById('new-object-name');
         const newObjectRequestIdInput = document.getElementById('new-object-request-id');
         const saveModalErrorEl = document.getElementById('save-modal-error');
+        const saveModalSuccessEl = document.getElementById('save-modal-success');
+        const saveModalFixPolygon = document.getElementById('save-modal-fix-polygon');
+        const mps = PV.multipolygonSave || {};
         const saveTargetDtRadio = document.getElementById('save-target-dt');
         const saveTargetOdhRadio = document.getElementById('save-target-odh');
         const saveTargetOznRadio = document.getElementById('save-target-ozn');
@@ -2232,10 +2235,93 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             return 'ДТ';
         }
 
+        function hideSaveModalFixUi() {
+            if (saveModalFixPolygon) {
+                saveModalFixPolygon.style.display = 'none';
+            }
+            if (saveModalSuccessEl) {
+                saveModalSuccessEl.style.display = 'none';
+                saveModalSuccessEl.textContent = '';
+            }
+        }
+
+        function setSaveModalGeometryError(message) {
+            hideSaveModalFixUi();
+            saveModalErrorEl.textContent = message || '';
+            const saveTargetLabel = getSaveTargetSourceLabel();
+            if (
+                message &&
+                mps.isMultipolygonSaveError &&
+                mps.isMultipolygonSaveError(message) &&
+                mps.requiresMultipolygonSave &&
+                mps.requiresMultipolygonSave(saveTargetLabel) &&
+                saveModalFixPolygon
+            ) {
+                saveModalFixPolygon.style.display = '';
+            }
+        }
+
+        function clearSaveModalMessages() {
+            saveModalErrorEl.textContent = '';
+            hideSaveModalFixUi();
+        }
+
+        async function repairPolygonFromSaveModal() {
+            const geometry = buildCurrentGeometry();
+            if (!geometry) {
+                setSaveModalGeometryError('Нет геометрии для исправления.');
+                return;
+            }
+            if (!cfg.urls || !cfg.urls.repairGeometry) {
+                setSaveModalGeometryError('Исправление полигона недоступно.');
+                return;
+            }
+            if (saveModalFixPolygon) {
+                saveModalFixPolygon.disabled = true;
+            }
+            hideSaveModalFixUi();
+            saveModalErrorEl.textContent = 'Исправляем полигон...';
+            try {
+                const data = await mps.repairMultipolygonGeometry(
+                    cfg.urls.repairGeometry,
+                    geometry,
+                    getCookie('csrftoken')
+                );
+                if (!applyGeometryToEditableGroup(data.geometry)) {
+                    throw new Error('Не удалось применить исправленную геометрию.');
+                }
+                const bounds = editableGroup.getBounds();
+                if (bounds.isValid()) {
+                    map.fitBounds(bounds.pad(0.1));
+                }
+                const saveTargetLabel = getSaveTargetSourceLabel();
+                const geometryAfterFix = buildExportGeometry(editableGroup.toGeoJSON());
+                const stillInvalid =
+                    mps.validateMultipolygonTargetGeometry &&
+                    mps.validateMultipolygonTargetGeometry(geometryAfterFix, saveTargetLabel);
+                saveModalErrorEl.textContent = '';
+                if (stillInvalid) {
+                    setSaveModalGeometryError(stillInvalid);
+                } else if (saveModalSuccessEl) {
+                    saveModalSuccessEl.textContent =
+                        'Полигон исправлен. Проверьте контур на карте и нажмите «Сохранить».';
+                    saveModalSuccessEl.style.display = '';
+                }
+                updateRelationsButtonState();
+                statusEl.textContent = 'Полигон исправлен. Проверьте контур и сохраните объект.';
+            } catch (error) {
+                setSaveModalGeometryError(error.message || 'Не удалось исправить полигон.');
+            } finally {
+                if (saveModalFixPolygon) {
+                    saveModalFixPolygon.disabled = false;
+                }
+            }
+        }
+
         function openSaveModal() {
             newObjectNameInput.value = '';
             newObjectRequestIdInput.value = (effectiveEntryRequestId || '').trim();
-            saveModalErrorEl.textContent = '';
+            clearSaveModalMessages();
             if (selectedSourceLabel === 'ОЗН') {
                 if (saveTargetOznRadio) {
                     saveTargetOznRadio.checked = true;
@@ -2495,11 +2581,19 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 saveModalErrorEl.textContent = 'Номер заявки должен содержать только цифры.';
                 return;
             }
-            saveModalErrorEl.textContent = '';
+            clearSaveModalMessages();
+
+            const saveTargetLabel = getSaveTargetSourceLabel();
+            const multipolygonValidationError =
+                mps.validateMultipolygonTargetGeometry &&
+                mps.validateMultipolygonTargetGeometry(geometryToSave, saveTargetLabel);
+            if (multipolygonValidationError) {
+                setSaveModalGeometryError(multipolygonValidationError);
+                return;
+            }
 
             saveModalSubmit.disabled = true;
             saveButton.disabled = true;
-            const saveTargetLabel = getSaveTargetSourceLabel();
             statusEl.textContent = 'Сохраняем объект в базе...';
             try {
                 const saveResult = await saveObjectToDb(geometryToSave, name, requestId, saveTargetLabel);
@@ -2532,11 +2626,17 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     '<a class="button-link" href="#" data-export-pdf-link="1">Скачать PDF (карта и пересечения)</a>';
                 bindPdfExportLink();
             } catch (error) {
-                saveModalErrorEl.textContent = error.message || 'Ошибка сохранения объекта.';
+                setSaveModalGeometryError(error.message || 'Ошибка сохранения объекта.');
             } finally {
                 saveModalSubmit.disabled = false;
                 saveButton.disabled = false;
             }
+        }
+
+        if (saveModalFixPolygon) {
+            saveModalFixPolygon.addEventListener('click', () => {
+                void repairPolygonFromSaveModal();
+            });
         }
 
         saveModalCancel.addEventListener('click', () => {

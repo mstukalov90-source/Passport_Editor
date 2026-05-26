@@ -10,6 +10,7 @@ def _editor_api_urls():
         'autoRemove': reverse('auto_remove_intersections'),
         'cutGeometry': reverse('cut_edited_geometry'),
         'saveNewObject': reverse('save_new_object'),
+        'repairGeometry': reverse('repair_save_geometry'),
         'exportGeometry': reverse('export_new_object_geometry'),
         'listCommentPoints': reverse('list_comment_points'),
         'saveCommentPoint': reverse('save_comment_point'),

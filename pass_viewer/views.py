@@ -59,6 +59,183 @@ def _sql_geojson_param_as_valid_geom2d(placeholder: str = '%s') -> str:
     )
 
 
+_MULTIPOLYGON_SAVE_AREA_MIN_M2 = 1.0
+_MULTIPOLYGON_SAVE_ERROR = (
+    'Для сохранения в ДТ/ОДХ нужен полигон с ненулевой площадью. '
+    'Проверьте контур: минимум 3 различные вершины, без схлопнутых линий.'
+)
+
+
+def _sql_geojson_param_as_multipolygon2d(placeholder: str = '%s') -> str:
+    """GeoJSON → MultiPolygon для колонок geometry(MultiPolygon, 4326)."""
+    inner = _sql_geojson_param_as_valid_geom2d(placeholder)
+    return f'ST_Multi(ST_CollectionExtract({inner}, 3))'
+
+
+def _table_requires_multipolygon_geom(table_name: str) -> bool:
+    dt_table = settings.GIS_OBJECT_TABLE
+    odh_table = getattr(settings, 'GIS_ODH_TABLE', 'odh')
+    return table_name in (dt_table, odh_table)
+
+
+def _geojson_geom_sql_for_table(table_name: str) -> str:
+    if _table_requires_multipolygon_geom(table_name):
+        return _sql_geojson_param_as_multipolygon2d()
+    return _sql_geojson_param_as_valid_geom2d()
+
+
+def _validate_multipolygon_geometry_for_storage(cursor, geometry_json: str) -> None:
+    """Проверка перед INSERT/UPDATE в pass_objects / odh (колонка MultiPolygon)."""
+    cursor.execute(
+        f"""
+        WITH g AS (
+            SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom
+        )
+        SELECT
+            ST_GeometryType(geom) AS gt,
+            COALESCE(ST_IsEmpty(geom), TRUE) AS is_empty,
+            COALESCE(ST_Area(geom::geography), 0) AS area_m2
+        FROM g
+        """,
+        [geometry_json],
+    )
+    row = cursor.fetchone()
+    if not row:
+        raise ValueError(_MULTIPOLYGON_SAVE_ERROR)
+    gt, is_empty, area_m2 = row[0], bool(row[1]), float(row[2] or 0)
+    if gt not in ('ST_Polygon', 'ST_MultiPolygon') or is_empty or area_m2 < _MULTIPOLYGON_SAVE_AREA_MIN_M2:
+        raise ValueError(_MULTIPOLYGON_SAVE_ERROR)
+
+
+_MULTIPOLYGON_ISSUE_MESSAGES = {
+    'line_or_point': (
+        'Контур превратился в линию или точку — автоматически не исправить. '
+        'Дорисуйте полигон на карте (минимум 3 разные вершины).'
+    ),
+    'zero_area': 'Площадь полигона слишком мала — увеличьте контур на карте.',
+    'too_few_vertices': 'Недостаточно вершин — добавьте точки, чтобы получился замкнутый полигон.',
+    'self_intersection': 'Обнаружено самопересечение контура.',
+}
+
+
+def _sql_repair_multipolygon_from_geojson(placeholder: str = '%s', buffer_amount=None) -> str:
+    raw = f'ST_SetSRID(ST_GeomFromGeoJSON({placeholder}), 4326)'
+    if buffer_amount is not None:
+        raw = f'ST_Buffer({raw}, {buffer_amount})'
+    inner = f'ST_UnaryUnion(ST_MakeValid({raw}))'
+    return f'ST_Multi(ST_CollectionExtract({inner}, 3))'
+
+
+def _diagnose_multipolygon_geometry(cursor, geometry_json: str) -> list:
+    issues = []
+    cursor.execute(
+        'SELECT NOT ST_IsValid(ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))',
+        [geometry_json],
+    )
+    if cursor.fetchone()[0]:
+        issues.append('self_intersection')
+
+    cursor.execute(
+        f"""
+        WITH g AS (
+            SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom
+        )
+        SELECT
+            ST_GeometryType(geom) AS gt,
+            COALESCE(ST_IsEmpty(geom), TRUE) AS is_empty,
+            COALESCE(ST_Area(geom::geography), 0) AS area_m2,
+            COALESCE(ST_NPoints(geom), 0) AS npoints
+        FROM g
+        """,
+        [geometry_json],
+    )
+    row = cursor.fetchone()
+    if not row:
+        return issues or ['zero_area']
+    gt, is_empty, area_m2, npoints = row[0], bool(row[1]), float(row[2] or 0), int(row[3] or 0)
+    if gt in ('ST_LineString', 'ST_MultiLineString', 'ST_Point', 'ST_MultiPoint'):
+        if 'line_or_point' not in issues:
+            issues.append('line_or_point')
+    if is_empty or area_m2 < _MULTIPOLYGON_SAVE_AREA_MIN_M2:
+        if 'zero_area' not in issues:
+            issues.append('zero_area')
+    if npoints < 4:
+        if 'too_few_vertices' not in issues:
+            issues.append('too_few_vertices')
+    return issues
+
+
+def _validate_repaired_multipolygon_sql(cursor, repair_sql: str, geometry_json: str) -> None:
+    cursor.execute(
+        f"""
+        WITH g AS (
+            SELECT {repair_sql} AS geom
+        )
+        SELECT
+            ST_GeometryType(geom) AS gt,
+            COALESCE(ST_IsEmpty(geom), TRUE) AS is_empty,
+            COALESCE(ST_Area(geom::geography), 0) AS area_m2
+        FROM g
+        """,
+        [geometry_json],
+    )
+    row = cursor.fetchone()
+    if not row:
+        raise ValueError(_MULTIPOLYGON_SAVE_ERROR)
+    gt, is_empty, area_m2 = row[0], bool(row[1]), float(row[2] or 0)
+    if gt not in ('ST_Polygon', 'ST_MultiPolygon') or is_empty or area_m2 < _MULTIPOLYGON_SAVE_AREA_MIN_M2:
+        raise ValueError(_MULTIPOLYGON_SAVE_ERROR)
+
+
+def _repair_error_message_for_issues(issues: list) -> str:
+    for key in ('line_or_point', 'too_few_vertices', 'zero_area', 'self_intersection'):
+        if key in issues:
+            return _MULTIPOLYGON_ISSUE_MESSAGES[key]
+    return _MULTIPOLYGON_SAVE_ERROR
+
+
+def _repair_multipolygon_geometry_json(cursor, geometry_json: str) -> dict:
+    issues_before = _diagnose_multipolygon_geometry(cursor, geometry_json)
+    repair_steps = [
+        _sql_repair_multipolygon_from_geojson(),
+        _sql_repair_multipolygon_from_geojson(buffer_amount='0'),
+        _sql_repair_multipolygon_from_geojson(buffer_amount='0.00001'),
+    ]
+    for repair_sql in repair_steps:
+        try:
+            _validate_repaired_multipolygon_sql(cursor, repair_sql, geometry_json)
+        except ValueError:
+            continue
+        cursor.execute(
+            f"""
+            WITH repaired AS (
+                SELECT {repair_sql} AS geom
+            )
+            SELECT ST_AsGeoJSON(geom)::json AS geometry
+            FROM repaired
+            """,
+            [geometry_json],
+        )
+        row = cursor.fetchone()
+        if not row or not row[0]:
+            continue
+        geometry = row[0]
+        if isinstance(geometry, str):
+            geometry = json.loads(geometry)
+        return {
+            'geometry': geometry,
+            'issues_before': issues_before,
+            'fixed': True,
+        }
+    issues_after = _diagnose_multipolygon_geometry(cursor, geometry_json)
+    return {
+        'geometry': None,
+        'issues_before': issues_before,
+        'issues': issues_after or issues_before,
+        'fixed': False,
+    }
+
+
 def _sql_table_geom_valid_expr(qualified_geom_expr: str) -> str:
     """ST_MakeValid только для невалидных строк; иначе сырая геометрия (без раздувания)."""
     return (
@@ -2457,6 +2634,11 @@ def _create_new_object(username, geometry, name, request_id, source_label='ДТ'
 
         _ensure_request_id_column(cursor, table, request_id_field)
 
+        geometry_json = json.dumps(geometry)
+        if _table_requires_multipolygon_geom(table):
+            _validate_multipolygon_geometry_for_storage(cursor, geometry_json)
+        geom_sql = _geojson_geom_sql_for_table(table)
+
         if replace_tid and request_id_norm:
             cursor.execute(
                 f"SELECT {_quote_ident(request_id_field)}::text FROM {_quote_ident(table)} "
@@ -2466,27 +2648,25 @@ def _create_new_object(username, geometry, name, request_id, source_label='ДТ'
             rid_row = cursor.fetchone()
             stored_rid = str(rid_row[0] or '').strip() if rid_row else ''
             if rid_row is not None and stored_rid and stored_rid == request_id_norm:
-                geom_sql = _sql_geojson_param_as_valid_geom2d()
                 cursor.execute(
                     f"UPDATE {_quote_ident(table)} SET "
                     f"{_quote_ident(name_field)} = %s, "
                     f"{_quote_ident(geom_field)} = {geom_sql} "
                     f"WHERE ctid = %s::tid AND {_quote_ident(owner_field)} = %s",
-                    [name, json.dumps(geometry), replace_tid, owner_id],
+                    [name, geometry_json, replace_tid, owner_id],
                 )
                 if cursor.rowcount < 1:
                     raise ValueError('Не удалось обновить строку: нет доступа или запись не найдена.')
                 return owner_id
 
         if request_id_norm:
-            geom_sql = _sql_geojson_param_as_valid_geom2d()
             cursor.execute(
                 f"UPDATE {_quote_ident(table)} SET "
                 f"{_quote_ident(name_field)} = %s, "
                 f"{_quote_ident(geom_field)} = {geom_sql} "
                 f"WHERE {_quote_ident(request_id_field)}::text = %s "
                 f"  AND {_quote_ident(owner_field)} = %s",
-                [name, json.dumps(geometry), request_id_norm, owner_id],
+                [name, geometry_json, request_id_norm, owner_id],
             )
             if cursor.rowcount > 0:
                 return owner_id
@@ -2498,9 +2678,9 @@ def _create_new_object(username, geometry, name, request_id, source_label='ДТ'
             f"{_quote_ident(owner_field)}, "
             f"{_quote_ident(request_id_field)}, "
             f"{_quote_ident(geom_field)}"
-            f") VALUES (%s, %s, %s, %s, {_sql_geojson_param_as_valid_geom2d()})"
+            f") VALUES (%s, %s, %s, %s, {geom_sql})"
         )
-        cursor.execute(insert_query, [None, name, owner_id, request_id, json.dumps(geometry)])
+        cursor.execute(insert_query, [None, name, owner_id, request_id, geometry_json])
     return owner_id
 
 
@@ -3277,6 +3457,51 @@ def export_new_object_geometry(request):
 
 @login_required
 @require_POST
+def repair_save_geometry(request):
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'ok': False, 'error': 'Некорректный JSON.'}, status=400)
+
+    geometry = payload.get('geometry')
+    if not isinstance(geometry, dict):
+        return JsonResponse({'ok': False, 'error': 'Геометрия не передана.'}, status=400)
+
+    geometry_json = json.dumps(geometry, ensure_ascii=False)
+    try:
+        with connection.cursor() as cursor:
+            result = _repair_multipolygon_geometry_json(cursor, geometry_json)
+    except Exception as exc:
+        logger.exception('repair_save_geometry failed')
+        response_payload = {'ok': False, 'error': 'Не удалось исправить геометрию полигона.'}
+        if settings.DEBUG:
+            response_payload['detail'] = str(exc)
+        return JsonResponse(response_payload, status=500)
+
+    if result.get('fixed') and result.get('geometry'):
+        return JsonResponse(
+            {
+                'ok': True,
+                'geometry': result['geometry'],
+                'issues_before': result.get('issues_before') or [],
+                'fixed': True,
+            }
+        )
+
+    issues = result.get('issues') or result.get('issues_before') or []
+    return JsonResponse(
+        {
+            'ok': False,
+            'error': _repair_error_message_for_issues(issues),
+            'issues': issues,
+            'fixable': False,
+        },
+        status=400,
+    )
+
+
+@login_required
+@require_POST
 def save_new_object(request):
     try:
         payload = json.loads(request.body or '{}')
@@ -3307,8 +3532,12 @@ def save_new_object(request):
         )
     except ValueError as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
-    except Exception:
-        return JsonResponse({'ok': False, 'error': 'Не удалось сохранить объект в geodb.'}, status=500)
+    except Exception as exc:
+        logger.exception('save_new_object failed')
+        payload = {'ok': False, 'error': 'Не удалось сохранить объект в geodb.'}
+        if settings.DEBUG:
+            payload['detail'] = str(exc)
+        return JsonResponse(payload, status=500)
 
     return JsonResponse({'ok': True, 'owner_id': owner_id})
 
@@ -3352,8 +3581,12 @@ def save_recap_object(request):
         )
     except ValueError as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
-    except Exception:
-        return JsonResponse({'ok': False, 'error': 'Не удалось сохранить досъём в recaps.'}, status=500)
+    except Exception as exc:
+        logger.exception('save_recap_object failed')
+        payload = {'ok': False, 'error': 'Не удалось сохранить досъём в recaps.'}
+        if settings.DEBUG:
+            payload['detail'] = str(exc)
+        return JsonResponse(payload, status=500)
 
     return JsonResponse({'ok': True, 'owner_id': owner_id, 'recap_id': recap_id})
 
