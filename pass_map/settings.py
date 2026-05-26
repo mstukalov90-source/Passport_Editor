@@ -10,8 +10,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
-from pathlib import Path
 import os
+from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'unsafe-dev-key-change-me')
+SECRET_KEY = "django-insecure-1av$uzw-*%0$zqq0@sxs8i87ru+ryy)yj*euj$x0c@lnv9gvq1"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'
@@ -32,61 +32,60 @@ ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', '').split(
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'pass_viewer',
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "pass_viewer",
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'pass_viewer.middleware.HoodSpatialScopeMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "pass_viewer.middleware.HoodSpatialScopeMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = 'pass_map.urls'
+ROOT_URLCONF = "pass_map.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'pass_map.wsgi.application'
+WSGI_APPLICATION = "pass_map.wsgi.application"
 
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.contrib.gis.db.backends.postgis',
-        'NAME': os.getenv('POSTGIS_DB_NAME', 'geodb'),
-        'USER': os.getenv('POSTGIS_DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('POSTGIS_DB_PASSWORD', 'postgres'),
-        'HOST': os.getenv('POSTGIS_DB_HOST', 'localhost'),
-        'PORT': os.getenv('POSTGIS_DB_PORT', '5433'),
+    "default": {
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "NAME": os.getenv("POSTGIS_DB_NAME", "geodb"),
+        "USER": os.getenv("POSTGIS_DB_USER", "postgres"),
+        "PASSWORD": os.getenv("POSTGIS_DB_PASSWORD", "postgres"),
+        "HOST": os.getenv("POSTGIS_DB_HOST", "localhost"),
+        "PORT": os.getenv("POSTGIS_DB_PORT", "5433"),
     }
 }
-
 
 
 # Password validation
@@ -94,16 +93,16 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -111,9 +110,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "UTC"
 
 USE_I18N = True
 
@@ -123,52 +122,55 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-LOGIN_REDIRECT_URL = 'home'
-LOGOUT_REDIRECT_URL = 'login'
+LOGIN_REDIRECT_URL = "home"
+LOGOUT_REDIRECT_URL = "login"
 
 AUTHENTICATION_BACKENDS = [
-    'pass_viewer.auth_backends.DockerUsersTableBackend',
+    "pass_viewer.auth_backends.DockerUsersTableBackend",
 ]
 
 # PostGIS object source settings for map rendering.
-GIS_OBJECT_TABLE = 'pass_objects'
-GIS_OBJECT_ROOTID_FIELD = 'rootid'
-GIS_OBJECT_NAME_FIELD = 'name'
-GIS_OBJECT_GEOM_FIELD = 'geom'
-GIS_OBJECT_OWNER_FIELD = 'OwnerLegalPersonId'
+GIS_OBJECT_TABLE = "pass_objects"
+GIS_OBJECT_ROOTID_FIELD = "rootid"
+GIS_OBJECT_NAME_FIELD = "name"
+GIS_OBJECT_GEOM_FIELD = "geom"
+GIS_OBJECT_OWNER_FIELD = "OwnerLegalPersonId"
 # Реестр заявок (ODS), миграция 0013. Список на главной, фаза 1 — без геометрии.
-GIS_ODS_REQUEST_TABLE = os.getenv('GIS_ODS_REQUEST_TABLE', 'ods_request')
-GIS_ODS_REQUEST_SOURCE_LABEL = os.getenv('GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС')
+GIS_ODS_REQUEST_TABLE = os.getenv("GIS_ODS_REQUEST_TABLE", "ods_request")
+GIS_ODS_REQUEST_SOURCE_LABEL = os.getenv("GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС")
 # Справочник для расшифровки ID (home, popup). Таблица: см. миграцию 0003_create_id_names_table.
-GIS_ID_NAMES_TABLE = os.getenv('GIS_ID_NAMES_TABLE', 'id_names')
+GIS_ID_NAMES_TABLE = os.getenv("GIS_ID_NAMES_TABLE", "id_names")
 
 # Ограничение данных по районам (таблица hood, миграция 0012). Если таблицы нет — фильтр не включается.
-GIS_HOOD_TABLE = os.getenv('GIS_HOOD_TABLE', 'hood')
-GIS_HOOD_ACCESS_ENABLED = os.getenv('GIS_HOOD_ACCESS_ENABLED', '1') not in ('0', 'false', 'False')
+GIS_HOOD_TABLE = os.getenv("GIS_HOOD_TABLE", "hood")
+GIS_HOOD_ACCESS_ENABLED = os.getenv("GIS_HOOD_ACCESS_ENABLED", "1") not in ("0", "false", "False")
 # Ограничение по районам (hood). При ACCESS=0 — выкл. Пространственные фильтры (WKT, ST_Intersects)
 # выполняются только для пользователей с users.hood_scope=True (см. pass_viewer.hood_scope).
 # Переменная GIS_HOOD_APPLY_SPATIAL_SCOPE оставлена для совместимости старых .env (не используется кодом).
-GIS_HOOD_APPLY_SPATIAL_SCOPE = os.getenv('GIS_HOOD_APPLY_SPATIAL_SCOPE', '0') not in ('0', 'false', 'False')
+GIS_HOOD_APPLY_SPATIAL_SCOPE = os.getenv("GIS_HOOD_APPLY_SPATIAL_SCOPE", "0") not in ("0", "false", "False")
 # Мин. доля площади (0–1): пересечение union геометрий пользователя с районом / площадь union (geography, м²).
 # Районы с меньшей долей не входят в hood-scope (срез «чуть-чуть» за границу). 0 = как раньше, любое ST_Intersects.
 try:
-    GIS_HOOD_MIN_OVERLAP_RATIO = float(os.getenv('GIS_HOOD_MIN_OVERLAP_RATIO', '0.05'))
+    GIS_HOOD_MIN_OVERLAP_RATIO = float(os.getenv("GIS_HOOD_MIN_OVERLAP_RATIO", "0.05"))
 except (TypeError, ValueError):
     GIS_HOOD_MIN_OVERLAP_RATIO = 0.05
 
-GIS_OOZT_TABLE = os.getenv('GIS_OOZT_TABLE', 'oozt')
-GIS_RZD_TABLE = os.getenv('GIS_RZD_TABLE', 'rzd')
+GIS_OOZT_TABLE = os.getenv("GIS_OOZT_TABLE", "oozt")
+GIS_RZD_TABLE = os.getenv("GIS_RZD_TABLE", "rzd")
 
 # GeoDjango library paths (macOS Homebrew).
-GDAL_LIBRARY_PATH = os.getenv('GDAL_LIBRARY_PATH', '/opt/homebrew/lib/libgdal.dylib')
-GEOS_LIBRARY_PATH = os.getenv('GEOS_LIBRARY_PATH', '/opt/homebrew/lib/libgeos_c.dylib')
+GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH", "/opt/homebrew/lib/libgdal.dylib")
+GEOS_LIBRARY_PATH = os.getenv("GEOS_LIBRARY_PATH", "/opt/homebrew/lib/libgeos_c.dylib")
+
+# Django admin at /admin/ (on VPS set DJANGO_ENABLE_ADMIN=0 in .env).
+ENABLE_DJANGO_ADMIN = os.getenv("DJANGO_ENABLE_ADMIN", "1") not in ("0", "false", "False")

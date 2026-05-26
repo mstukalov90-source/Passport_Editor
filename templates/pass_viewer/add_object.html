@@ -31,9 +31,7 @@
         <div style="flex: 1 1 260px; min-width: 200px;">
             <strong style="display: block; margin-bottom: 6px; font-size: 13px;">Информация о редактируемом обьекте:</strong>
             <p id="editable-area-info" class="note" style="display:none; margin: 0 0 4px;">Площадь редактируемого объекта: -</p>
-            <p id="edit-status" class="note" style="margin: 0;">
-                &#1044;&#1072;&#1083;&#1100;&#1085;&#1077;&#1081;&#1096;&#1080;&#1081; &#1092;&#1091;&#1085;&#1082;&#1094;&#1080;&#1086;&#1085;&#1072;&#1083; &#1076;&#1086;&#1073;&#1072;&#1074;&#1083;&#1077;&#1085;&#1080;&#1103; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1072; &#1085;&#1072;&#1089;&#1090;&#1088;&#1086;&#1080;&#1084; &#1089;&#1083;&#1077;&#1076;&#1091;&#1102;&#1097;&#1080;&#1084; &#1096;&#1072;&#1075;&#1086;&#1084;.
-            </p>
+            <p id="edit-status" class="note" style="margin: 0;"></p>
         </div>
         <a class="button-link" href="{% url 'home' %}">&#1042;&#1077;&#1088;&#1085;&#1091;&#1090;&#1100;&#1089;&#1103; &#1082; &#1089;&#1087;&#1080;&#1089;&#1082;&#1091;</a>
     </div>
@@ -179,9 +177,13 @@
                 Если в выбранной таблице уже есть строка с этим номером заявки для вашего владельца, она будет перезаписана.
             </p>
             <p id="save-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
-            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
-                <button type="button" id="save-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
-                <button type="button" id="save-modal-submit" class="map-toolbar-btn map-toolbar-btn--success">&#1057;&#1086;&#1093;&#1088;&#1072;&#1085;&#1080;&#1090;&#1100;</button>
+            <p id="save-modal-success" class="note" style="margin: 8px 0 0; color: #15803d; display: none;"></p>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:14px; flex-wrap:wrap;">
+                <button type="button" id="save-modal-fix-polygon" class="map-toolbar-btn" style="display:none;">Исправить полигон</button>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-left:auto;">
+                    <button type="button" id="save-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
+                    <button type="button" id="save-modal-submit" class="map-toolbar-btn map-toolbar-btn--success">&#1057;&#1086;&#1093;&#1088;&#1072;&#1085;&#1080;&#1090;&#1100;</button>
+                </div>
             </div>
         </div>
     </div>
@@ -204,6 +206,10 @@
             <label class="modal-label auto-remove-option" data-auto-remove-source="dgi">
                 ДГИ
                 <input type="checkbox" id="auto-remove-dgi" />
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="renew">
+                Реновация
+                <input type="checkbox" id="auto-remove-renew" />
             </label>
             <label class="modal-label auto-remove-option" data-auto-remove-source="oozt">
                 ООЗТ

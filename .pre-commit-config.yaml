@@ -1,0 +1,12 @@
+# See https://pre-commit.com for usage.
+# Install: pip install pre-commit && pre-commit install
+# Run all hooks: pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      - id: ruff
+        name: ruff check (pass_map, pass_viewer)
+        args: [--fix]
+        files: ^(pass_map|pass_viewer)/.*\.py$

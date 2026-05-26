@@ -14,27 +14,26 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
-from django.conf import settings
-from django.conf.urls.static import static
-from django.views.static import serve
-
 from pass_viewer.forms import RussianAuthenticationForm
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
     path(
-        'accounts/login/',
+        "accounts/login/",
         auth_views.LoginView.as_view(authentication_form=RussianAuthenticationForm),
-        name='login',
+        name="login",
     ),
-    path('accounts/', include('django.contrib.auth.urls')),
-    path('', include('pass_viewer.urls')),
-    path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),
-    path('static/<path:path>', serve, {'document_root': settings.STATIC_ROOT}),
+    path("accounts/", include("django.contrib.auth.urls")),
+    path("", include("pass_viewer.urls")),
 ]
+
+if settings.ENABLE_DJANGO_ADMIN:
+    urlpatterns = [path("admin/", admin.site.urls), *urlpatterns]
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -118,6 +118,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const newObjectNameInput = document.getElementById('new-object-name');
         const newObjectRequestIdInput = document.getElementById('new-object-request-id');
         const saveModalErrorEl = document.getElementById('save-modal-error');
+        const saveModalSuccessEl = document.getElementById('save-modal-success');
+        const saveModalFixPolygon = document.getElementById('save-modal-fix-polygon');
+        const mps = PV.multipolygonSave || {};
         const saveTargetDtRadio = document.getElementById('save-target-dt');
         const saveTargetOdhRadio = document.getElementById('save-target-odh');
         const saveTargetOznRadio = document.getElementById('save-target-ozn');
@@ -129,6 +132,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
         const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
         const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
+        const autoRemoveRenewCheckbox = document.getElementById('auto-remove-renew');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
         const autoRemoveNoLayersEl = document.getElementById('auto-remove-no-layers');
@@ -848,22 +852,47 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             });
         }
 
-        function buildCurrentGeometry() {
-            const featureCollection = editableGroup.toGeoJSON();
-            const geometries = (featureCollection.features || [])
-                .map((feature) => feature.geometry)
-                .filter((geometry) => geometry && (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon'));
+        let pendingRepairedGeometryForSave = null;
 
-            if (!geometries.length) {
+        function clearPendingRepairedGeometry() {
+            pendingRepairedGeometryForSave = null;
+        }
+
+        function exportGeometryFromRaw(geometry) {
+            const editableGeo = toEditableFeatureCollection(geometry);
+            if (!editableGeo || !editableGeo.features.length) {
                 return null;
             }
-            if (geometries.length === 1) {
-                return geometries[0];
+            return buildExportGeometry(editableGeo);
+        }
+
+        function getEditableGeometryForSave() {
+            if (pendingRepairedGeometryForSave) {
+                return pendingRepairedGeometryForSave;
             }
-            return {
-                type: 'GeometryCollection',
-                geometries: geometries
-            };
+            const resumeEditToolbar = !!(editToolbar && isEditing);
+            if (editToolbar) {
+                editToolbar.disable();
+            }
+            let result = null;
+            const layerGeometries = mps.readGeometriesFromLeafletGroup
+                ? mps.readGeometriesFromLeafletGroup(editableGroup)
+                : [];
+            if (layerGeometries.length) {
+                result = mps.mergePolygonGeometriesForExport(layerGeometries);
+            }
+            if (!result) {
+                const featureCollection = editableGroup.toGeoJSON();
+                result = buildExportGeometry(featureCollection);
+            }
+            if (resumeEditToolbar && editToolbar) {
+                editToolbar.enable();
+            }
+            return result;
+        }
+
+        function buildCurrentGeometry() {
+            return getEditableGeometryForSave();
         }
 
         function clearRelationLayers() {
@@ -892,6 +921,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             closeCommentPointModal();
 
             editableGroup.clearLayers();
+            clearPendingRepairedGeometry();
 
             clearPopupHighlight();
             map.closePopup();
@@ -1556,6 +1586,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             odh: odhSignalGroup,
             ozn: oznSignalGroup,
             dgi: dgiSignalGroup,
+            renew: renewGroup,
             oozt: ooztSignalGroup,
             rzd: rzdSignalGroup,
         };
@@ -1579,6 +1610,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 autoRemoveOdhCheckbox,
                 autoRemoveOznCheckbox,
                 autoRemoveDgiCheckbox,
+                autoRemoveRenewCheckbox,
                 autoRemoveOoztCheckbox,
                 autoRemoveRzdCheckbox,
             ].forEach((el) => {
@@ -1640,6 +1672,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             if (autoRemoveDgiCheckbox.checked) {
                 sources.push('dgi');
             }
+            if (autoRemoveRenewCheckbox.checked) {
+                sources.push('renew');
+            }
             if (autoRemoveOoztCheckbox.checked) {
                 sources.push('oozt');
             }
@@ -1669,10 +1704,16 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 );
                 editableGroup.addLayer(layer);
             });
-            if (editToolbar) {
-                editToolbar.disable();
-                editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
-                editToolbar.enable();
+            if (isEditing) {
+                requestAnimationFrame(() => {
+                    if (editToolbar) {
+                        editToolbar.disable();
+                    }
+                    editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
+                    if (editableGroup.getLayers().length) {
+                        editToolbar.enable();
+                    }
+                });
             }
             rebuildSnapGuideLines();
             startSnapBindingLoop();
@@ -1723,6 +1764,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 if (!applyGeometryToEditableGroup(data.geometry)) {
                     throw new Error('Не удалось применить обновлённую геометрию.');
                 }
+                pendingRepairedGeometryForSave = exportGeometryFromRaw(data.geometry);
                 closeAutoRemoveModal();
                 statusEl.textContent = 'Пересечения автоматически удалены.';
                 await checkRelations();
@@ -1948,6 +1990,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         }
 
         function finishCreatedPolygon(layer) {
+            clearPendingRepairedGeometry();
             editableGroup.addLayer(layer);
             bindEditablePolygonPopup(
                 layer,
@@ -2191,6 +2234,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         });
 
         map.on(L.Draw.Event.EDITED, () => {
+            clearPendingRepairedGeometry();
             statusEl.textContent = 'Геометрия обновлена. Пересчитываем связанные объекты...';
             updateRelationsButtonState();
             checkRelations();
@@ -2226,10 +2270,94 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             return 'ДТ';
         }
 
+        function hideSaveModalFixUi() {
+            if (saveModalFixPolygon) {
+                saveModalFixPolygon.style.display = 'none';
+            }
+            if (saveModalSuccessEl) {
+                saveModalSuccessEl.style.display = 'none';
+                saveModalSuccessEl.textContent = '';
+            }
+        }
+
+        function setSaveModalGeometryError(message) {
+            hideSaveModalFixUi();
+            saveModalErrorEl.textContent = message || '';
+            const saveTargetLabel = getSaveTargetSourceLabel();
+            if (
+                message &&
+                mps.isMultipolygonSaveError &&
+                mps.isMultipolygonSaveError(message) &&
+                mps.requiresMultipolygonSave &&
+                mps.requiresMultipolygonSave(saveTargetLabel) &&
+                saveModalFixPolygon
+            ) {
+                saveModalFixPolygon.style.display = '';
+            }
+        }
+
+        function clearSaveModalMessages() {
+            saveModalErrorEl.textContent = '';
+            hideSaveModalFixUi();
+        }
+
+        async function repairPolygonFromSaveModal() {
+            const geometry = buildCurrentGeometry();
+            if (!geometry) {
+                setSaveModalGeometryError('Нет геометрии для исправления.');
+                return;
+            }
+            if (!cfg.urls || !cfg.urls.repairGeometry) {
+                setSaveModalGeometryError('Исправление полигона недоступно.');
+                return;
+            }
+            if (saveModalFixPolygon) {
+                saveModalFixPolygon.disabled = true;
+            }
+            hideSaveModalFixUi();
+            saveModalErrorEl.textContent = 'Исправляем полигон...';
+            try {
+                const data = await mps.repairMultipolygonGeometry(
+                    cfg.urls.repairGeometry,
+                    geometry,
+                    getCookie('csrftoken')
+                );
+                if (editToolbar) {
+                    editToolbar.disable();
+                }
+                pendingRepairedGeometryForSave = exportGeometryFromRaw(data.geometry);
+                if (!applyGeometryToEditableGroup(data.geometry)) {
+                    pendingRepairedGeometryForSave = null;
+                    throw new Error('Не удалось применить исправленную геометрию.');
+                }
+                saveModalErrorEl.textContent = '';
+                hideSaveModalFixUi();
+                if (saveModalSuccessEl) {
+                    saveModalSuccessEl.textContent =
+                        'Полигон исправлен. Проверьте контур на карте и нажмите «Сохранить».';
+                    saveModalSuccessEl.style.display = '';
+                }
+                updateRelationsButtonState();
+                statusEl.textContent = 'Полигон исправлен. Проверьте контур и сохраните объект.';
+                requestAnimationFrame(() => {
+                    const bounds = editableGroup.getBounds();
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds.pad(0.1));
+                    }
+                });
+            } catch (error) {
+                setSaveModalGeometryError(error.message || 'Не удалось исправить полигон.');
+            } finally {
+                if (saveModalFixPolygon) {
+                    saveModalFixPolygon.disabled = false;
+                }
+            }
+        }
+
         function openSaveModal() {
             newObjectNameInput.value = '';
             newObjectRequestIdInput.value = (effectiveEntryRequestId || '').trim();
-            saveModalErrorEl.textContent = '';
+            clearSaveModalMessages();
             if (selectedSourceLabel === 'ОЗН') {
                 if (saveTargetOznRadio) {
                     saveTargetOznRadio.checked = true;
@@ -2468,12 +2596,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 statusEl.textContent = 'Сначала включите режим редактирования.';
                 return;
             }
-            const editedGeojson = editableGroup.toGeoJSON();
-            if (!editedGeojson.features.length) {
-                statusEl.textContent = 'Нет геометрии для сохранения.';
-                return;
-            }
-            const geometryToSave = buildExportGeometry(editedGeojson);
+            const geometryToSave = getEditableGeometryForSave();
             if (!geometryToSave) {
                 statusEl.textContent = 'Не удалось собрать геометрию для сохранения.';
                 return;
@@ -2489,14 +2612,23 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 saveModalErrorEl.textContent = 'Номер заявки должен содержать только цифры.';
                 return;
             }
-            saveModalErrorEl.textContent = '';
+            clearSaveModalMessages();
+
+            const saveTargetLabel = getSaveTargetSourceLabel();
+            const multipolygonValidationError =
+                mps.validateMultipolygonTargetGeometry &&
+                mps.validateMultipolygonTargetGeometry(geometryToSave, saveTargetLabel);
+            if (multipolygonValidationError) {
+                setSaveModalGeometryError(multipolygonValidationError);
+                return;
+            }
 
             saveModalSubmit.disabled = true;
             saveButton.disabled = true;
-            const saveTargetLabel = getSaveTargetSourceLabel();
             statusEl.textContent = 'Сохраняем объект в базе...';
             try {
                 const saveResult = await saveObjectToDb(geometryToSave, name, requestId, saveTargetLabel);
+                clearPendingRepairedGeometry();
                 statusEl.textContent = 'Объект сохранён в базе. Формируем файлы...';
                 const exportResult = await exportObjectFiles(geometryToSave, {
                     name: name,
@@ -2526,11 +2658,17 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     '<a class="button-link" href="#" data-export-pdf-link="1">Скачать PDF (карта и пересечения)</a>';
                 bindPdfExportLink();
             } catch (error) {
-                saveModalErrorEl.textContent = error.message || 'Ошибка сохранения объекта.';
+                setSaveModalGeometryError(error.message || 'Ошибка сохранения объекта.');
             } finally {
                 saveModalSubmit.disabled = false;
                 saveButton.disabled = false;
             }
+        }
+
+        if (saveModalFixPolygon) {
+            saveModalFixPolygon.addEventListener('click', () => {
+                void repairPolygonFromSaveModal();
+            });
         }
 
         saveModalCancel.addEventListener('click', () => {

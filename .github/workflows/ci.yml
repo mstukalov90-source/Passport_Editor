@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main, deploy/vps-docker]
+  pull_request:
+    branches: [main, deploy/vps-docker]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'ruff>=0.8'
+      - run: ruff check pass_map pass_viewer
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: geodb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d geodb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install GDAL system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev
+      - name: Install Python dependencies
+        run: bash scripts/ci_install_deps.sh
+      - name: Resolve GDAL/GEOS paths
+        run: |
+          echo "GDAL_LIBRARY_PATH=$(find /usr/lib -name 'libgdal.so*' 2>/dev/null | head -1)" >> "$GITHUB_ENV"
+          echo "GEOS_LIBRARY_PATH=$(find /usr/lib -name 'libgeos_c.so*' 2>/dev/null | head -1)" >> "$GITHUB_ENV"
+      - name: Django smoke tests
+        env:
+          POSTGIS_DB_HOST: localhost
+          POSTGIS_DB_PORT: '5432'
+          POSTGIS_DB_NAME: geodb
+          POSTGIS_DB_USER: postgres
+          POSTGIS_DB_PASSWORD: postgres
+        run: pytest -m "not e2e" -v
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: geodb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d geodb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install GDAL system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev
+      - name: Install Python dependencies
+        run: bash scripts/ci_install_deps.sh
+      - name: Resolve GDAL/GEOS paths
+        run: |
+          echo "GDAL_LIBRARY_PATH=$(find /usr/lib -name 'libgdal.so*' 2>/dev/null | head -1)" >> "$GITHUB_ENV"
+          echo "GEOS_LIBRARY_PATH=$(find /usr/lib -name 'libgeos_c.so*' 2>/dev/null | head -1)" >> "$GITHUB_ENV"
+      - name: Install Playwright browser
+        run: playwright install --with-deps chromium
+      - name: E2E smoke tests
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: 'true'
+          POSTGIS_DB_HOST: localhost
+          POSTGIS_DB_PORT: '5432'
+          POSTGIS_DB_NAME: geodb
+          POSTGIS_DB_USER: postgres
+          POSTGIS_DB_PASSWORD: postgres
+        run: pytest -m e2e --browser chromium -v

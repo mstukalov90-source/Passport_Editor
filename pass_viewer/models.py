@@ -6,14 +6,14 @@ class ExternalUser(models.Model):
     password = models.CharField(max_length=255)
     owner_legal_person_id = models.CharField(
         max_length=255,
-        db_column='OwnerLegalPersonId',
+        db_column="OwnerLegalPersonId",
         blank=True,
         null=True,
     )
     hood_scope = models.BooleanField(default=False)
 
     class Meta:
-        db_table = 'users'
+        db_table = "users"
 
     def __str__(self):
         return self.login

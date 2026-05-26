@@ -17,7 +17,7 @@ class DockerUsersTableBackend(BaseBackend):
         user, _ = user_model.objects.get_or_create(username=username)
         if not user.is_active:
             user.is_active = True
-            user.save(update_fields=['is_active'])
+            user.save(update_fields=["is_active"])
         return user
 
     def get_user(self, user_id):

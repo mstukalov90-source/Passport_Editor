@@ -83,6 +83,9 @@ function buildEditableDeletePopupHtml(baseHtml) {
         const newObjectNameInput = document.getElementById('new-object-name');
         const newObjectRequestIdInput = document.getElementById('new-object-request-id');
         const saveModalErrorEl = document.getElementById('save-modal-error');
+        const saveModalSuccessEl = document.getElementById('save-modal-success');
+        const saveModalFixPolygon = document.getElementById('save-modal-fix-polygon');
+        const mps = PV.multipolygonSave || {};
         const autoRemoveModal = document.getElementById('auto-remove-modal');
         const autoRemoveModalCancel = document.getElementById('auto-remove-modal-cancel');
         const autoRemoveModalSubmit = document.getElementById('auto-remove-modal-submit');
@@ -91,6 +94,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
         const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
         const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
+        const autoRemoveRenewCheckbox = document.getElementById('auto-remove-renew');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
         const autoRemoveNoLayersEl = document.getElementById('auto-remove-no-layers');
@@ -973,19 +977,21 @@ function buildEditableDeletePopupHtml(baseHtml) {
             }
         });
 
-        function buildCurrentGeometry() {
-            if (isEditing) {
-                const featureCollection = editableGroup.toGeoJSON();
-                const geometries = (featureCollection.features || [])
-                    .map((feature) => feature.geometry)
-                    .filter((geometry) => geometry && (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon'));
-                if (geometries.length === 1) {
-                    return geometries[0];
-                }
-                if (geometries.length > 1) {
-                    return {type: 'GeometryCollection', geometries: geometries};
-                }
+        let pendingRepairedGeometryForSave = null;
+
+        function clearPendingRepairedGeometry() {
+            pendingRepairedGeometryForSave = null;
+        }
+
+        function exportGeometryFromRaw(geometry) {
+            const editableGeo = toEditableFeatureCollection(geometry);
+            if (!editableGeo || !editableGeo.features.length) {
+                return null;
             }
+            return buildExportGeometry(editableGeo);
+        }
+
+        function buildCurrentGeometryFromSelected() {
             const source = selectedGeo?.features || [];
             const baseGeometries = source
                 .map((feature) => feature.geometry)
@@ -997,6 +1003,38 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 return {type: 'GeometryCollection', geometries: baseGeometries};
             }
             return null;
+        }
+
+        function getEditableGeometryForSave() {
+            if (pendingRepairedGeometryForSave) {
+                return pendingRepairedGeometryForSave;
+            }
+            if (!isEditing) {
+                return buildCurrentGeometryFromSelected();
+            }
+            const resumeEditToolbar = !!(editToolbar && isEditing);
+            if (editToolbar) {
+                editToolbar.disable();
+            }
+            let result = null;
+            const layerGeometries = mps.readGeometriesFromLeafletGroup
+                ? mps.readGeometriesFromLeafletGroup(editableGroup)
+                : [];
+            if (layerGeometries.length) {
+                result = mps.mergePolygonGeometriesForExport(layerGeometries);
+            }
+            if (!result) {
+                const featureCollection = editableGroup.toGeoJSON();
+                result = buildExportGeometry(featureCollection);
+            }
+            if (resumeEditToolbar && editToolbar) {
+                editToolbar.enable();
+            }
+            return result;
+        }
+
+        function buildCurrentGeometry() {
+            return getEditableGeometryForSave();
         }
         function countPolygonLikeGeometriesInCollection(geojsonCollection) {
             const features = geojsonCollection?.features || [];
@@ -1274,6 +1312,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
             odh: odhSignalGroup,
             ozn: oznSignalGroup,
             dgi: dgiSignalGroup,
+            renew: renewGroup,
             oozt: ooztSignalGroup,
             rzd: rzdSignalGroup,
         };
@@ -1297,6 +1336,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 autoRemoveOdhCheckbox,
                 autoRemoveOznCheckbox,
                 autoRemoveDgiCheckbox,
+                autoRemoveRenewCheckbox,
                 autoRemoveOoztCheckbox,
                 autoRemoveRzdCheckbox,
             ].forEach((el) => {
@@ -1358,6 +1398,9 @@ function buildEditableDeletePopupHtml(baseHtml) {
             if (autoRemoveDgiCheckbox.checked) {
                 sources.push('dgi');
             }
+            if (autoRemoveRenewCheckbox.checked) {
+                sources.push('renew');
+            }
             if (autoRemoveOoztCheckbox.checked) {
                 sources.push('oozt');
             }
@@ -1392,10 +1435,16 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 );
                 editableGroup.addLayer(layer);
             });
-            if (editToolbar) {
-                editToolbar.disable();
-                editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
-                editToolbar.enable();
+            if (isEditing) {
+                requestAnimationFrame(() => {
+                    if (editToolbar) {
+                        editToolbar.disable();
+                    }
+                    editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
+                    if (editableGroup.getLayers().length) {
+                        editToolbar.enable();
+                    }
+                });
             }
             rebuildSnapGuideLines();
             startSnapBindingLoop();
@@ -1450,6 +1499,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 if (!applyGeometryToEditableGroup(data.geometry)) {
                     throw new Error('Не удалось применить обновлённую геометрию.');
                 }
+                pendingRepairedGeometryForSave = exportGeometryFromRaw(data.geometry);
                 closeAutoRemoveModal();
                 statusEl.textContent = 'Пересечения автоматически удалены.';
                 await checkRelations();
@@ -2160,6 +2210,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         }
 
         function finishCreatedPolygon(layer) {
+            clearPendingRepairedGeometry();
             editableGroup.addLayer(layer);
             bindEditablePolygonPopup(
                 layer,
@@ -2353,6 +2404,9 @@ function buildEditableDeletePopupHtml(baseHtml) {
             }
             finishCreatedPolygon(event.layer);
         });
+        map.on(L.Draw.Event.EDITED, () => {
+            clearPendingRepairedGeometry();
+        });
         map.on(L.Draw.Event.DRAWVERTEX, (event) => {
             snapLastDrawVertexIfNeeded(event);
             updateStartVertexFlag();
@@ -2433,6 +2487,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
             stopFreehandMode();
             clearStartVertexFlag();
             editableGroup.clearLayers();
+            clearPendingRepairedGeometry();
             if (selectedLayer && !map.hasLayer(selectedLayer)) {
                 map.addLayer(selectedLayer);
             }
@@ -2462,10 +2517,93 @@ function buildEditableDeletePopupHtml(baseHtml) {
             };
         }
 
+        function hideSaveModalFixUi() {
+            if (saveModalFixPolygon) {
+                saveModalFixPolygon.style.display = 'none';
+            }
+            if (saveModalSuccessEl) {
+                saveModalSuccessEl.style.display = 'none';
+                saveModalSuccessEl.textContent = '';
+            }
+        }
+
+        function setSaveModalGeometryError(message) {
+            hideSaveModalFixUi();
+            saveModalErrorEl.textContent = message || '';
+            if (
+                message &&
+                mps.isMultipolygonSaveError &&
+                mps.isMultipolygonSaveError(message) &&
+                mps.requiresMultipolygonSave &&
+                mps.requiresMultipolygonSave(selectedSourceLabel) &&
+                saveModalFixPolygon
+            ) {
+                saveModalFixPolygon.style.display = '';
+            }
+        }
+
+        function clearSaveModalMessages() {
+            saveModalErrorEl.textContent = '';
+            hideSaveModalFixUi();
+        }
+
+        async function repairPolygonFromSaveModal() {
+            const geometry = buildCurrentGeometry();
+            if (!geometry) {
+                setSaveModalGeometryError('Нет геометрии для исправления.');
+                return;
+            }
+            if (!cfg.urls || !cfg.urls.repairGeometry) {
+                setSaveModalGeometryError('Исправление полигона недоступно.');
+                return;
+            }
+            if (saveModalFixPolygon) {
+                saveModalFixPolygon.disabled = true;
+            }
+            hideSaveModalFixUi();
+            saveModalErrorEl.textContent = 'Исправляем полигон...';
+            try {
+                const data = await mps.repairMultipolygonGeometry(
+                    cfg.urls.repairGeometry,
+                    geometry,
+                    getCookie('csrftoken')
+                );
+                if (editToolbar) {
+                    editToolbar.disable();
+                }
+                pendingRepairedGeometryForSave = exportGeometryFromRaw(data.geometry);
+                if (!applyGeometryToEditableGroup(data.geometry)) {
+                    pendingRepairedGeometryForSave = null;
+                    throw new Error('Не удалось применить исправленную геометрию.');
+                }
+                saveModalErrorEl.textContent = '';
+                hideSaveModalFixUi();
+                if (saveModalSuccessEl) {
+                    saveModalSuccessEl.textContent =
+                        'Полигон исправлен. Проверьте контур на карте и нажмите «Сохранить».';
+                    saveModalSuccessEl.style.display = '';
+                }
+                updateRelationsButtonState();
+                statusEl.textContent = 'Полигон исправлен. Проверьте контур и сохраните объект.';
+                requestAnimationFrame(() => {
+                    const bounds = editableGroup.getBounds();
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds.pad(0.1));
+                    }
+                });
+            } catch (error) {
+                setSaveModalGeometryError(error.message || 'Не удалось исправить полигон.');
+            } finally {
+                if (saveModalFixPolygon) {
+                    saveModalFixPolygon.disabled = false;
+                }
+            }
+        }
+
         function openSaveModal() {
             newObjectNameInput.value = (selectedName || '').trim();
             newObjectRequestIdInput.value = (effectiveEntryRequestId || '').trim();
-            saveModalErrorEl.textContent = '';
+            clearSaveModalMessages();
             saveModal.style.display = 'flex';
             if (newObjectNameInput.value) {
                 setTimeout(() => newObjectRequestIdInput.focus(), 0);
@@ -2709,14 +2847,9 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 statusEl.textContent = '\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0432\u043a\u043b\u044e\u0447\u0438\u0442\u0435 \u0440\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f.';
                 return;
             }
-            const editedGeojson = editableGroup.toGeoJSON();
-            if (!editedGeojson.features.length) {
-                statusEl.textContent = 'Нет геометрии для сохранения.';
-                return;
-            }
-            const geometryToSave = buildExportGeometry(editedGeojson);
+            const geometryToSave = getEditableGeometryForSave();
             if (!geometryToSave) {
-                statusEl.textContent = 'Не удалось собрать геометрию для сохранения.';
+                statusEl.textContent = 'Нет геометрии для сохранения.';
                 return;
             }
 
@@ -2730,13 +2863,22 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 saveModalErrorEl.textContent = 'Номер заявки должен содержать только цифры.';
                 return;
             }
-            saveModalErrorEl.textContent = '';
+            clearSaveModalMessages();
+
+            const multipolygonValidationError =
+                mps.validateMultipolygonTargetGeometry &&
+                mps.validateMultipolygonTargetGeometry(geometryToSave, selectedSourceLabel);
+            if (multipolygonValidationError) {
+                setSaveModalGeometryError(multipolygonValidationError);
+                return;
+            }
 
             saveModalSubmit.disabled = true;
             saveButton.disabled = true;
             statusEl.textContent = 'Сохраняем объект в базе...';
             try {
                 const saveResult = await saveObjectToDb(geometryToSave, name, requestId);
+                clearPendingRepairedGeometry();
                 statusEl.textContent = 'Объект сохранён в базе. Формируем файлы...';
                 const exportResult = await exportObjectFiles(geometryToSave, {
                     name: name,
@@ -2758,11 +2900,17 @@ function buildEditableDeletePopupHtml(baseHtml) {
                     '<a class="button-link" href="#" data-export-pdf-link="1">Скачать PDF (карта и пересечения)</a>';
                 bindPdfExportLink();
             } catch (error) {
-                saveModalErrorEl.textContent = error.message || 'Ошибка сохранения объекта.';
+                setSaveModalGeometryError(error.message || 'Ошибка сохранения объекта.');
             } finally {
                 saveModalSubmit.disabled = false;
                 saveButton.disabled = false;
             }
+        }
+
+        if (saveModalFixPolygon) {
+            saveModalFixPolygon.addEventListener('click', () => {
+                void repairPolygonFromSaveModal();
+            });
         }
 
         saveModalCancel.addEventListener('click', () => {

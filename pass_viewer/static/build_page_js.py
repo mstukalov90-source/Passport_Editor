@@ -13,52 +13,52 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent / 'pass_viewer' / 'js'
-EXTRACTED = ROOT / '_extracted'
+ROOT = Path(__file__).resolve().parent / "pass_viewer" / "js"
+EXTRACTED = ROOT / "_extracted"
 
 UTIL_FUNCS = [
-    'getCookie',
-    'parseGeometryData',
-    'normalizeGeoJson',
-    'toEditableFeatureCollection',
-    'mergeAdjacentDtPassportsGeoJson',
-    'escapeHtml',
+    "getCookie",
+    "parseGeometryData",
+    "normalizeGeoJson",
+    "toEditableFeatureCollection",
+    "mergeAdjacentDtPassportsGeoJson",
+    "escapeHtml",
 ]
 POPUP_FUNCS = [
-    'pickPopupProperty',
-    'formatPopupDateToDay',
-    'buildPopupMetaFieldsHtml',
-    'calculateGeometryAreaSqMeters',
-    'buildObjectPopup',
-    'buildPdfIntersectionPopupHtml',
+    "pickPopupProperty",
+    "formatPopupDateToDay",
+    "buildPopupMetaFieldsHtml",
+    "calculateGeometryAreaSqMeters",
+    "buildObjectPopup",
+    "buildPdfIntersectionPopupHtml",
 ]
 
 PAGE_MAP = {
-    'add_object': 'add-object.js',
-    'main': 'main.js',
-    'home': 'home.js',
-    'add_recap': 'add-recap.js',
+    "add_object": "add-object.js",
+    "main": "main.js",
+    "home": "home.js",
+    "add_recap": "add-recap.js",
     # split_object: maintained manually under pass_viewer/js/split/ (not generated from _extracted)
 }
 
 
 def remove_function_block(src: str, name: str) -> str:
-    pat = re.compile(rf'function\s+{re.escape(name)}\s*\(', re.M)
+    pat = re.compile(rf"function\s+{re.escape(name)}\s*\(", re.M)
     m = pat.search(src)
     if not m:
         return src
     i = m.start()
-    j = src.find('{', m.end())
+    j = src.find("{", m.end())
     depth = 1
     j += 1
     while j < len(src) and depth:
-        if src[j] == '{':
+        if src[j] == "{":
             depth += 1
-        elif src[j] == '}':
+        elif src[j] == "}":
             depth -= 1
         j += 1
-    while j < len(src) and src[j] in ' \t\r\n':
-        if src[j] == '\n':
+    while j < len(src) and src[j] in " \t\r\n":
+        if src[j] == "\n":
             j += 1
             break
         j += 1
@@ -66,22 +66,22 @@ def remove_function_block(src: str, name: str) -> str:
 
 
 def strip_draw_i18n(src: str) -> str:
-    pat = re.compile(r'if\s*\(\s*L\s*&&\s*L\.drawLocal\s*\)', re.M)
+    pat = re.compile(r"if\s*\(\s*L\s*&&\s*L\.drawLocal\s*\)", re.M)
     m = pat.search(src)
     if not m:
         return src
     i = m.start()
-    j = src.find('{', m.end())
+    j = src.find("{", m.end())
     depth = 1
     j += 1
     while j < len(src) and depth:
-        if src[j] == '{':
+        if src[j] == "{":
             depth += 1
-        elif src[j] == '}':
+        elif src[j] == "}":
             depth -= 1
         j += 1
-    while j < len(src) and src[j] in ' \t\r\n':
-        if src[j] == '\n':
+    while j < len(src) and src[j] in " \t\r\n":
+        if src[j] == "\n":
             j += 1
             break
         j += 1
@@ -99,18 +99,18 @@ def strip_shared(src: str) -> str:
 
 
 REPLACEMENTS = [
-    (r"'\{% url \"list_comment_points\" %\}'", 'cfg.urls.listCommentPoints'),
-    (r"'\{% url \"save_comment_point\" %\}'", 'cfg.urls.saveCommentPoint'),
-    (r"'\{% url \"delete_comment_point\" %\}'", 'cfg.urls.deleteCommentPoint'),
-    (r'"\{% url \'check_new_object_relations\' %\}"', 'cfg.urls.checkRelations'),
-    (r'"\{% url \'check_dgi_intersections\' %\}"', 'cfg.urls.checkDgi'),
-    (r'"\{% url \'auto_remove_intersections\' %\}"', 'cfg.urls.autoRemove'),
-    (r'"\{% url \'cut_edited_geometry\' %\}"', 'cfg.urls.cutGeometry'),
-    (r'"\{% url \'save_new_object\' %\}"', 'cfg.urls.saveNewObject'),
-    (r'"\{% url \'export_new_object_geometry\' %\}"', 'cfg.urls.exportGeometry'),
-    (r'"\{% url \'save_recap_object\' %\}"', 'cfg.urls.saveRecap'),
-    (r"'\{% url \"cancel_pending_entry\" %\}'", 'cfg.urls.cancelPending'),
-    (r"'\{% url \"add_recap\" %\}'", 'cfg.urls.addRecap'),
+    (r"'\{% url \"list_comment_points\" %\}'", "cfg.urls.listCommentPoints"),
+    (r"'\{% url \"save_comment_point\" %\}'", "cfg.urls.saveCommentPoint"),
+    (r"'\{% url \"delete_comment_point\" %\}'", "cfg.urls.deleteCommentPoint"),
+    (r'"\{% url \'check_new_object_relations\' %\}"', "cfg.urls.checkRelations"),
+    (r'"\{% url \'check_dgi_intersections\' %\}"', "cfg.urls.checkDgi"),
+    (r'"\{% url \'auto_remove_intersections\' %\}"', "cfg.urls.autoRemove"),
+    (r'"\{% url \'cut_edited_geometry\' %\}"', "cfg.urls.cutGeometry"),
+    (r'"\{% url \'save_new_object\' %\}"', "cfg.urls.saveNewObject"),
+    (r'"\{% url \'export_new_object_geometry\' %\}"', "cfg.urls.exportGeometry"),
+    (r'"\{% url \'save_recap_object\' %\}"', "cfg.urls.saveRecap"),
+    (r"'\{% url \"cancel_pending_entry\" %\}'", "cfg.urls.cancelPending"),
+    (r"'\{% url \"add_recap\" %\}'", "cfg.urls.addRecap"),
     (r'"\{\{ selected_rootid\|default:\'\'\|escapejs \}\}"', 'cfg.selectedRootid || ""'),
     (r'"\{\{ selected_name\|default:\'\'\|escapejs \}\}"', 'cfg.selectedName || ""'),
     (r'"\{\{ selected_request_id\|default:\'\'\|escapejs \}\}"', 'cfg.selectedRequestId || ""'),
@@ -161,28 +161,28 @@ HEADER = """(function () {
 
 """
 
-FOOTER = '\n})();\n'
+FOOTER = "\n})();\n"
 
 
 def main() -> None:
     if not EXTRACTED.is_dir():
-        raise SystemExit(f'Missing {EXTRACTED}; run extraction from templates first.')
+        raise SystemExit(f"Missing {EXTRACTED}; run extraction from templates first.")
 
     for src_name, out_name in PAGE_MAP.items():
-        raw = (EXTRACTED / f'{src_name}.js').read_text(encoding='utf-8')
+        raw = (EXTRACTED / f"{src_name}.js").read_text(encoding="utf-8")
         body = strip_shared(raw)
         for pat, repl in REPLACEMENTS:
             body = re.sub(pat, repl, body)
         lines = body.splitlines()
-        if lines and lines[0].startswith('        '):
-            lines = [ln[8:] if ln.startswith('        ') else ln for ln in lines]
-        body = '\n'.join(lines).strip() + '\n'
+        if lines and lines[0].startswith("        "):
+            lines = [ln[8:] if ln.startswith("        ") else ln for ln in lines]
+        body = "\n".join(lines).strip() + "\n"
         for fn in UTIL_FUNCS + POPUP_FUNCS:
             body = remove_function_block(body, fn)
         out = HEADER + body + FOOTER
-        (ROOT / out_name).write_text(out, encoding='utf-8')
-        print(f'wrote {out_name} ({len(out.splitlines())} lines)')
+        (ROOT / out_name).write_text(out, encoding="utf-8")
+        print(f"wrote {out_name} ({len(out.splitlines())} lines)")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

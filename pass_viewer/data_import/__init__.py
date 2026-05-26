@@ -19,4 +19,4 @@ CLI: ``python manage.py import_seed_from_files --list``
 
 from pass_viewer.data_import.table_registry import expected_file_names, iter_known_tables
 
-__all__ = ['expected_file_names', 'iter_known_tables']
+__all__ = ["expected_file_names", "iter_known_tables"]

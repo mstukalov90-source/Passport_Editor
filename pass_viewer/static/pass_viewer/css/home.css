@@ -307,7 +307,99 @@ main.container.container--wide:has(.owned-home-shell) {
 .owned-list-tabs {
     display: flex;
     gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
     margin-bottom: 10px;
+}
+.owned-request-status-filter {
+    margin-left: 6px;
+    position: relative;
+}
+.owned-status-dropdown {
+    position: relative;
+}
+.owned-status-dropdown-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #c4b5fd;
+    background: #f5f3ff;
+    color: #5b21b6;
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    max-width: 220px;
+}
+.owned-status-dropdown-trigger.is-open,
+.owned-status-dropdown-trigger:hover {
+    border-color: #a78bfa;
+    background: #ede9fe;
+}
+.owned-status-dropdown-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 180px;
+}
+.owned-status-dropdown-chevron {
+    font-size: 11px;
+    line-height: 1;
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+.owned-status-dropdown-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 30;
+    min-width: 240px;
+    max-width: 320px;
+    max-height: 280px;
+    overflow: auto;
+    border: 1px solid #c4b5fd;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(91, 33, 182, 0.12);
+}
+.owned-status-dropdown-list {
+    list-style: none;
+    margin: 0;
+    padding: 6px 0;
+}
+.owned-status-dropdown-item {
+    margin: 0;
+}
+.owned-status-dropdown-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 400;
+    color: #1f2937;
+    cursor: pointer;
+}
+.owned-status-dropdown-option:hover {
+    background: #f5f3ff;
+}
+.owned-status-dropdown-option input[type="checkbox"] {
+    margin: 2px 0 0;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    padding: 0;
+    cursor: pointer;
+}
+.owned-status-dropdown-option-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 1.35;
+    word-break: break-word;
 }
 .owned-list-tab-btn {
     border: 1px solid #cbd5e1;
@@ -558,6 +650,39 @@ body.home--merge-passports #add-object-entry-btn {
 }
 #merge-passports-toolbar {
     display: none;
+}
+.home-workflow-ods-sync-block {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid #e3e6ec;
+    background: #f8fafc;
+}
+.home-workflow-ods-sync-title {
+    margin: 0 0 10px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #1e293b;
+}
+.home-workflow-ods-sync-list {
+    margin: 0;
+    padding-left: 1.25em;
+    list-style: disc;
+}
+.home-workflow-ods-sync-item {
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 6px;
+}
+.home-workflow-ods-sync-item:last-child {
+    margin-bottom: 0;
+}
+.home-workflow-ods-sync-item--ok {
+    color: #15803d;
+}
+.home-workflow-ods-sync-item--bad {
+    color: #b91c1c;
 }
 #home-workflow-modal .home-workflow-action-btn {
     width: 100%;

@@ -4,7 +4,7 @@
 {% include 'pass_viewer/includes/map_home_styles.html' %}
 {% endblock %}
 
-{% block title %}&#1055;&#1072;&#1088;&#1072;&#1084;&#1077;&#1090;&#1088;&#1099; &#1074;&#1093;&#1086;&#1076;&#1072;{% endblock %}
+{% block title %}Границы объектов ОГХ{% endblock %}
 
 {% block page_scripts %}
     {{ page_config|json_script:"page-config" }}
@@ -48,6 +48,7 @@
                     <div class="owned-list-tabs">
                         <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="passports">Актуальные паспорта</button>
                         <button type="button" class="owned-list-tab-btn" data-owned-list-tab="requests">Заявки</button>
+                        <div id="owned-request-status-filter" class="owned-request-status-filter" hidden aria-label="Фильтр по статусу заявки"></div>
                     </div>
                     <div class="owned-source-filters">
                         <button type="button" class="source-badge source-badge--dt owned-source-filter-btn is-active" data-source-filter="ДТ">ДТ</button>
@@ -71,6 +72,7 @@
                                     class="merge-passport-cb"
                                     value="{{ item.rootid|default_if_none:'' }}"
                                     data-source-label="{{ item.source_label|default:'ДТ' }}"
+                                    data-merge-kind="passport"
                                     title="Выбрать для объединения"
                                     style="display: none; width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; align-self: flex-start; cursor: pointer;"
                                     aria-label="Выбрать паспорт для объединения"
@@ -130,9 +132,23 @@
                                 data-request-id="{{ item.request_id|default_if_none:''|lower }}"
                                 data-name="{{ item.name|default:''|lower }}"
                                 data-source-label="{{ item.source_label|default:'ДТ' }}"
+                                data-request-status="{% if item.is_ods_request %}{{ item.br_status_name|default:'' }}{% elif item.ods_registry_brid_match %}{{ item.ods_registry_br_status_name|default:'' }}{% endif %}"
                                 {% if item.map_row_key %}data-map-row-key="{{ item.map_row_key|escape }}"{% endif %}
+                                {% if item.ods_registry_brid_labeled %}data-ods-sync-status="{% if item.ods_registry_brid_match %}ok{% elif item.ods_registry_brid_pending %}pending{% else %}bad{% endif %}"{% endif %}
                             >
                                 {% if item.is_ods_request %}
+                                    {% if item.ods_gis_ready %}
+                                    <input
+                                        type="checkbox"
+                                        class="merge-passport-cb"
+                                        value="{{ item.ods_matched_rootid|default:'' }}"
+                                        data-source-label="{{ item.ods_matched_source_label|default:'ДТ' }}"
+                                        data-merge-kind="ods"
+                                        title="Выбрать для объединения"
+                                        style="display: none; width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; align-self: flex-start; cursor: pointer;"
+                                        aria-label="Выбрать заявку ОДС для объединения"
+                                    />
+                                    {% endif %}
                                     <div style="margin: 0; flex: 1;">
                                         <button
                                             type="button"
@@ -158,6 +174,18 @@
                                     </div>
                                     <span class="source-badge source-badge--ods">{{ item.source_label|default:ods_request_source_label }}</span>
                                 {% else %}
+                                <input
+                                    type="checkbox"
+                                    class="merge-passport-cb"
+                                    value=""
+                                    data-object-key="{{ item.object_key|default:'' }}"
+                                    data-request-id="{{ item.request_id|default:'' }}"
+                                    data-source-label="{{ item.source_label|default:'ДТ' }}"
+                                    data-merge-kind="request"
+                                    title="Выбрать для объединения"
+                                    style="display: none; width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; align-self: flex-start; cursor: pointer;"
+                                    aria-label="Выбрать заявку для объединения"
+                                />
                                 <form
                                     class="owned-open-form"
                                     method="post"
@@ -274,7 +302,7 @@
             &#1042;&#1074;&#1077;&#1089;&#1090;&#1080; &#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072; / &#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; &#1074;&#1088;&#1091;&#1095;&#1085;&#1091;&#1102;
         </button>
         <button type="button" id="merge-passports-btn" class="button-link" style="border: none; cursor: pointer; font: inherit;">
-            Объединение паспортов
+            Объединение объектов
         </button>
         <button type="button" id="add-object-entry-btn" class="button-link" style="border: none; cursor: pointer; font: inherit;">
             Заявка на новый паспорт
@@ -285,7 +313,7 @@
         style="padding: 10px 12px; border-radius: 10px; border: 1px solid #bbf7d0; background: #f0fdf4; align-items: center; gap: 12px; flex-wrap: wrap;"
     >
         <span class="note" style="margin: 0; flex: 1; min-width: 200px;">
-            Отметьте <strong>не менее двух</strong> паспортов в списке «Актуальные паспорта» (можно из ДТ, ОДХ и ОО вместе), затем нажмите «Продолжить» и укажите номер заявки; если отмечены паспорта из <strong>разных</strong> таблиц, в том же окне появится выбор одной из этих таблиц для сохранения результата.
+            Отметьте <strong>не менее двух</strong> объектов на вкладках «Актуальные паспорта» и/или «Заявки» (паспорта, GIS-заявки и заявки ОДС с геометрией на карте; можно из ДТ, ОДХ и ОО вместе), затем нажмите «Продолжить» и укажите номер заявки; если отмечены объекты из <strong>разных</strong> таблиц, в том же окне появится выбор одной из этих таблиц для сохранения результата.
         </span>
         <button type="button" id="merge-passports-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
         <button type="button" id="merge-passports-next-btn" style="background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;">
@@ -334,7 +362,7 @@
                 <button type="button" id="merge-passports-request-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
             <p id="merge-passports-request-intro" class="note" style="margin-top: 0;">
-                Укажите номер заявки для объединённого паспорта на карте редактирования.
+                Укажите номер заявки для объединённого объекта на карте редактирования.
             </p>
             <label class="note" for="merge-passports-request-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер заявки</label>
             <input
@@ -443,6 +471,10 @@
                 </h3>
                 <button type="button" id="home-workflow-close-btn" style="flex-shrink: 0; background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
+            <div id="home-workflow-ods-sync-block" class="home-workflow-ods-sync-block" hidden>
+                <h4 class="home-workflow-ods-sync-title">Изменение статуса синхронизации с АСУ ОДС.</h4>
+                <ul id="home-workflow-ods-sync-list" class="home-workflow-ods-sync-list"></ul>
+            </div>
             <div style="display: flex; flex-direction: column; gap: 10px;">
                 <button type="button" id="home-workflow-ods-requests-btn" class="home-workflow-action-btn">
                     Работа с заявками из АСУ ОДС
@@ -457,7 +489,7 @@
                     Разделить актуальный паспорт ОГХ
                 </button>
                 <button type="button" id="home-workflow-merge-btn" class="home-workflow-action-btn">
-                    Объединение актуальных паспортов
+                    Объединение объектов
                 </button>
             </div>
         </div>
@@ -562,6 +594,6 @@
         </div>
     </div>
 
-    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" data-ods-source-label="{{ ods_request_source_label|default:'ОДС'|escape }}" hidden></div>
+    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" data-ods-source-label="{{ ods_request_source_label|default:'ОДС'|escape }}" data-owner-id="{{ owner_id|default:''|escape }}" hidden></div>
 
 {% endblock %}
