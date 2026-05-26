@@ -61,16 +61,27 @@ pre-commit install          # хук в .git/hooks/pre-commit
 pre-commit run --all-files  # прогон вручную до push
 ```
 
-Хуки: `ruff check --fix` и `ruff format` только для `pass_map/` и `pass_viewer/`.
+Хуки: `ruff check --fix` для `pass_map/` и `pass_viewer/`.
 
 Smoke-тесты создают отдельную `test_geodb` и таблицу `users` через ORM (без полного `migrate` и без `pass_objects`).  
 Для разработки приложения по-прежнему нужны `python manage.py migrate` и сид GIS-таблиц.  
 Перед первым E2E: `playwright install chromium` и запущенный PostGIS.
 
-## CI vs локальная macOS
+## CI
 
-В GitHub Actions (`.github/workflows/ci.yml`): `ruff`, pytest smoke, Playwright E2E, PostGIS 16, GDAL через `apt`.  
-На CI пакет `gdal` для pip подбирается под версию из `gdal-config` (скрипт [`scripts/ci_install_deps.sh`](scripts/ci_install_deps.sh)).  
+Одинаковые проверки: **ruff** → **pytest smoke** → **Playwright E2E** (PostGIS 16, GDAL через `apt`, скрипт [`scripts/ci_install_deps.sh`](scripts/ci_install_deps.sh)).
+
+| Платформа | Конфиг | Документация |
+|-----------|--------|--------------|
+| **GitLab** (hub.mos.ru) | [`.gitlab-ci.yml`](.gitlab-ci.yml) | [GITLAB_CI.md](GITLAB_CI.md) |
+| GitHub | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | ниже |
+
+Пуш на корпоративный GitLab:
+
+```bash
+git push hub main
+```
+
 Локально на Mac — `gdal==3.6.2` из `requirements.txt` и пути из `.env.example` (Homebrew).
 
 ### Первый прогон CI на GitHub

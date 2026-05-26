@@ -1,0 +1,73 @@
+# GitLab CI для hub.mos.ru (и любого GitLab с Docker runner + доступом к образам).
+# Переменные CI/CD можно переопределить в Settings → CI/CD → Variables:
+#   POSTGIS_IMAGE — если Docker Hub недоступен, укажите зеркало из корп. registry.
+
+stages:
+  - lint
+  - test
+  - e2e
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PYTHON_IMAGE: "python:3.12-bookworm"
+  POSTGIS_IMAGE: "postgis/postgis:16-3.4"
+  POSTGIS_DB_HOST: postgis
+  POSTGIS_DB_PORT: "5432"
+  POSTGIS_DB_NAME: geodb
+  POSTGIS_DB_USER: postgres
+  POSTGIS_DB_PASSWORD: postgres
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_DB: geodb
+
+default:
+  image: $PYTHON_IMAGE
+  cache:
+    key: "pip-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - .cache/pip
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "deploy/vps-docker"
+    - if: $CI_COMMIT_BRANCH == "deploy/mggt-docker"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+.install_gdal_and_python: &install_gdal_and_python
+  - apt-get update -qq
+  - apt-get install -y -qq --no-install-recommends gdal-bin libgdal-dev
+  - export GDAL_LIBRARY_PATH="$(find /usr/lib -name 'libgdal.so*' 2>/dev/null | head -1)"
+  - export GEOS_LIBRARY_PATH="$(find /usr/lib -name 'libgeos_c.so*' 2>/dev/null | head -1)"
+  - bash scripts/ci_install_deps.sh
+
+lint:
+  stage: lint
+  script:
+    - pip install 'ruff>=0.8'
+    - ruff check pass_map pass_viewer
+
+test:
+  stage: test
+  services:
+    - name: $POSTGIS_IMAGE
+      alias: postgis
+  before_script: *install_gdal_and_python
+  script:
+    - pytest -m "not e2e" -v
+
+e2e:
+  stage: e2e
+  needs: [test]
+  variables:
+    DJANGO_ALLOW_ASYNC_UNSAFE: "true"
+  services:
+    - name: $POSTGIS_IMAGE
+      alias: postgis
+  before_script:
+    - *install_gdal_and_python
+    - apt-get install -y -qq --no-install-recommends
+        libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2
+        libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1
+        libpango-1.0-0 libcairo2 libasound2
+    - playwright install chromium
+  script:
+    - pytest -m e2e --browser chromium -v
