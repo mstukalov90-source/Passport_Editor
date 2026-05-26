@@ -26,7 +26,7 @@ def build_page_config(page, **extra):
     return config
 
 
-def home_page_config(*, need_entry_request_id, ods_source_label):
+def home_page_config(*, need_entry_request_id, ods_source_label, owner_id=None):
     return build_page_config(
         'home',
         urls={
@@ -35,6 +35,7 @@ def home_page_config(*, need_entry_request_id, ods_source_label):
         },
         needEntryRequestId=bool(need_entry_request_id),
         odsSourceLabel=ods_source_label or 'ОДС',
+        ownerId=str(owner_id) if owner_id is not None else '',
     )
 
 

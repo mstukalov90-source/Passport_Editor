@@ -134,6 +134,7 @@
                                 data-source-label="{{ item.source_label|default:'ДТ' }}"
                                 data-request-status="{% if item.is_ods_request %}{{ item.br_status_name|default:'' }}{% elif item.ods_registry_brid_match %}{{ item.ods_registry_br_status_name|default:'' }}{% endif %}"
                                 {% if item.map_row_key %}data-map-row-key="{{ item.map_row_key|escape }}"{% endif %}
+                                {% if item.ods_registry_brid_labeled %}data-ods-sync-status="{% if item.ods_registry_brid_match %}ok{% elif item.ods_registry_brid_pending %}pending{% else %}bad{% endif %}"{% endif %}
                             >
                                 {% if item.is_ods_request %}
                                     {% if item.ods_gis_ready %}
@@ -470,6 +471,10 @@
                 </h3>
                 <button type="button" id="home-workflow-close-btn" style="flex-shrink: 0; background: #e5e7eb; color: #111;">&#10005;</button>
             </div>
+            <div id="home-workflow-ods-sync-block" class="home-workflow-ods-sync-block" hidden>
+                <h4 class="home-workflow-ods-sync-title">Изменение статуса синхронизации с АСУ ОДС.</h4>
+                <ul id="home-workflow-ods-sync-list" class="home-workflow-ods-sync-list"></ul>
+            </div>
             <div style="display: flex; flex-direction: column; gap: 10px;">
                 <button type="button" id="home-workflow-ods-requests-btn" class="home-workflow-action-btn">
                     Работа с заявками из АСУ ОДС
@@ -589,6 +594,6 @@
         </div>
     </div>
 
-    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" data-ods-source-label="{{ ods_request_source_label|default:'ОДС'|escape }}" hidden></div>
+    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" data-ods-source-label="{{ ods_request_source_label|default:'ОДС'|escape }}" data-owner-id="{{ owner_id|default:''|escape }}" hidden></div>
 
 {% endblock %}

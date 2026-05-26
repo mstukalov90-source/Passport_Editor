@@ -651,6 +651,39 @@ body.home--merge-passports #add-object-entry-btn {
 #merge-passports-toolbar {
     display: none;
 }
+.home-workflow-ods-sync-block {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid #e3e6ec;
+    background: #f8fafc;
+}
+.home-workflow-ods-sync-title {
+    margin: 0 0 10px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #1e293b;
+}
+.home-workflow-ods-sync-list {
+    margin: 0;
+    padding-left: 1.25em;
+    list-style: disc;
+}
+.home-workflow-ods-sync-item {
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 6px;
+}
+.home-workflow-ods-sync-item:last-child {
+    margin-bottom: 0;
+}
+.home-workflow-ods-sync-item--ok {
+    color: #15803d;
+}
+.home-workflow-ods-sync-item--bad {
+    color: #b91c1c;
+}
 #home-workflow-modal .home-workflow-action-btn {
     width: 100%;
     text-align: center;

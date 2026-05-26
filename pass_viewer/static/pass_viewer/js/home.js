@@ -90,6 +90,99 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const needEntryRequestIdOnLoad =
             homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
         const odsSourceLabelNorm = (homeBootstrapEl?.dataset.odsSourceLabel || 'ОДС').trim().toUpperCase();
+        const homeOwnerIdNorm = (homeBootstrapEl?.dataset.ownerId || '').trim();
+
+        function getHomeOdsSyncStorageKey() {
+            return homeOwnerIdNorm ? `home_ods_sync_status:${homeOwnerIdNorm}` : 'home_ods_sync_status';
+        }
+
+        function readOdsSyncSnapshot() {
+            try {
+                const raw = localStorage.getItem(getHomeOdsSyncStorageKey());
+                if (!raw) {
+                    return {};
+                }
+                const parsed = JSON.parse(raw);
+                return parsed && typeof parsed === 'object' ? parsed : {};
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function writeOdsSyncSnapshot(map) {
+            try {
+                localStorage.setItem(getHomeOdsSyncStorageKey(), JSON.stringify(map));
+            } catch (e) {
+                // localStorage may be unavailable
+            }
+        }
+
+        function collectCurrentOdsSyncStatuses() {
+            const out = {};
+            document.querySelectorAll('.owned-request-row[data-ods-sync-status]').forEach((row) => {
+                if (row.querySelector('.owned-ods-action-btn')) {
+                    return;
+                }
+                const status = (row.dataset.odsSyncStatus || '').trim();
+                if (status !== 'ok' && status !== 'pending' && status !== 'bad') {
+                    return;
+                }
+                const brid = (row.dataset.requestId || '').trim();
+                if (brid) {
+                    out[brid] = status;
+                }
+            });
+            return out;
+        }
+
+        function buildOdsSyncChangeMessages(prev, current) {
+            const messages = [];
+            Object.keys(current).forEach((brid) => {
+                if (prev[brid] !== 'pending') {
+                    return;
+                }
+                const next = current[brid];
+                if (next === 'ok') {
+                    messages.push({ brid, kind: 'ok' });
+                } else if (next === 'bad') {
+                    messages.push({ brid, kind: 'bad' });
+                }
+            });
+            messages.sort((a, b) => a.brid.localeCompare(b.brid, 'ru', { numeric: true }));
+            return messages;
+        }
+
+        function renderHomeWorkflowOdsSyncChanges(messages) {
+            const block = document.getElementById('home-workflow-ods-sync-block');
+            const list = document.getElementById('home-workflow-ods-sync-list');
+            if (!block || !list) {
+                return;
+            }
+            list.replaceChildren();
+            if (!messages.length) {
+                block.hidden = true;
+                return;
+            }
+            messages.forEach((msg) => {
+                const li = document.createElement('li');
+                li.className = msg.kind === 'ok'
+                    ? 'home-workflow-ods-sync-item home-workflow-ods-sync-item--ok'
+                    : 'home-workflow-ods-sync-item home-workflow-ods-sync-item--bad';
+                li.textContent = msg.kind === 'ok'
+                    ? `Заявка № ${msg.brid} подтверждена АСУ ОДС`
+                    : `Заявка № ${msg.brid} не подтверждена АСУ ОДС`;
+                list.appendChild(li);
+            });
+            block.hidden = false;
+        }
+
+        function applyHomeWorkflowOdsSyncNotifications() {
+            const prev = readOdsSyncSnapshot();
+            const current = collectCurrentOdsSyncStatuses();
+            const messages = buildOdsSyncChangeMessages(prev, current);
+            renderHomeWorkflowOdsSyncChanges(messages);
+            writeOdsSyncSnapshot(current);
+        }
         const ownedMapEl = document.getElementById('owned-passports-map');
         const ownedGeoDataEl = document.getElementById('owned-passports-geojson-data');
         const hoodWorkAreaGeoEl = document.getElementById('hood-work-area-geojson-data');
@@ -1656,6 +1749,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         if (needEntryRequestIdOnLoad) {
             openEntryRequestModal('pending');
         } else if (homeWorkflowModal) {
+            applyHomeWorkflowOdsSyncNotifications();
             homeWorkflowModal.style.display = 'flex';
             setTimeout(() => {
                 const firstWorkflowBtn = homeWorkflowOdsRequestsBtn || homeWorkflowPrimaryBtn;

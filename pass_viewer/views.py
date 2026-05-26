@@ -3230,6 +3230,7 @@ def home(request):
             'page_config': home_page_config(
                 need_entry_request_id=need_entry_request_id,
                 ods_source_label=getattr(settings, 'GIS_ODS_REQUEST_SOURCE_LABEL', 'ОДС'),
+                owner_id=owner_id,
             ),
             'user_guide_html': load_user_guide_html(),
         },
