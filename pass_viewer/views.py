@@ -908,44 +908,155 @@ def _find_manual_entry_point(rootid='', name=''):
     return None
 
 
+def _dedupe_merge_items(merge_items):
+    """Убирает дубли по (rootid, source) или (object_key, source)."""
+    seen = set()
+    out = []
+    for it in merge_items or []:
+        sl = _normalize_source_label(it.get('source_label'))
+        rid = (it.get('rootid') or '').strip()
+        ok = (it.get('object_key') or '').strip()
+        if rid:
+            key = ('r', rid.lower(), sl)
+        elif ok:
+            key = ('o', ok, sl)
+        else:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            {
+                'rootid': rid,
+                'object_key': ok,
+                'source_label': sl,
+            }
+        )
+    return out
+
+
 def _normalize_merge_items(entry_point):
-    """Список словарей {rootid, source_label} для объединения паспортов (≥2)."""
+    """Список словарей {rootid, object_key, source_label} для объединения (≥2)."""
     raw = entry_point.get('merge_items')
     out = []
     if isinstance(raw, list):
         for x in raw:
-            if isinstance(x, dict):
-                rid = (x.get('rootid') or '').strip()
-                if rid:
-                    out.append(
-                        {
-                            'rootid': rid,
-                            'source_label': _normalize_source_label(x.get('source_label')),
-                        }
-                    )
+            if not isinstance(x, dict):
+                continue
+            rid = (x.get('rootid') or '').strip()
+            ok = (x.get('object_key') or '').strip()
+            if rid or ok:
+                out.append(
+                    {
+                        'rootid': rid,
+                        'object_key': ok,
+                        'source_label': _normalize_source_label(x.get('source_label')),
+                    }
+                )
+    out = _dedupe_merge_items(out)
     if len(out) >= 2:
         return out
     rootids_raw = entry_point.get('merge_rootids')
     if isinstance(rootids_raw, (list, tuple)) and len(rootids_raw) >= 2:
         sl = _normalize_source_label(entry_point.get('source_label'))
-        return [{'rootid': str(r).strip(), 'source_label': sl} for r in rootids_raw if str(r).strip()]
+        legacy = [
+            {'rootid': str(r).strip(), 'object_key': '', 'source_label': sl}
+            for r in rootids_raw
+            if str(r).strip()
+        ]
+        return _dedupe_merge_items(legacy)
     return []
 
 
-def _merge_group_ids_by_source(merge_items):
-    res = {'ДТ': [], 'ОДХ': [], 'ОЗН': []}
-    for it in merge_items or []:
-        rid = (it.get('rootid') or '').strip()
-        if not rid:
+def _build_merge_allowed_sets(owned_objects):
+    """Множества допустимых (rootid, source), (object_key, source) и ODS matched rootid."""
+    passport_pairs = set()
+    request_keys = set()
+    ods_root_pairs = set()
+    for item in owned_objects or []:
+        sl = _normalize_source_label(item.get('source_label'))
+        if item.get('is_ods_request'):
+            if item.get('ods_gis_ready'):
+                mr = (item.get('ods_matched_rootid') or '').strip()
+                ms = _normalize_source_label(item.get('ods_matched_source_label') or 'ДТ')
+                if mr:
+                    ods_root_pairs.add((mr, ms))
             continue
+        rid = (item.get('rootid') or '').strip()
+        ok = (item.get('object_key') or '').strip()
+        if rid:
+            passport_pairs.add((rid, sl))
+        elif ok:
+            request_keys.add((ok, sl))
+    return passport_pairs, request_keys, ods_root_pairs
+
+
+def _merge_item_is_allowed(merge_item, passport_pairs, request_keys, ods_root_pairs):
+    sl = _normalize_source_label(merge_item.get('source_label'))
+    rid = (merge_item.get('rootid') or '').strip()
+    ok = (merge_item.get('object_key') or '').strip()
+    if ok:
+        return (ok, sl) in request_keys
+    if rid:
+        if (rid, sl) in passport_pairs:
+            return True
+        if (rid, sl) in ods_root_pairs:
+            return True
+    return False
+
+
+def _merge_group_ids_by_source(merge_items):
+    res = {
+        'ДТ': {'rootids': [], 'object_keys': []},
+        'ОДХ': {'rootids': [], 'object_keys': []},
+        'ОЗН': {'rootids': [], 'object_keys': []},
+    }
+    for it in merge_items or []:
         sl = _normalize_source_label(it.get('source_label'))
-        if sl == 'ОДХ':
-            res['ОДХ'].append(rid)
-        elif sl == 'ОЗН':
-            res['ОЗН'].append(rid)
-        else:
-            res['ДТ'].append(rid)
+        bucket = res.get(sl, res['ДТ'])
+        rid = (it.get('rootid') or '').strip()
+        ok = (it.get('object_key') or '').strip()
+        if rid:
+            bucket['rootids'].append(rid)
+        elif ok:
+            bucket['object_keys'].append(ok)
     return res
+
+
+def _append_merge_table_select_parts(cursor, parts, params, tbl, group):
+    rootid_pref = settings.GIS_OBJECT_ROOTID_FIELD
+    name_pref = settings.GIS_OBJECT_NAME_FIELD
+    geom_pref = settings.GIS_OBJECT_GEOM_FIELD
+    req_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
+    rootids = group.get('rootids') or []
+    object_keys = group.get('object_keys') or []
+    if not rootids and not object_keys:
+        return
+    if not _column_exists(cursor, tbl, rootid_pref) or not _column_exists(cursor, tbl, geom_pref):
+        return
+    rf = _resolve_column_name(cursor, tbl, rootid_pref)
+    nf = _resolve_column_name(cursor, tbl, name_pref)
+    gf = _resolve_column_name(cursor, tbl, geom_pref)
+    if _column_exists(cursor, tbl, req_pref):
+        rqf = _resolve_column_name(cursor, tbl, req_pref)
+        rq_expr = f'{_quote_ident(rqf)}::text AS request_id'
+    else:
+        rq_expr = 'NULL::text AS request_id'
+    meta_frag = _gis_object_meta_sql_fragment(cursor, tbl)
+    hood_geom_and = get_hood_intersects_ha_sql(_quote_ident(gf))
+    select_cols = (
+        f'SELECT ctid, {_quote_ident(rf)}::text AS rootid, COALESCE({_quote_ident(nf)}::text, \'\') AS name, '
+        f'{rq_expr}, NULL::text AS customer_legal_person_id, NULL::text AS department_legal_person_id, '
+        f'NULL::text AS customer_legal_person_name, NULL::text AS department_legal_person_name, '
+        f'{meta_frag}, '
+        f'{_quote_ident(gf)} AS geom FROM {_quote_ident(tbl)} '
+    )
+    if rootids:
+        parts.append(select_cols + f'WHERE {_quote_ident(rf)}::text = ANY(%s){hood_geom_and}')
+        params.append(rootids)
+    if object_keys:
+        parts.append(select_cols + f'WHERE ctid = ANY(%s::tid[]){hood_geom_and}')
+        params.append(object_keys)
 
 
 def _build_merge_matched_body_sql(cursor, merge_items):
@@ -957,36 +1068,11 @@ def _build_merge_matched_body_sql(cursor, merge_items):
     dt_table = settings.GIS_OBJECT_TABLE
     odh_table = getattr(settings, 'GIS_ODH_TABLE', 'odh')
     ozn_table = getattr(settings, 'GIS_OZN_TABLE', 'ozn')
-    rootid_pref = settings.GIS_OBJECT_ROOTID_FIELD
-    name_pref = settings.GIS_OBJECT_NAME_FIELD
-    geom_pref = settings.GIS_OBJECT_GEOM_FIELD
-    req_pref = getattr(settings, 'GIS_OBJECT_REQUEST_ID_FIELD', 'request_id')
 
     parts = []
     params = []
-    for ids, tbl in ((by['ДТ'], dt_table), (by['ОДХ'], odh_table), (by['ОЗН'], ozn_table)):
-        if not ids:
-            continue
-        if not _column_exists(cursor, tbl, rootid_pref) or not _column_exists(cursor, tbl, geom_pref):
-            continue
-        rf = _resolve_column_name(cursor, tbl, rootid_pref)
-        nf = _resolve_column_name(cursor, tbl, name_pref)
-        gf = _resolve_column_name(cursor, tbl, geom_pref)
-        if _column_exists(cursor, tbl, req_pref):
-            rqf = _resolve_column_name(cursor, tbl, req_pref)
-            rq_expr = f'{_quote_ident(rqf)}::text AS request_id'
-        else:
-            rq_expr = 'NULL::text AS request_id'
-        meta_frag = _gis_object_meta_sql_fragment(cursor, tbl)
-        hood_geom_and = get_hood_intersects_ha_sql(_quote_ident(gf))
-        parts.append(
-            f'SELECT ctid, {_quote_ident(rf)}::text AS rootid, COALESCE({_quote_ident(nf)}::text, \'\') AS name, '
-            f'{rq_expr}, NULL::text AS customer_legal_person_id, NULL::text AS department_legal_person_id, '
-            f'NULL::text AS customer_legal_person_name, NULL::text AS department_legal_person_name, '
-            f'{meta_frag}, '
-            f'{_quote_ident(gf)} AS geom FROM {_quote_ident(tbl)} WHERE {_quote_ident(rf)}::text = ANY(%s){hood_geom_and}'
-        )
-        params.append(ids)
+    for label, tbl in (('ДТ', dt_table), ('ОДХ', odh_table), ('ОЗН', ozn_table)):
+        _append_merge_table_select_parts(cursor, parts, params, tbl, by[label])
     if not parts:
         return None, None
     return ' UNION ALL '.join(parts), params
@@ -2014,10 +2100,10 @@ def _remove_intersections_from_geometry(
         return None
 
     source_tokens = {str(value).strip().lower() for value in (selected_sources or []) if str(value).strip()}
-    allowed_tokens = {'dt', 'odh', 'ozn', 'dgi', 'oozt', 'rzd'}
+    allowed_tokens = {'dt', 'odh', 'ozn', 'dgi', 'renew', 'oozt', 'rzd'}
     requested_tokens = [
         token
-        for token in ('dt', 'odh', 'ozn', 'dgi', 'oozt', 'rzd')
+        for token in ('dt', 'odh', 'ozn', 'dgi', 'renew', 'oozt', 'rzd')
         if token in source_tokens and token in allowed_tokens
     ]
     if not requested_tokens:
@@ -2036,6 +2122,7 @@ def _remove_intersections_from_geometry(
         'odh': getattr(settings, 'GIS_ODH_TABLE', 'odh'),
         'ozn': getattr(settings, 'GIS_OZN_TABLE', 'ozn'),
         'dgi': getattr(settings, 'GIS_DGI_TABLE', 'dgi'),
+        'renew': getattr(settings, 'GIS_RENEW_TABLE', 'renew'),
         'oozt': getattr(settings, 'GIS_OOZT_TABLE', 'oozt'),
         'rzd': getattr(settings, 'GIS_RZD_TABLE', 'rzd'),
     }
@@ -3304,9 +3391,23 @@ def open_owned_object(request):
 def open_merged_passports(request):
     request_id = (request.POST.get('request_id') or '').strip()
     target_source_label = _normalize_source_label(request.POST.get('target_source_label'))
-    rootids = [r.strip() for r in request.POST.getlist('merge_item_rootid') if r.strip()]
+    rootid_values = [r.strip() for r in request.POST.getlist('merge_item_rootid')]
     sources = [_normalize_source_label(s) for s in request.POST.getlist('merge_item_source')]
-    if len(rootids) < 2 or len(rootids) != len(sources) or not request_id.isdigit():
+    object_key_values = [k.strip() for k in request.POST.getlist('merge_item_object_key')]
+    if len(sources) < 2 or not request_id.isdigit():
+        return redirect('home')
+
+    while len(rootid_values) < len(sources):
+        rootid_values.append('')
+    while len(object_key_values) < len(sources):
+        object_key_values.append('')
+
+    merge_items = []
+    for rid, sl, ok in zip(rootid_values, sources, object_key_values):
+        if rid or ok:
+            merge_items.append({'rootid': rid, 'object_key': ok, 'source_label': sl})
+    merge_items = _dedupe_merge_items(merge_items)
+    if len(merge_items) < 2:
         return redirect('home')
 
     owner_id = _get_current_user_owner_id(request.user.username)
@@ -3314,13 +3415,12 @@ def open_merged_passports(request):
         return redirect('home')
 
     owned = _get_owned_objects(owner_id)
-    allowed_pairs = {
-        ((item.get('rootid') or '').strip(), _normalize_source_label(item.get('source_label')))
-        for item in owned
-        if (item.get('rootid') or '').strip()
-    }
-    merge_items = [{'rootid': rid, 'source_label': sl} for rid, sl in zip(rootids, sources)]
-    if not all(((it['rootid'], it['source_label']) in allowed_pairs) for it in merge_items):
+    owned = _merge_owned_ods_requests(owned, owner_id)
+    owned = _enrich_ods_interaction_and_geometry(owned)
+    passport_pairs, request_keys, ods_root_pairs = _build_merge_allowed_sets(owned)
+    if not all(
+        _merge_item_is_allowed(it, passport_pairs, request_keys, ods_root_pairs) for it in merge_items
+    ):
         return redirect('home')
 
     geometry_detail_mode = str(request.POST.get('geometry_detail_mode') or '').strip().lower()
@@ -3329,7 +3429,7 @@ def open_merged_passports(request):
     request.session['entry_point'] = {
         'rootid': '',
         'request_id': request_id,
-        'name': f'Объединение {len(merge_items)} паспортов (→ {target_source_label})',
+        'name': f'Объединение {len(merge_items)} объектов (→ {target_source_label})',
         'source_label': target_source_label,
         'merge_items': merge_items,
         'geometry_detail_mode': geometry_detail_mode,

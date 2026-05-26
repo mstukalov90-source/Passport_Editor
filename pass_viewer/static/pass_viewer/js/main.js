@@ -91,6 +91,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
         const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
         const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
+        const autoRemoveRenewCheckbox = document.getElementById('auto-remove-renew');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
         const autoRemoveNoLayersEl = document.getElementById('auto-remove-no-layers');
@@ -1274,6 +1275,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
             odh: odhSignalGroup,
             ozn: oznSignalGroup,
             dgi: dgiSignalGroup,
+            renew: renewGroup,
             oozt: ooztSignalGroup,
             rzd: rzdSignalGroup,
         };
@@ -1297,6 +1299,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 autoRemoveOdhCheckbox,
                 autoRemoveOznCheckbox,
                 autoRemoveDgiCheckbox,
+                autoRemoveRenewCheckbox,
                 autoRemoveOoztCheckbox,
                 autoRemoveRzdCheckbox,
             ].forEach((el) => {
@@ -1357,6 +1360,9 @@ function buildEditableDeletePopupHtml(baseHtml) {
             }
             if (autoRemoveDgiCheckbox.checked) {
                 sources.push('dgi');
+            }
+            if (autoRemoveRenewCheckbox.checked) {
+                sources.push('renew');
             }
             if (autoRemoveOoztCheckbox.checked) {
                 sources.push('oozt');

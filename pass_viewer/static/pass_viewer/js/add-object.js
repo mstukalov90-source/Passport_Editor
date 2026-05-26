@@ -129,6 +129,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
         const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
         const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
+        const autoRemoveRenewCheckbox = document.getElementById('auto-remove-renew');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
         const autoRemoveNoLayersEl = document.getElementById('auto-remove-no-layers');
@@ -1556,6 +1557,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             odh: odhSignalGroup,
             ozn: oznSignalGroup,
             dgi: dgiSignalGroup,
+            renew: renewGroup,
             oozt: ooztSignalGroup,
             rzd: rzdSignalGroup,
         };
@@ -1579,6 +1581,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 autoRemoveOdhCheckbox,
                 autoRemoveOznCheckbox,
                 autoRemoveDgiCheckbox,
+                autoRemoveRenewCheckbox,
                 autoRemoveOoztCheckbox,
                 autoRemoveRzdCheckbox,
             ].forEach((el) => {
@@ -1639,6 +1642,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             }
             if (autoRemoveDgiCheckbox.checked) {
                 sources.push('dgi');
+            }
+            if (autoRemoveRenewCheckbox.checked) {
+                sources.push('renew');
             }
             if (autoRemoveOoztCheckbox.checked) {
                 sources.push('oozt');
