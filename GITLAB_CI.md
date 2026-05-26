@@ -45,10 +45,16 @@ git push hub main
 | GDAL pip | `scripts/ci_install_deps.sh` | тот же скрипт |
 | Тестовая БД | `test_geodb` без GIS-миграций | то же (pytest, см. README) |
 
+## MosHub / старый GitLab
+
+В `.gitlab-ci.yml` **не используется** `rules:` в блоке `default` — MosHub сообщает: *«default config содержит неизвестные ключи: rules»*.  
+Вместо этого на каждом job указан классический `only:` (ветки + `merge_requests`).
+
 ## Типичные проблемы
 
 | Симптом | Решение |
 |---------|---------|
+| *недействительна: default … unknown keys: rules* | Обновите `.gitlab-ci.yml` с `main`; в `default` только `image` и `cache` |
 | Pipeline pending, нет runner | Включить shared runners / назначить project runner |
 | `pull access denied` для image | Задать `POSTGIS_IMAGE` / `PYTHON_IMAGE` из корп. registry |
 | GDAL / osgeo import error | В логе job проверить `System GDAL version` и шаг `ci_install_deps.sh` |

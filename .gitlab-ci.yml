@@ -1,6 +1,5 @@
-# GitLab CI для hub.mos.ru (и любого GitLab с Docker runner + доступом к образам).
-# Переменные CI/CD можно переопределить в Settings → CI/CD → Variables:
-#   POSTGIS_IMAGE — если Docker Hub недоступен, укажите зеркало из корп. registry.
+# GitLab CI / MosHub (hub.mos.ru). only/except — совместим со старыми версиями GitLab.
+# Переменные CI/CD: POSTGIS_IMAGE, PYTHON_IMAGE — см. GITLAB_CI.md
 
 stages:
   - lint
@@ -23,14 +22,8 @@ variables:
 default:
   image: $PYTHON_IMAGE
   cache:
-    key: "pip-${CI_COMMIT_REF_SLUG}"
     paths:
       - .cache/pip
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH == "deploy/vps-docker"
-    - if: $CI_COMMIT_BRANCH == "deploy/mggt-docker"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 .install_gdal_and_python: &install_gdal_and_python
   - apt-get update -qq
@@ -41,12 +34,22 @@ default:
 
 lint:
   stage: lint
+  only:
+    - main
+    - deploy/vps-docker
+    - deploy/mggt-docker
+    - merge_requests
   script:
     - pip install 'ruff>=0.8'
     - ruff check pass_map pass_viewer
 
 test:
   stage: test
+  only:
+    - main
+    - deploy/vps-docker
+    - deploy/mggt-docker
+    - merge_requests
   services:
     - name: $POSTGIS_IMAGE
       alias: postgis
@@ -56,14 +59,22 @@ test:
 
 e2e:
   stage: e2e
-  needs: [test]
+  only:
+    - main
+    - deploy/vps-docker
+    - deploy/mggt-docker
+    - merge_requests
   variables:
     DJANGO_ALLOW_ASYNC_UNSAFE: "true"
   services:
     - name: $POSTGIS_IMAGE
       alias: postgis
   before_script:
-    - *install_gdal_and_python
+    - apt-get update -qq
+    - apt-get install -y -qq --no-install-recommends gdal-bin libgdal-dev
+    - export GDAL_LIBRARY_PATH="$(find /usr/lib -name 'libgdal.so*' 2>/dev/null | head -1)"
+    - export GEOS_LIBRARY_PATH="$(find /usr/lib -name 'libgeos_c.so*' 2>/dev/null | head -1)"
+    - bash scripts/ci_install_deps.sh
     - apt-get install -y -qq --no-install-recommends
         libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2
         libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1
