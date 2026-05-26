@@ -98,6 +98,8 @@ wheels/
 # =====================
 # ТЕСТЫ И ОТЧЁТЫ
 # =====================
+playwright-report/
+test-results/
 .coverage
 .coverage.*
 .cache

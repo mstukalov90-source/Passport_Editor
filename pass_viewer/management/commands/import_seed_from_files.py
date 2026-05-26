@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List, Optional
 
 from django.conf import settings
 from django.core.management import call_command
@@ -29,81 +28,81 @@ from pass_viewer.data_import.table_registry import TableImportSpec, build_defaul
 
 class Command(BaseCommand):
     help = (
-        'Import tables from flat files named like tables (.json / .geojson) under --root '
-        '(default: project root / BASE_DIR).'
+        "Import tables from flat files named like tables (.json / .geojson) under --root "
+        "(default: project root / BASE_DIR)."
     )
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--root',
+            "--root",
             type=Path,
             default=None,
-            help='Directory containing data files (default: settings.BASE_DIR).',
+            help="Directory containing data files (default: settings.BASE_DIR).",
         )
         parser.add_argument(
-            '--table',
+            "--table",
             type=str,
             default=None,
-            help='Import only this table name (must match registry).',
+            help="Import only this table name (must match registry).",
         )
         parser.add_argument(
-            '--all',
-            action='store_true',
-            help='Process every registered table for which a file exists.',
+            "--all",
+            action="store_true",
+            help="Process every registered table for which a file exists.",
         )
         parser.add_argument(
-            '--dry-run',
-            action='store_true',
-            help='Show what would be imported without writing to the database.',
+            "--dry-run",
+            action="store_true",
+            help="Show what would be imported without writing to the database.",
         )
         parser.add_argument(
-            '--append',
-            action='store_true',
-            help='Append instead of truncating before geo imports (passed to specialized commands).',
+            "--append",
+            action="store_true",
+            help="Append instead of truncating before geo imports (passed to specialized commands).",
         )
         parser.add_argument(
-            '--srid',
+            "--srid",
             type=int,
             default=4326,
-            help='Target SRID for dynamic GeoJSON import (default: 4326).',
+            help="Target SRID for dynamic GeoJSON import (default: 4326).",
         )
         parser.add_argument(
-            '--list',
-            action='store_true',
-            dest='list_tables',
-            help='List registered tables and expected filenames, then exit.',
+            "--list",
+            action="store_true",
+            dest="list_tables",
+            help="List registered tables and expected filenames, then exit.",
         )
 
     def handle(self, *args, **options):
-        root: Path = (options['root'] or Path(settings.BASE_DIR)).expanduser().resolve()
-        dry_run: bool = options['dry_run']
-        append: bool = options['append']
-        target_srid: int = options['srid']
+        root: Path = (options["root"] or Path(settings.BASE_DIR)).expanduser().resolve()
+        dry_run: bool = options["dry_run"]
+        append: bool = options["append"]
+        target_srid: int = options["srid"]
 
         registry = build_default_registry()
 
-        if options['list_tables']:
-            self.stdout.write(self.style.NOTICE(f'Data root (default): {root}'))
-            self.stdout.write('')
+        if options["list_tables"]:
+            self.stdout.write(self.style.NOTICE(f"Data root (default): {root}"))
+            self.stdout.write("")
             for spec in registry:
                 fn = expected_filename(spec)
-                extra = f'  [{spec.note}]' if spec.note else ''
-                line = f'  {spec.table:30}  {fn}'
+                extra = f"  [{spec.note}]" if spec.note else ""
+                line = f"  {spec.table:30}  {fn}"
                 if spec.delegate_command:
-                    line += f'  -> {spec.delegate_command}'
+                    line += f"  -> {spec.delegate_command}"
                 elif spec.dynamic_geojson:
-                    line += '  -> dynamic GeoJSON'
+                    line += "  -> dynamic GeoJSON"
                 self.stdout.write(line + extra)
             return
 
-        target_tables = options['table']
-        use_all = options['all']
+        target_tables = options["table"]
+        use_all = options["all"]
         if not target_tables and not use_all:
-            raise CommandError('Specify --table NAME or --all (or use --list).')
+            raise CommandError("Specify --table NAME or --all (or use --list).")
 
         specs = self._select_specs(registry, target_tables, use_all)
         if not specs:
-            raise CommandError('No matching tables in registry.')
+            raise CommandError("No matching tables in registry.")
 
         explicit_table = bool(target_tables)
         for spec in specs:
@@ -118,15 +117,15 @@ class Command(BaseCommand):
 
     def _select_specs(
         self,
-        registry: List[TableImportSpec],
-        single: Optional[str],
+        registry: list[TableImportSpec],
+        single: str | None,
         use_all: bool,
-    ) -> List[TableImportSpec]:
+    ) -> list[TableImportSpec]:
         if single:
             found = [s for s in registry if s.table == single]
             if not found:
-                names = ', '.join(s.table for s in registry)
-                raise CommandError(f'Unknown table {single!r}. Known: {names}')
+                names = ", ".join(s.table for s in registry)
+                raise CommandError(f"Unknown table {single!r}. Known: {names}")
             return found
         if use_all:
             return list(registry)
@@ -146,18 +145,18 @@ class Command(BaseCommand):
         path = root / filename
         if not path.exists():
             if require_file:
-                raise CommandError(f'File not found for table {spec.table}: {path}')
-            self.stdout.write(self.style.WARNING(f'Skip {spec.table}: file not found {path}'))
+                raise CommandError(f"File not found for table {spec.table}: {path}")
+            self.stdout.write(self.style.WARNING(f"Skip {spec.table}: file not found {path}"))
             return
 
-        self.stdout.write(f'--- {spec.table} ({filename}) ---')
+        self.stdout.write(f"--- {spec.table} ({filename}) ---")
 
         if spec.delegate_command:
             if dry_run:
                 self.stdout.write(
                     self.style.WARNING(
-                        f'[dry-run] delegating to {spec.delegate_command} is not supported; '
-                        f'run without --dry-run or invoke {spec.delegate_command} directly.'
+                        f"[dry-run] delegating to {spec.delegate_command} is not supported; "
+                        f"run without --dry-run or invoke {spec.delegate_command} directly."
                     )
                 )
                 return
@@ -169,35 +168,35 @@ class Command(BaseCommand):
             )
             return
 
-        if spec.table == 'users':
+        if spec.table == "users":
             created, updated = import_users(path, dry_run=dry_run)
             if dry_run:
-                self.stdout.write(self.style.SUCCESS(f'[dry-run] would process up to {created} user rows'))
+                self.stdout.write(self.style.SUCCESS(f"[dry-run] would process up to {created} user rows"))
             else:
-                self.stdout.write(self.style.SUCCESS(f'users: created={created}, updated={updated}'))
+                self.stdout.write(self.style.SUCCESS(f"users: created={created}, updated={updated}"))
             return
 
-        if spec.table == 'id_names':
+        if spec.table == "id_names":
             ins, upd = import_id_names(path, dry_run=dry_run)
             if dry_run:
-                self.stdout.write(self.style.SUCCESS(f'[dry-run] would process up to {ins} id_names rows'))
+                self.stdout.write(self.style.SUCCESS(f"[dry-run] would process up to {ins} id_names rows"))
             else:
-                self.stdout.write(self.style.SUCCESS(f'id_names: upserted ~{ins} rows'))
+                self.stdout.write(self.style.SUCCESS(f"id_names: upserted ~{ins} rows"))
             return
 
-        if spec.table == 'ods_request':
+        if spec.table == "ods_request":
             n, _ = import_ods_request(path, dry_run=dry_run, append=append)
             if dry_run:
-                self.stdout.write(self.style.SUCCESS(f'[dry-run] would insert up to {n} ods_request rows'))
+                self.stdout.write(self.style.SUCCESS(f"[dry-run] would insert up to {n} ods_request rows"))
             else:
-                self.stdout.write(self.style.SUCCESS(f'ods_request: inserted {n} rows'))
+                self.stdout.write(self.style.SUCCESS(f"ods_request: inserted {n} rows"))
             return
 
         if spec.dynamic_geojson:
             try:
-                payload = json.loads(path.read_text(encoding='utf-8'))
+                payload = json.loads(path.read_text(encoding="utf-8"))
             except Exception as exc:
-                raise CommandError(f'{spec.table}: invalid JSON: {exc}') from exc
+                raise CommandError(f"{spec.table}: invalid JSON: {exc}") from exc
             imported, skipped = import_geojson_dynamic(
                 spec.table,
                 payload,
@@ -207,11 +206,11 @@ class Command(BaseCommand):
             )
             if dry_run:
                 self.stdout.write(
-                    self.style.SUCCESS(f'[dry-run] would import up to {imported} features into {spec.table}')
+                    self.style.SUCCESS(f"[dry-run] would import up to {imported} features into {spec.table}")
                 )
             else:
-                msg = f'{spec.table}: imported={imported}, skipped={skipped}'
+                msg = f"{spec.table}: imported={imported}, skipped={skipped}"
                 self.stdout.write(self.style.SUCCESS(msg))
             return
 
-        self.stdout.write(self.style.WARNING(f'No handler implemented for {spec.table}'))
+        self.stdout.write(self.style.WARNING(f"No handler implemented for {spec.table}"))

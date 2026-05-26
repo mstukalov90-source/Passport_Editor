@@ -1,0 +1,26 @@
+[project]
+name = "passport-editor"
+version = "0.1.0"
+description = "Passport Editor (GeoDjango)"
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["pass_map", "pass_viewer"]
+exclude = [
+    "venv",
+    ".venv",
+    "staticfiles",
+    "media",
+    "**/migrations",
+    "pass_viewer/static/**/_extracted",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"pass_viewer/views.py" = ["E501", "F841", "B905", "UP038"]
+"pass_viewer/data_import/table_registry.py" = ["E501", "UP042"]
+"pass_viewer/management/commands/import_ozn_geojson.py" = ["E501"]

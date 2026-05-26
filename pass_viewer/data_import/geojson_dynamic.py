@@ -8,7 +8,7 @@ column is detected via typname = geometry.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from django.db import connection, transaction
 
@@ -20,39 +20,36 @@ def import_geojson_dynamic(
     target_srid: int = 4326,
     append: bool = False,
     dry_run: bool = False,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """
     Returns (imported_count, skipped_count).
     """
-    features = payload.get('features')
-    if payload.get('type') != 'FeatureCollection' or not isinstance(features, list):
+    features = payload.get("features")
+    if payload.get("type") != "FeatureCollection" or not isinstance(features, list):
         raise ValueError('GeoJSON must be a FeatureCollection with "features" array.')
 
     with connection.cursor() as cursor:
         cols = _fetch_columns(cursor, table_name)
 
-    geom_cols = [c for c in cols if c['typname'] == 'geometry']
+    geom_cols = [c for c in cols if c["typname"] == "geometry"]
     if len(geom_cols) != 1:
         raise ValueError(
             f'Table "{table_name}" must have exactly one geometry column for dynamic import; '
-            f'found {[c["name"] for c in geom_cols] or "none"}'
+            f"found {[c['name'] for c in geom_cols] or 'none'}"
         )
-    geom_col = geom_cols[0]['name']
+    geom_col = geom_cols[0]["name"]
 
-    attr_cols = [c for c in cols if c['typname'] != 'geometry' and not c['skip_insert']]
+    attr_cols = [c for c in cols if c["typname"] != "geometry" and not c["skip_insert"]]
     quoted_table = _quote_ident(table_name)
-    quoted_attr = ', '.join(_quote_ident(c['name']) for c in attr_cols)
+    quoted_attr = ", ".join(_quote_ident(c["name"]) for c in attr_cols)
     quoted_geom = _quote_ident(geom_col)
-    placeholders = ', '.join(['%s'] * len(attr_cols))
-    geom_expr = f'ST_SetSRID(ST_GeomFromGeoJSON(%s::text), {target_srid})'
+    placeholders = ", ".join(["%s"] * len(attr_cols))
+    geom_expr = f"ST_SetSRID(ST_GeomFromGeoJSON(%s::text), {target_srid})"
 
     if attr_cols:
-        insert_sql = (
-            f'INSERT INTO {quoted_table} ({quoted_attr}, {quoted_geom}) '
-            f'VALUES ({placeholders}, {geom_expr})'
-        )
+        insert_sql = f"INSERT INTO {quoted_table} ({quoted_attr}, {quoted_geom}) VALUES ({placeholders}, {geom_expr})"
     else:
-        insert_sql = f'INSERT INTO {quoted_table} ({quoted_geom}) VALUES ({geom_expr})'
+        insert_sql = f"INSERT INTO {quoted_table} ({quoted_geom}) VALUES ({geom_expr})"
 
     imported = 0
     skipped = 0
@@ -63,21 +60,21 @@ def import_geojson_dynamic(
     with transaction.atomic():
         with connection.cursor() as cursor:
             if not append:
-                cursor.execute(f'TRUNCATE TABLE {quoted_table} RESTART IDENTITY')
+                cursor.execute(f"TRUNCATE TABLE {quoted_table} RESTART IDENTITY")
 
             for feature in features:
                 if not isinstance(feature, dict):
                     skipped += 1
                     continue
-                geometry = feature.get('geometry')
+                geometry = feature.get("geometry")
                 if not isinstance(geometry, dict):
                     skipped += 1
                     continue
-                props = feature.get('properties') or {}
+                props = feature.get("properties") or {}
                 if not isinstance(props, dict):
                     props = {}
 
-                row_vals = [_coerce_value(_match_property(props, c['name'])) for c in attr_cols]
+                row_vals = [_coerce_value(_match_property(props, c["name"])) for c in attr_cols]
                 geom_json = json.dumps(geometry, ensure_ascii=False)
                 if attr_cols:
                     cursor.execute(insert_sql, row_vals + [geom_json])
@@ -92,7 +89,7 @@ def _quote_ident(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
-def _fetch_columns(cursor, table_name: str) -> List[Dict[str, Any]]:
+def _fetch_columns(cursor, table_name: str) -> list[dict[str, Any]]:
     cursor.execute(
         """
         SELECT
@@ -115,14 +112,14 @@ def _fetch_columns(cursor, table_name: str) -> List[Dict[str, Any]]:
     rows = cursor.fetchall()
     result = []
     for name, typname, generated, identity in rows:
-        skip = (generated or '') == 's'
-        if (identity or '') == 'a':
+        skip = (generated or "") == "s"
+        if (identity or "") == "a":
             skip = True
-        result.append({'name': name, 'typname': typname, 'skip_insert': skip})
+        result.append({"name": name, "typname": typname, "skip_insert": skip})
     return result
 
 
-def _match_property(props: Dict[str, Any], column_name: str) -> Any:
+def _match_property(props: dict[str, Any], column_name: str) -> Any:
     if column_name in props:
         return props[column_name]
     lower_props = {str(k).lower(): k for k in props}
