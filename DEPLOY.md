@@ -177,12 +177,12 @@ sudo docker logs --tail 50 passport_web
 - `X static files copied to '/app/staticfiles'` (или `unmodified`);
 - `Starting gunicorn`.
 
-Снаружи:
+Снаружи (MGGT):
 
 ```bash
-curl -I http://77.222.63.161/
-curl -I http://77.222.63.161/static/pass_viewer/js/home.js   # ожидается 200
-curl -s -o /dev/null -w "%{http_code}" http://77.222.63.161/admin/   # ожидается 404
+curl -I http://172.21.197.77/
+curl -I http://172.21.197.77/static/pass_viewer/js/home.js   # ожидается 200
+curl -s -o /dev/null -w "%{http_code}" http://172.21.197.77/admin/   # ожидается 404 при DJANGO_ENABLE_ADMIN=0
 ```
 
 ### 4. Вернуться к разработке
@@ -369,4 +369,4 @@ tail -20 /var/log/cleanup_orphan_gis.log
 
 ---
 
-*Последнее состояние продакшена MGGT: `172.21.197.77`, ветка `deploy/mggt-docker`, дамп `geodb` со старого VPS `77.222.63.161` (ветка `deploy/vps-docker`), образы через `docker-compose.images.yml`.*
+*Последнее состояние продакшена MGGT: `172.21.197.77`, ветка `deploy/mggt-docker` (v1.6.5+), образы через `docker-compose.images.yml`, bind `.:/app`.*

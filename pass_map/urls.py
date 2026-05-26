@@ -20,6 +20,8 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
+from django.views.static import serve
+
 from pass_viewer.forms import RussianAuthenticationForm
 
 urlpatterns = [
@@ -30,6 +32,8 @@ urlpatterns = [
     ),
     path("accounts/", include("django.contrib.auth.urls")),
     path("", include("pass_viewer.urls")),
+    path("media/<path:path>", serve, {"document_root": settings.MEDIA_ROOT}),
+    path("static/<path:path>", serve, {"document_root": settings.STATIC_ROOT}),
 ]
 
 if settings.ENABLE_DJANGO_ADMIN:
