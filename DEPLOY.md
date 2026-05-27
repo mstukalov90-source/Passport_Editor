@@ -19,7 +19,7 @@
 | Контейнер | Назначение |
 |-----------|------------|
 | `passport_web` | Django + Gunicorn, снаружи **порт 80** → `8000` внутри |
-| `passport_db` | PostGIS 16, снаружи **5433** → `5432` внутри |
+| `passport_db` | PostGIS 16; на хосте **только** `127.0.0.1:5433` → `5432` (не `0.0.0.0`); между контейнерами — `db:5432` |
 
 Отдельный **Nginx не используется** — `/static/` и `/media/` отдаёт Gunicorn через маршруты в `pass_map/urls.py`.
 
@@ -361,12 +361,66 @@ tail -20 /var/log/cleanup_orphan_gis.log
 - **Merge `main` → deploy:** при конфликтах в шаблонах/views обычно берём **`main`**. Файлы инфраструктуры деплоя — проверять руками.
 - **Чистая БД без дампа:** для реальных данных надёжнее полный дамп.
 - **Долгая заливка БД:** SSH может оборваться; сверять `count(*)` по ключевым таблицам.
+- **firewalld + Docker:** при включённом `firewalld` без правил для docker-подсети приложение может отдавать **500 на всех страницах** (в логах/тесте: `OperationalError: ... db (172.18.x.x):5432 ... No route to host`). См. раздел ниже.
+
+## firewalld (RED OS / MGGT)
+
+На `172.21.197.77` используется **firewalld**. Его **не отключают** — настраивают явные правила.
+
+### Что должно быть открыто / закрыто
+
+| Назначение | Как |
+|------------|-----|
+| Сайт (HTTP) | `http` (и при необходимости `https`) в зоне `public` |
+| Postgres с интернета/сети | **закрыт**: в `docker-compose.yml` — `127.0.0.1:5433:5432`; в firewalld **не** добавлять `5433/tcp` |
+| `passport_web` → `passport_db` | внутри docker-сети (`POSTGIS_DB_HOST=db`, порт `5432`), не через host `5433` |
+
+### Обязательное правило для Docker
+
+Трафик между контейнерами идёт по IP docker-подсети (на MGGT обычно `172.18.0.0/16`). Его нужно разрешить в зоне **trusted**:
+
+```bash
+# узнать актуальную подсеть (если сеть пересоздавалась)
+sudo docker network inspect passport_editor_new_default \
+  --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}'
+
+# типично на MGGT:
+sudo firewall-cmd --permanent --zone=trusted --add-source=172.18.0.0/16
+sudo firewall-cmd --permanent --add-service=http
+# при HTTPS: sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --reload
+sudo firewall-cmd --list-all
+sudo firewall-cmd --zone=trusted --list-all
+```
+
+Предупреждения `ALREADY_ENABLED: http` и `NOT_ENABLED: 5433:tcp` при настройке — **нормальны**.
+
+### Проверка после включения firewalld
+
+```bash
+# с хоста: Postgres снаружи недоступен (bind только localhost)
+sudo ss -ltnp | awk 'NR==1 || /:5433/'
+
+# из контейнера web — БД доступна
+sudo docker exec passport_web python -c "\
+import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','pass_map.settings'); \
+import django; django.setup(); from django.db import connection; connection.cursor(); print('DB_OK')"
+
+curl -I http://127.0.0.1/
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1/admin/   # 404 при DJANGO_ENABLE_ADMIN=0
+```
+
+Если снова **500 на всех страницах** при включённом firewalld — сначала проверить `DB_OK` в контейнере; при ошибке `No route to host` — не хватает `trusted` для docker-подсети (или подсеть сменилась после `docker network` recreate).
+
+После правки `.env` (например `DJANGO_ENABLE_ADMIN=0`) переменные в контейнер подхватываются через **`docker compose ... up -d --force-recreate web`**, а не только `docker restart`.
 
 ## Безопасность
 
 - Не коммитить `.env`, пароли БД, `DJANGO_SECRET_KEY`.
 - Не дублировать в документации логины/пароли пользователей.
+- Postgres: bind `127.0.0.1:5433:5432` в compose + не открывать `5433` в firewalld.
+- firewalld: разрешить `http` и docker-подсеть в `trusted`; не отключать firewall целиком.
 
 ---
 
-*Последнее состояние продакшена MGGT: `172.21.197.77`, ветка `deploy/mggt-docker` (v1.6.5+), образы через `docker-compose.images.yml`, bind `.:/app`.*
+*Последнее состояние продакшена MGGT: `172.21.197.77`, ветка `deploy/mggt-docker` (v1.6.5+), образы через `docker-compose.images.yml`, bind `.:/app`, Postgres `127.0.0.1:5433`, firewalld с `trusted` для `172.18.0.0/16`.*
