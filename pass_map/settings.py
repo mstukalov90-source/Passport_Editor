@@ -167,6 +167,12 @@ except (TypeError, ValueError):
 
 GIS_OOZT_TABLE = os.getenv("GIS_OOZT_TABLE", "oozt")
 GIS_RZD_TABLE = os.getenv("GIS_RZD_TABLE", "rzd")
+GIS_TOP_TABLE = os.getenv("GIS_TOP_TABLE", "top")
+GIS_TOP_SOURCE_LABEL = os.getenv("GIS_TOP_SOURCE_LABEL", "ТОП")
+try:
+    GIS_ADJACENT_NEARBY_METERS = float(os.getenv("GIS_ADJACENT_NEARBY_METERS", "100"))
+except (TypeError, ValueError):
+    GIS_ADJACENT_NEARBY_METERS = 100.0
 
 # GeoDjango library paths (macOS Homebrew).
 GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH", "/opt/homebrew/lib/libgdal.dylib")

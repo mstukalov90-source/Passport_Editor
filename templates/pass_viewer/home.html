@@ -54,6 +54,7 @@
                         <button type="button" class="source-badge source-badge--dt owned-source-filter-btn is-active" data-source-filter="ДТ">ДТ</button>
                         <button type="button" class="source-badge source-badge--odh owned-source-filter-btn is-active" data-source-filter="ОДХ">ОДХ</button>
                         <button type="button" class="source-badge source-badge--oo owned-source-filter-btn is-active" data-source-filter="ОЗН">ОО</button>
+                        <button type="button" class="source-badge source-badge--top owned-source-filter-btn is-active" data-source-filter="ТОП">ТОП</button>
                         <button type="button" class="source-badge source-badge--ods owned-source-filter-btn is-active" data-source-filter="{{ ods_request_source_label|default:'ОДС' }}">{{ ods_request_source_label|default:"ОДС" }}</button>
                     </div>
                 <div class="owned-list-wrap owned-list-panel is-active" data-list-panel="passports">
@@ -114,7 +115,7 @@
                                     <input type="hidden" name="redirect_to" value="split_object">
                                     <button type="submit" class="owned-split-btn">Разделить</button>
                                 </form>
-                                <span class="source-badge owned-source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% else %}source-badge--dt{% endif %}">
+                                <span class="source-badge owned-source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% elif item.source_label == 'ТОП' %}source-badge--top{% else %}source-badge--dt{% endif %}">
                                     {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
                                 </span>
                                 <button type="button" class="owned-confirm-open-btn">Актуализировать</button>
@@ -215,7 +216,7 @@
                                         {% endif %}
                                     </button>
                                 </form>
-                                <span class="source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% else %}source-badge--dt{% endif %}">
+                                <span class="source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% elif item.source_label == 'ТОП' %}source-badge--top{% else %}source-badge--dt{% endif %}">
                                     {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
                                 </span>
                                 {% if item.request_id %}
@@ -271,6 +272,10 @@
                     <span class="owned-map-legend__item">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--oo" aria-hidden="true"></span>
                         ОО
+                    </span>
+                    <span class="owned-map-legend__item">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--top" aria-hidden="true"></span>
+                        ТОП
                     </span>
                     <span class="owned-map-legend__item">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--request" aria-hidden="true"></span>
@@ -390,6 +395,10 @@
                 <label class="merge-target-option" data-merge-source="ОЗН" style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
                     <span>ОО</span>
                     <input type="radio" name="merge_target_source_ui" value="ОЗН" id="merge-target-ozn" />
+                </label>
+                <label class="merge-target-option" data-merge-source="ТОП" style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <span>ТОП</span>
+                    <input type="radio" name="merge_target_source_ui" value="ТОП" id="merge-target-top" />
                 </label>
             </fieldset>
 

@@ -8,6 +8,7 @@
     const normalizeGeoJson = PV.normalizeGeoJson.bind(PV);
     const toEditableFeatureCollection = PV.toEditableFeatureCollection.bind(PV);
     const mergeAdjacentDtPassportsGeoJson = PV.mergeAdjacentDtPassportsGeoJson.bind(PV);
+    const filterPassportOnlyGeoJson = PV.filterPassportOnlyGeoJson.bind(PV);
     const escapeHtml = PV.escapeHtml.bind(PV);
     const pickPopupProperty = PV.pickPopupProperty.bind(PV);
     const formatPopupDateToDay = PV.formatPopupDateToDay.bind(PV);
@@ -95,6 +96,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
         const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
         const autoRemoveRenewCheckbox = document.getElementById('auto-remove-renew');
+        const autoRemoveTopCheckbox = document.getElementById('auto-remove-top');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
         const autoRemoveNoLayersEl = document.getElementById('auto-remove-no-layers');
@@ -197,6 +199,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         const odhSignalGroup = L.featureGroup().addTo(map);
         const oznSignalGroup = L.featureGroup().addTo(map);
         const renewGroup = L.featureGroup().addTo(map);
+        const topSignalGroup = L.featureGroup().addTo(map);
         const ooztSignalGroup = L.featureGroup().addTo(map);
         const rzdSignalGroup = L.featureGroup().addTo(map);
         const recapsGroup = L.featureGroup().addTo(map);
@@ -530,6 +533,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
             dt: adjacentDtPassportsGroup,
             oo: oznSignalGroup,
             odh: odhSignalGroup,
+            top: topSignalGroup,
             dgi: dgiSignalGroup,
             renew: renewGroup,
             oozt: ooztSignalGroup,
@@ -539,7 +543,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
             comments: commentPointsGroup,
         };
         const layerGroups = {
-            municipal: ['selected', 'dt', 'oo', 'odh'],
+            municipal: ['selected', 'dt', 'oo', 'odh', 'top'],
             requests: ['requests', 'recaps', 'comments'],
             external: ['dgi', 'renew', 'oozt', 'rzd'],
         };
@@ -582,6 +586,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 dt: countGroupFeatures(adjacentDtPassportsGroup),
                 oo: countGroupFeatures(oznSignalGroup),
                 odh: countGroupFeatures(odhSignalGroup),
+                top: countGroupFeatures(topSignalGroup),
                 dgi: countGroupFeatures(dgiSignalGroup),
                 renew: countGroupFeatures(renewGroup),
                 oozt: countGroupFeatures(ooztSignalGroup),
@@ -835,11 +840,25 @@ function buildEditableDeletePopupHtml(baseHtml) {
         }
         function renderReferenceSignalLayers(dgiGeo, odhGeo, oznGeo) {
             addSignalTapeLayer(dgiSignalGroup, dgiGeo, 'ДГИ');
-            addSignalTapeLayer(odhSignalGroup, odhGeo, 'ОДХ');
-            addSignalTapeLayer(oznSignalGroup, oznGeo, 'ОЗН');
+            addSignalTapeLayer(odhSignalGroup, filterPassportOnlyGeoJson(odhGeo), 'ОДХ');
+            addSignalTapeLayer(oznSignalGroup, filterPassportOnlyGeoJson(oznGeo), 'ОЗН');
         }
         function renderRenewLayer(renewGeo) {
             addSignalTapeLayer(renewGroup, renewGeo, 'Реновация');
+        }
+
+        function renderTopLayer(topGeo) {
+            topSignalGroup.clearLayers();
+            const geo = normalizeGeoJson(filterPassportOnlyGeoJson(topGeo));
+            if (!geo) {
+                return;
+            }
+            L.geoJSON(geo, {
+                style: {color: '#ea580c', weight: 2, fillColor: '#fb923c', fillOpacity: 0.25},
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup(buildObjectPopup(feature.properties || {}));
+                }
+            }).addTo(topSignalGroup);
         }
 
         function renderRecapsLayer(recapsGeo) {
@@ -882,6 +901,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         renderRenewLayer(parseGeometryData('renew-geometry-data'));
         addSignalTapeLayer(ooztSignalGroup, parseGeometryData('oozt-geometry-data'), 'ООЗТ');
         addSignalTapeLayer(rzdSignalGroup, parseGeometryData('rzd-geometry-data'), 'РЖД');
+        renderTopLayer(parseGeometryData('top-geometry-data'));
 
         const mergedAdjacentDtInitial = mergeAdjacentDtPassportsGeoJson(intersectsGeometry, touchesGeometry, nearbyGeometry);
         if (mergedAdjacentDtInitial) {
@@ -1163,6 +1183,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 recaps: normalizeGeoJson(layers.recaps),
                 oozt: normalizeGeoJson(layers.oozt),
                 rzd: normalizeGeoJson(layers.rzd),
+                top: normalizeGeoJson(layers.top),
             };
             const selectedRootidText = (selectedRootid || '').trim();
             const excludeSelectedRootid = (geojson) => {
@@ -1191,6 +1212,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
             renderRenewLayer(parsed.renew);
             addSignalTapeLayer(ooztSignalGroup, parsed.oozt, 'ООЗТ');
             addSignalTapeLayer(rzdSignalGroup, parsed.rzd, 'РЖД');
+            renderTopLayer(parsed.top);
             const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsed.intersects, parsed.touches, parsed.nearby);
             if (mergedAdjacentDt) {
                 L.geoJSON(mergedAdjacentDt, {
@@ -1311,6 +1333,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
             dt: adjacentDtPassportsGroup,
             odh: odhSignalGroup,
             ozn: oznSignalGroup,
+            top: topSignalGroup,
             dgi: dgiSignalGroup,
             renew: renewGroup,
             oozt: ooztSignalGroup,
@@ -1394,6 +1417,9 @@ function buildEditableDeletePopupHtml(baseHtml) {
             }
             if (autoRemoveOznCheckbox.checked) {
                 sources.push('ozn');
+            }
+            if (autoRemoveTopCheckbox && autoRemoveTopCheckbox.checked) {
+                sources.push('top');
             }
             if (autoRemoveDgiCheckbox.checked) {
                 sources.push('dgi');
@@ -1598,7 +1624,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
             collectSnapGuideLines(selectedGeo, snapGuideLines);
-            [adjacentDtPassportsGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, oznSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
+            [adjacentDtPassportsGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, oznSignalGroup, topSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
@@ -2726,6 +2752,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 requestObjectsGroup,
                 dgiSignalGroup,
                 renewGroup,
+                topSignalGroup,
                 ooztSignalGroup,
                 rzdSignalGroup,
                 recapsGroup,

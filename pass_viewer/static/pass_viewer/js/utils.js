@@ -133,6 +133,28 @@
         return { type: 'FeatureCollection', features: mergedFeatures };
     };
 
+    PassViewer.filterPassportOnlyGeoJson = function filterPassportOnlyGeoJson(geojsonObject) {
+        let g = PassViewer.normalizeGeoJson(geojsonObject);
+        if (!g) {
+            return null;
+        }
+        if (g.type === 'Feature') {
+            g = { type: 'FeatureCollection', features: [g] };
+        }
+        if (g.type !== 'FeatureCollection' || !Array.isArray(g.features)) {
+            return g;
+        }
+        const features = g.features.filter((feature) => {
+            const reqRaw = feature?.properties?.request_id;
+            const reqStr = reqRaw == null ? '' : String(reqRaw).trim();
+            return !reqStr;
+        });
+        if (!features.length) {
+            return null;
+        }
+        return { type: 'FeatureCollection', features };
+    };
+
     PassViewer.escapeHtml = function escapeHtml(value) {
         return String(value ?? '')
             .replace(/&/g, '&amp;')

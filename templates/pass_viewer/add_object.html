@@ -14,6 +14,7 @@
     {{ renew_geometry_json|default_if_none:"null"|json_script:"renew-geometry-data" }}
     {{ oozt_geometry_json|default_if_none:"null"|json_script:"oozt-geometry-data" }}
     {{ rzd_geometry_json|default_if_none:"null"|json_script:"rzd-geometry-data" }}
+    {{ top_geometry_json|default_if_none:"null"|json_script:"top-geometry-data" }}
     {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
     {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
     {% include 'pass_viewer/includes/map_editor_scripts.html' %}
@@ -91,6 +92,12 @@
                     <span class="layer-panel-row__name">Паспорта ОДХ</span>
                     <span class="layer-panel-row__count" data-layer-count-for="odh">(0)</span>
                     <span class="layer-panel-swatch layer-panel-swatch--odh"></span>
+                </label>
+                <label class="layer-panel-row">
+                    <input type="checkbox" data-layer-key="top" checked />
+                    <span class="layer-panel-row__name">Паспорта ТОП</span>
+                    <span class="layer-panel-row__count" data-layer-count-for="top">(0)</span>
+                    <span class="layer-panel-swatch layer-panel-swatch--top"></span>
                 </label>
             </div>
             <div class="layer-management-panel__column">
@@ -172,6 +179,10 @@
                     <input type="radio" name="save-target-table" id="save-target-ozn" value="ОЗН" />
                     ОО
                 </label>
+                <label class="modal-label" style="font-weight: normal; margin: 0;">
+                    <input type="radio" name="save-target-table" id="save-target-top" value="ТОП" />
+                    ТОП
+                </label>
             </div>
             <p class="note" style="margin: 0 0 4px; font-size: 12px; color: #64748b;">
                 Если в выбранной таблице уже есть строка с этим номером заявки для вашего владельца, она будет перезаписана.
@@ -202,6 +213,10 @@
             <label class="modal-label auto-remove-option" data-auto-remove-source="ozn">
                 ОО
                 <input type="checkbox" id="auto-remove-ozn" />
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="top">
+                ТОП
+                <input type="checkbox" id="auto-remove-top" />
             </label>
             <label class="modal-label auto-remove-option" data-auto-remove-source="dgi">
                 ДГИ

@@ -205,12 +205,13 @@ tail -20 /var/log/ods_request_sync.log
 
 ## Ночная уборка (04:20 МСК)
 
-Два задания cron: старые файлы экспорта и «сироты» в GIS-таблицах.
+Три задания cron: старые файлы экспорта, «сироты» в GIS-таблицах и точки комментариев без заявки в GIS.
 
 | Задача | Команда | Условие |
 |--------|---------|---------|
 | `media/exports` | `cleanup_media_exports` | файлы старше **7** суток |
 | `pass_objects`, `odh`, `ozn` | `cleanup_orphan_gis_rows` | непустой `request_id` нет в `ods_request."BrId"`, `created_at` старше **40** суток |
+| `pass_comment_points` | `cleanup_orphan_comment_points` | непустой `request_id` нет ни в `pass_objects`, ни в `odh`, ни в `ozn`, `created_at` старше **40** суток |
 
 **Команды (внутри контейнера или локально):**
 
@@ -220,6 +221,9 @@ python manage.py cleanup_media_exports --dry-run
 
 python manage.py cleanup_orphan_gis_rows
 python manage.py cleanup_orphan_gis_rows --dry-run
+
+python manage.py cleanup_orphan_comment_points
+python manage.py cleanup_orphan_comment_points --dry-run
 ```
 
 **Cron на хосте** (`crontab -e` у `root`):
@@ -227,13 +231,15 @@ python manage.py cleanup_orphan_gis_rows --dry-run
 ```cron
 20 4 * * * TZ=Europe/Moscow /opt/passport_editor_new/scripts/cleanup_media_exports_daily.sh >> /var/log/cleanup_media_exports.log 2>&1
 20 4 * * * TZ=Europe/Moscow /opt/passport_editor_new/scripts/cleanup_orphan_gis_daily.sh >> /var/log/cleanup_orphan_gis.log 2>&1
+20 4 * * * TZ=Europe/Moscow /opt/passport_editor_new/scripts/cleanup_orphan_comment_points_daily.sh >> /var/log/cleanup_orphan_comment_points.log 2>&1
 ```
 
-Обёртки: `scripts/cleanup_media_exports_daily.sh`, `scripts/cleanup_orphan_gis_daily.sh`. После деплоя:
+Обёртки: `scripts/cleanup_media_exports_daily.sh`, `scripts/cleanup_orphan_gis_daily.sh`, `scripts/cleanup_orphan_comment_points_daily.sh`. После деплоя:
 
 ```bash
 chmod +x /opt/passport_editor_new/scripts/cleanup_media_exports_daily.sh
 chmod +x /opt/passport_editor_new/scripts/cleanup_orphan_gis_daily.sh
+chmod +x /opt/passport_editor_new/scripts/cleanup_orphan_comment_points_daily.sh
 ```
 
 **Проверка вручную:**
@@ -241,8 +247,10 @@ chmod +x /opt/passport_editor_new/scripts/cleanup_orphan_gis_daily.sh
 ```bash
 /opt/passport_editor_new/scripts/cleanup_media_exports_daily.sh
 /opt/passport_editor_new/scripts/cleanup_orphan_gis_daily.sh
+/opt/passport_editor_new/scripts/cleanup_orphan_comment_points_daily.sh
 tail -20 /var/log/cleanup_media_exports.log
 tail -20 /var/log/cleanup_orphan_gis.log
+tail -20 /var/log/cleanup_orphan_comment_points.log
 ```
 
 Строки с пустым `request_id` не удаляются. Таблицы `recaps`, `dgi`, `renew` не затрагиваются.

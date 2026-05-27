@@ -22,6 +22,7 @@ UTIL_FUNCS = [
     "normalizeGeoJson",
     "toEditableFeatureCollection",
     "mergeAdjacentDtPassportsGeoJson",
+    "filterPassportOnlyGeoJson",
     "escapeHtml",
 ]
 POPUP_FUNCS = [
