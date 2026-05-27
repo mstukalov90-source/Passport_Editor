@@ -99,6 +99,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
         const autoRemoveTopCheckbox = document.getElementById('auto-remove-top');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
+        const autoRemoveRequestsCheckbox = document.getElementById('auto-remove-requests');
         const autoRemoveNoLayersEl = document.getElementById('auto-remove-no-layers');
         const dbLoadingModal = document.getElementById('db-loading-modal');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
@@ -1334,6 +1335,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
             odh: odhSignalGroup,
             ozn: oznSignalGroup,
             top: topSignalGroup,
+            requests: requestObjectsGroup,
             dgi: dgiSignalGroup,
             renew: renewGroup,
             oozt: ooztSignalGroup,
@@ -1358,6 +1360,8 @@ function buildEditableDeletePopupHtml(baseHtml) {
                 autoRemoveDtCheckbox,
                 autoRemoveOdhCheckbox,
                 autoRemoveOznCheckbox,
+                autoRemoveTopCheckbox,
+                autoRemoveRequestsCheckbox,
                 autoRemoveDgiCheckbox,
                 autoRemoveRenewCheckbox,
                 autoRemoveOoztCheckbox,
@@ -1420,6 +1424,9 @@ function buildEditableDeletePopupHtml(baseHtml) {
             }
             if (autoRemoveTopCheckbox && autoRemoveTopCheckbox.checked) {
                 sources.push('top');
+            }
+            if (autoRemoveRequestsCheckbox?.checked) {
+                sources.push('requests');
             }
             if (autoRemoveDgiCheckbox.checked) {
                 sources.push('dgi');

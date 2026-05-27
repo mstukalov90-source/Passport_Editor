@@ -2641,6 +2641,83 @@ def _is_meaningful_gis_rootid(rootid):
     return bool(text) and text.lower() not in {"-", "none", "null"}
 
 
+def _municipal_request_mask_tables():
+    return (
+        (settings.GIS_OBJECT_TABLE, "ДТ"),
+        (getattr(settings, "GIS_ODH_TABLE", "odh"), "ОДХ"),
+        (getattr(settings, "GIS_OZN_TABLE", "ozn"), "ОЗН"),
+        (getattr(settings, "GIS_TOP_TABLE", "top"), _top_source_label()),
+    )
+
+
+def _token_to_municipal_source_label(token):
+    return {
+        "dt": "ДТ",
+        "odh": "ОДХ",
+        "ozn": "ОЗН",
+        "top": _top_source_label(),
+    }.get(token)
+
+
+def _append_intersection_mask_union_part(
+    cursor,
+    table_name,
+    union_parts,
+    query_params,
+    *,
+    table_source_label,
+    normalized_source,
+    selected_geometry_json,
+    selected_row_ctid_text,
+    selected_rootid_text,
+    selected_request_id_text,
+    extra_where_sql="",
+):
+    if not table_name or not _table_exists(cursor, table_name):
+        return
+    geom_field = _resolve_column_name(cursor, table_name, settings.GIS_OBJECT_GEOM_FIELD)
+    geom_q = _quote_ident(geom_field)
+    raw_geom = f"t.{geom_q}"
+    geom_v = _sql_table_geom_valid_expr(raw_geom)
+    exclude_selected_clause = ""
+    exclude_selected_params = []
+    if table_source_label and normalized_source == table_source_label:
+        exclude_conditions = []
+        if selected_row_ctid_text:
+            exclude_conditions.append("t.ctid::text = %s")
+            exclude_selected_params.append(selected_row_ctid_text)
+        elif _is_meaningful_gis_rootid(selected_rootid_text):
+            rootid_field = _resolve_column_name(cursor, table_name, settings.GIS_OBJECT_ROOTID_FIELD)
+            exclude_conditions.append(f"t.{_quote_ident(rootid_field)}::text = %s")
+            exclude_selected_params.append(selected_rootid_text)
+        elif selected_request_id_text:
+            request_id_field = _resolve_column_name(
+                cursor,
+                table_name,
+                getattr(settings, "GIS_OBJECT_REQUEST_ID_FIELD", "request_id"),
+            )
+            exclude_conditions.append(f"t.{_quote_ident(request_id_field)}::text = %s")
+            exclude_selected_params.append(selected_request_id_text)
+        if selected_geometry_json:
+            exclude_conditions.append(f"(s.geom IS NOT NULL AND ST_Equals({geom_v}, s.geom))")
+        if exclude_conditions:
+            exclude_selected_clause = " AND NOT (" + " OR ".join(exclude_conditions) + ")"
+    hood_m_suf, hood_m_prm = get_hood_intersects_sql_suffix(geom_v)
+    union_parts.append(
+        f"SELECT ST_CollectionExtract({geom_v}, 3) AS geom "
+        f"FROM {_quote_ident(table_name)} t, input i"
+        f"{' LEFT JOIN selected s ON TRUE' if selected_geometry_json else ''} "
+        f"WHERE {raw_geom} && i.geom"
+        f" AND ST_Intersects({geom_v}, i.geom)"
+        f" AND ST_Area(ST_Intersection({geom_v}, i.geom)) > 1e-10"
+        f"{extra_where_sql}"
+        f"{exclude_selected_clause}"
+        f"{hood_m_suf}"
+    )
+    query_params.extend(exclude_selected_params)
+    query_params.extend(hood_m_prm)
+
+
 def _remove_intersections_from_geometry(
     geometry,
     selected_sources,
@@ -2655,10 +2732,10 @@ def _remove_intersections_from_geometry(
         return None
 
     source_tokens = {str(value).strip().lower() for value in (selected_sources or []) if str(value).strip()}
-    allowed_tokens = {"dt", "odh", "ozn", "top", "dgi", "renew", "oozt", "rzd"}
+    allowed_tokens = {"dt", "odh", "ozn", "top", "requests", "dgi", "renew", "oozt", "rzd"}
     requested_tokens = [
         token
-        for token in ("dt", "odh", "ozn", "top", "dgi", "renew", "oozt", "rzd")
+        for token in ("dt", "odh", "ozn", "top", "requests", "dgi", "renew", "oozt", "rzd")
         if token in source_tokens and token in allowed_tokens
     ]
     if not requested_tokens:
@@ -2688,56 +2765,42 @@ def _remove_intersections_from_geometry(
     if selected_geometry_json:
         query_params.append(selected_geometry_json)
 
+    geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
+    request_id_field_pref = getattr(settings, "GIS_OBJECT_REQUEST_ID_FIELD", "request_id")
+    mask_context = {
+        "normalized_source": normalized_source,
+        "selected_geometry_json": selected_geometry_json,
+        "selected_row_ctid_text": selected_row_ctid_text,
+        "selected_rootid_text": selected_rootid_text,
+        "selected_request_id_text": selected_request_id_text,
+    }
+
     with connection.cursor() as cursor:
         for token in requested_tokens:
-            table_name = token_to_table.get(token)
-            if not table_name or not _table_exists(cursor, table_name):
-                continue
-            geom_field = _resolve_column_name(cursor, table_name, settings.GIS_OBJECT_GEOM_FIELD)
-            geom_q = _quote_ident(geom_field)
-            raw_geom = f"t.{geom_q}"
-            geom_v = _sql_table_geom_valid_expr(raw_geom)
-            exclude_selected_clause = ""
-            exclude_selected_params = []
-            if (
-                (token == "dt" and normalized_source == "ДТ")
-                or (token == "odh" and normalized_source == "ОДХ")
-                or (token == "ozn" and normalized_source == "ОЗН")
-                or (token == "top" and normalized_source == _top_source_label())
-            ):
-                exclude_conditions = []
-                if selected_row_ctid_text:
-                    exclude_conditions.append("t.ctid::text = %s")
-                    exclude_selected_params.append(selected_row_ctid_text)
-                elif _is_meaningful_gis_rootid(selected_rootid_text):
-                    rootid_field = _resolve_column_name(cursor, table_name, settings.GIS_OBJECT_ROOTID_FIELD)
-                    exclude_conditions.append(f"t.{_quote_ident(rootid_field)}::text = %s")
-                    exclude_selected_params.append(selected_rootid_text)
-                elif selected_request_id_text:
-                    request_id_field = _resolve_column_name(
+            if token == "requests":
+                for table_name, table_source_label in _municipal_request_mask_tables():
+                    if not _request_layer_source_ready(cursor, table_name, geom_field_pref, request_id_field_pref):
+                        continue
+                    _append_intersection_mask_union_part(
                         cursor,
                         table_name,
-                        getattr(settings, "GIS_OBJECT_REQUEST_ID_FIELD", "request_id"),
+                        union_parts,
+                        query_params,
+                        table_source_label=table_source_label,
+                        extra_where_sql=_sql_gis_request_only_clause(cursor, table_name, "t"),
+                        **mask_context,
                     )
-                    exclude_conditions.append(f"t.{_quote_ident(request_id_field)}::text = %s")
-                    exclude_selected_params.append(selected_request_id_text)
-                if selected_geometry_json:
-                    exclude_conditions.append(f"(s.geom IS NOT NULL AND ST_Equals({geom_v}, s.geom))")
-                if exclude_conditions:
-                    exclude_selected_clause = " AND NOT (" + " OR ".join(exclude_conditions) + ")"
-            hood_m_suf, hood_m_prm = get_hood_intersects_sql_suffix(geom_v)
-            union_parts.append(
-                f"SELECT ST_CollectionExtract({geom_v}, 3) AS geom "
-                f"FROM {_quote_ident(table_name)} t, input i"
-                f"{' LEFT JOIN selected s ON TRUE' if selected_geometry_json else ''} "
-                f"WHERE {raw_geom} && i.geom"
-                f" AND ST_Intersects({geom_v}, i.geom)"
-                f" AND ST_Area(ST_Intersection({geom_v}, i.geom)) > 1e-10"
-                f"{exclude_selected_clause}"
-                f"{hood_m_suf}"
+                continue
+            table_name = token_to_table.get(token)
+            table_source_label = _token_to_municipal_source_label(token)
+            _append_intersection_mask_union_part(
+                cursor,
+                table_name,
+                union_parts,
+                query_params,
+                table_source_label=table_source_label,
+                **mask_context,
             )
-            query_params.extend(exclude_selected_params)
-            query_params.extend(hood_m_prm)
 
         if not union_parts:
             return geometry_norm

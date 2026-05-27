@@ -138,6 +138,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const autoRemoveTopCheckbox = document.getElementById('auto-remove-top');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
+        const autoRemoveRequestsCheckbox = document.getElementById('auto-remove-requests');
         const autoRemoveNoLayersEl = document.getElementById('auto-remove-no-layers');
         const dbLoadingModal = document.getElementById('db-loading-modal');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
@@ -1608,6 +1609,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             odh: odhSignalGroup,
             ozn: oznSignalGroup,
             top: topSignalGroup,
+            requests: relationRequestObjectsGroup,
             dgi: dgiSignalGroup,
             renew: renewGroup,
             oozt: ooztSignalGroup,
@@ -1632,9 +1634,10 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 autoRemoveDtCheckbox,
                 autoRemoveOdhCheckbox,
                 autoRemoveOznCheckbox,
+                autoRemoveTopCheckbox,
+                autoRemoveRequestsCheckbox,
                 autoRemoveDgiCheckbox,
                 autoRemoveRenewCheckbox,
-                autoRemoveTopCheckbox,
                 autoRemoveOoztCheckbox,
                 autoRemoveRzdCheckbox,
             ].forEach((el) => {
@@ -1695,6 +1698,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             }
             if (autoRemoveTopCheckbox && autoRemoveTopCheckbox.checked) {
                 sources.push('top');
+            }
+            if (autoRemoveRequestsCheckbox?.checked) {
+                sources.push('requests');
             }
             if (autoRemoveDgiCheckbox.checked) {
                 sources.push('dgi');
