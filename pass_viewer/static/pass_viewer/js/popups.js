@@ -157,17 +157,28 @@
                 );
             }
 
+    PassViewer.formatDgiShortSobstvRr = function formatDgiShortSobstvRr(value) {
+                const raw = String(value ?? '').trim();
+                if (!raw || ['null', 'none', '-'].includes(raw.toLowerCase())) {
+                    return '';
+                }
+                if (raw.toUpperCase() === 'ЧС') {
+                    return 'Частная собственность';
+                }
+                return raw;
+            };
+
     PassViewer.buildPdfIntersectionPopupHtml = function buildPdfIntersectionPopupHtml(properties) {
                 const src = String(properties?.source ?? '').trim();
                 if (src === 'ДГИ') {
                     const descr = properties?.descr ?? '-';
                     const address = properties?.address ?? '-';
                     const vri = properties?.vri ?? '-';
-                    const sobstvRr = properties?.sobstv_rr ?? '-';
+                    const sobstvRrDisplay = PassViewer.formatDgiShortSobstvRr(properties?.short_sobstv_rr);
                     const descrText = String(descr ?? '').trim();
                     const addressText = String(address ?? '').trim();
                     const vriText = String(vri ?? '').trim();
-                    const sobstvRrText = String(sobstvRr ?? '').trim();
+                    const sobstvRrText = String(sobstvRrDisplay ?? '').trim();
                     return (
                         '<div style="min-width: 220px;">' +
                         '<div><strong>ДГИ</strong></div>' +
@@ -180,9 +191,9 @@
                         (!vriText || ['null', 'none', '-'].includes(vriText.toLowerCase())
                             ? ''
                             : '<div style="margin-top: 6px;"><strong>Назначение:</strong> ' + PassViewer.escapeHtml(vri) + '</div>') +
-                        (!sobstvRrText || ['null', 'none', '-'].includes(sobstvRrText.toLowerCase())
+                        (!sobstvRrText
                             ? ''
-                            : '<div style="margin-top: 6px;"><strong>Собственник:</strong> ' + PassViewer.escapeHtml(sobstvRr) + '</div>') +
+                            : '<div style="margin-top: 6px;"><strong>Собственник:</strong> ' + PassViewer.escapeHtml(sobstvRrDisplay) + '</div>') +
                         '</div>'
                     );
                 }

@@ -255,6 +255,18 @@ tail -20 /var/log/cleanup_orphan_comment_points.log
 
 Строки с пустым `request_id` не удаляются. Таблицы `recaps`, `dgi`, `renew` не затрагиваются.
 
+## Синхронизация dgi.xlsx (краткий собственник)
+
+Файл `dgi.xlsx` в корне проекта (в git не коммитится) дополняет таблицу `dgi`: столбец `Short_sobstv_rr` → `short_sobstv_rr`, сопоставление по `descr`. Новые `descr` из файла вставляются в БД (при обязательной геометрии — заглушка `POLYGON EMPTY` до появления реальной геометрии).
+
+1. Выкатить код и применить миграции: `python manage.py migrate`
+2. Положить актуальный `dgi.xlsx` в `BASE_DIR` (рядом с `manage.py`)
+3. Проверка без записи: `python manage.py sync_dgi_from_xlsx --dry-run`
+4. Импорт: `python manage.py sync_dgi_from_xlsx`
+5. При необходимости обновить ещё `address` / `sobstv_rr` из xlsx: `python manage.py sync_dgi_from_xlsx --sync-attrs`
+
+На больших объёмах (~300k строк) удобен индекс по `descr`. Для ускорения UPDATE можно создать индекс на проде после анализа типа колонки, например: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_dgi_descr ON dgi ((descr::text));`
+
 ## Известные нюансы
 
 - **Ветка `main` без `docker-compose.yml`** — деплой только через **`deploy/vps-docker`**.

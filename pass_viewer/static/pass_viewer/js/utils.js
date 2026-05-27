@@ -32,6 +32,21 @@
         return raw ? JSON.parse(raw) : null;
     };
 
+    PassViewer._hasDrawableGeometry = function _hasDrawableGeometry(geometry) {
+        return Boolean(geometry && geometry.type);
+    };
+
+    // Must match geometry types returned by _simplify_geojson_for_editing (bare Polygon, etc.).
+    PassViewer._GEOJSON_GEOMETRY_TYPES = new Set([
+        'Point',
+        'LineString',
+        'Polygon',
+        'MultiPoint',
+        'MultiLineString',
+        'MultiPolygon',
+        'GeometryCollection',
+    ]);
+
     PassViewer.normalizeGeoJson = function normalizeGeoJson(geojsonObject) {
         if (!geojsonObject) {
             return null;
@@ -43,13 +58,31 @@
                 return null;
             }
         }
-        if (geojsonObject.type === 'FeatureCollection' || geojsonObject.type === 'Feature') {
+        if (geojsonObject.type === 'Feature') {
+            if (!PassViewer._hasDrawableGeometry(geojsonObject.geometry)) {
+                return null;
+            }
             return geojsonObject;
         }
-        return {
-            type: 'FeatureCollection',
-            features: [{ type: 'Feature', properties: {}, geometry: geojsonObject }],
-        };
+        if (geojsonObject.type === 'FeatureCollection' && Array.isArray(geojsonObject.features)) {
+            const features = geojsonObject.features.filter((feature) =>
+                PassViewer._hasDrawableGeometry(feature?.geometry),
+            );
+            if (!features.length) {
+                return null;
+            }
+            if (features.length === geojsonObject.features.length) {
+                return geojsonObject;
+            }
+            return { ...geojsonObject, features };
+        }
+        if (PassViewer._GEOJSON_GEOMETRY_TYPES.has(geojsonObject.type)) {
+            return {
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', properties: {}, geometry: geojsonObject }],
+            };
+        }
+        return null;
     };
 
     PassViewer.toEditableFeatureCollection = function toEditableFeatureCollection(geojsonObject) {

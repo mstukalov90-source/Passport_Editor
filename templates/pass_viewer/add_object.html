@@ -8,7 +8,8 @@
 
 {% block page_scripts %}
     {{ page_config|json_script:"page-config" }}
-    {{ dgi_geometry_json|default_if_none:"null"|json_script:"dgi-geometry-data" }}
+    {{ dgi_moscow_geometry_json|default_if_none:"null"|json_script:"dgi-moscow-geometry-data" }}
+    {{ dgi_private_geometry_json|default_if_none:"null"|json_script:"dgi-private-geometry-data" }}
     {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
     {{ ozn_geometry_json|default_if_none:"null"|json_script:"ozn-geometry-data" }}
     {{ renew_geometry_json|default_if_none:"null"|json_script:"renew-geometry-data" }}
@@ -130,9 +131,15 @@
                     <span>Границы ДГИ, Реновация, ООЗТ и РЖД</span>
                 </label>
                 <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="dgi" checked />
-                    <span class="layer-panel-row__name">Объекты ДГИ</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="dgi">(0)</span>
+                    <input type="checkbox" data-layer-key="dgi_moscow" checked />
+                    <span class="layer-panel-row__name">ДГИ (г. Москва и Нет данных)</span>
+                    <span class="layer-panel-row__count" data-layer-count-for="dgi_moscow">(0)</span>
+                    <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
+                </label>
+                <label class="layer-panel-row">
+                    <input type="checkbox" data-layer-key="dgi_private" checked />
+                    <span class="layer-panel-row__name">ДГИ (Частная собственность)</span>
+                    <span class="layer-panel-row__count" data-layer-count-for="dgi_private">(0)</span>
                     <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
                 </label>
                 <label class="layer-panel-row">
@@ -222,9 +229,13 @@
                 <input type="checkbox" id="auto-remove-requests" />
                 Заявки
             </label>
-            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi">
-                <input type="checkbox" id="auto-remove-dgi" />
-                ДГИ
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi_moscow">
+                <input type="checkbox" id="auto-remove-dgi-moscow" />
+                ДГИ (г. Москва и Нет данных)
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi_private">
+                <input type="checkbox" id="auto-remove-dgi-private" />
+                ДГИ (Частная собственность)
             </label>
             <label class="modal-label auto-remove-option" data-auto-remove-source="renew">
                 <input type="checkbox" id="auto-remove-renew" />

@@ -197,7 +197,8 @@ if (L && L.drawLocal) {
         const autoRemoveDtCheckbox = document.getElementById('auto-remove-dt');
         const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
         const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
-        const autoRemoveDgiCheckbox = document.getElementById('auto-remove-dgi');
+        const autoRemoveDgiMoscowCheckbox = document.getElementById('auto-remove-dgi-moscow');
+        const autoRemoveDgiPrivateCheckbox = document.getElementById('auto-remove-dgi-private');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
         const dbLoadingModal = document.getElementById('db-loading-modal');
@@ -213,7 +214,8 @@ if (L && L.drawLocal) {
         const dossierGroup = new L.FeatureGroup().addTo(map);
         const adjacentDtPassportsGroup = new L.FeatureGroup().addTo(map);
         const requestObjectsGroup = L.featureGroup().addTo(map);
-        const dgiSignalGroup = L.featureGroup().addTo(map);
+        const dgiMoscowSignalGroup = L.featureGroup().addTo(map);
+        const dgiPrivateSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
         const oznSignalGroup = L.featureGroup().addTo(map);
         const renewGroup = L.featureGroup().addTo(map);
@@ -664,7 +666,8 @@ if (L && L.drawLocal) {
             dt: adjacentDtPassportsGroup,
             oo: oznSignalGroup,
             odh: odhSignalGroup,
-            dgi: dgiSignalGroup,
+            dgi_moscow: dgiMoscowSignalGroup,
+            dgi_private: dgiPrivateSignalGroup,
             renew: renewGroup,
             oozt: ooztSignalGroup,
             rzd: rzdSignalGroup,
@@ -675,7 +678,7 @@ if (L && L.drawLocal) {
         const layerGroups = {
             municipal: ['selected', 'dt', 'oo', 'odh'],
             requests: ['requests', 'recaps', 'comments'],
-            external: ['dgi', 'renew', 'oozt', 'rzd'],
+            external: ['dgi_moscow', 'dgi_private', 'renew', 'oozt', 'rzd'],
         };
 
         function setLayerVisible(layerKey, isVisible) {
@@ -716,7 +719,8 @@ if (L && L.drawLocal) {
                 dt: countGroupFeatures(adjacentDtPassportsGroup),
                 oo: countGroupFeatures(oznSignalGroup),
                 odh: countGroupFeatures(odhSignalGroup),
-                dgi: countGroupFeatures(dgiSignalGroup),
+                dgi_moscow: countGroupFeatures(dgiMoscowSignalGroup),
+                dgi_private: countGroupFeatures(dgiPrivateSignalGroup),
                 renew: countGroupFeatures(renewGroup),
                 oozt: countGroupFeatures(ooztSignalGroup),
                 rzd: countGroupFeatures(rzdSignalGroup),
@@ -760,6 +764,17 @@ if (L && L.drawLocal) {
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function formatDgiShortSobstvRr(value) {
+            const raw = String(value ?? '').trim();
+            if (!raw || ['null', 'none', '-'].includes(raw.toLowerCase())) {
+                return '';
+            }
+            if (raw.toUpperCase() === 'ЧС') {
+                return 'Частная собственность';
+            }
+            return raw;
         }
 
         function pickPopupProperty(props, ...keys) {
@@ -932,18 +947,18 @@ if (L && L.drawLocal) {
                         const descr = feature?.properties?.descr ?? '-';
                         const address = feature?.properties?.address ?? '-';
                         const vri = feature?.properties?.vri ?? '-';
-                        const sobstvRr = feature?.properties?.sobstv_rr ?? '-';
+                        const sobstvRrDisplay = formatDgiShortSobstvRr(feature?.properties?.short_sobstv_rr);
                         const descrText = String(descr ?? '').trim();
                         const addressText = String(address ?? '').trim();
                         const vriText = String(vri ?? '').trim();
-                        const sobstvRrText = String(sobstvRr ?? '').trim();
+                        const sobstvRrText = String(sobstvRrDisplay ?? '').trim();
                         layer.bindPopup(
                             '<div style="min-width: 220px;">' +
                             '<div><strong>ДГИ</strong></div>' +
                             (!descrText || ['null', 'none', '-'].includes(descrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Кадастровый номер:</strong> ' + escapeHtml(descr) + '</div>')) +
                             (!addressText || ['null', 'none', '-'].includes(addressText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Адрес:</strong> ' + escapeHtml(address) + '</div>')) +
                             (!vriText || ['null', 'none', '-'].includes(vriText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Назначение:</strong> ' + escapeHtml(vri) + '</div>')) +
-                            (!sobstvRrText || ['null', 'none', '-'].includes(sobstvRrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Собственник:</strong> ' + escapeHtml(sobstvRr) + '</div>')) +
+                            (!sobstvRrText ? '' : ('<div style="margin-top: 6px;"><strong>Собственник:</strong> ' + escapeHtml(sobstvRrDisplay) + '</div>')) +
                             '</div>'
                         );
                     } else if (isOdh || isOzn) {
@@ -1168,7 +1183,8 @@ if (L && L.drawLocal) {
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
             collectSnapGuideLines(selectedGeometry, snapGuideLines);
-            [dossierGroup, adjacentDtPassportsGroup, requestObjectsGroup, dgiSignalGroup, odhSignalGroup, oznSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
+            [dossierGroup, adjacentDtPassportsGroup, requestObjectsGroup, dgiMoscowSignalGroup,
+                dgiPrivateSignalGroup, odhSignalGroup, oznSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
                 });
@@ -1296,7 +1312,8 @@ if (L && L.drawLocal) {
                 touches: filterByRequestedName(layers.touches),
                 nearby: filterByRequestedName(layers.nearby),
                 request_objects: ensureSelectedRequestObject(layers.request_objects),
-                dgi: normalizeGeoJson(layers.dgi),
+                dgi_moscow: normalizeGeoJson(layers.dgi_moscow),
+                dgi_private: normalizeGeoJson(layers.dgi_private),
                 odh: normalizeGeoJson(layers.odh),
                 ozn: normalizeGeoJson(layers.ozn),
                 renew: normalizeGeoJson(layers.renew),
@@ -1319,7 +1336,8 @@ if (L && L.drawLocal) {
                     onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
                 }).addTo(requestObjectsGroup);
             }
-            addSignalTapeLayer(dgiSignalGroup, parsed.dgi, 'ДГИ');
+            addSignalTapeLayer(dgiMoscowSignalGroup, parsed.dgi_moscow, 'ДГИ');
+            addSignalTapeLayer(dgiPrivateSignalGroup, parsed.dgi_private, 'ДГИ');
             addSignalTapeLayer(odhSignalGroup, parsed.odh, 'ОДХ');
             addSignalTapeLayer(oznSignalGroup, parsed.ozn, 'ОЗН');
             renderRecapsLayer(parsed.recaps);
@@ -1637,8 +1655,11 @@ if (L && L.drawLocal) {
             if (autoRemoveOznCheckbox.checked) {
                 sources.push('ozn');
             }
-            if (autoRemoveDgiCheckbox.checked) {
-                sources.push('dgi');
+            if (autoRemoveDgiMoscowCheckbox.checked) {
+                sources.push('dgi_moscow');
+            }
+            if (autoRemoveDgiPrivateCheckbox.checked) {
+                sources.push('dgi_private');
             }
             if (autoRemoveOoztCheckbox.checked) {
                 sources.push('oozt');
