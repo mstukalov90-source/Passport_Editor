@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -34,6 +35,7 @@ ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', '').split(
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
+    "axes",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
@@ -50,6 +52,7 @@ MIDDLEWARE = [
     "pass_viewer.middleware.HoodSpatialScopeMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "axes.middleware.AxesMiddleware",
 ]
 
 ROOT_URLCONF = "pass_map.urls"
@@ -136,8 +139,17 @@ LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "login"
 
 AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
     "pass_viewer.auth_backends.DockerUsersTableBackend",
 ]
+
+# Brute-force protection for /accounts/login/ (django-axes).
+AXES_ENABLED = os.getenv("AXES_ENABLED", "1") not in ("0", "false", "False")
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(hours=1)
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+AXES_LOCKOUT_TEMPLATE = "registration/lockout.html"
+
 
 # PostGIS object source settings for map rendering.
 GIS_OBJECT_TABLE = "pass_objects"
@@ -167,6 +179,12 @@ except (TypeError, ValueError):
 
 GIS_OOZT_TABLE = os.getenv("GIS_OOZT_TABLE", "oozt")
 GIS_RZD_TABLE = os.getenv("GIS_RZD_TABLE", "rzd")
+GIS_TOP_TABLE = os.getenv("GIS_TOP_TABLE", "top")
+GIS_TOP_SOURCE_LABEL = os.getenv("GIS_TOP_SOURCE_LABEL", "ТОП")
+try:
+    GIS_ADJACENT_NEARBY_METERS = float(os.getenv("GIS_ADJACENT_NEARBY_METERS", "100"))
+except (TypeError, ValueError):
+    GIS_ADJACENT_NEARBY_METERS = 100.0
 
 # GeoDjango library paths (macOS Homebrew).
 GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH", "/opt/homebrew/lib/libgdal.dylib")

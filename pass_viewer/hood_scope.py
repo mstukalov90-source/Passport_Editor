@@ -101,6 +101,7 @@ def _hood_owner_geom_union_sql_and_params(cursor, owner_legal_person_id) -> tupl
     primary_table = settings.GIS_OBJECT_TABLE
     odh_table = getattr(settings, "GIS_ODH_TABLE", "odh")
     ozn_table = getattr(settings, "GIS_OZN_TABLE", "ozn")
+    top_table = getattr(settings, "GIS_TOP_TABLE", "top")
     geom_pref = settings.GIS_OBJECT_GEOM_FIELD
     owner_dt = getattr(settings, "GIS_OBJECT_OWNER_FIELD", "OwnerLegalPersonId")
     odh_customer = getattr(settings, "GIS_ODH_CUSTOMER_FIELD", "CustomerLegalPersonId")
@@ -114,6 +115,7 @@ def _hood_owner_geom_union_sql_and_params(cursor, owner_legal_person_id) -> tupl
         (primary_table, [owner_dt]),
         (odh_table, [odh_customer, owner_dt]),
         (ozn_table, [ozn_owner, owner_dt]),
+        (top_table, [owner_dt]),
     ):
         if not _hq_table_exists(cursor, tbl):
             continue

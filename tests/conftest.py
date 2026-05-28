@@ -13,6 +13,11 @@ from django.core.management import call_command
 pytest_plugins = ['pytest_playwright']
 
 
+@pytest.fixture(autouse=True)
+def disable_axes_for_tests(settings):
+    settings.AXES_ENABLED = False
+
+
 @pytest.fixture(scope='session')
 def django_db_use_migrations():
     """Smoke tests only need ORM tables (users); GIS tables come from seed/import."""

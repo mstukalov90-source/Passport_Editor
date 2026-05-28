@@ -89,6 +89,7 @@ class Command(BaseCommand):
             "pass_objects",
             getattr(settings, "GIS_ODH_TABLE", "odh"),
             "ozn",
+            getattr(settings, "GIS_TOP_TABLE", "top"),
         ]
         ods_table = getattr(settings, "GIS_ODS_REQUEST_TABLE", "ods_request")
 

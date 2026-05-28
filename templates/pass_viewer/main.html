@@ -13,7 +13,8 @@
     {{ intersects_geometry_json|default_if_none:"null"|json_script:"intersects-geometry-data" }}
     {{ touches_geometry_json|default_if_none:"null"|json_script:"touches-geometry-data" }}
     {{ nearby_geometry_json|default_if_none:"null"|json_script:"nearby-geometry-data" }}
-    {{ dgi_geometry_json|default_if_none:"null"|json_script:"dgi-geometry-data" }}
+    {{ dgi_moscow_geometry_json|default_if_none:"null"|json_script:"dgi-moscow-geometry-data" }}
+    {{ dgi_private_geometry_json|default_if_none:"null"|json_script:"dgi-private-geometry-data" }}
     {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
     {{ ozn_geometry_json|default_if_none:"null"|json_script:"ozn-geometry-data" }}
     {{ renew_geometry_json|default_if_none:"null"|json_script:"renew-geometry-data" }}
@@ -106,6 +107,12 @@
                     <span class="layer-panel-row__count" data-layer-count-for="odh">(0)</span>
                     <span class="layer-panel-swatch layer-panel-swatch--odh"></span>
                 </label>
+                <label class="layer-panel-row">
+                    <input type="checkbox" data-layer-key="top" checked />
+                    <span class="layer-panel-row__name">Паспорта ТОП</span>
+                    <span class="layer-panel-row__count" data-layer-count-for="top">(0)</span>
+                    <span class="layer-panel-swatch layer-panel-swatch--top"></span>
+                </label>
             </div>
             <div class="layer-management-panel__column">
                 <label class="layer-management-panel__column-title">
@@ -137,9 +144,15 @@
                     <span>Границы ДГИ, Реновация, ООЗТ и РЖД</span>
                 </label>
                 <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="dgi" checked />
-                    <span class="layer-panel-row__name">Объекты ДГИ</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="dgi">(0)</span>
+                    <input type="checkbox" data-layer-key="dgi_moscow" checked />
+                    <span class="layer-panel-row__name">ДГИ (г. Москва и Нет данных)</span>
+                    <span class="layer-panel-row__count" data-layer-count-for="dgi_moscow">(0)</span>
+                    <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
+                </label>
+                <label class="layer-panel-row">
+                    <input type="checkbox" data-layer-key="dgi_private" checked />
+                    <span class="layer-panel-row__name">ДГИ (Частная собственность)</span>
+                    <span class="layer-panel-row__count" data-layer-count-for="dgi_private">(0)</span>
                     <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
                 </label>
                 <label class="layer-panel-row">
@@ -187,32 +200,44 @@
             <h3 style="margin: 0 0 10px;">Автоматическое удаление пересечений</h3>
             <p class="note" style="margin-top: 0;">Выберите слои, с которыми нужно убрать пересечения:</p>
             <label class="modal-label auto-remove-option" data-auto-remove-source="dt">
-                ДТ
                 <input type="checkbox" id="auto-remove-dt" />
+                ДТ
             </label>
             <label class="modal-label auto-remove-option" data-auto-remove-source="odh">
-                ОДХ
                 <input type="checkbox" id="auto-remove-odh" />
+                ОДХ
             </label>
             <label class="modal-label auto-remove-option" data-auto-remove-source="ozn">
-                ОО
                 <input type="checkbox" id="auto-remove-ozn" />
+                ОО
             </label>
-            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi">
-                ДГИ
-                <input type="checkbox" id="auto-remove-dgi" />
+            <label class="modal-label auto-remove-option" data-auto-remove-source="top">
+                <input type="checkbox" id="auto-remove-top" />
+                ТОП
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="requests">
+                <input type="checkbox" id="auto-remove-requests" />
+                Заявки
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi_moscow">
+                <input type="checkbox" id="auto-remove-dgi-moscow" />
+                ДГИ (г. Москва и Нет данных)
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi_private">
+                <input type="checkbox" id="auto-remove-dgi-private" />
+                ДГИ (Частная собственность)
             </label>
             <label class="modal-label auto-remove-option" data-auto-remove-source="renew">
-                Реновация
                 <input type="checkbox" id="auto-remove-renew" />
+                Реновация
             </label>
             <label class="modal-label auto-remove-option" data-auto-remove-source="oozt">
-                ООЗТ
                 <input type="checkbox" id="auto-remove-oozt" />
+                ООЗТ
             </label>
             <label class="modal-label auto-remove-option" data-auto-remove-source="rzd">
-                РЖД
                 <input type="checkbox" id="auto-remove-rzd" />
+                РЖД
             </label>
             <p id="auto-remove-no-layers" class="note" style="display:none; margin-top: 8px;">
                 Нет отображённых слоёв. Включите нужные слои в панели управления картой.
@@ -268,5 +293,6 @@
     </div>
     {{ oozt_geometry_json|default_if_none:"null"|json_script:"oozt-geometry-data" }}
     {{ rzd_geometry_json|default_if_none:"null"|json_script:"rzd-geometry-data" }}
+    {{ top_geometry_json|default_if_none:"null"|json_script:"top-geometry-data" }}
     
 {% endblock %}

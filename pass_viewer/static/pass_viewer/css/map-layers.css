@@ -100,6 +100,10 @@
     border-color: var(--pv-layer-odh);
     background: transparent;
 }
+.layer-panel-swatch--top {
+    border-color: var(--pv-layer-top);
+    background: var(--pv-layer-top-bg);
+}
 .layer-panel-swatch--dgi {
     border-color: #dc2626;
     border-style: dashed;

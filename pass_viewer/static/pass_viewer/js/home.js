@@ -199,6 +199,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (source === 'ОЗН' || source === 'ОО') {
                 return 'ОЗН';
             }
+            if (source === 'ТОП' || source === 'TOP') {
+                return 'ТОП';
+            }
             if (odsSourceLabelNorm && source === odsSourceLabelNorm) {
                 return odsSourceLabelNorm;
             }
@@ -276,6 +279,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (sourceLabel === 'ОЗН' || sourceLabel === 'ОО') {
                 return { color: '#16a34a', weight: 2.5, fillOpacity: 0.22, fillColor: '#86efac' };
+            }
+            if (sourceLabel === 'ТОП' || sourceLabel === 'TOP') {
+                return { color: '#ea580c', weight: 2.5, fillOpacity: 0.25, fillColor: '#fb923c' };
             }
             return { color: '#0284c7', weight: 2.5, fillOpacity: 0.3, fillColor: '#38bdf8' };
         }
@@ -1217,6 +1223,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const mergeTargetDtRadio = document.getElementById('merge-target-dt');
         const mergeTargetOdhRadio = document.getElementById('merge-target-odh');
         const mergeTargetOznRadio = document.getElementById('merge-target-ozn');
+        const mergeTargetTopRadio = document.getElementById('merge-target-top');
         const mergeTargetSourceFieldset = document.getElementById('merge-target-source-fieldset');
         const mergePassportsRequestIntro = document.getElementById('merge-passports-request-intro');
         const mergeGeometryDetailSimplified = document.getElementById('merge-geometry-detail-simplified');
@@ -1237,6 +1244,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (sourceLabel === 'ОЗН' || sourceLabel === 'ОО') {
                 return 'ОЗН';
+            }
+            if (sourceLabel === 'ТОП' || sourceLabel === 'TOP') {
+                return 'ТОП';
             }
             return 'ДТ';
         }
@@ -1309,6 +1319,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (mergeTargetOznRadio) {
                 mergeTargetOznRadio.checked = false;
             }
+            if (mergeTargetTopRadio) {
+                mergeTargetTopRadio.checked = false;
+            }
             mergeImplicitTargetSource = '';
             resetMergeTargetOptionRows();
             if (mergeGeometryDetailSimplified) {
@@ -1334,6 +1347,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (mergeTargetOznRadio) {
                 mergeTargetOznRadio.checked = false;
+            }
+            if (mergeTargetTopRadio) {
+                mergeTargetTopRadio.checked = false;
             }
             mergeImplicitTargetSource = '';
             if (mergeGeometryDetailSimplified) {

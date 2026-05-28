@@ -559,6 +559,15 @@ body.home--ogh-split-passport .owned-passport-row .owned-confirm-open-btn {
     border-color: #6ee7b7;
     background: #ecfdf5;
 }
+.source-badge--top {
+    color: #9a3412;
+    border-color: #fdba74;
+    background: #fff7ed;
+}
+.owned-map-legend__swatch--top {
+    background: var(--pv-layer-top-bg);
+    border-color: var(--pv-layer-top);
+}
 .source-badge--ods {
     color: #6b21a8;
     border-color: #d8b4fe;
