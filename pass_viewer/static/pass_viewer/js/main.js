@@ -1529,6 +1529,7 @@ function buildEditableDeletePopupHtml(baseHtml) {
                         geometry,
                         selected_sources: selectedSources,
                         source_label: selectedSourceLabel,
+                        type: cfg.page,
                         selected_geometry: selectedGeometry,
                         selected_row_ctid: selectedRowCtid || null,
                         selected_rootid: selectedRowCtid ? null : (selectedRootid || null),

@@ -1578,6 +1578,7 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
                         geometry,
                         selected_sources: selectedSources,
                         source_label: selectedSourceLabel,
+                        type: cfg.page,
                         selected_row_ctid: hasNewPolygon ? (selectedRowCtid || null) : null,
                         selected_rootid: hasNewPolygon ? (selectedRootid || null) : null,
                         selected_geometry: hasNewPolygon ? selectedGeometry : null,

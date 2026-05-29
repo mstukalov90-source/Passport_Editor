@@ -2739,7 +2739,7 @@ def _remove_intersections_from_geometry(
 ):
     geometry_norm = _to_intersection_geometry(geometry)
     if not geometry_norm:
-        return None
+        return None, 0.0
 
     source_tokens = {str(value).strip().lower() for value in (selected_sources or []) if str(value).strip()}
     allowed_tokens = {"dt", "odh", "ozn", "top", "requests", "dgi_moscow", "dgi_private", "renew", "oozt", "rzd"}
@@ -2749,7 +2749,7 @@ def _remove_intersections_from_geometry(
         if token in source_tokens and token in allowed_tokens
     ]
     if not requested_tokens:
-        return geometry_norm
+        return geometry_norm, 0.0
 
     selected_geometry_norm = _to_intersection_geometry(selected_geometry)
     selected_rootid_text = str(selected_rootid or "").strip()
@@ -2820,7 +2820,7 @@ def _remove_intersections_from_geometry(
             )
 
         if not union_parts:
-            return geometry_norm
+            return geometry_norm, 0.0
 
         query = (
             "WITH input AS ("
@@ -2845,18 +2845,355 @@ def _remove_intersections_from_geometry(
             "SELECT CASE "
             " WHEN r.geom IS NULL OR ST_IsEmpty(r.geom) THEN NULL "
             " ELSE ST_AsGeoJSON(r.geom)::text "
-            "END "
-            "FROM result r"
+            "END, "
+            "ROUND("
+            " GREATEST("
+            "   COALESCE(ST_Area(i.geom::geography), 0) - COALESCE(ST_Area(r.geom::geography), 0),"
+            "   0"
+            " )::numeric, 1) "
+            "FROM result r "
+            "CROSS JOIN input i"
         )
         cursor.execute(query, query_params)
         row = cursor.fetchone()
 
     if not row or not row[0]:
-        return None
+        return None, 0.0
     try:
-        return json.loads(row[0])
-    except (TypeError, json.JSONDecodeError):
-        return None
+        summ_m2 = float(row[1]) if row[1] is not None else 0.0
+        return json.loads(row[0]), summ_m2
+    except (TypeError, json.JSONDecodeError, ValueError):
+        return None, 0.0
+
+
+_AUTO_REMOVE_SQUARE_M2_DECIMALS = 1
+_AUTO_REMOVE_PAGE_TYPES = frozenset({"add_object", "main", "add_recap"})
+
+
+def _auto_remove_square_table_name():
+    return getattr(settings, "GIS_AUTO_REMOVE_SQUARE_TABLE", "auto_remove_square")
+
+
+def _float_area_m2(value):
+    if value is None:
+        return 0.0
+    return float(value)
+
+
+def _normalize_auto_remove_page_type(value):
+    page_type = str(value or "").strip().lower()
+    if page_type in _AUTO_REMOVE_PAGE_TYPES:
+        return page_type
+    return None
+
+
+def _auto_remove_source_tokens(selected_sources):
+    source_tokens = {str(value).strip().lower() for value in (selected_sources or []) if str(value).strip()}
+    allowed_tokens = {"dt", "odh", "ozn", "top", "requests", "dgi_moscow", "dgi_private", "renew", "oozt", "rzd"}
+    return [
+        token
+        for token in ("dt", "odh", "ozn", "top", "requests", "dgi_moscow", "dgi_private", "renew", "oozt", "rzd")
+        if token in source_tokens and token in allowed_tokens
+    ]
+
+
+def _auto_remove_mask_context(
+    source_label,
+    selected_geometry,
+    selected_rootid,
+    selected_request_id,
+    selected_row_ctid,
+):
+    selected_geometry_norm = _to_intersection_geometry(selected_geometry)
+    selected_geometry_json = json.dumps(selected_geometry_norm) if selected_geometry_norm else None
+    return {
+        "normalized_source": _normalize_source_label(source_label),
+        "selected_geometry_json": selected_geometry_json,
+        "selected_row_ctid_text": str(selected_row_ctid or "").strip(),
+        "selected_rootid_text": str(selected_rootid or "").strip(),
+        "selected_request_id_text": str(selected_request_id or "").strip(),
+    }
+
+
+def _append_auto_remove_mask_parts(
+    cursor,
+    requested_tokens,
+    union_parts,
+    query_params,
+    mask_context,
+    *,
+    allowed_tokens=None,
+    requests_table_names=None,
+):
+    if not requested_tokens:
+        return
+
+    token_filter = set(allowed_tokens) if allowed_tokens is not None else None
+    requests_tables_filter = set(requests_table_names) if requests_table_names is not None else None
+
+    token_to_table = {
+        "dt": settings.GIS_OBJECT_TABLE,
+        "odh": getattr(settings, "GIS_ODH_TABLE", "odh"),
+        "ozn": getattr(settings, "GIS_OZN_TABLE", "ozn"),
+        "dgi_moscow": getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        "dgi_private": getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        "renew": getattr(settings, "GIS_RENEW_TABLE", "renew"),
+        "oozt": getattr(settings, "GIS_OOZT_TABLE", "oozt"),
+        "rzd": getattr(settings, "GIS_RZD_TABLE", "rzd"),
+        "top": getattr(settings, "GIS_TOP_TABLE", "top"),
+    }
+    geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
+    request_id_field_pref = getattr(settings, "GIS_OBJECT_REQUEST_ID_FIELD", "request_id")
+
+    for token in requested_tokens:
+        if token_filter is not None and token not in token_filter:
+            continue
+        if token == "requests":
+            for table_name, table_source_label in _municipal_request_mask_tables():
+                if requests_tables_filter is not None and table_name not in requests_tables_filter:
+                    continue
+                if not _request_layer_source_ready(cursor, table_name, geom_field_pref, request_id_field_pref):
+                    continue
+                _append_intersection_mask_union_part(
+                    cursor,
+                    table_name,
+                    union_parts,
+                    query_params,
+                    table_source_label=table_source_label,
+                    extra_where_sql=_sql_gis_request_only_clause(cursor, table_name, "t"),
+                    **mask_context,
+                )
+            continue
+        table_name = token_to_table.get(token)
+        table_source_label = _token_to_municipal_source_label(token)
+        extra_where = ""
+        if token == "dgi_moscow":
+            extra_where = _sql_dgi_ownership_filter(cursor, table_name, "moscow")
+        elif token == "dgi_private":
+            extra_where = _sql_dgi_ownership_filter(cursor, table_name, "private")
+        _append_intersection_mask_union_part(
+            cursor,
+            table_name,
+            union_parts,
+            query_params,
+            table_source_label=table_source_label,
+            extra_where_sql=extra_where,
+            **mask_context,
+        )
+
+
+def _measure_mask_overlap_m2(cursor, union_parts, query_params, selected_geometry_json):
+    if not union_parts:
+        return 0.0
+    decimals = _AUTO_REMOVE_SQUARE_M2_DECIMALS
+    query = (
+        "WITH input AS ("
+        f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+        ")"
+        + (
+            f", selected AS ( SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom)"
+            if selected_geometry_json
+            else ""
+        )
+        + ", mask_parts AS ("
+        + " UNION ALL ".join(union_parts)
+        + "), overlap_parts AS ("
+        " SELECT ST_CollectionExtract(ST_Intersection(i.geom, mp.geom), 3) AS geom "
+        " FROM mask_parts mp "
+        " CROSS JOIN input i "
+        " WHERE mp.geom IS NOT NULL "
+        "   AND NOT ST_IsEmpty(mp.geom) "
+        "   AND ST_Intersects(i.geom, mp.geom)"
+        + "), overlap_union AS ("
+        " SELECT ST_UnaryUnion(ST_Collect(geom)) AS geom "
+        " FROM overlap_parts "
+        " WHERE geom IS NOT NULL AND NOT ST_IsEmpty(geom)"
+        ") "
+        "SELECT ROUND("
+        " COALESCE(ST_Area(geom::geography), 0)::numeric,"
+        f" {decimals}"
+        ") "
+        "FROM overlap_union "
+        "WHERE geom IS NOT NULL AND NOT ST_IsEmpty(geom)"
+    )
+    cursor.execute(query, query_params)
+    row = cursor.fetchone()
+    return _float_area_m2(row[0] if row else None)
+
+
+def _measure_summ_m2(cursor, geometry_json, cleaned_geometry_json):
+    decimals = _AUTO_REMOVE_SQUARE_M2_DECIMALS
+    query = (
+        "WITH input AS ("
+        f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+        "), result AS ("
+        f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+        "), removed AS ("
+        " SELECT ST_CollectionExtract("
+        "   ST_MakeValid(ST_Difference(i.geom, r.geom)),"
+        "   3"
+        " ) AS geom "
+        " FROM input i "
+        " CROSS JOIN result r"
+        ") "
+        "SELECT ROUND("
+        " COALESCE(ST_Area(geom::geography), 0)::numeric,"
+        f" {decimals}"
+        ") "
+        "FROM removed "
+        "WHERE geom IS NOT NULL AND NOT ST_IsEmpty(geom)"
+    )
+    cursor.execute(query, [geometry_json, cleaned_geometry_json])
+    row = cursor.fetchone()
+    if row and row[0] is not None:
+        return _float_area_m2(row[0])
+    query_fallback = (
+        "WITH input AS ("
+        f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+        "), result AS ("
+        f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+        ") "
+        "SELECT ROUND("
+        " GREATEST("
+        "   COALESCE(ST_Area(i.geom::geography), 0) - COALESCE(ST_Area(r.geom::geography), 0),"
+        "   0"
+        " )::numeric,"
+        f" {decimals}"
+        ") "
+        "FROM input i CROSS JOIN result r"
+    )
+    cursor.execute(query_fallback, [geometry_json, cleaned_geometry_json])
+    row = cursor.fetchone()
+    return _float_area_m2(row[0] if row else None)
+
+
+def _measure_auto_remove_squares_m2(
+    geometry,
+    cleaned_geometry,
+    selected_sources,
+    source_label="ДТ",
+    selected_geometry=None,
+    selected_rootid="",
+    selected_request_id="",
+    selected_row_ctid="",
+    summ_m2=None,
+):
+    geometry_norm = _to_intersection_geometry(geometry)
+    cleaned_norm = _to_intersection_geometry(cleaned_geometry)
+    if not geometry_norm or not cleaned_norm:
+        return {
+            "dt": 0.0,
+            "odh": 0.0,
+            "ozn": 0.0,
+            "top": 0.0,
+            "oozt": 0.0,
+            "dgi": 0.0,
+            "renew": 0.0,
+            "rzd": 0.0,
+            "summ": 0.0,
+        }
+
+    requested_tokens = _auto_remove_source_tokens(selected_sources)
+    if not requested_tokens:
+        return {
+            "dt": 0.0,
+            "odh": 0.0,
+            "ozn": 0.0,
+            "top": 0.0,
+            "oozt": 0.0,
+            "dgi": 0.0,
+            "renew": 0.0,
+            "rzd": 0.0,
+            "summ": 0.0,
+        }
+
+    geometry_json = json.dumps(geometry_norm)
+    cleaned_geometry_json = json.dumps(cleaned_norm)
+    mask_context = _auto_remove_mask_context(
+        source_label,
+        selected_geometry,
+        selected_rootid,
+        selected_request_id,
+        selected_row_ctid,
+    )
+    selected_geometry_json = mask_context["selected_geometry_json"]
+
+    dt_table = settings.GIS_OBJECT_TABLE
+    odh_table = getattr(settings, "GIS_ODH_TABLE", "odh")
+    ozn_table = getattr(settings, "GIS_OZN_TABLE", "ozn")
+    top_table = getattr(settings, "GIS_TOP_TABLE", "top")
+
+    column_specs = {
+        "dt": ({"dt", "requests"}, {dt_table}),
+        "odh": ({"odh", "requests"}, {odh_table}),
+        "ozn": ({"ozn", "requests"}, {ozn_table}),
+        "top": ({"top", "requests"}, {top_table}),
+        "oozt": ({"oozt"}, None),
+        "dgi": ({"dgi_moscow", "dgi_private"}, None),
+        "renew": ({"renew"}, None),
+        "rzd": ({"rzd"}, None),
+    }
+
+    areas = {key: 0.0 for key in ("dt", "odh", "ozn", "top", "oozt", "dgi", "renew", "rzd", "summ")}
+
+    with connection.cursor() as cursor:
+        if summ_m2 is not None:
+            areas["summ"] = _float_area_m2(summ_m2)
+        else:
+            areas["summ"] = _measure_summ_m2(cursor, geometry_json, cleaned_geometry_json)
+
+        for column_key, (allowed, requests_tables) in column_specs.items():
+            union_parts = []
+            query_params = [geometry_json]
+            if selected_geometry_json:
+                query_params.append(selected_geometry_json)
+            _append_auto_remove_mask_parts(
+                cursor,
+                requested_tokens,
+                union_parts,
+                query_params,
+                mask_context,
+                allowed_tokens=allowed,
+                requests_table_names=requests_tables,
+            )
+            areas[column_key] = _measure_mask_overlap_m2(
+                cursor, union_parts, query_params, selected_geometry_json
+            )
+
+    return areas
+
+
+def _insert_auto_remove_square(username, owner_legal_person_id, areas, page_type=None):
+    table = _auto_remove_square_table_name()
+    with connection.cursor() as cursor:
+        if not _table_exists(cursor, table):
+            logger.warning("_insert_auto_remove_square: table %s not found", table)
+            return False
+        t = _quote_ident(table)
+        cursor.execute(
+            f"""
+            INSERT INTO {t} (
+                "user", ownerlegalpersonalid, "type",
+                dt, odh, ozn, top, oozt, dgi, renew, rzd, summ
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            [
+                username,
+                str(owner_legal_person_id) if owner_legal_person_id is not None else None,
+                page_type,
+                areas.get("dt", 0.0),
+                areas.get("odh", 0.0),
+                areas.get("ozn", 0.0),
+                areas.get("top", 0.0),
+                areas.get("oozt", 0.0),
+                areas.get("dgi", 0.0),
+                areas.get("renew", 0.0),
+                areas.get("rzd", 0.0),
+                areas.get("summ", 0.0),
+            ],
+        )
+    return True
 
 
 def _to_geojson_geometry(geometry):
@@ -4474,9 +4811,10 @@ def auto_remove_intersections(request):
     selected_rootid = (payload.get("selected_rootid") or "").strip()
     selected_request_id = (payload.get("selected_request_id") or "").strip()
     selected_row_ctid = (payload.get("selected_row_ctid") or "").strip()
+    page_type = _normalize_auto_remove_page_type(payload.get("type") or payload.get("page"))
 
     try:
-        cleaned_geometry = _remove_intersections_from_geometry(
+        cleaned_geometry, summ_m2 = _remove_intersections_from_geometry(
             geometry,
             selected_sources=selected_sources,
             source_label=source_label,
@@ -4490,6 +4828,24 @@ def auto_remove_intersections(request):
         return JsonResponse(
             {"ok": False, "error": "Не удалось выполнить автоматическое удаление пересечений."}, status=500
         )
+
+    if cleaned_geometry is not None:
+        try:
+            areas = _measure_auto_remove_squares_m2(
+                geometry,
+                cleaned_geometry,
+                selected_sources=selected_sources,
+                source_label=source_label,
+                selected_geometry=selected_geometry,
+                selected_rootid=selected_rootid,
+                selected_request_id=selected_request_id,
+                selected_row_ctid=selected_row_ctid,
+                summ_m2=summ_m2,
+            )
+            owner_id = _get_current_user_owner_id(request.user.username)
+            _insert_auto_remove_square(request.user.username, owner_id, areas, page_type=page_type)
+        except Exception:
+            logger.exception("auto_remove_intersections: failed recording removed areas")
 
     return JsonResponse({"ok": True, "geometry": cleaned_geometry})
 
