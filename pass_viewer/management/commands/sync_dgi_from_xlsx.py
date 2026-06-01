@@ -81,21 +81,11 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                "Rows in file (unique descr): %(rows_seen)s; skipped (empty descr): %(skipped_empty_descr)s; "
-                "duplicate descr in file (last wins): %(duplicate_descr_in_file)s; "
-                "batches: %(batches)s; updated: %(updated)s; inserted: %(inserted)s; "
-                "inserted with placeholder geom: %(inserted_placeholder_geom)s; "
-                "approx. no DB match on update: %(no_match)s."
-                % {
-                    "rows_seen": stats.rows_seen,
-                    "skipped_empty_descr": stats.skipped_empty_descr,
-                    "duplicate_descr_in_file": stats.duplicate_descr_in_file,
-                    "batches": stats.batches,
-                    "updated": stats.updated,
-                    "inserted": stats.inserted,
-                    "inserted_placeholder_geom": stats.inserted_placeholder_geom,
-                    "no_match": stats.no_match,
-                }
+                f"Rows in file (unique descr): {stats.rows_seen}; skipped (empty descr): {stats.skipped_empty_descr}; "
+                f"duplicate descr in file (last wins): {stats.duplicate_descr_in_file}; "
+                f"batches: {stats.batches}; updated: {stats.updated}; inserted: {stats.inserted}; "
+                f"inserted with placeholder geom: {stats.inserted_placeholder_geom}; "
+                f"approx. no DB match on update: {stats.no_match}."
             )
         )
         if stats.inserted_placeholder_geom and not dry_run:

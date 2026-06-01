@@ -10,7 +10,7 @@ Examples:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from django.conf import settings
@@ -55,9 +55,9 @@ class Command(BaseCommand):
         for path in export_root.rglob("*"):
             if not path.is_file():
                 continue
-            mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=dt_timezone.utc)
+            mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
             if timezone.is_naive(mtime):
-                mtime = timezone.make_aware(mtime, dt_timezone.utc)
+                mtime = timezone.make_aware(mtime, UTC)
             if mtime < cutoff:
                 stale_files.append(path)
 
