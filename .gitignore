@@ -142,3 +142,4 @@ docs/
 *.json
 *.geojson
 *.xlsx
+SECURITY.md

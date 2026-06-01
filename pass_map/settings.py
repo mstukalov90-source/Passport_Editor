@@ -186,6 +186,7 @@ GIS_OOZT_TABLE = os.getenv("GIS_OOZT_TABLE", "oozt")
 GIS_RZD_TABLE = os.getenv("GIS_RZD_TABLE", "rzd")
 GIS_TOP_TABLE = os.getenv("GIS_TOP_TABLE", "top")
 GIS_TOP_SOURCE_LABEL = os.getenv("GIS_TOP_SOURCE_LABEL", "ТОП")
+GIS_AUTO_REMOVE_SQUARE_TABLE = os.getenv("GIS_AUTO_REMOVE_SQUARE_TABLE", "auto_remove_square")
 try:
     GIS_ADJACENT_NEARBY_METERS = float(os.getenv("GIS_ADJACENT_NEARBY_METERS", "100"))
 except (TypeError, ValueError):

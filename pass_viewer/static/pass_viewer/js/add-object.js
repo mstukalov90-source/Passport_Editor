@@ -1795,7 +1795,8 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     body: JSON.stringify({
                         geometry,
                         selected_sources: selectedSources,
-                        source_label: selectedSourceLabel
+                        source_label: selectedSourceLabel,
+                        type: cfg.page,
                     })
                 });
                 const data = await response.json();
