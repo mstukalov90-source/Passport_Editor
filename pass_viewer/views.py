@@ -16,7 +16,7 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_POST
 from osgeo import gdal, ogr, osr
 
-from .dgi_layers import build_dgi_ownership_extra_sql
+from .dgi_layers import build_dgi_ownership_extra_sql, finalize_dgi_aprove_record, normalize_dgi_aprove_payload
 from .forms import EntryPointForm
 from .hood_scope import (
     geometry_intersects_allowed_hood,
@@ -2614,7 +2614,7 @@ def _get_new_object_relations(geometry, source_label="ДТ", request_id_filter=N
     }
 
 
-def _get_dgi_intersection_percent(geometry):
+def _get_dgi_intersection_percent(geometry, extra_where_sql: str = ""):
     dgi_table = getattr(settings, "GIS_DGI_TABLE", "dgi")
     geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
     geometry_json = json.dumps(geometry)
@@ -2631,6 +2631,7 @@ def _get_dgi_intersection_percent(geometry):
             f" FROM {_quote_ident(dgi_table)} d, input i"
             f" WHERE ST_Intersects(d.{_quote_ident(geom_field)}, i.geom)"
             f"{hood_suf}"
+            f"{extra_where_sql}"
             "), overlap AS ("
             " SELECT ST_Area(COALESCE(ST_UnaryUnion(ST_Collect(geom)), ST_GeomFromText('POLYGON EMPTY', 4326))::geography) AS overlap_area"
             " FROM dgi_intersections"
@@ -2644,6 +2645,17 @@ def _get_dgi_intersection_percent(geometry):
         cursor.execute(query, [geometry_json] + hood_params)
         row = cursor.fetchone()
         return float(row[0]) if row and row[0] is not None else 0.0
+
+
+def _get_dgi_intersection_percents_split(geometry):
+    dgi_table = getattr(settings, "GIS_DGI_TABLE", "dgi")
+    with connection.cursor() as cursor:
+        moscow_where = _sql_dgi_ownership_filter(cursor, dgi_table, "moscow", table_alias="d")
+        private_where = _sql_dgi_ownership_filter(cursor, dgi_table, "private", table_alias="d")
+    return {
+        "moscow": _get_dgi_intersection_percent(geometry, moscow_where),
+        "private": _get_dgi_intersection_percent(geometry, private_where),
+    }
 
 
 def _is_meaningful_gis_rootid(rootid):
@@ -3392,7 +3404,22 @@ def _ensure_request_id_column(cursor, table_name, request_id_field):
     )
 
 
-def _create_new_object(username, geometry, name, request_id, source_label="ДТ", replace_row_ctid=None):
+DGI_APROVE_COLUMN = "dgi_aprove"
+
+
+def _dgi_aprove_column_exists(cursor, table_name):
+    return _column_exists(cursor, table_name, DGI_APROVE_COLUMN)
+
+
+def _create_new_object(
+    username,
+    geometry,
+    name,
+    request_id,
+    source_label="ДТ",
+    replace_row_ctid=None,
+    dgi_aprove=None,
+):
     owner_id = _get_current_user_owner_id(username)
     if owner_id is None:
         raise ValueError("Не найден OwnerLegalPersonId пользователя в таблице users.")
@@ -3424,6 +3451,11 @@ def _create_new_object(username, geometry, name, request_id, source_label="ДТ"
         if _table_requires_multipolygon_geom(table):
             _validate_multipolygon_geometry_for_storage(cursor, geometry_json)
         geom_sql = _geojson_geom_sql_for_table(table)
+        dgi_aprove_json = json.dumps(dgi_aprove) if dgi_aprove else None
+        write_dgi_aprove = bool(dgi_aprove_json and _dgi_aprove_column_exists(cursor, table))
+        dgi_aprove_set_sql = (
+            f", {_quote_ident(DGI_APROVE_COLUMN)} = %s::jsonb" if write_dgi_aprove else ""
+        )
 
         if replace_tid and request_id_norm:
             cursor.execute(
@@ -3434,43 +3466,64 @@ def _create_new_object(username, geometry, name, request_id, source_label="ДТ"
             rid_row = cursor.fetchone()
             stored_rid = str(rid_row[0] or "").strip() if rid_row else ""
             if rid_row is not None and stored_rid and stored_rid == request_id_norm:
+                update_params = [name, geometry_json]
+                if write_dgi_aprove:
+                    update_params.append(dgi_aprove_json)
+                update_params.extend([replace_tid, owner_id])
                 cursor.execute(
                     f"UPDATE {_quote_ident(table)} SET "
                     f"{_quote_ident(name_field)} = %s, "
-                    f"{_quote_ident(geom_field)} = {geom_sql} "
+                    f"{_quote_ident(geom_field)} = {geom_sql}"
+                    f"{dgi_aprove_set_sql} "
                     f"WHERE ctid = %s::tid AND {_quote_ident(owner_field)} = %s",
-                    [name, geometry_json, replace_tid, owner_id],
+                    update_params,
                 )
                 if cursor.rowcount < 1:
                     raise ValueError("Не удалось обновить строку: нет доступа или запись не найдена.")
                 return owner_id
 
         if request_id_norm:
+            update_params = [name, geometry_json]
+            if write_dgi_aprove:
+                update_params.append(dgi_aprove_json)
+            update_params.extend([request_id_norm, owner_id])
             cursor.execute(
                 f"UPDATE {_quote_ident(table)} SET "
                 f"{_quote_ident(name_field)} = %s, "
-                f"{_quote_ident(geom_field)} = {geom_sql} "
+                f"{_quote_ident(geom_field)} = {geom_sql}"
+                f"{dgi_aprove_set_sql} "
                 f"WHERE {_quote_ident(request_id_field)}::text = %s "
                 f"  AND {_quote_ident(owner_field)} = %s",
-                [name, geometry_json, request_id_norm, owner_id],
+                update_params,
             )
             if cursor.rowcount > 0:
                 return owner_id
 
+        insert_cols = [
+            rootid_field,
+            name_field,
+            owner_field,
+            request_id_field,
+            geom_field,
+        ]
+        insert_vals = ["%s", "%s", "%s", "%s", geom_sql]
+        insert_params = [None, name, owner_id, request_id, geometry_json]
+        if write_dgi_aprove:
+            insert_cols.append(DGI_APROVE_COLUMN)
+            insert_vals.append("%s::jsonb")
+            insert_params.append(dgi_aprove_json)
         insert_query = (
             f"INSERT INTO {_quote_ident(table)} ("
-            f"{_quote_ident(rootid_field)}, "
-            f"{_quote_ident(name_field)}, "
-            f"{_quote_ident(owner_field)}, "
-            f"{_quote_ident(request_id_field)}, "
-            f"{_quote_ident(geom_field)}"
-            f") VALUES (%s, %s, %s, %s, {geom_sql})"
+            + ", ".join(_quote_ident(c) for c in insert_cols)
+            + ") VALUES ("
+            + ", ".join(insert_vals)
+            + ")"
         )
-        cursor.execute(insert_query, [None, name, owner_id, request_id, geometry_json])
+        cursor.execute(insert_query, insert_params)
     return owner_id
 
 
-def _create_recap_object(username, geometry, name, request_id, recap_id):
+def _create_recap_object(username, geometry, name, request_id, recap_id, dgi_aprove=None):
     owner_id = _get_current_user_owner_id(username)
     if owner_id is None:
         raise ValueError("Не найден OwnerLegalPersonId пользователя в таблице users.")
@@ -3495,17 +3548,30 @@ def _create_recap_object(username, geometry, name, request_id, recap_id):
 
         _ensure_request_id_column(cursor, table, request_id_field)
 
+        dgi_aprove_json = json.dumps(dgi_aprove) if dgi_aprove else None
+        write_dgi_aprove = bool(dgi_aprove_json and _dgi_aprove_column_exists(cursor, table))
+        insert_cols = [
+            "recap_id",
+            rootid_field,
+            name_field,
+            owner_field,
+            request_id_field,
+            geom_field,
+        ]
+        insert_vals = ["%s", "%s", "%s", "%s", "%s", _sql_geojson_param_as_valid_geom2d()]
+        insert_params = [recap_id, None, name, owner_id, request_id, json.dumps(geometry)]
+        if write_dgi_aprove:
+            insert_cols.append(DGI_APROVE_COLUMN)
+            insert_vals.append("%s::jsonb")
+            insert_params.append(dgi_aprove_json)
         insert_query = (
             f"INSERT INTO {_quote_ident(table)} ("
-            f"{_quote_ident('recap_id')}, "
-            f"{_quote_ident(rootid_field)}, "
-            f"{_quote_ident(name_field)}, "
-            f"{_quote_ident(owner_field)}, "
-            f"{_quote_ident(request_id_field)}, "
-            f"{_quote_ident(geom_field)}"
-            f") VALUES (%s, %s, %s, %s, %s, {_sql_geojson_param_as_valid_geom2d()})"
+            + ", ".join(_quote_ident(c) for c in insert_cols)
+            + ") VALUES ("
+            + ", ".join(insert_vals)
+            + ")"
         )
-        cursor.execute(insert_query, [recap_id, None, name, owner_id, request_id, json.dumps(geometry)])
+        cursor.execute(insert_query, insert_params)
     return owner_id
 
 
@@ -3519,12 +3585,12 @@ def _check_recap_uniqueness(recap_id):
     return recap_exists
 
 
-def _sql_dgi_ownership_filter(cursor, table_name: str, ownership: str) -> str:
+def _sql_dgi_ownership_filter(cursor, table_name: str, ownership: str, *, table_alias: str = "t") -> str:
     """``ownership``: ``moscow`` | ``private`` — filter on short_sobstv_rr for table ``dgi``."""
     if not _column_exists(cursor, table_name, "short_sobstv_rr"):
         return " AND FALSE" if ownership == "moscow" else ""
     col_name = _resolve_column_name(cursor, table_name, "short_sobstv_rr")
-    col_expr = f"t.{_quote_ident(col_name)}"
+    col_expr = f"{table_alias}.{_quote_ident(col_name)}"
     return build_dgi_ownership_extra_sql(col_expr, ownership)
 
 
@@ -4366,6 +4432,11 @@ def save_new_object(request):
             {"ok": False, "error": "Номер заявки (request_id) должен содержать только цифры."}, status=400
         )
 
+    dgi_aprove = finalize_dgi_aprove_record(
+        normalize_dgi_aprove_payload(payload.get("dgi_aprove"), request.user.username),
+        request.user.username,
+    )
+
     try:
         owner_id = _create_new_object(
             username=request.user.username,
@@ -4374,6 +4445,7 @@ def save_new_object(request):
             request_id=request_id,
             source_label=source_label,
             replace_row_ctid=replace_row_ctid or None,
+            dgi_aprove=dgi_aprove,
         )
     except ValueError as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
@@ -4420,6 +4492,11 @@ def save_recap_object(request):
     if recap_exists:
         return JsonResponse({"ok": False, "error": "Номер досъёма (recap_id) уже существует."}, status=400)
 
+    dgi_aprove = finalize_dgi_aprove_record(
+        normalize_dgi_aprove_payload(payload.get("dgi_aprove"), request.user.username),
+        request.user.username,
+    )
+
     try:
         owner_id = _create_recap_object(
             username=request.user.username,
@@ -4427,6 +4504,7 @@ def save_recap_object(request):
             name=name,
             request_id=request_id,
             recap_id=recap_id,
+            dgi_aprove=dgi_aprove,
         )
     except ValueError as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
@@ -4772,22 +4850,34 @@ def check_dgi_intersections(request):
     if not isinstance(geometry, dict):
         return JsonResponse({"ok": False, "error": "Геометрия не передана."}, status=400)
 
+    for_export = bool(payload.get("for_export"))
+
     try:
-        percent = _get_dgi_intersection_percent(geometry)
+        percents = _get_dgi_intersection_percents_split(geometry)
     except Exception:
+        logger.exception("check_dgi_intersections: percent calculation failed")
+        if for_export:
+            return JsonResponse({"ok": True, "available": False})
         return JsonResponse(
             {"ok": False, "error": "Не удалось вычислить пересечение с объектами ДГИ."},
             status=500,
         )
 
-    percent_rounded = round(percent, 2)
-    return JsonResponse(
-        {
-            "ok": True,
-            "intersects": percent_rounded > 0,
-            "percent": percent_rounded,
-        }
-    )
+    percent_moscow = round(percents["moscow"], 2)
+    percent_private = round(percents["private"], 2)
+    intersects_moscow = percent_moscow > 0
+    intersects_private = percent_private > 0
+    response = {
+        "ok": True,
+        "intersects": intersects_moscow or intersects_private,
+        "percent_moscow": percent_moscow,
+        "percent_private": percent_private,
+        "intersects_moscow": intersects_moscow,
+        "intersects_private": intersects_private,
+    }
+    if for_export:
+        response["available"] = True
+    return JsonResponse(response)
 
 
 @login_required

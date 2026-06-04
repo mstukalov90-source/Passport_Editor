@@ -8,7 +8,6 @@
     const normalizeGeoJson = PV.normalizeGeoJson.bind(PV);
     const toEditableFeatureCollection = PV.toEditableFeatureCollection.bind(PV);
     const mergeAdjacentDtPassportsGeoJson = PV.mergeAdjacentDtPassportsGeoJson.bind(PV);
-    const filterPassportOnlyGeoJson = PV.filterPassportOnlyGeoJson.bind(PV);
     const escapeHtml = PV.escapeHtml.bind(PV);
     const pickPopupProperty = PV.pickPopupProperty.bind(PV);
     const formatPopupDateToDay = PV.formatPopupDateToDay.bind(PV);
@@ -17,8 +16,7 @@
     const buildObjectPopup = PV.buildObjectPopup.bind(PV);
     const buildPdfIntersectionPopupHtml = PV.buildPdfIntersectionPopupHtml.bind(PV);
 
-const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.61], 12);
-        const signalTapeRenderer = L.svg({padding: 0.5});
+const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
@@ -80,8 +78,58 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             clearPopupHighlight();
         });
 
-        PV.attachBasemapControl(map);
+        const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxNativeZoom: 19,
+            maxZoom: 30,
+            attribution: '&copy; OpenStreetMap contributors'
+        });
+        const satelliteLayer = L.tileLayer(
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            {
+                maxNativeZoom: 19,
+                maxZoom: 30,
+                attribution: 'Tiles &copy; Esri'
+            }
+        );
+        topoLayer.addTo(map);
 
+        const basemapControl = L.control({position: 'topright'});
+        basemapControl.onAdd = function () {
+            const container = L.DomUtil.create('div', 'map-basemap-control');
+            container.innerHTML =
+                '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
+                '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
+                '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
+            L.DomEvent.disableClickPropagation(container);
+            return container;
+        };
+        basemapControl.addTo(map);
+
+        function setBasemap(mode) {
+            const removeBasemapLayers = () => {
+                if (map.hasLayer(topoLayer)) {
+                    map.removeLayer(topoLayer);
+                }
+                if (map.hasLayer(satelliteLayer)) {
+                    map.removeLayer(satelliteLayer);
+                }
+            };
+            if (mode === 'none') {
+                removeBasemapLayers();
+            } else if (mode === 'topo') {
+                removeBasemapLayers();
+                map.addLayer(topoLayer);
+            } else if (mode === 'sat') {
+                removeBasemapLayers();
+                map.addLayer(satelliteLayer);
+            }
+            document.querySelectorAll('.map-basemap-btn').forEach((btn) => {
+                btn.classList.toggle('is-active', btn.dataset.map === mode);
+            });
+        }
+        map.getContainer().querySelectorAll('.map-basemap-btn').forEach((btn) => {
+            btn.addEventListener('click', () => setBasemap(btn.dataset.map));
+        });
         const editButton = document.getElementById('edit-geometry-btn');
         const addPolygonButton = document.getElementById('add-polygon-btn');
         const cutPolygonButton = document.getElementById('cut-polygon-btn');
@@ -109,7 +157,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const snapDebugEl = {set textContent(_) {}};
         const snapDebugFixedEl = {set textContent(_) {}};
         const exportLinksEl = document.getElementById('export-links');
-        const PdfExport = PV.PdfExport;
         const selectedSourceLabel = cfg.selectedSourceLabel || "ДТ";
         const selectedRootid = cfg.selectedRootid || "";
         const effectiveEntryRequestId = cfg.effectiveRequestId || "";
@@ -119,13 +166,14 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const newObjectNameInput = document.getElementById('new-object-name');
         const newObjectRequestIdInput = document.getElementById('new-object-request-id');
         const saveModalErrorEl = document.getElementById('save-modal-error');
-        const saveModalSuccessEl = document.getElementById('save-modal-success');
-        const saveModalFixPolygon = document.getElementById('save-modal-fix-polygon');
-        const mps = PV.multipolygonSave || {};
+        const saveModalDgiWarning = document.getElementById('save-modal-dgi-warning');
+        const dgiExportConfirmModal = document.getElementById('dgi-export-confirm-modal');
+        const dgiExportConfirmAgree = document.getElementById('dgi-export-confirm-agree');
+        const dgiExportConfirmBack = document.getElementById('dgi-export-confirm-back');
+        let pendingDgiApprove = null;
         const saveTargetDtRadio = document.getElementById('save-target-dt');
         const saveTargetOdhRadio = document.getElementById('save-target-odh');
         const saveTargetOznRadio = document.getElementById('save-target-ozn');
-        const saveTargetTopRadio = document.getElementById('save-target-top');
         const autoRemoveModal = document.getElementById('auto-remove-modal');
         const autoRemoveModalCancel = document.getElementById('auto-remove-modal-cancel');
         const autoRemoveModalSubmit = document.getElementById('auto-remove-modal-submit');
@@ -135,12 +183,11 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
         const autoRemoveDgiMoscowCheckbox = document.getElementById('auto-remove-dgi-moscow');
         const autoRemoveDgiPrivateCheckbox = document.getElementById('auto-remove-dgi-private');
-        const autoRemoveRenewCheckbox = document.getElementById('auto-remove-renew');
-        const autoRemoveTopCheckbox = document.getElementById('auto-remove-top');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
-        const autoRemoveRequestsCheckbox = document.getElementById('auto-remove-requests');
-        const autoRemoveNoLayersEl = document.getElementById('auto-remove-no-layers');
+        const checkDgiModal = document.getElementById('check-dgi-modal');
+        const checkDgiModalBody = document.getElementById('check-dgi-modal-body');
+        const checkDgiModalClose = document.getElementById('check-dgi-modal-close');
         const dbLoadingModal = document.getElementById('db-loading-modal');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
         const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
@@ -159,7 +206,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const odhSignalGroup = L.featureGroup().addTo(map);
         const oznSignalGroup = L.featureGroup().addTo(map);
         const renewGroup = L.featureGroup().addTo(map);
-        const topSignalGroup = L.featureGroup().addTo(map);
         const ooztSignalGroup = L.featureGroup().addTo(map);
         const rzdSignalGroup = L.featureGroup().addTo(map);
         const recapsGroup = L.featureGroup().addTo(map);
@@ -479,7 +525,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             dt: relationAdjacentDtPassportsGroup,
             oo: oznSignalGroup,
             odh: odhSignalGroup,
-            top: topSignalGroup,
             dgi_moscow: dgiMoscowSignalGroup,
             dgi_private: dgiPrivateSignalGroup,
             renew: renewGroup,
@@ -490,7 +535,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             comments: commentPointsGroup,
         };
         const layerGroups = {
-            municipal: ['selected', 'dt', 'oo', 'odh', 'top'],
+            municipal: ['selected', 'dt', 'oo', 'odh'],
             requests: ['requests', 'recaps', 'comments'],
             external: ['dgi_moscow', 'dgi_private', 'renew', 'oozt', 'rzd'],
         };
@@ -533,7 +578,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 dt: countGroupFeatures(relationAdjacentDtPassportsGroup),
                 oo: countGroupFeatures(oznSignalGroup),
                 odh: countGroupFeatures(odhSignalGroup),
-                top: countGroupFeatures(topSignalGroup),
                 dgi_moscow: countGroupFeatures(dgiMoscowSignalGroup),
                 dgi_private: countGroupFeatures(dgiPrivateSignalGroup),
                 renew: countGroupFeatures(renewGroup),
@@ -579,9 +623,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 return;
             }
             const ensureSignalPattern = (patternId, stripeColorHex, backgroundColorHex) => {
-                const svg =
-                    (signalTapeRenderer._container && signalTapeRenderer._container.ownerSVGElement) ||
-                    map.getPanes().overlayPane.querySelector('svg');
+                const svg = map.getPanes().overlayPane.querySelector('svg');
                 if (!svg) {
                     return null;
                 }
@@ -632,7 +674,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 }).addTo(targetGroup);
             }
             L.geoJSON(geo, {
-                ...(isSignalTape ? {renderer: signalTapeRenderer} : {}),
                 style: {
                     color: isOdh ? '#00bfff' : (isOzn || isOozt) ? '#16a34a' : isRenew ? '#b45309' : '#dc2626',
                     weight: 4,
@@ -683,7 +724,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                         const descr = feature?.properties?.descr ?? '-';
                         const address = feature?.properties?.address ?? '-';
                         const vri = feature?.properties?.vri ?? '-';
-                        const sobstvRrDisplay = PV.formatDgiShortSobstvRr(feature?.properties?.short_sobstv_rr);
+                        const sobstvRrDisplay = formatDgiShortSobstvRr(feature?.properties?.short_sobstv_rr);
                         const descrText = String(descr ?? '').trim();
                         const addressText = String(address ?? '').trim();
                         const vriText = String(vri ?? '').trim();
@@ -789,25 +830,11 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         function renderReferenceSignalLayers(dgiMoscowGeo, dgiPrivateGeo, odhGeo, oznGeo) {
             addSignalTapeLayer(dgiMoscowSignalGroup, dgiMoscowGeo, 'ДГИ');
             addSignalTapeLayer(dgiPrivateSignalGroup, dgiPrivateGeo, 'ДГИ');
-            addSignalTapeLayer(odhSignalGroup, filterPassportOnlyGeoJson(odhGeo), 'ОДХ');
-            addSignalTapeLayer(oznSignalGroup, filterPassportOnlyGeoJson(oznGeo), 'ОЗН');
+            addSignalTapeLayer(odhSignalGroup, odhGeo, 'ОДХ');
+            addSignalTapeLayer(oznSignalGroup, oznGeo, 'ОЗН');
         }
         function renderRenewLayer(renewGeo) {
             addSignalTapeLayer(renewGroup, renewGeo, 'Реновация');
-        }
-
-        function renderTopLayer(topGeo) {
-            topSignalGroup.clearLayers();
-            const geo = normalizeGeoJson(filterPassportOnlyGeoJson(topGeo));
-            if (!geo) {
-                return;
-            }
-            L.geoJSON(geo, {
-                style: {color: '#ea580c', weight: 2, fillColor: '#fb923c', fillOpacity: 0.25},
-                onEachFeature: (feature, layer) => {
-                    layer.bindPopup(buildObjectPopup(feature.properties || {}));
-                }
-            }).addTo(topSignalGroup);
         }
 
         function renderRecapsLayer(recapsGeo) {
@@ -845,6 +872,17 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         // They are requested and shown only after the user creates the first object.
 
         
+        function formatDgiShortSobstvRr(value) {
+            const raw = String(value ?? '').trim();
+            if (!raw || ['null', 'none', '-'].includes(raw.toLowerCase())) {
+                return '';
+            }
+            if (raw.toUpperCase() === 'ЧС') {
+                return 'Частная собственность';
+            }
+            return raw;
+        }
+
         
         
         
@@ -878,47 +916,22 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             });
         }
 
-        let pendingRepairedGeometryForSave = null;
+        function buildCurrentGeometry() {
+            const featureCollection = editableGroup.toGeoJSON();
+            const geometries = (featureCollection.features || [])
+                .map((feature) => feature.geometry)
+                .filter((geometry) => geometry && (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon'));
 
-        function clearPendingRepairedGeometry() {
-            pendingRepairedGeometryForSave = null;
-        }
-
-        function exportGeometryFromRaw(geometry) {
-            const editableGeo = toEditableFeatureCollection(geometry);
-            if (!editableGeo || !editableGeo.features.length) {
+            if (!geometries.length) {
                 return null;
             }
-            return buildExportGeometry(editableGeo);
-        }
-
-        function getEditableGeometryForSave() {
-            if (pendingRepairedGeometryForSave) {
-                return pendingRepairedGeometryForSave;
+            if (geometries.length === 1) {
+                return geometries[0];
             }
-            const resumeEditToolbar = !!(editToolbar && isEditing);
-            if (editToolbar) {
-                editToolbar.disable();
-            }
-            let result = null;
-            const layerGeometries = mps.readGeometriesFromLeafletGroup
-                ? mps.readGeometriesFromLeafletGroup(editableGroup)
-                : [];
-            if (layerGeometries.length) {
-                result = mps.mergePolygonGeometriesForExport(layerGeometries);
-            }
-            if (!result) {
-                const featureCollection = editableGroup.toGeoJSON();
-                result = buildExportGeometry(featureCollection);
-            }
-            if (resumeEditToolbar && editToolbar) {
-                editToolbar.enable();
-            }
-            return result;
-        }
-
-        function buildCurrentGeometry() {
-            return getEditableGeometryForSave();
+            return {
+                type: 'GeometryCollection',
+                geometries: geometries
+            };
         }
 
         function clearRelationLayers() {
@@ -947,7 +960,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             closeCommentPointModal();
 
             editableGroup.clearLayers();
-            clearPendingRepairedGeometry();
 
             clearPopupHighlight();
             map.closePopup();
@@ -1029,7 +1041,8 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
 
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
-            [relationAdjacentDtPassportsGroup, relationRequestObjectsGroup, dgiMoscowSignalGroup, dgiPrivateSignalGroup, odhSignalGroup, oznSignalGroup, topSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
+            [relationAdjacentDtPassportsGroup, relationRequestObjectsGroup, dgiMoscowSignalGroup,
+                dgiPrivateSignalGroup, odhSignalGroup, oznSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
@@ -1490,7 +1503,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 recaps: normalizeGeoJson(layers.recaps),
                 oozt: normalizeGeoJson(layers.oozt),
                 rzd: normalizeGeoJson(layers.rzd),
-                top: normalizeGeoJson(layers.top),
             };
             parsed.odh = filterOutSelectedRootid(parsed.odh, selectedRootid);
             parsed.ozn = filterOutSelectedRootid(parsed.ozn, selectedRootid);
@@ -1517,7 +1529,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             renderRenewLayer(parsed.renew);
             addSignalTapeLayer(ooztSignalGroup, parsed.oozt, 'ООЗТ');
             addSignalTapeLayer(rzdSignalGroup, parsed.rzd, 'РЖД');
-            renderTopLayer(parsed.top);
             refreshObjectLayersControl();
             rebuildSnapGuideLines();
             if (isEditing) {
@@ -1572,6 +1583,26 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             checkRelations();
         });
 
+        function closeCheckDgiModal() {
+            if (checkDgiModal) {
+                checkDgiModal.style.display = 'none';
+            }
+        }
+
+        function showCheckDgiModal(data) {
+            if (!checkDgiModal || !checkDgiModalBody) {
+                return;
+            }
+            if (data.intersects) {
+                checkDgiModalBody.innerHTML =
+                    '<div>ДГИ (г. Москва и Нет данных): ' + data.percent_moscow + '% от площади</div>' +
+                    '<div>ДГИ (Частная собственность): ' + data.percent_private + '% от площади</div>';
+            } else {
+                checkDgiModalBody.textContent = 'Пересечений с объектами ДГИ не обнаружено.';
+            }
+            checkDgiModal.style.display = 'flex';
+        }
+
         async function checkDgiIntersections() {
             const geometry = buildCurrentGeometry();
             if (!geometry) {
@@ -1593,11 +1624,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 if (!response.ok || !data.ok) {
                     throw new Error(data.error || 'Ошибка проверки пересечений с ДГИ.');
                 }
-                if (data.intersects) {
-                    window.alert('Обнаружено пересечение с объектами ДГИ ' + data.percent + '% от площади');
-                } else {
-                    window.alert('Пересечений с объектами ДГИ не обнаружено.');
-                }
+                showCheckDgiModal(data);
                 statusEl.textContent = 'Проверка пересечений с ДГИ завершена.';
             } catch (error) {
                 statusEl.textContent = error.message || 'Не удалось проверить пересечения с ДГИ.';
@@ -1606,91 +1633,22 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             }
         }
 
+        if (checkDgiModalClose) {
+            checkDgiModalClose.addEventListener('click', closeCheckDgiModal);
+        }
+
         checkDgiIntersectionsButton.addEventListener('click', () => {
             checkDgiIntersections();
         });
 
-        const autoRemoveSourceToGroup = {
-            dt: relationAdjacentDtPassportsGroup,
-            odh: odhSignalGroup,
-            ozn: oznSignalGroup,
-            top: topSignalGroup,
-            requests: relationRequestObjectsGroup,
-            dgi_moscow: dgiMoscowSignalGroup,
-            dgi_private: dgiPrivateSignalGroup,
-            renew: renewGroup,
-            oozt: ooztSignalGroup,
-            rzd: rzdSignalGroup,
-        };
-        const autoRemoveOptionLabels = autoRemoveModal
-            ? Array.from(autoRemoveModal.querySelectorAll('[data-auto-remove-source]'))
-            : [];
-        const autoRemoveNoLayersMessage =
-            'Нет отображённых слоёв. Включите нужные слои в панели управления картой.';
-
-        function isAutoRemoveSourceDisplayed(source) {
-            const group = autoRemoveSourceToGroup[source];
-            if (!group) {
-                return false;
-            }
-            return map.hasLayer(group) && countGroupFeatures(group) > 0;
-        }
-
-        function resetAutoRemoveCheckboxes() {
-            [
-                autoRemoveDtCheckbox,
-                autoRemoveOdhCheckbox,
-                autoRemoveOznCheckbox,
-                autoRemoveTopCheckbox,
-                autoRemoveRequestsCheckbox,
-                autoRemoveDgiMoscowCheckbox,
-                autoRemoveDgiPrivateCheckbox,
-                autoRemoveRenewCheckbox,
-                autoRemoveOoztCheckbox,
-                autoRemoveRzdCheckbox,
-            ].forEach((el) => {
-                if (el) {
-                    el.checked = false;
-                }
-            });
-        }
-
-        function refreshAutoRemoveModalOptions() {
-            let visibleCount = 0;
-            autoRemoveOptionLabels.forEach((label) => {
-                const source = label.dataset.autoRemoveSource;
-                const checkbox = label.querySelector('input[type="checkbox"]');
-                const displayed = isAutoRemoveSourceDisplayed(source);
-                label.classList.toggle('auto-remove-option--hidden', !displayed);
-                if (!displayed && checkbox) {
-                    checkbox.checked = false;
-                }
-                if (displayed) {
-                    visibleCount += 1;
-                }
-            });
-            if (autoRemoveNoLayersEl) {
-                autoRemoveNoLayersEl.style.display = visibleCount === 0 ? 'block' : 'none';
-            }
-            if (autoRemoveModalSubmit) {
-                autoRemoveModalSubmit.disabled = visibleCount === 0;
-            }
-            return visibleCount;
-        }
-
         function openAutoRemoveModal() {
             autoRemoveModalErrorEl.textContent = '';
-            resetAutoRemoveCheckboxes();
-            refreshAutoRemoveModalOptions();
             autoRemoveModal.style.display = 'flex';
         }
 
         function closeAutoRemoveModal() {
             autoRemoveModal.style.display = 'none';
             autoRemoveModalErrorEl.textContent = '';
-            if (autoRemoveModalSubmit) {
-                autoRemoveModalSubmit.disabled = false;
-            }
         }
 
         function getAutoRemoveSources() {
@@ -1704,20 +1662,11 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             if (autoRemoveOznCheckbox.checked) {
                 sources.push('ozn');
             }
-            if (autoRemoveTopCheckbox && autoRemoveTopCheckbox.checked) {
-                sources.push('top');
-            }
-            if (autoRemoveRequestsCheckbox?.checked) {
-                sources.push('requests');
-            }
             if (autoRemoveDgiMoscowCheckbox.checked) {
                 sources.push('dgi_moscow');
             }
             if (autoRemoveDgiPrivateCheckbox.checked) {
                 sources.push('dgi_private');
-            }
-            if (autoRemoveRenewCheckbox.checked) {
-                sources.push('renew');
             }
             if (autoRemoveOoztCheckbox.checked) {
                 sources.push('oozt');
@@ -1748,16 +1697,10 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 );
                 editableGroup.addLayer(layer);
             });
-            if (isEditing) {
-                requestAnimationFrame(() => {
-                    if (editToolbar) {
-                        editToolbar.disable();
-                    }
-                    editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
-                    if (editableGroup.getLayers().length) {
-                        editToolbar.enable();
-                    }
-                });
+            if (editToolbar) {
+                editToolbar.disable();
+                editToolbar = new L.EditToolbar.Edit(map, {featureGroup: editableGroup});
+                editToolbar.enable();
             }
             rebuildSnapGuideLines();
             startSnapBindingLoop();
@@ -1769,11 +1712,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             const geometry = buildCurrentGeometry();
             if (!geometry) {
                 statusEl.textContent = 'Сначала добавьте хотя бы один полигон.';
-                return;
-            }
-            const visibleLayerCount = refreshAutoRemoveModalOptions();
-            if (!visibleLayerCount) {
-                autoRemoveModalErrorEl.textContent = autoRemoveNoLayersMessage;
                 return;
             }
             const selectedSources = getAutoRemoveSources();
@@ -1795,8 +1733,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     body: JSON.stringify({
                         geometry,
                         selected_sources: selectedSources,
-                        source_label: selectedSourceLabel,
-                        type: cfg.page,
+                        source_label: selectedSourceLabel
                     })
                 });
                 const data = await response.json();
@@ -1809,7 +1746,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 if (!applyGeometryToEditableGroup(data.geometry)) {
                     throw new Error('Не удалось применить обновлённую геометрию.');
                 }
-                pendingRepairedGeometryForSave = exportGeometryFromRaw(data.geometry);
                 closeAutoRemoveModal();
                 statusEl.textContent = 'Пересечения автоматически удалены.';
                 await checkRelations();
@@ -2035,7 +1971,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         }
 
         function finishCreatedPolygon(layer) {
-            clearPendingRepairedGeometry();
             editableGroup.addLayer(layer);
             bindEditablePolygonPopup(
                 layer,
@@ -2279,7 +2214,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         });
 
         map.on(L.Draw.Event.EDITED, () => {
-            clearPendingRepairedGeometry();
             statusEl.textContent = 'Геометрия обновлена. Пересчитываем связанные объекты...';
             updateRelationsButtonState();
             checkRelations();
@@ -2306,9 +2240,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         }
 
         function getSaveTargetSourceLabel() {
-            if (saveTargetTopRadio && saveTargetTopRadio.checked) {
-                return 'ТОП';
-            }
             if (saveTargetOznRadio && saveTargetOznRadio.checked) {
                 return 'ОЗН';
             }
@@ -2318,99 +2249,22 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             return 'ДТ';
         }
 
-        function hideSaveModalFixUi() {
-            if (saveModalFixPolygon) {
-                saveModalFixPolygon.style.display = 'none';
-            }
-            if (saveModalSuccessEl) {
-                saveModalSuccessEl.style.display = 'none';
-                saveModalSuccessEl.textContent = '';
-            }
-        }
-
-        function setSaveModalGeometryError(message) {
-            hideSaveModalFixUi();
-            saveModalErrorEl.textContent = message || '';
-            const saveTargetLabel = getSaveTargetSourceLabel();
-            if (
-                message &&
-                mps.isMultipolygonSaveError &&
-                mps.isMultipolygonSaveError(message) &&
-                mps.requiresMultipolygonSave &&
-                mps.requiresMultipolygonSave(saveTargetLabel) &&
-                saveModalFixPolygon
-            ) {
-                saveModalFixPolygon.style.display = '';
-            }
-        }
-
-        function clearSaveModalMessages() {
-            saveModalErrorEl.textContent = '';
-            hideSaveModalFixUi();
-        }
-
-        async function repairPolygonFromSaveModal() {
-            const geometry = buildCurrentGeometry();
-            if (!geometry) {
-                setSaveModalGeometryError('Нет геометрии для исправления.');
-                return;
-            }
-            if (!cfg.urls || !cfg.urls.repairGeometry) {
-                setSaveModalGeometryError('Исправление полигона недоступно.');
-                return;
-            }
-            if (saveModalFixPolygon) {
-                saveModalFixPolygon.disabled = true;
-            }
-            hideSaveModalFixUi();
-            saveModalErrorEl.textContent = 'Исправляем полигон...';
-            try {
-                const data = await mps.repairMultipolygonGeometry(
-                    cfg.urls.repairGeometry,
-                    geometry,
-                    getCookie('csrftoken')
-                );
-                if (editToolbar) {
-                    editToolbar.disable();
-                }
-                pendingRepairedGeometryForSave = exportGeometryFromRaw(data.geometry);
-                if (!applyGeometryToEditableGroup(data.geometry)) {
-                    pendingRepairedGeometryForSave = null;
-                    throw new Error('Не удалось применить исправленную геометрию.');
-                }
-                saveModalErrorEl.textContent = '';
-                hideSaveModalFixUi();
-                if (saveModalSuccessEl) {
-                    saveModalSuccessEl.textContent =
-                        'Полигон исправлен. Проверьте контур на карте и нажмите «Сохранить».';
-                    saveModalSuccessEl.style.display = '';
-                }
-                updateRelationsButtonState();
-                statusEl.textContent = 'Полигон исправлен. Проверьте контур и сохраните объект.';
-                requestAnimationFrame(() => {
-                    const bounds = editableGroup.getBounds();
-                    if (bounds.isValid()) {
-                        map.fitBounds(bounds.pad(0.1));
-                    }
-                });
-            } catch (error) {
-                setSaveModalGeometryError(error.message || 'Не удалось исправить полигон.');
-            } finally {
-                if (saveModalFixPolygon) {
-                    saveModalFixPolygon.disabled = false;
-                }
-            }
-        }
-
-        function openSaveModal() {
+        function openSaveModal(opts) {
+            opts = opts || {};
             newObjectNameInput.value = '';
             newObjectRequestIdInput.value = (effectiveEntryRequestId || '').trim();
-            clearSaveModalMessages();
-            if (selectedSourceLabel === 'ТОП') {
-                if (saveTargetTopRadio) {
-                    saveTargetTopRadio.checked = true;
+            saveModalErrorEl.textContent = '';
+            if (saveModalDgiWarning) {
+                const warningText = PV.buildDgiExportWarningText(opts.warningPercent);
+                if (warningText) {
+                    saveModalDgiWarning.textContent = warningText;
+                    saveModalDgiWarning.style.display = 'block';
+                } else {
+                    saveModalDgiWarning.textContent = '';
+                    saveModalDgiWarning.style.display = 'none';
                 }
-            } else if (selectedSourceLabel === 'ОЗН') {
+            }
+            if (selectedSourceLabel === 'ОЗН') {
                 if (saveTargetOznRadio) {
                     saveTargetOznRadio.checked = true;
                 }
@@ -2436,18 +2290,22 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         }
 
         async function saveObjectToDb(geometryToSave, name, requestId, sourceLabelForSave) {
+            const savePayload = {
+                geometry: geometryToSave,
+                name: name,
+                request_id: requestId,
+                source_label: sourceLabelForSave || selectedSourceLabel,
+            };
+            if (pendingDgiApprove) {
+                savePayload.dgi_aprove = pendingDgiApprove;
+            }
             const response = await fetch(cfg.urls.saveNewObject, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCookie('csrftoken') || ''
                 },
-                body: JSON.stringify({
-                    geometry: geometryToSave,
-                    name: name,
-                    request_id: requestId,
-                    source_label: sourceLabelForSave || selectedSourceLabel,
-                })
+                body: JSON.stringify(savePayload)
             });
             const result = await response.json();
             if (!response.ok || !result.ok) {
@@ -2478,7 +2336,50 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         let lastPdfExportContext = null;
         let pdfExportInProgress = false;
 
-        async function fetchPdfExportData(geometry) {
+        function stripPopupButtons(html) {
+            return String(html || '').replace(/<button[\s\S]*?<\/button>/gi, '');
+        }
+
+        function mergePdfIntersectFeatureCollections(passportFc, dgiFc, odhFc) {
+            const out = [];
+            const passportKey = (props) => {
+                const r = String(props?.rootid ?? '').trim();
+                const q = String(props?.request_id ?? '').trim();
+                return 'p:' + r + ':' + q;
+            };
+            const seenPassportLike = new Set();
+            const pushFc = (fc) => {
+                const n = normalizeGeoJson(fc);
+                if (!n || !Array.isArray(n.features)) {
+                    return;
+                }
+                n.features.forEach((f) => {
+                    const props = f?.properties || {};
+                    const src = String(props.source ?? '').trim();
+                    if (src !== 'ДГИ' && src !== 'ОДХ') {
+                        out.push(f);
+                        const k = passportKey(props);
+                        if (k && k !== 'p::' && k !== 'p:null:null') {
+                            seenPassportLike.add(k);
+                        }
+                        return;
+                    }
+                    if (src === 'ОДХ' || src === 'ОЗН') {
+                        const k = passportKey(props);
+                        if (k && seenPassportLike.has(k)) {
+                            return;
+                        }
+                    }
+                    out.push(f);
+                });
+            };
+            pushFc(passportFc);
+            pushFc(dgiFc);
+            pushFc(odhFc);
+            return {type: 'FeatureCollection', features: out};
+        }
+
+        async function fetchIntersectsLayerForPdfExport(geometry) {
             const ctxSl =
                 lastPdfExportContext && lastPdfExportContext.source_label
                     ? lastPdfExportContext.source_label
@@ -2500,87 +2401,171 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             if (!response.ok || !data.ok) {
                 throw new Error(data.error || 'Не удалось получить пересечения для PDF.');
             }
-            const layers = data.layers || {};
-            const intersections = PdfExport.mergePdfIntersectFeatureCollections(
-                layers.intersects,
-                layers.dgi_intersects,
-                layers.odh_intersects
+            return mergePdfIntersectFeatureCollections(
+                data.layers?.intersects,
+                data.layers?.dgi_intersects,
+                data.layers?.odh_intersects
             );
-            const adjacentDt = mergeAdjacentDtPassportsGeoJson(layers.intersects, layers.touches, layers.nearby);
-            return {
-                intersections,
-                mapLayers: {
-                    selected: {
-                        type: 'FeatureCollection',
-                        features: [{type: 'Feature', geometry, properties: {}}],
-                    },
-                    adjacentDt: filterOutSelectedRootid(adjacentDt, selectedRootid),
-                    odh: filterOutSelectedRootid(normalizeGeoJson(layers.odh), selectedRootid),
-                    ozn: filterOutSelectedRootid(normalizeGeoJson(layers.ozn), selectedRootid),
-                },
-            };
         }
 
-        async function captureMapCanvasForPdf(mapLayers) {
-            const editLayerGroups = [
-                editableGroup,
-                relationRequestObjectsGroup,
-                dgiMoscowSignalGroup,
-                dgiPrivateSignalGroup,
-                renewGroup,
-                ooztSignalGroup,
-                rzdSignalGroup,
-                recapsGroup,
-                commentPointsGroup,
-            ];
-            const savedAdjacentDt = relationAdjacentDtPassportsGroup.toGeoJSON();
-            const savedOdh = odhSignalGroup.toGeoJSON();
-            const savedOzn = oznSignalGroup.toGeoJSON();
-
-            const restore = PdfExport.prepareMapForPdfCapture(map, {
-                mapLayers,
-                hiddenGroups: editLayerGroups,
-                renderMapLayers: (layers) => {
-                    addSignalTapeLayer(odhSignalGroup, layers.odh, 'ОДХ');
-                    addSignalTapeLayer(oznSignalGroup, layers.ozn, 'ОЗН');
-                    relationAdjacentDtPassportsGroup.clearLayers();
-                    if (layers.adjacentDt) {
-                        L.geoJSON(layers.adjacentDt, {
-                            style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
-                        }).addTo(relationAdjacentDtPassportsGroup);
-                    }
-                },
-            });
-
-            try {
-                return await PdfExport.captureLeafletMapPngCanvas(map, {
-                    beforeCapture: () => {
-                        clearDrawSnapPreview();
-                        let vertexFlagWasOnMap = false;
-                        if (startVertexFlagMarker && map.hasLayer(startVertexFlagMarker)) {
-                            vertexFlagWasOnMap = true;
-                            map.removeLayer(startVertexFlagMarker);
+        function waitForVisibleTilesLoaded(mapElement, timeoutMs) {
+            const started = Date.now();
+            return new Promise((resolve) => {
+                const tick = () => {
+                    const tiles = mapElement.querySelectorAll('img.leaflet-tile');
+                    let pending = 0;
+                    tiles.forEach((img) => {
+                        if (!img.complete || img.naturalWidth === 0) {
+                            pending += 1;
                         }
-                        return () => {
-                            if (vertexFlagWasOnMap && startVertexFlagMarker) {
-                                startVertexFlagMarker.addTo(map);
-                            }
-                        };
-                    },
+                    });
+                    if (pending === 0 || Date.now() - started > timeoutMs) {
+                        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+                        return;
+                    }
+                    setTimeout(tick, 90);
+                };
+                setTimeout(tick, 100);
+            });
+        }
+
+        function leafletRedrawAllVectorLayers(leafletMap) {
+            const visit = (layer) => {
+                if (!layer) {
+                    return;
+                }
+                if (typeof layer.eachLayer === 'function') {
+                    layer.eachLayer(visit);
+                    return;
+                }
+                if (typeof layer.redraw === 'function') {
+                    try {
+                        layer.redraw();
+                    } catch (e) {
+                        /* ignore */
+                    }
+                }
+            };
+            leafletMap.eachLayer(visit);
+        }
+
+        async function captureLeafletMapPngCanvas() {
+            const mapDiv = map.getContainer();
+            clearDrawSnapPreview();
+            let vertexFlagWasOnMap = false;
+            if (startVertexFlagMarker && map.hasLayer(startVertexFlagMarker)) {
+                vertexFlagWasOnMap = true;
+                map.removeLayer(startVertexFlagMarker);
+            }
+            mapDiv.classList.add('pass-viewer-pdf-capture');
+            const controls = mapDiv.querySelector('.leaflet-control-container');
+            const prevCtrl = controls ? controls.style.display : '';
+            if (controls) {
+                controls.style.display = 'none';
+            }
+            const dragWas = map.dragging && map.dragging.enabled();
+            if (dragWas) {
+                map.dragging.disable();
+            }
+            const wheelWas = map.scrollWheelZoom && map.scrollWheelZoom.enabled();
+            if (wheelWas) {
+                map.scrollWheelZoom.disable();
+            }
+            let canvas;
+            try {
+                map.invalidateSize(false);
+                mapDiv.scrollTop = 0;
+                mapDiv.scrollLeft = 0;
+                await waitForVisibleTilesLoaded(mapDiv, 3200);
+                await new Promise((r) => setTimeout(r, 80));
+                leafletRedrawAllVectorLayers(map);
+                await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 40))));
+                const w = mapDiv.clientWidth;
+                const h = mapDiv.clientHeight;
+                canvas = await html2canvas(mapDiv, {
+                    useCORS: true,
+                    allowTaint: false,
+                    scale: 1,
+                    logging: false,
+                    backgroundColor: '#f1f5f9',
+                    foreignObjectRendering: false,
+                    x: 0,
+                    y: 0,
+                    width: w,
+                    height: h,
+                    windowWidth: w,
+                    windowHeight: h,
                 });
             } finally {
-                restore();
-                relationAdjacentDtPassportsGroup.clearLayers();
-                if (savedAdjacentDt && Array.isArray(savedAdjacentDt.features) && savedAdjacentDt.features.length) {
-                    L.geoJSON(savedAdjacentDt, {
-                        style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
-                        onEachFeature: (feature, layer) =>
-                            layer.bindPopup(buildObjectPopup(feature.properties || {})),
-                    }).addTo(relationAdjacentDtPassportsGroup);
+                mapDiv.classList.remove('pass-viewer-pdf-capture');
+                if (controls) {
+                    controls.style.display = prevCtrl;
                 }
-                addSignalTapeLayer(odhSignalGroup, savedOdh, 'ОДХ');
-                addSignalTapeLayer(oznSignalGroup, savedOzn, 'ОЗН');
-                refreshObjectLayersControl();
+                if (dragWas) {
+                    map.dragging.enable();
+                }
+                if (wheelWas) {
+                    map.scrollWheelZoom.enable();
+                }
+                if (vertexFlagWasOnMap && startVertexFlagMarker) {
+                    startVertexFlagMarker.addTo(map);
+                }
+            }
+            return canvas;
+        }
+
+        function addMapCanvasAsFullFirstPdfPage(pdf, canvas) {
+            /* Ожидается первая страница A4 в альбомной ориентации (как широкий экран с картой). */
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const marginMm = 5;
+            const innerW = pageW - 2 * marginMm;
+            const innerH = pageH - 2 * marginMm;
+            const imgRatio = canvas.width / canvas.height;
+            const boxRatio = innerW / innerH;
+            let drawW;
+            let drawH;
+            let offX;
+            let offY;
+            if (imgRatio > boxRatio) {
+                drawH = innerH;
+                drawW = drawH * imgRatio;
+                offX = marginMm + (innerW - drawW) / 2;
+                offY = marginMm;
+            } else {
+                drawW = innerW;
+                drawH = drawW / imgRatio;
+                offX = marginMm;
+                offY = marginMm + (innerH - drawH) / 2;
+            }
+            pdf.addImage(canvas.toDataURL('image/png', 0.93), 'PNG', offX, offY, drawW, drawH);
+        }
+
+        function addCanvasToPdfPaginated(pdf, canvas, marginMm) {
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const imgWmm = pageW - 2 * marginMm;
+            const pxPerMm = canvas.width / imgWmm;
+            const pageContentHmm = pageH - 2 * marginMm;
+            let offsetY = 0;
+            let first = true;
+            const eps = 0.5;
+            while (offsetY < canvas.height - eps) {
+                if (!first) {
+                    pdf.addPage('a4', 'p');
+                }
+                first = false;
+                const sliceHeightPx = Math.min(canvas.height - offsetY, Math.ceil(pageContentHmm * pxPerMm));
+                if (sliceHeightPx <= eps) {
+                    break;
+                }
+                const slice = document.createElement('canvas');
+                slice.width = canvas.width;
+                slice.height = sliceHeightPx;
+                slice.getContext('2d').drawImage(canvas, 0, offsetY, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+                const sliceHmm = sliceHeightPx / pxPerMm;
+                pdf.addImage(slice.toDataURL('image/png'), 'PNG', marginMm, marginMm, imgWmm, sliceHmm);
+                offsetY += sliceHeightPx;
             }
         }
 
@@ -2588,7 +2573,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             if (pdfExportInProgress) {
                 return;
             }
-            if (typeof html2canvas === 'undefined' || !window.jspdf?.jsPDF || !PdfExport) {
+            if (typeof html2canvas === 'undefined' || !window.jspdf?.jsPDF) {
                 window.alert('Библиотеки PDF не загрузились. Обновите страницу.');
                 return;
             }
@@ -2599,36 +2584,91 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             }
             pdfExportInProgress = true;
             const prevStatus = statusEl.textContent;
+            let wrap = null;
             try {
-                statusEl.textContent = 'Готовим PDF: запрос данных...';
-                const exportData = await fetchPdfExportData(ctx.geometry);
-                const features =
-                    exportData.intersections &&
-                    exportData.intersections.type === 'FeatureCollection' &&
-                    Array.isArray(exportData.intersections.features)
-                        ? exportData.intersections.features
-                        : [];
+                statusEl.textContent = 'Готовим PDF: запрос пересечений...';
+                const intersectsGeo = await fetchIntersectsLayerForPdfExport(ctx.geometry);
                 statusEl.textContent = 'Готовим PDF: снимок карты...';
-                let mapCanvas = null;
-                try {
-                    mapCanvas = await captureMapCanvasForPdf(exportData.mapLayers);
-                } catch (mapErr) {
-                    /* при неудаче карты — продолжаем без неё */
-                    mapCanvas = null;
-                }
-                statusEl.textContent = 'Готовим PDF: список пересечений...';
-                const fname = await PdfExport.buildAndSavePdf({
-                    objectInfo: PdfExport.buildObjectInfoFromContext(ctx),
-                    features,
-                    buildIntersectionHtml: buildPdfIntersectionPopupHtml,
-                    fileName: PdfExport.buildExportFileName(ctx),
-                    mapCanvas,
+                const mapCanvas = await captureLeafletMapPngCanvas();
+                const pdf = new window.jspdf.jsPDF({unit: 'mm', format: 'a4', orientation: 'landscape'});
+                addMapCanvasAsFullFirstPdfPage(pdf, mapCanvas);
+
+                const features =
+                    intersectsGeo && intersectsGeo.type === 'FeatureCollection' && Array.isArray(intersectsGeo.features)
+                        ? intersectsGeo.features
+                        : [];
+                wrap = document.createElement('div');
+                Object.assign(wrap.style, {
+                    position: 'fixed',
+                    left: '-12000px',
+                    top: '0',
+                    width: '794px',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+                    padding: '24px',
+                    boxSizing: 'border-box',
                 });
+                const title = document.createElement('h1');
+                title.textContent = 'Пересечения (паспорта, ДГИ, ОДХ)';
+                title.style.cssText = 'margin:0 0 12px;font-size:18px;font-weight:700;';
+                wrap.appendChild(title);
+                const sub = document.createElement('div');
+                sub.style.cssText = 'margin-bottom:14px;font-size:12px;color:#475569;line-height:1.4;';
+                sub.textContent =
+                    'Содержимое всплывающих окон для паспортов ДТ/ОДХ и пересекающихся объектов ДГИ и ОДХ (по данным PostGIS).';
+                wrap.appendChild(sub);
+                if (!features.length) {
+                    const p = document.createElement('p');
+                    p.style.margin = '0';
+                    p.style.fontSize = '13px';
+                    p.textContent = 'Пересечений с паспортами и объектами ДГИ/ОДХ не найдено.';
+                    wrap.appendChild(p);
+                } else {
+                    features.forEach((feature, idx) => {
+                        const props = feature?.properties || {};
+                        const rawHtml = buildPdfIntersectionPopupHtml(props);
+                        const box = document.createElement('div');
+                        box.style.cssText =
+                            'border:1px solid #cbd5e1;border-radius:8px;padding:12px;margin-bottom:12px;background:#f8fafc;font-size:13px;line-height:1.45;';
+                        const head = document.createElement('div');
+                        head.style.cssText = 'font-weight:600;margin-bottom:8px;color:#0369a1;';
+                        head.textContent = 'Пересечение ' + (idx + 1);
+                        box.appendChild(head);
+                        const inner = document.createElement('div');
+                        inner.innerHTML = stripPopupButtons(rawHtml);
+                        box.appendChild(inner);
+                        wrap.appendChild(box);
+                    });
+                }
+                document.body.appendChild(wrap);
+                statusEl.textContent = 'Готовим PDF: список пересечений...';
+                await new Promise((r) => requestAnimationFrame(() => r()));
+                await new Promise((r) => setTimeout(r, 80));
+                const listCanvas = await html2canvas(wrap, {
+                    scale: 1.75,
+                    useCORS: true,
+                    allowTaint: true,
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                });
+                pdf.addPage('a4', 'p');
+                addCanvasToPdfPaginated(pdf, listCanvas, 10);
+                const fname =
+                    'export_map_' +
+                    String(ctx.requestId || 'object').replace(/\W+/g, '_') +
+                    '_' +
+                    new Date().toISOString().slice(0, 10) +
+                    '.pdf';
+                pdf.save(fname);
                 statusEl.textContent = 'PDF сохранён: ' + fname;
             } catch (err) {
                 window.alert(err.message || 'Не удалось сформировать PDF.');
                 statusEl.textContent = prevStatus;
             } finally {
+                if (wrap && wrap.parentNode) {
+                    wrap.parentNode.removeChild(wrap);
+                }
                 pdfExportInProgress = false;
             }
         }
@@ -2649,7 +2689,12 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 statusEl.textContent = 'Сначала включите режим редактирования.';
                 return;
             }
-            const geometryToSave = getEditableGeometryForSave();
+            const editedGeojson = editableGroup.toGeoJSON();
+            if (!editedGeojson.features.length) {
+                statusEl.textContent = 'Нет геометрии для сохранения.';
+                return;
+            }
+            const geometryToSave = buildExportGeometry(editedGeojson);
             if (!geometryToSave) {
                 statusEl.textContent = 'Не удалось собрать геометрию для сохранения.';
                 return;
@@ -2665,23 +2710,14 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 saveModalErrorEl.textContent = 'Номер заявки должен содержать только цифры.';
                 return;
             }
-            clearSaveModalMessages();
-
-            const saveTargetLabel = getSaveTargetSourceLabel();
-            const multipolygonValidationError =
-                mps.validateMultipolygonTargetGeometry &&
-                mps.validateMultipolygonTargetGeometry(geometryToSave, saveTargetLabel);
-            if (multipolygonValidationError) {
-                setSaveModalGeometryError(multipolygonValidationError);
-                return;
-            }
+            saveModalErrorEl.textContent = '';
 
             saveModalSubmit.disabled = true;
             saveButton.disabled = true;
+            const saveTargetLabel = getSaveTargetSourceLabel();
             statusEl.textContent = 'Сохраняем объект в базе...';
             try {
                 const saveResult = await saveObjectToDb(geometryToSave, name, requestId, saveTargetLabel);
-                clearPendingRepairedGeometry();
                 statusEl.textContent = 'Объект сохранён в базе. Формируем файлы...';
                 const exportResult = await exportObjectFiles(geometryToSave, {
                     name: name,
@@ -2689,9 +2725,10 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     request_id: requestId
                 });
                 closeSaveModal();
+                pendingDgiApprove = null;
                 const savedTableLabel = saveTargetLabel === 'ОЗН'
                     ? 'ОО'
-                    : (saveTargetLabel === 'ОДХ' ? 'ОДХ' : (saveTargetLabel === 'ТОП' ? 'ТОП' : 'ДТ'));
+                    : (saveTargetLabel === 'ОДХ' ? 'ОДХ' : 'ДТ');
                 statusEl.textContent =
                     'Объект сохранён в ' +
                     savedTableLabel +
@@ -2701,8 +2738,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 lastPdfExportContext = {
                     geometry: geometryToSave,
                     requestId: requestId,
-                    passportNo: selectedRootid,
-                    name: name,
                     source_label: saveTargetLabel,
                 };
                 exportLinksEl.innerHTML =
@@ -2711,17 +2746,11 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     '<a class="button-link" href="#" data-export-pdf-link="1">Скачать PDF (карта и пересечения)</a>';
                 bindPdfExportLink();
             } catch (error) {
-                setSaveModalGeometryError(error.message || 'Ошибка сохранения объекта.');
+                saveModalErrorEl.textContent = error.message || 'Ошибка сохранения объекта.';
             } finally {
                 saveModalSubmit.disabled = false;
                 saveButton.disabled = false;
             }
-        }
-
-        if (saveModalFixPolygon) {
-            saveModalFixPolygon.addEventListener('click', () => {
-                void repairPolygonFromSaveModal();
-            });
         }
 
         saveModalCancel.addEventListener('click', () => {
@@ -2736,17 +2765,29 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             }
         });
 
-        saveButton.addEventListener('click', async () => {
-            if (!isEditing) {
-                statusEl.textContent = 'Сначала включите режим редактирования.';
-                return;
-            }
-            const editedGeojson = editableGroup.toGeoJSON();
-            if (!editedGeojson.features.length) {
-                statusEl.textContent = 'Нет геометрии для выгрузки.';
-                return;
-            }
-            openSaveModal();
+        PV.initDgiExportGateFlow({
+            exportButton: saveButton,
+            checkDgiUrl: cfg.urls.checkDgi,
+            getCookie: getCookie,
+            getGeometry: () => {
+                if (!isEditing) {
+                    statusEl.textContent = 'Сначала включите режим редактирования.';
+                    return null;
+                }
+                const editedGeojson = editableGroup.toGeoJSON();
+                if (!editedGeojson.features.length) {
+                    statusEl.textContent = 'Нет геометрии для выгрузки.';
+                    return null;
+                }
+                return buildExportGeometry(editedGeojson);
+            },
+            openSaveModal: openSaveModal,
+            dgiConfirmModal: dgiExportConfirmModal,
+            dgiConfirmAgree: dgiExportConfirmAgree,
+            dgiConfirmBack: dgiExportConfirmBack,
+            setPendingApprove: (value) => {
+                pendingDgiApprove = value;
+            },
         });
 
         async function submitCommentPointModal() {
