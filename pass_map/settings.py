@@ -187,14 +187,26 @@ GIS_RZD_TABLE = os.getenv("GIS_RZD_TABLE", "rzd")
 GIS_TOP_TABLE = os.getenv("GIS_TOP_TABLE", "top")
 GIS_TOP_SOURCE_LABEL = os.getenv("GIS_TOP_SOURCE_LABEL", "ТОП")
 GIS_AUTO_REMOVE_SQUARE_TABLE = os.getenv("GIS_AUTO_REMOVE_SQUARE_TABLE", "auto_remove_square")
-# Радиус nearby для смежных паспортов ДТ (включая объекты с общей границей; отдельный ST_Touches не используется).
+# Радиус nearby для всех объектов на карте (смежные ДТ, заявки, справочные слои).
 try:
-    GIS_ADJACENT_NEARBY_METERS = float(os.getenv("GIS_ADJACENT_NEARBY_METERS", "100"))
+    GIS_ADJACENT_NEARBY_METERS = float(os.getenv("GIS_ADJACENT_NEARBY_METERS", "25"))
 except (TypeError, ValueError):
-    GIS_ADJACENT_NEARBY_METERS = 100.0
+    GIS_ADJACENT_NEARBY_METERS = 25.0
 
 # На main: не грузить смежные ДТ и reference-слои в HTML — подгрузка через AJAX после открытия страницы.
 GIS_DEFER_MAP_CONTEXT_LAYERS = os.getenv("GIS_DEFER_MAP_CONTEXT_LAYERS", "1")
+
+# Упрощение линейных слоёв ООЗТ/РЖД при отдаче на карту (меньше точек → быстрее JSON).
+try:
+    GIS_OOZT_SIGNAL_SIMPLIFY_METERS = float(os.getenv("GIS_OOZT_SIGNAL_SIMPLIFY_METERS", "2"))
+except (TypeError, ValueError):
+    GIS_OOZT_SIGNAL_SIMPLIFY_METERS = 2.0
+try:
+    GIS_RZD_SIGNAL_SIMPLIFY_METERS = float(os.getenv("GIS_RZD_SIGNAL_SIMPLIFY_METERS", "5"))
+except (TypeError, ValueError):
+    GIS_RZD_SIGNAL_SIMPLIFY_METERS = 5.0
+GIS_SIGNAL_TAPE_GEOJSON_DECIMALS = int(os.getenv("GIS_SIGNAL_TAPE_GEOJSON_DECIMALS", "6") or "6")
+GIS_RZD_SIGNAL_GEOJSON_DECIMALS = int(os.getenv("GIS_RZD_SIGNAL_GEOJSON_DECIMALS", "5") or "5")
 
 # GeoDjango library paths (macOS Homebrew).
 GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH", "/opt/homebrew/lib/libgdal.dylib")

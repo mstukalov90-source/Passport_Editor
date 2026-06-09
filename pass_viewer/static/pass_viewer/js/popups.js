@@ -95,7 +95,9 @@
                 return null;
             }
 
-    PassViewer.buildObjectPopup = function buildObjectPopup(properties, fallbackRootid = '-', fallbackName = '-') {
+    PassViewer.buildObjectPopup = function buildObjectPopup(properties, fallbackRootid = '-', fallbackName = '-', options) {
+                const opts = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
+                const headerLabel = opts.headerLabel || 'ДТ';
                 const rootid = properties?.rootid ?? fallbackRootid;
                 const name = properties?.name ?? fallbackName;
                 const requestId = properties?.request_id ?? '-';
@@ -138,7 +140,7 @@
                 if (isMissingRootid && hasRequestId) {
                     return (
                         '<div style="min-width: 220px;">' +
-                        '<div><strong>ДТ</strong></div>' +
+                        '<div><strong>' + PassViewer.escapeHtml(headerLabel) + '</strong></div>' +
                         '<div><strong>№ Заявки:</strong> ' + PassViewer.escapeHtml(requestId || '-') + '</div>' +
                         '<div style="margin-top: 6px;"><strong>Название:</strong> ' + PassViewer.escapeHtml(name || '-') + '</div>' +
                         ownerLines +
@@ -148,7 +150,7 @@
                 }
                 return (
                     '<div style="min-width: 220px;">' +
-                    '<div><strong>ДТ</strong></div>' +
+                    '<div><strong>' + PassViewer.escapeHtml(headerLabel) + '</strong></div>' +
                     '<div><strong>№ Паспорта:</strong> ' + PassViewer.escapeHtml(rootid || '-') + '</div>' +
                     '<div style="margin-top: 6px;"><strong>Название:</strong> ' + PassViewer.escapeHtml(name || '-') + '</div>' +
                     ownerLines +

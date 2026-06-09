@@ -208,51 +208,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             });
 
             const map = L.map(ownedMapEl, { zoomControl: true, preferCanvas: true });
-            const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxNativeZoom: 19,
-                maxZoom: 30,
-                attribution: '&copy; OpenStreetMap contributors',
-            });
-            const satelliteLayer = L.tileLayer(
-                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                {
-                    maxNativeZoom: 19,
-                    maxZoom: 30,
-                    attribution: 'Tiles &copy; Esri',
-                }
-            );
-            topoLayer.addTo(map);
-
-            const basemapControl = L.control({ position: 'topright' });
-            basemapControl.onAdd = function () {
-                const container = L.DomUtil.create('div', 'map-basemap-control');
-                container.innerHTML =
-                    '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
-                    '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
-                    '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
-                L.DomEvent.disableClickPropagation(container);
-                return container;
-            };
-            basemapControl.addTo(map);
-
-            const setBasemap = (mode) => {
-                [topoLayer, satelliteLayer].forEach((layer) => {
-                    if (map.hasLayer(layer)) {
-                        map.removeLayer(layer);
-                    }
-                });
-                if (mode === 'topo') {
-                    topoLayer.addTo(map);
-                } else if (mode === 'sat') {
-                    satelliteLayer.addTo(map);
-                }
-                ownedMapEl.parentElement
-                    ?.querySelectorAll('.map-basemap-btn')
-                    .forEach((btn) => btn.classList.toggle('is-active', btn.dataset.map === mode));
-            };
-            ownedMapEl.parentElement?.querySelectorAll('.map-basemap-btn').forEach((btn) => {
-                btn.addEventListener('click', () => setBasemap(btn.dataset.map));
-            });
+            PV.attachBasemapControl(map, { scopeRoot: ownedMapEl.parentElement });
 
             function parseHoodWorkAreaGeoData() {
                 if (!hoodWorkAreaGeoEl) {

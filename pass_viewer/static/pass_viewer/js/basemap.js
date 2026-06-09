@@ -9,6 +9,90 @@
     /** Максимальный z, на котором сервер МГГТ отдаёт реальные тайлы; выше — Leaflet масштабирует уже загруженные. */
     const MGGT_MAX_NATIVE_ZOOM = 17;
     const MAP_MAX_ZOOM = 30;
+    const MGGT_PROBE_CACHE_KEY = 'passviewer:mggt_available';
+    const MGGT_PROBE_TIMEOUT_MS = 3000;
+    /** Тайл в центре Москвы для проверки доступности сервера МГГТ. */
+    const MGGT_PROBE_TILE = { z: 10, x: 618, y: 319 };
+
+    let mggtProbePromise = null;
+
+    function getCachedMggtAvailability() {
+        try {
+            const value = sessionStorage.getItem(MGGT_PROBE_CACHE_KEY);
+            if (value === '1') {
+                return true;
+            }
+            if (value === '0') {
+                return false;
+            }
+        } catch (e) {
+            // sessionStorage may be unavailable
+        }
+        return null;
+    }
+
+    function setCachedMggtAvailability(available) {
+        try {
+            sessionStorage.setItem(MGGT_PROBE_CACHE_KEY, available ? '1' : '0');
+        } catch (e) {
+            // sessionStorage may be unavailable
+        }
+    }
+
+    function probeMggtAvailability(timeoutMs) {
+        const url = MGGT_TILE_URL.replace('{z}', String(MGGT_PROBE_TILE.z))
+            .replace('{x}', String(MGGT_PROBE_TILE.x))
+            .replace('{y}', String(MGGT_PROBE_TILE.y));
+
+        return new Promise((resolve) => {
+            const img = new Image();
+            let settled = false;
+            const finish = (ok) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                clearTimeout(timer);
+                img.onload = null;
+                img.onerror = null;
+                resolve(ok);
+            };
+            const timer = setTimeout(() => finish(false), timeoutMs);
+            img.onload = () => finish(img.naturalWidth > 1 && img.naturalHeight > 1);
+            img.onerror = () => finish(false);
+            img.src = url;
+        });
+    }
+
+    function resolveMggtAvailability() {
+        const cached = getCachedMggtAvailability();
+        if (cached !== null) {
+            return Promise.resolve(cached);
+        }
+        if (!mggtProbePromise) {
+            mggtProbePromise = probeMggtAvailability(MGGT_PROBE_TIMEOUT_MS).then((available) => {
+                setCachedMggtAvailability(available);
+                return available;
+            });
+        }
+        return mggtProbePromise;
+    }
+
+    function buildBasemapButtonsHtml(mggtAvailable, activeMode) {
+        const btn = (mode, label) => {
+            const activeClass = mode === activeMode ? ' is-active' : '';
+            return (
+                `<button type="button" class="map-basemap-btn${activeClass}" data-map="${mode}">` +
+                `${label}</button>`
+            );
+        };
+        const parts = [];
+        if (mggtAvailable) {
+            parts.push(btn('mggt', 'МГГТ'));
+        }
+        parts.push(btn('topo', 'OSM'), btn('sat', 'Спутник'), btn('none', 'Без подложки'));
+        return parts.join('');
+    }
 
     PassViewer.bindPopupHighlight = function bindPopupHighlight(map) {
         let popupHighlightLayer = null;
@@ -120,26 +204,31 @@
         const { mggtLayer, topoLayer, satelliteLayer } = PassViewer.createBasemapLayers();
         const basemapLayers = [mggtLayer, topoLayer, satelliteLayer];
 
-        mggtLayer.addTo(map);
-
-        const basemapControl = L.control({ position: 'topright' });
-        basemapControl.onAdd = function () {
-            const container = L.DomUtil.create('div', 'map-basemap-control');
-            container.innerHTML =
-                '<button type="button" class="map-basemap-btn is-active" data-map="mggt">МГГТ</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="topo">OSM</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
-            L.DomEvent.disableClickPropagation(container);
-            return container;
-        };
-        basemapControl.addTo(map);
+        const cachedAvailability = getCachedMggtAvailability();
+        let mggtAvailable = cachedAvailability === true;
+        let currentMode = mggtAvailable ? 'mggt' : 'topo';
+        let controlContainer = null;
 
         function buttonScope() {
             return scopeRoot || map.getContainer();
         }
 
+        function findControlContainer() {
+            if (controlContainer && controlContainer.isConnected) {
+                return controlContainer;
+            }
+            const scope = buttonScope();
+            controlContainer =
+                scope.querySelector('.map-basemap-control') ||
+                map.getContainer().querySelector('.map-basemap-control');
+            return controlContainer;
+        }
+
         function setBasemap(mode) {
+            if (mode === 'mggt' && !mggtAvailable) {
+                mode = 'topo';
+            }
+            currentMode = mode;
             basemapLayers.forEach((layer) => {
                 if (map.hasLayer(layer)) {
                     map.removeLayer(layer);
@@ -152,14 +241,56 @@
             } else if (mode === 'sat') {
                 map.addLayer(satelliteLayer);
             }
-            buttonScope().querySelectorAll('.map-basemap-btn').forEach((btn) => {
-                btn.classList.toggle('is-active', btn.dataset.map === mode);
+            const container = findControlContainer();
+            if (container) {
+                container.querySelectorAll('.map-basemap-btn').forEach((btn) => {
+                    btn.classList.toggle('is-active', btn.dataset.map === mode);
+                });
+            }
+        }
+
+        function bindButtonListeners(container) {
+            container.querySelectorAll('.map-basemap-btn').forEach((btn) => {
+                btn.addEventListener('click', () => setBasemap(btn.dataset.map));
             });
         }
 
-        map.getContainer().querySelectorAll('.map-basemap-btn').forEach((btn) => {
-            btn.addEventListener('click', () => setBasemap(btn.dataset.map));
-        });
+        function renderButtons(activeMode) {
+            const container = findControlContainer();
+            if (!container) {
+                return;
+            }
+            container.innerHTML = buildBasemapButtonsHtml(mggtAvailable, activeMode);
+            bindButtonListeners(container);
+        }
+
+        const basemapControl = L.control({ position: 'topright' });
+        basemapControl.onAdd = function () {
+            const container = L.DomUtil.create('div', 'map-basemap-control');
+            container.innerHTML = buildBasemapButtonsHtml(mggtAvailable, currentMode);
+            L.DomEvent.disableClickPropagation(container);
+            controlContainer = container;
+            bindButtonListeners(container);
+            return container;
+        };
+        basemapControl.addTo(map);
+
+        setBasemap(currentMode);
+
+        if (cachedAvailability === null) {
+            resolveMggtAvailability().then((available) => {
+                if (available === mggtAvailable) {
+                    return;
+                }
+                mggtAvailable = available;
+                if (available) {
+                    setBasemap('mggt');
+                    renderButtons('mggt');
+                } else {
+                    renderButtons(currentMode);
+                }
+            });
+        }
 
         return { setBasemap, mggtLayer, topoLayer, satelliteLayer };
     };

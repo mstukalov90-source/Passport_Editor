@@ -370,9 +370,9 @@ def _request_layer_source_ready(cursor, table_name, geom_field, request_id_field
 
 def _adjacent_nearby_meters():
     try:
-        return float(getattr(settings, "GIS_ADJACENT_NEARBY_METERS", 100))
+        return float(getattr(settings, "GIS_ADJACENT_NEARBY_METERS", 25))
     except (TypeError, ValueError):
-        return 100.0
+        return 25.0
 
 
 def _defer_map_context_layers():
@@ -381,6 +381,49 @@ def _defer_map_context_layers():
         "false",
         "no",
     )
+
+
+def _geojson_layer_for_response(value):
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text or text.lower() == "null":
+            return None
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            logger.warning("GeoJSON layer text is not valid JSON")
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
+def _adjacent_layers_for_json_response(layers):
+    if not layers:
+        return {}
+    return {
+        "intersects": _geojson_layer_for_response(layers.get("intersects")),
+        "touches": _geojson_layer_for_response(layers.get("touches")),
+        "nearby": _geojson_layer_for_response(layers.get("nearby")),
+        "request_objects": _geojson_layer_for_response(layers.get("request_objects")),
+    }
+
+
+def _reference_layers_for_json_response(reference_layers):
+    if not reference_layers:
+        return {}
+    return {
+        key: _geojson_layer_for_response(value) for key, value in reference_layers.items()
+    }
+
+
+def _relation_layers_for_json_response(layers):
+    if not layers:
+        return {}
+    return {key: _geojson_layer_for_response(value) for key, value in layers.items()}
 
 
 def _build_map_adjacent_dt_combined_sql(
@@ -418,26 +461,16 @@ def _build_map_adjacent_dt_combined_sql(
         f" {adjacent_owner_name_select_expr}, {gis_meta_dt_fragment}"
         f" FROM {_quote_ident(dt_table)} t, selected s"
     )
-    intersects_branch = (
+    proximity_branch = (
         select_core
-        + f" WHERE {neighbor_excl}{geom_ref} && s.geom"
-        + f"   AND ST_Intersects({geom_ref}, s.geom)"
-        + f"   AND NOT ST_Touches({geom_ref}, s.geom)"
-        + f"{passport_only_dt_sql}{hood_ha_adj}"
-    )
-    nearby_branch = (
-        select_core
-        + f" WHERE {neighbor_excl}{geom_ref} && ST_Envelope(ST_Buffer(s.geom::geography, {nearby_meters})::geometry)"
-        + f"   AND ST_DWithin({geom_ref}::geography, s.geom::geography, {nearby_meters})"
-        + f"   AND NOT ST_Intersects({geom_ref}, s.geom)"
+        + f" WHERE {neighbor_excl}"
+        + _sql_within_meters_where(geom_ref, "s.geom", str(nearby_meters))
         + f"{passport_only_dt_sql}{hood_ha_adj}"
     )
     return (
         map_layers_cte_open
         + "rel AS ("
-        + intersects_branch
-        + " UNION ALL "
-        + nearby_branch
+        + proximity_branch
         + ") "
         "SELECT jsonb_build_object("
         " 'type', 'FeatureCollection',"
@@ -511,7 +544,7 @@ def _request_layer_request_id_refs(source):
     return request_id_col, f"{request_id_col}::text"
 
 
-def _build_map_request_layer_branch(mode, source, req_self_excl_sql, nearby_meters=None):
+def _build_map_request_layer_branch(source, req_self_excl_sql, nearby_meters=None):
     if nearby_meters is None:
         nearby_meters = _adjacent_nearby_meters()
     geom_ref = f"t.{_quote_ident(source['geom'])}"
@@ -526,24 +559,15 @@ def _build_map_request_layer_branch(mode, source, req_self_excl_sql, nearby_mete
         f" {source['customer_name_select']}, {source['department_name_select']}, {source['meta']}"
         f" FROM {_quote_ident(source['table'])} t, selected s"
     )
-    if mode == "ix":
-        where_sql = (
-            f" WHERE {geom_ref} && s.geom"
-            f"   AND ST_Intersects({geom_ref}, s.geom)"
-            f"   AND NOT ST_Touches({geom_ref}, s.geom)"
-            f"   AND {request_id_where} IS NOT NULL"
-        )
-    else:
-        where_sql = (
-            f" WHERE {geom_ref} && ST_Envelope(ST_Buffer(s.geom::geography, {nearby_meters})::geometry)"
-            f"   AND ST_DWithin({geom_ref}::geography, s.geom::geography, {nearby_meters})"
-            f"   AND NOT ST_Intersects({geom_ref}, s.geom)"
-            f"   AND {request_id_where} IS NOT NULL"
-        )
+    where_sql = (
+        " WHERE"
+        + _sql_within_meters_where(geom_ref, "s.geom", str(nearby_meters))
+        + f"   AND {request_id_where} IS NOT NULL"
+    )
     return select_sql + where_sql + source["hood_ha"] + req_self_excl_sql
 
 
-def _build_new_object_request_layer_branch(mode, source, nearby_meters=None):
+def _build_new_object_request_layer_branch(source, nearby_meters=None):
     if nearby_meters is None:
         nearby_meters = _adjacent_nearby_meters()
     geom_ref = f"t.{_quote_ident(source['geom'])}"
@@ -564,21 +588,12 @@ def _build_new_object_request_layer_branch(mode, source, nearby_meters=None):
         f" {source['customer_name_select']}, {source['department_name_select']}, {source['meta']}"
         f" FROM {_quote_ident(source['table'])} t, input i"
     )
-    if mode == "ix":
-        where_sql = (
-            f" WHERE {geom_ref} && i.geom"
-            f"   AND ST_Intersects({geom_ref}, i.geom)"
-            f"{input_excl_sql}"
-            f"   AND {request_id_where} IS NOT NULL"
-        )
-    else:
-        where_sql = (
-            f" WHERE {geom_ref} && ST_Envelope(ST_Buffer(i.geom::geography, {nearby_meters})::geometry)"
-            f"   AND ST_DWithin({geom_ref}::geography, i.geom::geography, {nearby_meters})"
-            f"   AND NOT ST_Intersects({geom_ref}, i.geom)"
-            f"{input_excl_sql}"
-            f"   AND {request_id_where} IS NOT NULL"
-        )
+    where_sql = (
+        " WHERE"
+        + _sql_within_meters_where(geom_ref, "i.geom", str(nearby_meters))
+        + f"{input_excl_sql}"
+        + f"   AND {request_id_where} IS NOT NULL"
+    )
     return select_sql + where_sql + source["hood_ha"]
 
 
@@ -595,29 +610,16 @@ def _union_request_layer_branches(branches):
 
 def _build_map_requests_sql(map_layers_cte_open, request_sources, req_self_excl_sql, source_table):
     req_self_excl_params = []
-    cte_bodies = {}
-    for mode in ("ix", "nr"):
-        branches = []
-        for src in request_sources:
-            branches.append(_build_map_request_layer_branch(mode, src, req_self_excl_sql))
-            req_self_excl_params.extend([source_table, src["table"]])
-        cte_bodies[mode] = _union_request_layer_branches(branches)
+    branches = []
+    for src in request_sources:
+        branches.append(_build_map_request_layer_branch(src, req_self_excl_sql))
+        req_self_excl_params.extend([source_table, src["table"]])
 
     return (
         map_layers_cte_open
-        + "ix AS ("
-        + cte_bodies["ix"]
-        + "), nr AS ("
-        + cte_bodies["nr"]
-        + "), rel AS ("
-        " SELECT row_tid, geom, rootid, name, request_id, source_label, owner_legal_person_id, owner_legal_person_name,"
-        " customer_legal_person_id, department_legal_person_id, customer_legal_person_name,"
-        " department_legal_person_name, startdate, datesurvey, createtype FROM ix"
-        " UNION"
-        " SELECT row_tid, geom, rootid, name, request_id, source_label, owner_legal_person_id, owner_legal_person_name,"
-        " customer_legal_person_id, department_legal_person_id, customer_legal_person_name,"
-        " department_legal_person_name, startdate, datesurvey, createtype FROM nr"
-        ") "
+        + "rel AS ("
+        + _union_request_layer_branches(branches)
+        + ") "
         "SELECT jsonb_build_object("
         " 'type', 'FeatureCollection',"
         " 'features', COALESCE(jsonb_agg(jsonb_build_object("
@@ -643,29 +645,196 @@ def _build_map_requests_sql(map_layers_cte_open, request_sources, req_self_excl_
     ), req_self_excl_params
 
 
+def _build_map_requests_sql_for_source(map_layers_cte_open, source, req_self_excl_sql, source_table):
+    req_self_excl_params = [source_table, source["table"]]
+    body = _build_map_request_layer_branch(source, req_self_excl_sql)
+    return (
+        map_layers_cte_open
+        + "rel AS ("
+        + body
+        + ") "
+        "SELECT jsonb_build_object("
+        " 'type', 'FeatureCollection',"
+        " 'features', COALESCE(jsonb_agg(jsonb_build_object("
+        "   'type', 'Feature',"
+        "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
+        "   'properties', jsonb_build_object("
+        "       'source', source_label::text,"
+        "       'rootid', rootid::text,"
+        "       'name', name::text,"
+        "       'request_id', request_id::text,"
+        "      'owner_legal_person_id', owner_legal_person_id::text,"
+        "      'owner_legal_person_name', owner_legal_person_name::text,"
+        "      'customer_legal_person_id', customer_legal_person_id::text,"
+        "      'department_legal_person_id', department_legal_person_id::text,"
+        "      'customer_legal_person_name', customer_legal_person_name::text,"
+        "      'department_legal_person_name', department_legal_person_name::text,"
+        "      'startdate', startdate::text,"
+        "      'datesurvey', datesurvey::text,"
+        "      'createtype', createtype::text"
+        "   )"
+        " )), '[]'::jsonb)"
+        ")::text FROM rel"
+    ), req_self_excl_params
+
+
+MAP_DEFERRED_LAYER_KEYS = frozenset(
+    {
+        "adjacent_dt",
+        "request_objects_dt",
+        "request_objects_odh",
+        "request_objects_ozn",
+        "request_objects_top",
+        "dgi_moscow",
+        "dgi_private",
+        "odh",
+        "ozn",
+        "renew",
+        "recaps",
+        "oozt",
+        "rzd",
+        "top",
+    }
+)
+
+
+def _get_single_reference_layer(layer_key, geometry, distance_meters=None, request_id_filter=None):
+    if distance_meters is None:
+        distance_meters = _adjacent_nearby_meters()
+    dgi_table = getattr(settings, "GIS_DGI_TABLE", "dgi")
+    if layer_key == "dgi_moscow":
+        with connection.cursor() as cursor:
+            moscow_where = _sql_dgi_ownership_filter(cursor, dgi_table, "moscow")
+        value = _get_reference_layer_geojson(
+            dgi_table,
+            "ДГИ",
+            geometry=geometry,
+            distance_meters=distance_meters,
+            extra_where_sql=moscow_where,
+        )
+        return {"dgi_moscow": value}
+    if layer_key == "dgi_private":
+        with connection.cursor() as cursor:
+            private_where = _sql_dgi_ownership_filter(cursor, dgi_table, "private")
+        value = _get_reference_layer_geojson(
+            dgi_table,
+            "ДГИ",
+            geometry=geometry,
+            distance_meters=distance_meters,
+            extra_where_sql=private_where,
+        )
+        return {"dgi_private": value}
+    if layer_key == "odh":
+        return {
+            "odh": _get_reference_layer_geojson(
+                getattr(settings, "GIS_ODH_TABLE", "odh"),
+                "ОДХ",
+                geometry=geometry,
+                distance_meters=distance_meters,
+            )
+        }
+    if layer_key == "ozn":
+        return {
+            "ozn": _get_reference_layer_geojson(
+                getattr(settings, "GIS_OZN_TABLE", "ozn"),
+                "ОЗН",
+                geometry=geometry,
+                distance_meters=distance_meters,
+            )
+        }
+    if layer_key == "renew":
+        return {
+            "renew": _get_reference_layer_geojson(
+                getattr(settings, "GIS_RENEW_TABLE", "renew"),
+                "Реновация",
+                geometry=geometry,
+                distance_meters=distance_meters,
+            )
+        }
+    if layer_key == "recaps":
+        return {
+            "recaps": _get_recaps_layer_geojson(
+                geometry=geometry,
+                distance_meters=distance_meters,
+                request_id_filter=request_id_filter,
+            )
+        }
+    if layer_key == "oozt":
+        return {
+            "oozt": _get_signal_tape_layer_geojson(
+                getattr(settings, "GIS_OOZT_TABLE", "oozt"),
+                "ООЗТ",
+                geometry=geometry,
+                distance_meters=distance_meters,
+            )
+        }
+    if layer_key == "rzd":
+        return {
+            "rzd": _get_signal_tape_layer_geojson(
+                getattr(settings, "GIS_RZD_TABLE", "rzd"),
+                "РЖД",
+                geometry=geometry,
+                distance_meters=distance_meters,
+            )
+        }
+    if layer_key == "top":
+        return {
+            "top": _get_reference_layer_geojson(
+                getattr(settings, "GIS_TOP_TABLE", "top"),
+                _top_source_label(),
+                geometry=geometry,
+                distance_meters=distance_meters,
+            )
+        }
+    return None
+
+
+def _execute_map_only_layer(
+    cursor,
+    layer_key,
+    *,
+    map_layers_cte_open,
+    map_exec_params,
+    adjacent_dt_sql,
+    request_sources_by_key,
+    req_self_excl,
+    source_table,
+):
+    if layer_key == "adjacent_dt":
+        cursor.execute(adjacent_dt_sql, map_exec_params)
+        row = cursor.fetchone()
+        return {
+            "intersects": row[0] if row else None,
+            "touches": None,
+            "nearby": None,
+        }
+    if layer_key.startswith("request_objects_"):
+        source_key = layer_key.removeprefix("request_objects_")
+        source = request_sources_by_key.get(source_key)
+        if not source:
+            return {"request_objects": None}
+        requests_sql, requests_self_excl_params = _build_map_requests_sql_for_source(
+            map_layers_cte_open,
+            source,
+            req_self_excl,
+            source_table,
+        )
+        cursor.execute(requests_sql, map_exec_params + requests_self_excl_params)
+        row = cursor.fetchone()
+        return {"request_objects": row[0] if row else None}
+    return None
+
+
 def _build_new_object_request_objects_sql(new_obj_with_open, request_sources):
-    cte_bodies = {}
-    for mode in ("ix", "nr"):
-        branches = [_build_new_object_request_layer_branch(mode, src) for src in request_sources]
-        cte_bodies[mode] = _union_request_layer_branches(branches)
+    branches = [_build_new_object_request_layer_branch(src) for src in request_sources]
 
     return (
         new_obj_with_open + f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
         "), input_parts AS ("
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
-        "), ix AS ("
-        + cte_bodies["ix"]
-        + "), nr AS ("
-        + cte_bodies["nr"]
-        + "), rel AS ("
-        " SELECT row_tid, geom, rootid, name, request_id, source_label, owner_legal_person_id, owner_legal_person_name,"
-        " customer_legal_person_id, department_legal_person_id, customer_legal_person_name,"
-        " department_legal_person_name, startdate, datesurvey, createtype FROM ix"
-        " UNION"
-        " SELECT row_tid, geom, rootid, name, request_id, source_label, owner_legal_person_id, owner_legal_person_name,"
-        " customer_legal_person_id, department_legal_person_id, customer_legal_person_name,"
-        " department_legal_person_name, startdate, datesurvey, createtype FROM nr"
-        ") "
+        "), rel AS ("
+        + _union_request_layer_branches(branches)
+        + ") "
         "SELECT jsonb_build_object("
         " 'type', 'FeatureCollection',"
         " 'features', COALESCE(jsonb_agg(jsonb_build_object("
@@ -1584,7 +1753,7 @@ def _build_merge_matched_body_sql(cursor, merge_items):
     return " UNION ALL ".join(parts), params
 
 
-def _get_map_layers(entry_point, *, include_adjacent_layers=True):
+def _get_map_layers(entry_point, *, include_adjacent_layers=True, only_layer=None):
     source_label = _normalize_source_label(entry_point.get("source_label"))
     table = _get_source_table(source_label)
     dt_table = settings.GIS_OBJECT_TABLE
@@ -1834,70 +2003,71 @@ def _get_map_layers(entry_point, *, include_adjacent_layers=True):
     hood_sel_and = get_hood_intersects_ha_sql(_quote_ident(geom_field))
 
     request_layer_sources = []
+    request_sources_by_key = {}
     if req_layer_cols_dt:
-        request_layer_sources.append(
-            {
-                **req_layer_cols_dt,
-                "table": dt_table,
-                "source_label": "ДТ",
-                "hood_ha": hood_ha_req_dt,
-                "meta": gis_meta_dt_fragment,
-                "owner_select": request_owner_dt_select_expr,
-                "owner_name_select": request_owner_dt_name_select_expr,
-                "customer_select": request_customer_dt_select_expr,
-                "department_select": request_department_dt_select_expr,
-                "customer_name_select": request_customer_dt_name_select_expr,
-                "department_name_select": request_department_dt_name_select_expr,
-            }
-        )
+        dt_source = {
+            **req_layer_cols_dt,
+            "table": dt_table,
+            "source_label": "ДТ",
+            "hood_ha": hood_ha_req_dt,
+            "meta": gis_meta_dt_fragment,
+            "owner_select": request_owner_dt_select_expr,
+            "owner_name_select": request_owner_dt_name_select_expr,
+            "customer_select": request_customer_dt_select_expr,
+            "department_select": request_department_dt_select_expr,
+            "customer_name_select": request_customer_dt_name_select_expr,
+            "department_name_select": request_department_dt_name_select_expr,
+        }
+        request_layer_sources.append(dt_source)
+        request_sources_by_key["dt"] = dt_source
     if req_layer_cols_odh:
-        request_layer_sources.append(
-            {
-                **req_layer_cols_odh,
-                "table": odh_table,
-                "source_label": "ОДХ",
-                "hood_ha": hood_ha_req_odh,
-                "meta": gis_meta_odh_fragment,
-                "owner_select": request_owner_odh_select_expr,
-                "owner_name_select": request_owner_odh_name_select_expr,
-                "customer_select": request_customer_odh_select_expr,
-                "department_select": request_department_odh_select_expr,
-                "customer_name_select": request_customer_odh_name_select_expr,
-                "department_name_select": request_department_odh_name_select_expr,
-            }
-        )
+        odh_source = {
+            **req_layer_cols_odh,
+            "table": odh_table,
+            "source_label": "ОДХ",
+            "hood_ha": hood_ha_req_odh,
+            "meta": gis_meta_odh_fragment,
+            "owner_select": request_owner_odh_select_expr,
+            "owner_name_select": request_owner_odh_name_select_expr,
+            "customer_select": request_customer_odh_select_expr,
+            "department_select": request_department_odh_select_expr,
+            "customer_name_select": request_customer_odh_name_select_expr,
+            "department_name_select": request_department_odh_name_select_expr,
+        }
+        request_layer_sources.append(odh_source)
+        request_sources_by_key["odh"] = odh_source
     if req_layer_cols_ozn:
-        request_layer_sources.append(
-            {
-                **req_layer_cols_ozn,
-                "table": ozn_table,
-                "source_label": "ОЗН",
-                "hood_ha": hood_ha_req_ozn,
-                "meta": gis_meta_ozn_fragment,
-                "owner_select": request_owner_ozn_select_expr,
-                "owner_name_select": request_owner_ozn_name_select_expr,
-                "customer_select": request_customer_ozn_select_expr,
-                "department_select": request_department_ozn_select_expr,
-                "customer_name_select": request_customer_ozn_name_select_expr,
-                "department_name_select": request_department_ozn_name_select_expr,
-            }
-        )
+        ozn_source = {
+            **req_layer_cols_ozn,
+            "table": ozn_table,
+            "source_label": "ОЗН",
+            "hood_ha": hood_ha_req_ozn,
+            "meta": gis_meta_ozn_fragment,
+            "owner_select": request_owner_ozn_select_expr,
+            "owner_name_select": request_owner_ozn_name_select_expr,
+            "customer_select": request_customer_ozn_select_expr,
+            "department_select": request_department_ozn_select_expr,
+            "customer_name_select": request_customer_ozn_name_select_expr,
+            "department_name_select": request_department_ozn_name_select_expr,
+        }
+        request_layer_sources.append(ozn_source)
+        request_sources_by_key["ozn"] = ozn_source
     if req_layer_cols_top:
-        request_layer_sources.append(
-            {
-                **req_layer_cols_top,
-                "table": top_table,
-                "source_label": _top_source_label(),
-                "hood_ha": hood_ha_req_top,
-                "meta": gis_meta_top_fragment,
-                "owner_select": request_owner_top_select_expr,
-                "owner_name_select": request_owner_top_name_select_expr,
-                "customer_select": request_customer_top_select_expr,
-                "department_select": request_department_top_select_expr,
-                "customer_name_select": request_customer_top_name_select_expr,
-                "department_name_select": request_department_top_name_select_expr,
-            }
-        )
+        top_source = {
+            **req_layer_cols_top,
+            "table": top_table,
+            "source_label": _top_source_label(),
+            "hood_ha": hood_ha_req_top,
+            "meta": gis_meta_top_fragment,
+            "owner_select": request_owner_top_select_expr,
+            "owner_name_select": request_owner_top_name_select_expr,
+            "customer_select": request_customer_top_select_expr,
+            "department_select": request_department_top_select_expr,
+            "customer_name_select": request_customer_top_name_select_expr,
+            "department_name_select": request_department_top_name_select_expr,
+        }
+        request_layer_sources.append(top_source)
+        request_sources_by_key["top"] = top_source
 
     merge_items = _normalize_merge_items(entry_point)
     use_merge = len(merge_items) >= 2
@@ -2000,6 +2170,20 @@ def _get_map_layers(entry_point, *, include_adjacent_layers=True):
     )
 
     map_exec_params = list(hood_params) + list(where_params)
+
+    if only_layer:
+        with connection.cursor() as cursor:
+            layer_partial = _execute_map_only_layer(
+                cursor,
+                only_layer,
+                map_layers_cte_open=map_layers_cte_open,
+                map_exec_params=map_exec_params,
+                adjacent_dt_sql=adjacent_dt_sql,
+                request_sources_by_key=request_sources_by_key,
+                req_self_excl=req_self_excl,
+                source_table=table,
+            )
+        return layer_partial
 
     with connection.cursor() as cursor:
         cursor.execute(selected_sql, map_exec_params)
@@ -2420,7 +2604,8 @@ def _get_new_object_relations(geometry, source_label="ДТ", request_id_filter=N
             }
         )
 
-    intersects_sql = (
+    dt_geom_ref = f"t.{geom_field}"
+    adjacent_dt_sql = (
         new_obj_with_open + f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
         "), input_parts AS ("
         " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
@@ -2428,48 +2613,9 @@ def _get_new_object_relations(geometry, source_label="ДТ", request_id_filter=N
         f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
         f"{customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr}, {dt_meta_fragment} "
         f"FROM {_quote_ident(dt_table)} t, input i"
-        f" WHERE ST_Intersects(t.{geom_field}, i.geom)"
-        "   AND NOT EXISTS ("
-        "       SELECT 1 FROM input_parts p"
-        f"       WHERE ST_Equals(t.{geom_field}, p.geom)"
-        "   )"
-        f"{passport_only_dt_sql}"
-        f"{hood_ha_new}"
-        ") "
-        "SELECT jsonb_build_object("
-        " 'type', 'FeatureCollection',"
-        " 'features', COALESCE(jsonb_agg(jsonb_build_object("
-        "   'type', 'Feature',"
-        "   'geometry', ST_AsGeoJSON(geom)::jsonb,"
-        "   'properties', jsonb_build_object("
-        "       'rootid', rootid::text,"
-        "       'name', name::text,"
-        "       'request_id', request_id::text,"
-        f"      'customer_legal_person_id', {customer_prop_expr},"
-        f"      'department_legal_person_id', {department_prop_expr},"
-        f"      'owner_legal_person_id', {owner_prop_expr},"
-        f"      'customer_legal_person_name', {customer_name_prop_expr},"
-        f"      'department_legal_person_name', {department_name_prop_expr},"
-        f"      'owner_legal_person_name', {owner_name_prop_expr},"
-        "       'startdate', startdate::text,"
-        "       'datesurvey', datesurvey::text,"
-        "       'createtype', createtype::text"
-        "   )"
-        " )), '[]'::jsonb)"
-        ")::text FROM rel"
-    )
-    nearby_sql = (
-        new_obj_with_open + f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
-        "), input_parts AS ("
-        " SELECT (ST_Dump(ST_CollectionExtract(geom, 3))).geom AS geom FROM input"
-        "), rel AS ("
-        f" SELECT t.{geom_field} AS geom, t.{rootid_field} AS rootid, t.{name_field} AS name, t.{request_id_field} AS request_id, "
-        f"{customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr}, {dt_meta_fragment} "
-        f"FROM {_quote_ident(dt_table)} t, input i"
-        f" WHERE t.{geom_field} && ST_Envelope(ST_Buffer(i.geom::geography, {nearby_meters})::geometry)"
-        f"   AND ST_DWithin(t.{geom_field}::geography, i.geom::geography, {nearby_meters})"
-        f"   AND NOT ST_Intersects(t.{geom_field}, i.geom)"
-        "   AND NOT EXISTS ("
+        f" WHERE"
+        + _sql_within_meters_where(dt_geom_ref, "i.geom", str(nearby_meters))
+        + "   AND NOT EXISTS ("
         "       SELECT 1 FROM input_parts p"
         f"       WHERE ST_Equals(t.{geom_field}, p.geom)"
         "   )"
@@ -2506,10 +2652,9 @@ def _get_new_object_relations(geometry, source_label="ДТ", request_id_filter=N
     new_obj_exec_params = list(hood_prm) + [geometry_json]
 
     with connection.cursor() as cursor:
-        cursor.execute(intersects_sql, new_obj_exec_params)
+        cursor.execute(adjacent_dt_sql, new_obj_exec_params)
         intersects_row = cursor.fetchone()
-        cursor.execute(nearby_sql, new_obj_exec_params)
-        nearby_row = cursor.fetchone()
+        nearby_row = None
         request_objects_row = None
         try:
             cursor.execute(request_objects_sql, new_obj_exec_params)
@@ -2518,7 +2663,6 @@ def _get_new_object_relations(geometry, source_label="ДТ", request_id_filter=N
             logger.exception("_get_new_object_relations: request_objects layer query failed")
     ref_layers = _get_reference_layers(
         geometry=geometry_norm,
-        distance_meters=100,
         request_id_filter=request_id_filter,
     )
 
@@ -3546,14 +3690,191 @@ def _sql_dgi_ownership_filter(cursor, table_name: str, ownership: str, *, table_
     return build_dgi_ownership_extra_sql(col_expr, ownership)
 
 
+def _sql_within_meters_where(
+    raw_geom: str,
+    context_geom_ref: str,
+    meters_expr: str,
+    *,
+    bbox_geom_ref: str | None = None,
+    leading_and: bool = False,
+) -> str:
+    """
+    All features within ``meters_expr`` of ``context_geom_ref`` (intersecting, touching, or nearby).
+    GIST bbox prefilter + ST_DWithin on geography.
+    """
+    bbox = bbox_geom_ref or (
+        f"ST_Envelope(ST_Buffer({context_geom_ref}::geography, {meters_expr})::geometry)"
+    )
+    prefix = " AND" if leading_and else ""
+    return (
+        f"{prefix} {raw_geom} && {bbox}"
+        f" AND ST_DWithin({raw_geom}::geography, {context_geom_ref}::geography, {meters_expr})"
+    )
+
+
+def _sql_reference_layer_proximity_where(
+    raw_geom: str,
+    geom_v: str,
+    *,
+    context_geom_ref: str = "i.geom",
+    bbox_geom_ref: str | None = None,
+) -> str:
+    del geom_v  # kept for call-site compatibility
+    return _sql_within_meters_where(
+        raw_geom,
+        context_geom_ref,
+        "%s",
+        bbox_geom_ref=bbox_geom_ref,
+    )
+
+
+def _signal_tape_layer_tuning(source_label_norm: str) -> dict:
+    if source_label_norm == "РЖД":
+        return {
+            "simplify_meters": float(getattr(settings, "GIS_RZD_SIGNAL_SIMPLIFY_METERS", 5.0)),
+            "geojson_decimals": int(getattr(settings, "GIS_RZD_SIGNAL_GEOJSON_DECIMALS", 5)),
+        }
+    return {
+        "simplify_meters": float(getattr(settings, "GIS_OOZT_SIGNAL_SIMPLIFY_METERS", 2.0)),
+        "geojson_decimals": int(getattr(settings, "GIS_SIGNAL_TAPE_GEOJSON_DECIMALS", 6)),
+    }
+
+
+def _sql_signal_tape_clipped_geom_lateral(raw_geom: str, zone_ref: str = "c.zone") -> str:
+    clipped = f"ST_Intersection({raw_geom}, {zone_ref})"
+    return (
+        f"CASE WHEN NOT ST_IsEmpty({clipped}) THEN {clipped} ELSE {raw_geom} END"
+    )
+
+
+def _sql_signal_tape_simplified_geom_expr(clipped_sql: str, simplify_meters: float) -> str:
+    meters = max(0.0, float(simplify_meters))
+    if meters <= 0:
+        return clipped_sql
+    return (
+        "ST_Transform(ST_SimplifyPreserveTopology("
+        f"ST_Transform(({clipped_sql}), 3857), {meters}::double precision), 4326)"
+    )
+
+
+def _get_signal_tape_layer_geojson(
+    table_name,
+    source_label,
+    geometry=None,
+    distance_meters=None,
+):
+    """Lightweight loader for ООЗТ/РЖД: popup fields only, clipped geom for smaller GeoJSON."""
+    if distance_meters is None:
+        distance_meters = _adjacent_nearby_meters()
+    source_label_norm = str(source_label or "").strip().upper()
+    if geometry is None:
+        return '{"type":"FeatureCollection","features":[]}'
+
+    geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
+    with connection.cursor() as cursor:
+        geom_field = _resolve_column_name(cursor, table_name, geom_field_pref)
+        geom_q = _quote_ident(geom_field)
+        raw_geom = f"t.{geom_q}"
+        drawable_geom_sql = _sql_table_geom_drawable_clause(raw_geom)
+        passport_only_ref_sql = _sql_gis_passport_only_clause(cursor, table_name, "t")
+
+        name_select_expr = "NULL::text AS name"
+        if _column_exists(cursor, table_name, settings.GIS_OBJECT_NAME_FIELD):
+            name_field = _resolve_column_name(cursor, table_name, settings.GIS_OBJECT_NAME_FIELD)
+            name_select_expr = f"t.{_quote_ident(name_field)}::text AS name"
+
+        type_select_expr = "NULL::text AS type"
+        comment_select_expr = "NULL::text AS comment"
+        nomer1_select_expr = "NULL::text AS nomer1"
+        comment_underscore_select_expr = "NULL::text AS comment_"
+        if source_label_norm == "ООЗТ":
+            if _column_exists(cursor, table_name, "type"):
+                type_field = _resolve_column_name(cursor, table_name, "type")
+                type_select_expr = f"t.{_quote_ident(type_field)}::text AS type"
+            if _column_exists(cursor, table_name, "comment"):
+                comment_field = _resolve_column_name(cursor, table_name, "comment")
+                comment_select_expr = f"t.{_quote_ident(comment_field)}::text AS comment"
+            if _column_exists(cursor, table_name, "nomer1"):
+                nomer1_field = _resolve_column_name(cursor, table_name, "nomer1")
+                nomer1_select_expr = f"t.{_quote_ident(nomer1_field)}::text AS nomer1"
+            props_json = (
+                "'source', %s, 'type', type::text, 'comment', comment::text, 'nomer1', nomer1::text"
+            )
+            select_suffix = f", {type_select_expr}, {comment_select_expr}, {nomer1_select_expr}"
+        elif source_label_norm == "РЖД":
+            if _column_exists(cursor, table_name, "comment_"):
+                comment_field = _resolve_column_name(cursor, table_name, "comment_")
+                comment_underscore_select_expr = f"t.{_quote_ident(comment_field)}::text AS comment_"
+            props_json = "'source', %s, 'comment_', comment_::text"
+            select_suffix = f", {comment_underscore_select_expr}"
+            name_select_expr = ""
+        else:
+            return _get_reference_layer_geojson(
+                table_name,
+                source_label,
+                geometry=geometry,
+                distance_meters=distance_meters,
+            )
+
+        tuning = _signal_tape_layer_tuning(source_label_norm)
+        clipped_lateral = _sql_signal_tape_clipped_geom_lateral(raw_geom)
+        output_geom = _sql_signal_tape_simplified_geom_expr("clip.clipped", tuning["simplify_meters"])
+        geojson_decimals = tuning["geojson_decimals"]
+        hood_ref_pfx, hood_ref_prm = get_hood_cte_prefix_sql()
+        hood_ref_t = get_hood_intersects_ha_sql(raw_geom)
+        ref_with_input = (hood_ref_pfx + "input AS (") if hood_ref_pfx else "WITH input AS ("
+        proximity_where = _sql_within_meters_where(
+            raw_geom,
+            "c.geom",
+            "%s",
+            bbox_geom_ref="c.zone",
+        )
+        geometry_json = geometry if isinstance(geometry, str) else json.dumps(geometry)
+        name_prefix = f"{name_select_expr}, " if name_select_expr else ""
+        query = (
+            ref_with_input
+            + f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+            "), ctx AS ("
+            " SELECT i.geom AS geom, ST_Buffer(i.geom::geography, %s)::geometry AS zone FROM input i"
+            "), rel AS ("
+            f" SELECT {output_geom} AS geom, {name_prefix}{select_suffix.lstrip(', ')}"
+            f" FROM {_quote_ident(table_name)} t"
+            " CROSS JOIN ctx c"
+            " CROSS JOIN LATERAL ("
+            f" SELECT {clipped_lateral} AS clipped"
+            ") clip"
+            f" WHERE{proximity_where}"
+            "   AND NOT ST_IsEmpty(clip.clipped)"
+            f"{drawable_geom_sql}{passport_only_ref_sql}{hood_ref_t}"
+            ") SELECT jsonb_build_object("
+            " 'type', 'FeatureCollection',"
+            " 'features', COALESCE(jsonb_agg(jsonb_build_object("
+            "   'type', 'Feature',"
+            f"   'geometry', ST_AsGeoJSON(geom, {geojson_decimals})::jsonb,"
+            "   'properties', jsonb_build_object("
+            f"      {props_json}"
+            "   )"
+            " )), '[]'::jsonb)"
+            ")::text FROM rel"
+        )
+        cursor.execute(
+            query,
+            hood_ref_prm + [geometry_json, distance_meters, distance_meters, source_label],
+        )
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+
 def _get_reference_layer_geojson(
     table_name,
     source_label,
     geometry=None,
-    distance_meters=100,
+    distance_meters=None,
     intersects_only=False,
     extra_where_sql: str = "",
 ):
+    if distance_meters is None:
+        distance_meters = _adjacent_nearby_meters()
     geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
     customer_field_pref = getattr(settings, "GIS_OBJECT_CUSTOMER_FIELD", "CustomerLegalPersonId")
     department_field_pref = getattr(settings, "GIS_OBJECT_DEPARTMENT_FIELD", "DepartmentLegalPersonId")
@@ -3775,29 +4096,28 @@ def _get_reference_layer_geojson(
                 )
                 cursor.execute(query, hood_ref_prm + [geometry_json, source_label])
             else:
+                proximity_where = _sql_reference_layer_proximity_where(raw_geom, geom_v)
                 query = (
                     ref_with_input + f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
                     "), rel AS ("
                     f" SELECT t.{_quote_ident(geom_field)} AS geom, "
                     f"{rootid_select_expr}, {name_select_expr}, {descr_select_expr}, {address_select_expr}, {vri_select_expr}{sobstv_owner_select_suffix}, {customer_select_expr}, {department_select_expr}, {owner_select_expr}, {customer_name_select_expr}, {department_name_select_expr}, {owner_name_select_expr}{meta_select_suffix} "
                     f"FROM {_quote_ident(table_name)} t, input i"
-                    f" WHERE {raw_geom} && ST_Envelope(ST_Buffer(i.geom::geography, %s)::geometry)"
-                    "   AND (ST_DWithin("
-                    f"   {raw_geom}::geography,"
-                    "   ST_Boundary(i.geom)::geography,"
-                    "   %s"
-                    " ) OR ST_Intersects("
-                    f"   {geom_v},"
-                    "   i.geom"
-                    f" )){drawable_geom_sql}{passport_only_ref_sql}{extra_where_sql}{hood_ref_t}"
+                    f" WHERE{proximity_where}"
+                    f"{drawable_geom_sql}{passport_only_ref_sql}{extra_where_sql}{hood_ref_t}"
                     ") " + select_json_tail
                 )
-                cursor.execute(query, hood_ref_prm + [geometry_json, distance_meters, distance_meters, source_label])
+                cursor.execute(
+                    query,
+                    hood_ref_prm + [geometry_json, distance_meters, distance_meters, source_label],
+                )
         row = cursor.fetchone()
         return row[0] if row else None
 
 
-def _get_recaps_layer_geojson(geometry=None, distance_meters=100, request_id_filter=None):
+def _get_recaps_layer_geojson(geometry=None, distance_meters=None, request_id_filter=None):
+    if distance_meters is None:
+        distance_meters = _adjacent_nearby_meters()
     request_id_text = str(request_id_filter or "").strip()
     has_request_id = bool(request_id_text)
     with connection.cursor() as cursor:
@@ -3886,10 +4206,9 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100, request_id_fil
                     "), spatial_rel AS ("
                     f" SELECT {recap_select_core}"
                     " FROM recaps t, input i"
-                    " WHERE t.geom && ST_Envelope(ST_Buffer(i.geom::geography, %s)::geometry)"
-                    "   AND (ST_DWithin(t.geom::geography, ST_Boundary(i.geom)::geography, %s)"
-                    "    OR ST_Intersects(t.geom, i.geom))"
-                    f"{recap_ha_geom}"
+                    " WHERE"
+                    + _sql_within_meters_where("t.geom", "i.geom", "%s")
+                    + f"{recap_ha_geom}"
                     "), request_rel AS ("
                     f" SELECT {recap_select_core}"
                     " FROM recaps t"
@@ -3901,7 +4220,10 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100, request_id_fil
                     " SELECT * FROM request_rel"
                     ") " + json_agg_select
                 )
-                cursor.execute(query, list(rh_prm) + [geometry_json, distance_meters, distance_meters, request_id_text])
+                cursor.execute(
+                    query,
+                    list(rh_prm) + [geometry_json, distance_meters, distance_meters, request_id_text],
+                )
             else:
                 query = (
                     recap_with_lead + "input AS ("
@@ -3909,10 +4231,9 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100, request_id_fil
                     "), rel AS ("
                     f" SELECT {recap_select_core}"
                     " FROM recaps t, input i"
-                    " WHERE t.geom && ST_Envelope(ST_Buffer(i.geom::geography, %s)::geometry)"
-                    "   AND (ST_DWithin(t.geom::geography, ST_Boundary(i.geom)::geography, %s)"
-                    "    OR ST_Intersects(t.geom, i.geom))"
-                    f"{recap_ha_geom}"
+                    " WHERE"
+                    + _sql_within_meters_where("t.geom", "i.geom", "%s")
+                    + f"{recap_ha_geom}"
                     ") " + json_agg_select
                 )
                 cursor.execute(query, list(rh_prm) + [geometry_json, distance_meters, distance_meters])
@@ -3920,7 +4241,9 @@ def _get_recaps_layer_geojson(geometry=None, distance_meters=100, request_id_fil
         return row[0] if row else None
 
 
-def _get_reference_layers(geometry=None, distance_meters=100, request_id_filter=None):
+def _get_reference_layers(geometry=None, distance_meters=None, request_id_filter=None):
+    if distance_meters is None:
+        distance_meters = _adjacent_nearby_meters()
     dgi_table = getattr(settings, "GIS_DGI_TABLE", "dgi")
     layers = {
         "dgi_moscow": None,
@@ -3986,7 +4309,7 @@ def _get_reference_layers(geometry=None, distance_meters=100, request_id_filter=
     except Exception:
         layers["recaps"] = None
     try:
-        layers["oozt"] = _get_reference_layer_geojson(
+        layers["oozt"] = _get_signal_tape_layer_geojson(
             getattr(settings, "GIS_OOZT_TABLE", "oozt"),
             "ООЗТ",
             geometry=geometry,
@@ -3995,7 +4318,7 @@ def _get_reference_layers(geometry=None, distance_meters=100, request_id_filter=
     except Exception:
         layers["oozt"] = None
     try:
-        layers["rzd"] = _get_reference_layer_geojson(
+        layers["rzd"] = _get_signal_tape_layer_geojson(
             getattr(settings, "GIS_RZD_TABLE", "rzd"),
             "РЖД",
             geometry=geometry,
@@ -4163,7 +4486,6 @@ def main(request):
         if defer_context_layers
         else _get_reference_layers(
             geometry=layers["selected"] if layers else None,
-            distance_meters=100,
             request_id_filter=effective_request_id or None,
         )
     )
@@ -4713,7 +5035,6 @@ def add_recap(request):
     recap_request_id = str(selected_object.get("request_id") or request_id or "").strip()
     reference_layers = _get_reference_layers(
         geometry=selected_object["geometry_json"],
-        distance_meters=100,
         request_id_filter=recap_request_id or None,
     )
     initial_relations = {"intersects": None, "touches": None, "nearby": None, "request_objects": None}
@@ -4765,7 +5086,119 @@ def add_recap(request):
 
 @login_required
 @require_POST
+def load_map_layer(request):
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
+
+    layer_key = str(payload.get("layer") or "").strip()
+    if layer_key not in MAP_DEFERRED_LAYER_KEYS:
+        return JsonResponse({"ok": False, "error": "Неизвестный слой."}, status=400)
+
+    entry_point = request.session.get("entry_point")
+    request_id = str(
+        payload.get("request_id")
+        or payload.get("request_id_filter")
+        or (entry_point or {}).get("request_id")
+        or ""
+    ).strip() or None
+
+    try:
+        if layer_key == "adjacent_dt" or layer_key.startswith("request_objects_"):
+            if not entry_point:
+                return JsonResponse({"ok": False, "error": "Сначала выберите объект."}, status=400)
+            layer_partial = _get_map_layers(entry_point, include_adjacent_layers=True, only_layer=layer_key)
+            if layer_partial is None:
+                return JsonResponse({"ok": False, "error": "Объект не найден в PostGIS."}, status=404)
+        else:
+            geometry = _to_intersection_geometry(payload.get("geometry"))
+            if not geometry:
+                return JsonResponse({"ok": False, "error": "Геометрия не передана."}, status=400)
+            layer_partial = _get_single_reference_layer(
+                layer_key,
+                geometry,
+                request_id_filter=request_id,
+            )
+            if layer_partial is None:
+                return JsonResponse({"ok": False, "error": "Неизвестный слой."}, status=400)
+    except Exception:
+        logger.exception("load_map_layer failed for layer=%s", layer_key)
+        return JsonResponse(
+            {"ok": False, "error": f"Не удалось загрузить слой ({layer_key})."},
+            status=500,
+        )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "layer": layer_key,
+            "layers": _relation_layers_for_json_response(layer_partial),
+        }
+    )
+
+
+@login_required
+@require_POST
+def load_map_adjacent_layers(request):
+    entry_point = request.session.get("entry_point")
+    if not entry_point:
+        return JsonResponse({"ok": False, "error": "Сначала выберите объект."}, status=400)
+
+    try:
+        layers = _get_map_layers(entry_point, include_adjacent_layers=True)
+    except Exception:
+        logger.exception("load_map_adjacent_layers: _get_map_layers failed")
+        return JsonResponse(
+            {"ok": False, "error": "Не удалось получить смежные объекты из PostGIS."},
+            status=500,
+        )
+
+    if not layers:
+        return JsonResponse({"ok": False, "error": "Объект не найден в PostGIS."}, status=404)
+
+    return JsonResponse({"ok": True, "layers": _adjacent_layers_for_json_response(layers)})
+
+
+@login_required
+@require_POST
+def load_map_reference_layers(request):
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
+
+    entry_point = request.session.get("entry_point")
+    geometry = payload.get("geometry")
+    if not geometry:
+        return JsonResponse({"ok": False, "error": "Геометрия не передана."}, status=400)
+
+    request_id = str(
+        payload.get("request_id")
+        or payload.get("request_id_filter")
+        or (entry_point or {}).get("request_id")
+        or ""
+    ).strip() or None
+
+    try:
+        reference_layers = _get_reference_layers(
+            geometry=geometry,
+            request_id_filter=request_id,
+        )
+    except Exception:
+        logger.exception("load_map_reference_layers failed")
+        return JsonResponse(
+            {"ok": False, "error": "Не удалось получить справочные слои из PostGIS."},
+            status=500,
+        )
+
+    return JsonResponse({"ok": True, "layers": _reference_layers_for_json_response(reference_layers)})
+
+
+@login_required
+@require_POST
 def load_map_context_layers(request):
+    """Legacy single-call loader; prefer load_map_adjacent_layers + load_map_reference_layers."""
     entry_point = request.session.get("entry_point")
     if not entry_point:
         return JsonResponse({"ok": False, "error": "Сначала выберите объект."}, status=400)
@@ -4786,32 +5219,18 @@ def load_map_context_layers(request):
     try:
         reference_layers = _get_reference_layers(
             geometry=layers["selected"],
-            distance_meters=100,
             request_id_filter=request_id or None,
         )
     except Exception:
         logger.exception("load_map_context_layers: reference layers failed")
-        reference_layers = {
-            "dgi_moscow": None,
-            "dgi_private": None,
-            "odh": None,
-            "ozn": None,
-            "renew": None,
-            "recaps": None,
-            "oozt": None,
-            "rzd": None,
-            "top": None,
-        }
+        reference_layers = {}
 
     return JsonResponse(
         {
             "ok": True,
             "layers": {
-                "intersects": layers.get("intersects"),
-                "touches": layers.get("touches"),
-                "nearby": layers.get("nearby"),
-                "request_objects": layers.get("request_objects"),
-                **reference_layers,
+                **_adjacent_layers_for_json_response(layers),
+                **_reference_layers_for_json_response(reference_layers),
             },
         }
     )
@@ -4853,7 +5272,7 @@ def check_new_object_relations(request):
     return JsonResponse(
         {
             "ok": True,
-            "layers": layers,
+            "layers": _relation_layers_for_json_response(layers),
             "intersects_selected": intersects_selected,
         }
     )

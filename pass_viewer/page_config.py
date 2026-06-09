@@ -6,13 +6,35 @@ from django.urls import reverse
 
 def _adjacent_nearby_meters_for_page():
     try:
-        return float(getattr(settings, "GIS_ADJACENT_NEARBY_METERS", 100))
+        return float(getattr(settings, "GIS_ADJACENT_NEARBY_METERS", 25))
     except (TypeError, ValueError):
-        return 100.0
+        return 25.0
+
+
+def map_deferred_layer_specs():
+    return [
+        {"key": "adjacent_dt", "label": "Смежные паспорта ДТ"},
+        {"key": "request_objects_dt", "label": "Заявки ДТ"},
+        {"key": "request_objects_odh", "label": "Заявки ОДХ"},
+        {"key": "request_objects_ozn", "label": "Заявки ОЗН"},
+        {"key": "request_objects_top", "label": "Заявки ТОП"},
+        {"key": "dgi_moscow", "label": "ДГИ (Москва)"},
+        {"key": "dgi_private", "label": "ДГИ (частная)"},
+        {"key": "odh", "label": "ОДХ"},
+        {"key": "ozn", "label": "ОЗН"},
+        {"key": "renew", "label": "Реновация"},
+        {"key": "recaps", "label": "Рекапы"},
+        {"key": "oozt", "label": "ООЗТ"},
+        {"key": "rzd", "label": "РЖД"},
+        {"key": "top", "label": "ТОП"},
+    ]
 
 
 def _editor_api_urls():
     return {
+        "loadMapLayer": reverse("load_map_layer"),
+        "loadMapAdjacentLayers": reverse("load_map_adjacent_layers"),
+        "loadMapReferenceLayers": reverse("load_map_reference_layers"),
         "loadMapContextLayers": reverse("load_map_context_layers"),
         "checkRelations": reverse("check_new_object_relations"),
         "checkDgi": reverse("check_dgi_intersections"),
@@ -97,6 +119,7 @@ def main_page_config(
             "selectedGeometry": True,
             "deferredMapContextLayers": _defer_map_context_layers_for_page(),
         },
+        mapLayerLoadOrder=map_deferred_layer_specs(),
     )
 
 
