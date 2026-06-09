@@ -150,6 +150,84 @@
         };
     }
 
+    function mergeFeatureCollectionForExport(editedGeojson) {
+        if (!editedGeojson?.features?.length) {
+            return null;
+        }
+        if (editedGeojson.features.length === 1) {
+            return editedGeojson.features[0].geometry;
+        }
+        const allPolygons = editedGeojson.features.every(
+            (feature) => feature.geometry && feature.geometry.type === 'Polygon',
+        );
+        if (allPolygons) {
+            return {
+                type: 'MultiPolygon',
+                coordinates: editedGeojson.features.map((feature) => feature.geometry.coordinates),
+            };
+        }
+        return {
+            type: 'GeometryCollection',
+            geometries: editedGeojson.features.map((feature) => feature.geometry).filter(Boolean),
+        };
+    }
+
+    function exportGeometryFromRaw(geometry, buildExportGeometry, toEditableFeatureCollection) {
+        const editableGeo = toEditableFeatureCollection(geometry);
+        if (!editableGeo || !editableGeo.features.length) {
+            return null;
+        }
+        const buildFn =
+            typeof buildExportGeometry === 'function'
+                ? buildExportGeometry
+                : mergeFeatureCollectionForExport;
+        return buildFn(editableGeo);
+    }
+
+    function buildGeometryForExport(opts) {
+        const options = opts || {};
+        const {
+            featureGroup,
+            isEditing,
+            buildExportGeometry,
+            buildCurrentGeometryFromSelected,
+            pendingRepairedGeometry,
+            editToolbar,
+        } = options;
+
+        if (pendingRepairedGeometry) {
+            return pendingRepairedGeometry;
+        }
+        if (!isEditing) {
+            return typeof buildCurrentGeometryFromSelected === 'function'
+                ? buildCurrentGeometryFromSelected()
+                : null;
+        }
+
+        const resumeEditToolbar = !!(editToolbar && isEditing);
+        if (editToolbar) {
+            editToolbar.disable();
+        }
+
+        let result = null;
+        const layerGeometries = readGeometriesFromLeafletGroup(featureGroup);
+        if (layerGeometries.length) {
+            result = mergePolygonGeometriesForExport(layerGeometries);
+        }
+        if (!result && featureGroup && typeof featureGroup.toGeoJSON === 'function') {
+            const buildFn =
+                typeof buildExportGeometry === 'function'
+                    ? buildExportGeometry
+                    : mergeFeatureCollectionForExport;
+            result = buildFn(featureGroup.toGeoJSON());
+        }
+
+        if (resumeEditToolbar && editToolbar) {
+            editToolbar.enable();
+        }
+        return result;
+    }
+
     async function repairMultipolygonGeometry(url, geometry, csrfToken) {
         const response = await fetch(url, {
             method: 'POST',
@@ -179,5 +257,8 @@
         repairMultipolygonGeometry,
         readGeometriesFromLeafletGroup,
         mergePolygonGeometriesForExport,
+        mergeFeatureCollectionForExport,
+        exportGeometryFromRaw,
+        buildGeometryForExport,
     };
 })(typeof window !== 'undefined' ? window : global);
