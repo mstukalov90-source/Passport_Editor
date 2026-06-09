@@ -1,10 +1,19 @@
 """Page bootstrap config for pass_viewer map templates (json_script)."""
 
+from django.conf import settings
 from django.urls import reverse
+
+
+def _adjacent_nearby_meters_for_page():
+    try:
+        return float(getattr(settings, "GIS_ADJACENT_NEARBY_METERS", 100))
+    except (TypeError, ValueError):
+        return 100.0
 
 
 def _editor_api_urls():
     return {
+        "loadMapContextLayers": reverse("load_map_context_layers"),
         "checkRelations": reverse("check_new_object_relations"),
         "checkDgi": reverse("check_dgi_intersections"),
         "autoRemove": reverse("auto_remove_intersections"),
@@ -22,6 +31,7 @@ def build_page_config(page, **extra):
     config = {"page": page, "urls": {}, "features": {}}
     if page in ("main", "add_object", "add_recap", "split"):
         config["urls"] = _editor_api_urls()
+        config["adjacentNearbyMeters"] = _adjacent_nearby_meters_for_page()
     config.update(extra)
     return config
 
@@ -82,7 +92,19 @@ def main_page_config(
         selectedDatesurvey=selected_datesurvey or "",
         selectedCreatetype=selected_createtype or "",
         selectedSourceLabel=selected_source_label or "ДТ",
-        features={"pdf": True, "selectedGeometry": True},
+        features={
+            "pdf": True,
+            "selectedGeometry": True,
+            "deferredMapContextLayers": _defer_map_context_layers_for_page(),
+        },
+    )
+
+
+def _defer_map_context_layers_for_page():
+    return str(getattr(settings, "GIS_DEFER_MAP_CONTEXT_LAYERS", "1")).lower() not in (
+        "0",
+        "false",
+        "no",
     )
 
 

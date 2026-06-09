@@ -15,6 +15,7 @@
     const calculateGeometryAreaSqMeters = PV.calculateGeometryAreaSqMeters.bind(PV);
     const buildObjectPopup = PV.buildObjectPopup.bind(PV);
     const buildPdfIntersectionPopupHtml = PV.buildPdfIntersectionPopupHtml.bind(PV);
+    const formatAdjacentRelationsSearchStatus = PV.formatAdjacentRelationsSearchStatus.bind(PV);
 
 const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
 
@@ -1338,7 +1339,7 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
             const dossierGeo = dossierGroup.toGeoJSON();
             const hasNewPolygon = Array.isArray(dossierGeo?.features) && dossierGeo.features.length > 0;
             checkRelationsButton.disabled = true;
-            statusEl.textContent = 'Ищем смежные паспорта ДТ (пересечение, общая граница, до 10 м)...';
+            statusEl.textContent = formatAdjacentRelationsSearchStatus(cfg.adjacentNearbyMeters);
             showDbLoadingModal();
             try {
                 const response = await fetch(cfg.urls.checkRelations, {

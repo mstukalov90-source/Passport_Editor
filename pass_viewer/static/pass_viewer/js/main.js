@@ -15,6 +15,7 @@
     const calculateGeometryAreaSqMeters = PV.calculateGeometryAreaSqMeters.bind(PV);
     const buildObjectPopup = PV.buildObjectPopup.bind(PV);
     const buildPdfIntersectionPopupHtml = PV.buildPdfIntersectionPopupHtml.bind(PV);
+    const formatAdjacentRelationsSearchStatus = PV.formatAdjacentRelationsSearchStatus.bind(PV);
 
 function formatDgiShortSobstvRr(value) {
             const raw = String(value ?? '').trim();
@@ -1260,7 +1261,7 @@ function formatDgiShortSobstvRr(value) {
             const selectedGeometryForCheck = hasNewPolygon ? toIntersectionGeometry(selectedGeometry) : null;
             const newGeometryForSelectedCheck = hasNewPolygon ? buildNewGeometryBeyondSelected() : null;
             checkRelationsButton.disabled = true;
-            statusEl.textContent = 'Ищем смежные паспорта ДТ (пересечение, общая граница, до 10 м)...';
+            statusEl.textContent = formatAdjacentRelationsSearchStatus(cfg.adjacentNearbyMeters);
             showDbLoadingModal();
             try {
                 const response = await fetch(cfg.urls.checkRelations, {
@@ -1297,6 +1298,38 @@ function formatDgiShortSobstvRr(value) {
                 statusEl.textContent = 'Границы объектов и площадь обновлены.';
             } catch (error) {
                 statusEl.textContent = error.message || 'Не удалось проверить связанные объекты.';
+            } finally {
+                hideDbLoadingModal();
+                updateRelationsButtonState();
+            }
+        }
+
+        async function loadInitialMapContextLayers() {
+            if (!cfg.features?.deferredMapContextLayers) {
+                return;
+            }
+            if (!selectedGeometry || !cfg.urls?.loadMapContextLayers) {
+                return;
+            }
+            showDbLoadingModal();
+            statusEl.textContent = 'Загружаем смежные объекты и слои карты...';
+            try {
+                const response = await fetch(cfg.urls.loadMapContextLayers, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || '',
+                    },
+                    body: '{}',
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Ошибка загрузки слоёв.');
+                }
+                renderRelationLayers(data.layers || {});
+                statusEl.textContent = 'Карта готова.';
+            } catch (error) {
+                statusEl.textContent = error.message || 'Не удалось загрузить смежные объекты и слои.';
             } finally {
                 hideDbLoadingModal();
                 updateRelationsButtonState();
@@ -3151,5 +3184,6 @@ function formatDgiShortSobstvRr(value) {
         }
 
         updateRelationsButtonState();
+        loadInitialMapContextLayers();
 
 })();
