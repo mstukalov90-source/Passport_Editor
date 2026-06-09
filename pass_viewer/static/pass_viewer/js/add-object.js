@@ -1693,7 +1693,8 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
                     buildObjectPopup(
                         {},
                         'Новый объект',
-                        'Новый объект'
+                        'Новый объект',
+                        { headerLabel: 'Редактируемый объект' }
                     )
                 );
                 editableGroup.addLayer(layer);
@@ -1978,7 +1979,8 @@ const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
                 buildObjectPopup(
                     {},
                     'Новый объект',
-                    'Новый объект'
+                    'Новый объект',
+                    { headerLabel: 'Редактируемый объект' }
                 )
             );
             if (polygonDrawer) {

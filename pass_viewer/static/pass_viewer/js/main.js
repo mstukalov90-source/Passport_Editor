@@ -16,6 +16,8 @@
     const buildObjectPopup = PV.buildObjectPopup.bind(PV);
     const buildPdfIntersectionPopupHtml = PV.buildPdfIntersectionPopupHtml.bind(PV);
     const formatAdjacentRelationsSearchStatus = PV.formatAdjacentRelationsSearchStatus.bind(PV);
+    const parseJsonResponse = PV.parseJsonResponse.bind(PV);
+    const mergeMapLayerPayload = PV.mergeMapLayerPayload.bind(PV);
 
 function formatDgiShortSobstvRr(value) {
             const raw = String(value ?? '').trim();
@@ -971,11 +973,7 @@ function formatDgiShortSobstvRr(value) {
                 selectedPassportMetaProps,
                 selectedRootid || '-',
                 selectedName || '-',
-                selectedRequestId || '-',
-                selectedCustomerLegalPersonId || '-',
-                selectedDepartmentLegalPersonId || '-',
-                selectedCustomerLegalPersonName || '-',
-                selectedDepartmentLegalPersonName || '-'
+                { headerLabel: 'Редактируемый объект' }
             );
             bindPopupToLayer(selectedLayer, popupHtml);
             map.fitBounds(selectedLayer.getBounds(), {padding: [30, 30], maxZoom: 30});
@@ -1187,8 +1185,15 @@ function formatDgiShortSobstvRr(value) {
         }
 
         function renderRelationLayers(layers) {
-            adjacentDtPassportsGroup.clearLayers();
-            requestObjectsGroup.clearLayers();
+            const hasAdjacentLayers =
+                Object.prototype.hasOwnProperty.call(layers, 'intersects')
+                || Object.prototype.hasOwnProperty.call(layers, 'touches')
+                || Object.prototype.hasOwnProperty.call(layers, 'nearby')
+                || Object.prototype.hasOwnProperty.call(layers, 'request_objects');
+            if (hasAdjacentLayers) {
+                adjacentDtPassportsGroup.clearLayers();
+                requestObjectsGroup.clearLayers();
+            }
             const parsed = {
                 intersects: normalizeGeoJson(layers.intersects),
                 touches: normalizeGeoJson(layers.touches),
@@ -1225,23 +1230,40 @@ function formatDgiShortSobstvRr(value) {
             parsed.request_objects = excludeSelectedRootid(parsed.request_objects);
             parsed.odh = excludeSelectedRootid(parsed.odh);
             parsed.ozn = excludeSelectedRootid(parsed.ozn);
-            renderReferenceSignalLayers(parsed.dgi_moscow, parsed.dgi_private, parsed.odh, parsed.ozn);
-            renderRecapsLayer(parsed.recaps);
-            renderRenewLayer(parsed.renew);
-            addSignalTapeLayer(ooztSignalGroup, parsed.oozt, 'ООЗТ');
-            addSignalTapeLayer(rzdSignalGroup, parsed.rzd, 'РЖД');
-            const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsed.intersects, parsed.touches, parsed.nearby);
-            if (mergedAdjacentDt) {
-                L.geoJSON(mergedAdjacentDt, {
-                    style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
-                    onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {}))
-                }).addTo(adjacentDtPassportsGroup);
+            if (
+                Object.prototype.hasOwnProperty.call(layers, 'dgi_moscow')
+                || Object.prototype.hasOwnProperty.call(layers, 'dgi_private')
+                || Object.prototype.hasOwnProperty.call(layers, 'odh')
+                || Object.prototype.hasOwnProperty.call(layers, 'ozn')
+            ) {
+                renderReferenceSignalLayers(parsed.dgi_moscow, parsed.dgi_private, parsed.odh, parsed.ozn);
             }
-            if (parsed.request_objects) {
-                L.geoJSON(parsed.request_objects, {
-                    style: {color: '#c026d3', weight: 2, fillColor: '#f0abfc', fillOpacity: 0.28},
-                    onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
-                }).addTo(requestObjectsGroup);
+            if (Object.prototype.hasOwnProperty.call(layers, 'recaps')) {
+                renderRecapsLayer(parsed.recaps);
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'renew')) {
+                renderRenewLayer(parsed.renew);
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'oozt')) {
+                addSignalTapeLayer(ooztSignalGroup, parsed.oozt, 'ООЗТ');
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'rzd')) {
+                addSignalTapeLayer(rzdSignalGroup, parsed.rzd, 'РЖД');
+            }
+            if (hasAdjacentLayers) {
+                const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsed.intersects, parsed.touches, parsed.nearby);
+                if (mergedAdjacentDt) {
+                    L.geoJSON(mergedAdjacentDt, {
+                        style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
+                        onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {}))
+                    }).addTo(adjacentDtPassportsGroup);
+                }
+                if (parsed.request_objects) {
+                    L.geoJSON(parsed.request_objects, {
+                        style: {color: '#c026d3', weight: 2, fillColor: '#f0abfc', fillOpacity: 0.28},
+                        onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
+                    }).addTo(requestObjectsGroup);
+                }
             }
             refreshObjectLayersControl();
             rebuildSnapGuideLines();
@@ -1286,7 +1308,7 @@ function formatDgiShortSobstvRr(value) {
                         })()
                     )
                 });
-                const data = await response.json();
+                const data = await parseJsonResponse(response);
                 if (!response.ok || !data.ok) {
                     throw new Error(data.error || 'Ошибка запроса.');
                 }
@@ -1304,32 +1326,72 @@ function formatDgiShortSobstvRr(value) {
             }
         }
 
+        async function fetchMapLayersJson(url, body) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken') || '',
+                },
+                body: body,
+            });
+            const data = await parseJsonResponse(response);
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'Ошибка загрузки слоёв.');
+            }
+            return data.layers || {};
+        }
+
         async function loadInitialMapContextLayers() {
             if (!cfg.features?.deferredMapContextLayers) {
                 return;
             }
-            if (!selectedGeometry || !cfg.urls?.loadMapContextLayers) {
+            const layerUrl = cfg.urls?.loadMapLayer;
+            const geometryForLayers = buildCurrentGeometry() || selectedGeometry;
+            if (!geometryForLayers || !layerUrl) {
+                return;
+            }
+            const layerSpecs = Array.isArray(cfg.mapLayerLoadOrder) ? cfg.mapLayerLoadOrder : [];
+            if (!layerSpecs.length) {
                 return;
             }
             showDbLoadingModal();
-            statusEl.textContent = 'Загружаем смежные объекты и слои карты...';
+            let mergedLayers = {};
+            let loadedCount = 0;
+            let failedCount = 0;
+            const entryRid = String(effectiveEntryRequestId || '').trim();
             try {
-                const response = await fetch(cfg.urls.loadMapContextLayers, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': getCookie('csrftoken') || '',
-                    },
-                    body: '{}',
-                });
-                const data = await response.json();
-                if (!response.ok || !data.ok) {
-                    throw new Error(data.error || 'Ошибка загрузки слоёв.');
+                for (const spec of layerSpecs) {
+                    const layerKey = spec?.key;
+                    if (!layerKey) {
+                        continue;
+                    }
+                    statusEl.textContent = 'Загружаем: ' + (spec.label || layerKey) + '...';
+                    try {
+                        const payload = {
+                            layer: layerKey,
+                            geometry: geometryForLayers,
+                        };
+                        if (entryRid) {
+                            payload.request_id = entryRid;
+                        }
+                        const partial = await fetchMapLayersJson(layerUrl, JSON.stringify(payload));
+                        mergedLayers = mergeMapLayerPayload(mergedLayers, partial);
+                        renderRelationLayers(mergedLayers);
+                        loadedCount += 1;
+                    } catch (layerError) {
+                        failedCount += 1;
+                        console.warn('Layer load failed:', layerKey, layerError);
+                    }
                 }
-                renderRelationLayers(data.layers || {});
-                statusEl.textContent = 'Карта готова.';
-            } catch (error) {
-                statusEl.textContent = error.message || 'Не удалось загрузить смежные объекты и слои.';
+                if (!loadedCount) {
+                    statusEl.textContent = 'Не удалось загрузить слои карты.';
+                } else if (failedCount) {
+                    statusEl.textContent =
+                        'Карта готова (загружено ' + loadedCount + ' из ' + layerSpecs.length + ' слоёв).';
+                } else {
+                    statusEl.textContent = 'Карта готова.';
+                }
             } finally {
                 hideDbLoadingModal();
                 updateRelationsButtonState();
@@ -1450,11 +1512,7 @@ function formatDgiShortSobstvRr(value) {
                         selectedPassportMetaProps,
                         selectedRootid || '-',
                         selectedName || '-',
-                        selectedRequestId || '-',
-                        selectedCustomerLegalPersonId || '-',
-                        selectedDepartmentLegalPersonId || '-',
-                        selectedCustomerLegalPersonName || '-',
-                        selectedDepartmentLegalPersonName || '-'
+                        { headerLabel: 'Редактируемый объект' }
                     )
                 );
                 editableGroup.addLayer(layer);
@@ -2229,11 +2287,7 @@ function formatDgiShortSobstvRr(value) {
                     selectedPassportMetaProps,
                     selectedRootid || '-',
                     selectedName || '-',
-                    selectedRequestId || '-',
-                    selectedCustomerLegalPersonId || '-',
-                    selectedDepartmentLegalPersonId || '-',
-                    selectedCustomerLegalPersonName || '-',
-                    selectedDepartmentLegalPersonName || '-'
+                    { headerLabel: 'Редактируемый объект' }
                 )
             );
             if (polygonDrawer) {
@@ -2281,11 +2335,7 @@ function formatDgiShortSobstvRr(value) {
                         selectedPassportMetaProps,
                         selectedRootid || '-',
                         selectedName || '-',
-                        selectedRequestId || '-',
-                        selectedCustomerLegalPersonId || '-',
-                        selectedDepartmentLegalPersonId || '-',
-                        selectedCustomerLegalPersonName || '-',
-                        selectedDepartmentLegalPersonName || '-'
+                        { headerLabel: 'Редактируемый объект' }
                     )
                 );
                 editableGroup.addLayer(layer);

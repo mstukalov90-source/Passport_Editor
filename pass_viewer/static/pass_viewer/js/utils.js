@@ -16,6 +16,26 @@
         }
     };
 
+    PassViewer.parseJsonResponse = async function parseJsonResponse(response) {
+        const text = await response.text();
+        if (!text || !text.trim()) {
+            throw new Error('Пустой ответ сервера (возможен таймаут прокси).');
+        }
+        try {
+            return JSON.parse(text);
+        } catch (error) {
+            const trimmed = text.trimStart();
+            if (trimmed.startsWith('<')) {
+                throw new Error(
+                    'Сервер вернул HTML вместо JSON (возможен таймаут или ошибка прокси).',
+                );
+            }
+            throw new Error(
+                'Некорректный ответ сервера. Попробуйте «Обновить смежные объекты и площадь».',
+            );
+        }
+    };
+
     PassViewer.getCookie = function getCookie(name) {
         const cookieValue = document.cookie
             .split('; ')
@@ -166,9 +186,51 @@
         return { type: 'FeatureCollection', features: mergedFeatures };
     };
 
+    PassViewer.mergeFeatureCollections = function mergeFeatureCollections(left, right) {
+        const normalizedLeft = PassViewer.normalizeGeoJson(left);
+        const normalizedRight = PassViewer.normalizeGeoJson(right);
+        if (!normalizedLeft) {
+            return normalizedRight;
+        }
+        if (!normalizedRight) {
+            return normalizedLeft;
+        }
+        const leftFeatures =
+            normalizedLeft.type === 'FeatureCollection'
+                ? normalizedLeft.features
+                : [normalizedLeft];
+        const rightFeatures =
+            normalizedRight.type === 'FeatureCollection'
+                ? normalizedRight.features
+                : [normalizedRight];
+        return {
+            type: 'FeatureCollection',
+            features: leftFeatures.concat(rightFeatures),
+        };
+    };
+
+    PassViewer.mergeMapLayerPayload = function mergeMapLayerPayload(accumulated, partial) {
+        const result = { ...(accumulated || {}) };
+        const source = partial || {};
+        for (const [key, value] of Object.entries(source)) {
+            if (!value) {
+                continue;
+            }
+            if (key === 'request_objects' && result.request_objects) {
+                result.request_objects = PassViewer.mergeFeatureCollections(
+                    result.request_objects,
+                    value,
+                );
+            } else {
+                result[key] = value;
+            }
+        }
+        return result;
+    };
+
     PassViewer.formatAdjacentRelationsSearchStatus = function formatAdjacentRelationsSearchStatus(nearbyMeters) {
         const parsed = Number(nearbyMeters);
-        const radius = Number.isFinite(parsed) && parsed > 0 ? parsed : 100;
+        const radius = Number.isFinite(parsed) && parsed > 0 ? parsed : 25;
         const radiusText = Number.isInteger(radius) ? String(radius) : String(Math.round(radius));
         return (
             'Ищем смежные паспорта ДТ (пересечение, общая граница, до ' + radiusText + ' м)...'
