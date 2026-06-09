@@ -187,10 +187,14 @@ GIS_RZD_TABLE = os.getenv("GIS_RZD_TABLE", "rzd")
 GIS_TOP_TABLE = os.getenv("GIS_TOP_TABLE", "top")
 GIS_TOP_SOURCE_LABEL = os.getenv("GIS_TOP_SOURCE_LABEL", "ТОП")
 GIS_AUTO_REMOVE_SQUARE_TABLE = os.getenv("GIS_AUTO_REMOVE_SQUARE_TABLE", "auto_remove_square")
+# Радиус nearby для смежных паспортов ДТ (включая объекты с общей границей; отдельный ST_Touches не используется).
 try:
     GIS_ADJACENT_NEARBY_METERS = float(os.getenv("GIS_ADJACENT_NEARBY_METERS", "100"))
 except (TypeError, ValueError):
     GIS_ADJACENT_NEARBY_METERS = 100.0
+
+# На main: не грузить смежные ДТ и reference-слои в HTML — подгрузка через AJAX после открытия страницы.
+GIS_DEFER_MAP_CONTEXT_LAYERS = os.getenv("GIS_DEFER_MAP_CONTEXT_LAYERS", "1")
 
 # GeoDjango library paths (macOS Homebrew).
 GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH", "/opt/homebrew/lib/libgdal.dylib")

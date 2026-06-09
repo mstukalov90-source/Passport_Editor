@@ -190,6 +190,11 @@ if (L && L.drawLocal) {
         const newRecapIdInput = document.getElementById('new-recap-id');
         const initialRecapIdFromEntry = '{{ initial_recap_id|default:""|escapejs }}';
         const saveModalErrorEl = document.getElementById('save-modal-error');
+        const saveModalDgiWarning = document.getElementById('save-modal-dgi-warning');
+        const dgiExportConfirmModal = document.getElementById('dgi-export-confirm-modal');
+        const dgiExportConfirmAgree = document.getElementById('dgi-export-confirm-agree');
+        const dgiExportConfirmBack = document.getElementById('dgi-export-confirm-back');
+        let pendingDgiApprove = null;
         const autoRemoveModal = document.getElementById('auto-remove-modal');
         const autoRemoveModalCancel = document.getElementById('auto-remove-modal-cancel');
         const autoRemoveModalSubmit = document.getElementById('auto-remove-modal-submit');
@@ -201,6 +206,9 @@ if (L && L.drawLocal) {
         const autoRemoveDgiPrivateCheckbox = document.getElementById('auto-remove-dgi-private');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
+        const checkDgiModal = document.getElementById('check-dgi-modal');
+        const checkDgiModalBody = document.getElementById('check-dgi-modal-body');
+        const checkDgiModalClose = document.getElementById('check-dgi-modal-close');
         const dbLoadingModal = document.getElementById('db-loading-modal');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
         const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
@@ -1600,6 +1608,26 @@ if (L && L.drawLocal) {
             }
         }
 
+        function closeCheckDgiModal() {
+            if (checkDgiModal) {
+                checkDgiModal.style.display = 'none';
+            }
+        }
+
+        function showCheckDgiModal(data) {
+            if (!checkDgiModal || !checkDgiModalBody) {
+                return;
+            }
+            if (data.intersects) {
+                checkDgiModalBody.innerHTML =
+                    '<div>ДГИ (г. Москва и Нет данных): ' + data.percent_moscow + '% от площади</div>' +
+                    '<div>ДГИ (Частная собственность): ' + data.percent_private + '% от площади</div>';
+            } else {
+                checkDgiModalBody.textContent = 'Пересечений с объектами ДГИ не обнаружено.';
+            }
+            checkDgiModal.style.display = 'flex';
+        }
+
         async function checkDgiIntersections() {
             const geometry = buildCurrentGeometry();
             if (!geometry) {
@@ -1621,17 +1649,17 @@ if (L && L.drawLocal) {
                 if (!response.ok || !data.ok) {
                     throw new Error(data.error || 'Ошибка проверки пересечений с ДГИ.');
                 }
-                if (data.intersects) {
-                    window.alert('Обнаружено пересечение с объектами ДГИ ' + data.percent + '% от площади');
-                } else {
-                    window.alert('Пересечений с объектами ДГИ не обнаружено.');
-                }
+                showCheckDgiModal(data);
                 statusEl.textContent = 'Проверка пересечений с ДГИ завершена.';
             } catch (error) {
                 statusEl.textContent = error.message || 'Не удалось проверить пересечения с ДГИ.';
             } finally {
                 checkDgiIntersectionsButton.disabled = false;
             }
+        }
+
+        if (checkDgiModalClose) {
+            checkDgiModalClose.addEventListener('click', closeCheckDgiModal);
         }
 
         function openAutoRemoveModal() {
@@ -1779,12 +1807,23 @@ if (L && L.drawLocal) {
             deletePendingPolygon();
         });
 
-        function openSaveModal() {
+        function openSaveModal(opts) {
+            opts = opts || {};
             if (newRecapIdInput) {
                 newRecapIdInput.value = (initialRecapIdFromEntry || '').trim();
             }
             if (saveModalErrorEl) {
                 saveModalErrorEl.textContent = '';
+            }
+            if (saveModalDgiWarning) {
+                const warningText = PV.buildDgiExportWarningText(opts.warningPercent);
+                if (warningText) {
+                    saveModalDgiWarning.textContent = warningText;
+                    saveModalDgiWarning.style.display = 'block';
+                } else {
+                    saveModalDgiWarning.textContent = '';
+                    saveModalDgiWarning.style.display = 'none';
+                }
             }
             saveModal.style.display = 'flex';
             setTimeout(() => newRecapIdInput && newRecapIdInput.focus(), 0);
@@ -1815,18 +1854,22 @@ if (L && L.drawLocal) {
             saveDossierButton.disabled = true;
             statusEl.textContent = 'Сохраняем досъём...';
             try {
+                const savePayload = {
+                    geometry: geometry,
+                    name: objectName,
+                    request_id: requestId,
+                    recap_id: recapId,
+                };
+                if (pendingDgiApprove) {
+                    savePayload.dgi_aprove = pendingDgiApprove;
+                }
                 const saveResponse = await fetch("{% url 'save_recap_object' %}", {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCookie('csrftoken') || '',
                     },
-                    body: JSON.stringify({
-                        geometry: geometry,
-                        name: objectName,
-                        request_id: requestId,
-                        recap_id: recapId,
-                    }),
+                    body: JSON.stringify(savePayload),
                 });
                 const saveResult = await saveResponse.json();
                 if (!saveResponse.ok || !saveResult.ok) {
@@ -1855,6 +1898,7 @@ if (L && L.drawLocal) {
                 }
 
                 closeSaveModal();
+                pendingDgiApprove = null;
                 exportLinksEl.innerHTML =
                     '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
                     '<a class="button-link" href="' + exportResult.shapefile_url + '">Скачать SHP (ZIP)</a>';
@@ -1867,7 +1911,26 @@ if (L && L.drawLocal) {
             }
         }
 
-        saveDossierButton.addEventListener('click', openSaveModal);
+        PV.initDgiExportGateFlow({
+            exportButton: saveDossierButton,
+            checkDgiUrl: "{% url 'check_dgi_intersections' %}",
+            getCookie: getCookie,
+            getGeometry: () => {
+                const geo = dossierGroup.toGeoJSON();
+                if (!geo.features.length) {
+                    statusEl.textContent = 'Сначала нарисуйте полигон досъёма.';
+                    return null;
+                }
+                return geo.features[0].geometry;
+            },
+            openSaveModal: openSaveModal,
+            dgiConfirmModal: dgiExportConfirmModal,
+            dgiConfirmAgree: dgiExportConfirmAgree,
+            dgiConfirmBack: dgiExportConfirmBack,
+            setPendingApprove: (value) => {
+                pendingDgiApprove = value;
+            },
+        });
         saveModalCancel.addEventListener('click', closeSaveModal);
         saveModalSubmit.addEventListener('click', saveDossier);
         saveModal.addEventListener('click', (event) => {

@@ -15,6 +15,7 @@ from .views import (
     export_new_object_geometry,
     home,
     list_comment_points,
+    load_map_context_layers,
     main,
     open_merged_passports,
     open_owned_object,
@@ -48,6 +49,7 @@ urlpatterns = [
     path("add-object/prepare/", prepare_add_object, name="prepare_add_object"),
     path("owned/delete/", delete_owned_object, name="delete_owned_object"),
     path("main/", main, name="main"),
+    path("main/load-context-layers/", load_map_context_layers, name="load_map_context_layers"),
     path("main/export-geometry/", export_geometry, name="export_geometry"),
     path("split-object/", split_object, name="split_object"),
 ]

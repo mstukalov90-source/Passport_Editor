@@ -5,6 +5,7 @@ from pass_viewer.dgi_layers import (
     DGI_MOSCOW_MARKER_NO_DATA,
     build_dgi_ownership_extra_sql,
     classify_dgi_ownership,
+    normalize_dgi_aprove_payload,
 )
 
 
@@ -28,6 +29,27 @@ def test_build_sql_fragments():
     assert "ILIKE" in moscow_sql
     assert DGI_MOSCOW_MARKER_CITY in moscow_sql
     assert "IS NULL" in private_sql
+
+
+def test_normalize_dgi_aprove_private_over_10():
+    parsed = normalize_dgi_aprove_payload(
+        {"percent": 11.2, "ownership": "private", "approved_at": "2026-01-01T00:00:00Z"},
+        "tester",
+    )
+    assert parsed is not None
+    assert parsed["percent"] == 11.2
+    assert parsed["ownership"] == "private"
+
+
+def test_normalize_dgi_aprove_rejects_low_percent():
+    assert normalize_dgi_aprove_payload({"percent": 10, "ownership": "private"}, "u") is None
+
+
+def test_build_sql_fragments_dgi_intersection_alias_d():
+    col = 'd."short_sobstv_rr"'
+    moscow_sql = build_dgi_ownership_extra_sql(col, "moscow")
+    assert 'd."short_sobstv_rr"' in moscow_sql
+    assert "ILIKE" in moscow_sql
 
 
 def test_sql_table_geom_drawable_clause():

@@ -166,6 +166,15 @@
         return { type: 'FeatureCollection', features: mergedFeatures };
     };
 
+    PassViewer.formatAdjacentRelationsSearchStatus = function formatAdjacentRelationsSearchStatus(nearbyMeters) {
+        const parsed = Number(nearbyMeters);
+        const radius = Number.isFinite(parsed) && parsed > 0 ? parsed : 100;
+        const radiusText = Number.isInteger(radius) ? String(radius) : String(Math.round(radius));
+        return (
+            'Ищем смежные паспорта ДТ (пересечение, общая граница, до ' + radiusText + ' м)...'
+        );
+    };
+
     PassViewer.filterPassportOnlyGeoJson = function filterPassportOnlyGeoJson(geojsonObject) {
         let g = PassViewer.normalizeGeoJson(geojsonObject);
         if (!g) {
