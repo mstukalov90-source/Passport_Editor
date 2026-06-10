@@ -85,8 +85,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         );
 
         
-        const selectedGeometryRaw = JSON.parse(document.getElementById('selected-geometry-data').textContent);
-        const selectedGeometry = typeof selectedGeometryRaw === 'string' ? JSON.parse(selectedGeometryRaw) : selectedGeometryRaw;
+        const selectedGeometry = parseGeometryData('selected-geometry-data');
         const requestId = cfg.requestId || "";
         const objectName = cfg.objectName || "";
         const selectedSourceLabel = cfg.selectedSourceLabel || "ДТ";
@@ -1102,23 +1101,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             updateEditableAreaInfo();
         }
 
-        renderRelationLayers({
-            intersects: JSON.parse(document.getElementById('intersects-geometry-data').textContent),
-            touches: JSON.parse(document.getElementById('touches-geometry-data').textContent),
-            nearby: JSON.parse(document.getElementById('nearby-geometry-data').textContent),
-            request_objects: JSON.parse(document.getElementById('request-objects-geometry-data').textContent),
-            dgi_moscow: JSON.parse(document.getElementById('dgi-moscow-geometry-data').textContent),
-            dgi_private: JSON.parse(document.getElementById('dgi-private-geometry-data').textContent),
-            odh: JSON.parse(document.getElementById('odh-geometry-data').textContent),
-            ozn: JSON.parse(document.getElementById('ozn-geometry-data').textContent),
-            renew: JSON.parse(document.getElementById('renew-geometry-data').textContent),
-            oozt: JSON.parse(document.getElementById('oozt-geometry-data').textContent),
-            rzd: JSON.parse(document.getElementById('rzd-geometry-data').textContent),
-            top: JSON.parse(document.getElementById('top-geometry-data').textContent),
-            recaps: JSON.parse(document.getElementById('recaps-geometry-data').textContent),
-        });
-        updateEditableAreaInfo();
-
         function buildCurrentGeometry() {
             const geo = dossierGroup.toGeoJSON();
             if (geo.features && geo.features.length) {
@@ -1763,26 +1745,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             }
         }
 
-        PV.initDgiExportGateFlow({
-            exportButton: saveDossierButton,
-            checkDgiUrl: cfg.urls.checkDgi,
-            getCookie: getCookie,
-            getGeometry: () => {
-                const geometry = getDossierGeometryForExport();
-                if (!geometry) {
-                    statusEl.textContent = 'Сначала нарисуйте полигон досъёма.';
-                    return null;
-                }
-                return geometry;
-            },
-            openSaveModal: openSaveModal,
-            dgiConfirmModal: dgiExportConfirmModal,
-            dgiConfirmAgree: dgiExportConfirmAgree,
-            dgiConfirmBack: dgiExportConfirmBack,
-            setPendingApprove: (value) => {
-                pendingDgiApprove = value;
-            },
-        });
         saveModalCancel.addEventListener('click', closeSaveModal);
         saveModalSubmit.addEventListener('click', saveDossier);
         saveModal.addEventListener('click', (event) => {
@@ -1915,6 +1877,53 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     cancelCommentPointMode();
                 }
             });
+        }
+
+        if (typeof PV.initDgiExportGateFlow === 'function') {
+            PV.initDgiExportGateFlow({
+                exportButton: saveDossierButton,
+                checkDgiUrl: cfg.urls.checkDgi,
+                getCookie: getCookie,
+                getGeometry: () => {
+                    const geometry = getDossierGeometryForExport();
+                    if (!geometry) {
+                        statusEl.textContent = 'Сначала нарисуйте полигон досъёма.';
+                        return null;
+                    }
+                    return geometry;
+                },
+                openSaveModal: openSaveModal,
+                dgiConfirmModal: dgiExportConfirmModal,
+                dgiConfirmAgree: dgiExportConfirmAgree,
+                dgiConfirmBack: dgiExportConfirmBack,
+                setPendingApprove: (value) => {
+                    pendingDgiApprove = value;
+                },
+            });
+        }
+
+        try {
+            renderRelationLayers({
+                intersects: parseGeometryData('intersects-geometry-data'),
+                touches: parseGeometryData('touches-geometry-data'),
+                nearby: parseGeometryData('nearby-geometry-data'),
+                request_objects: parseGeometryData('request-objects-geometry-data'),
+                dgi_moscow: parseGeometryData('dgi-moscow-geometry-data'),
+                dgi_private: parseGeometryData('dgi-private-geometry-data'),
+                odh: parseGeometryData('odh-geometry-data'),
+                ozn: parseGeometryData('ozn-geometry-data'),
+                renew: parseGeometryData('renew-geometry-data'),
+                oozt: parseGeometryData('oozt-geometry-data'),
+                rzd: parseGeometryData('rzd-geometry-data'),
+                top: parseGeometryData('top-geometry-data'),
+                recaps: parseGeometryData('recaps-geometry-data'),
+            });
+            updateEditableAreaInfo();
+        } catch (error) {
+            console.error('PassViewer add_recap: failed to render initial map layers', error);
+            if (statusEl) {
+                statusEl.textContent = 'Не удалось отобразить часть слоёв карты. Кнопки редактирования доступны.';
+            }
         }
 
         refreshObjectLayersControl();

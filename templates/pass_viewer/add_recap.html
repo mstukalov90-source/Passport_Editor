@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block page_styles %}
-{% include 'pass_viewer/includes/map_draw_styles.html' %}
+{% include 'pass_viewer/includes/map_editor_styles.html' %}
 {% endblock %}
 
 {% block title %}Добавление досъёма{% endblock %}
@@ -22,7 +22,7 @@
     {{ top_geometry_json|default_if_none:"null"|json_script:"top-geometry-data" }}
     {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
     {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
-    {% include 'pass_viewer/includes/map_draw_scripts.html' %}
+    {% include 'pass_viewer/includes/map_editor_scripts.html' %}
     {% load static %}
     <script src="{% static 'pass_viewer/js/add-recap.js' %}"></script>
 {% endblock %}
