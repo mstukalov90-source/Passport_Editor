@@ -36,3 +36,31 @@ def test_add_recap_js_has_safe_geometry_parse_and_dgi_gate_guard() -> None:
     ]
     missing = [symbol for symbol in required if symbol not in source]
     assert not missing, f"add-recap.js is missing: {missing}"
+
+
+def test_add_recap_js_supports_dossier_intersection_workflow() -> None:
+    source = ADD_RECAP_JS.read_text(encoding="utf-8")
+    required = [
+        "let editToolbar = null",
+        "function finishDossierPolygon",
+        "function updateDossierToolbarState",
+        "function getDossierGeometryForExport",
+        "await checkRelations()",
+        "L.Draw.Event.EDITED",
+    ]
+    missing = [symbol for symbol in required if symbol not in source]
+    assert not missing, f"add-recap.js is missing dossier workflow: {missing}"
+
+    build_current = source.split("function buildCurrentGeometry()", 1)[1]
+    assert "return selectedGeometry" not in build_current.split("function ", 1)[0], (
+        "buildCurrentGeometry must not fall back to selectedGeometry"
+    )
+
+
+def test_add_recap_js_auto_remove_uses_recap_page_without_selected_exclusion() -> None:
+    source = ADD_RECAP_JS.read_text(encoding="utf-8")
+    auto_remove_block = source.split("async function autoRemoveIntersections()", 1)[1]
+    auto_remove_block = auto_remove_block.split("autoRemoveIntersectionsButton.addEventListener", 1)[0]
+    assert 'page: cfg.page || "add_recap"' in auto_remove_block
+    assert "selected_geometry:" not in auto_remove_block
+    assert "selected_request_id:" not in auto_remove_block

@@ -15,6 +15,9 @@
     const calculateGeometryAreaSqMeters = PV.calculateGeometryAreaSqMeters.bind(PV);
     const buildObjectPopup = PV.buildObjectPopup.bind(PV);
     const buildPdfIntersectionPopupHtml = PV.buildPdfIntersectionPopupHtml.bind(PV);
+    const formatAdjacentRelationsSearchStatus = PV.formatAdjacentRelationsSearchStatus.bind(PV);
+    const filterPassportOnlyGeoJson = PV.filterPassportOnlyGeoJson.bind(PV);
+    const mps = PV.multipolygonSave || {};
 
 const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const HOME_OGH_SPLIT_PASSPORT_KEY = 'home_ogh_split_passport';
@@ -90,99 +93,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const needEntryRequestIdOnLoad =
             homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
         const odsSourceLabelNorm = (homeBootstrapEl?.dataset.odsSourceLabel || 'ОДС').trim().toUpperCase();
-        const homeOwnerIdNorm = (homeBootstrapEl?.dataset.ownerId || '').trim();
-
-        function getHomeOdsSyncStorageKey() {
-            return homeOwnerIdNorm ? `home_ods_sync_status:${homeOwnerIdNorm}` : 'home_ods_sync_status';
-        }
-
-        function readOdsSyncSnapshot() {
-            try {
-                const raw = localStorage.getItem(getHomeOdsSyncStorageKey());
-                if (!raw) {
-                    return {};
-                }
-                const parsed = JSON.parse(raw);
-                return parsed && typeof parsed === 'object' ? parsed : {};
-            } catch (e) {
-                return {};
-            }
-        }
-
-        function writeOdsSyncSnapshot(map) {
-            try {
-                localStorage.setItem(getHomeOdsSyncStorageKey(), JSON.stringify(map));
-            } catch (e) {
-                // localStorage may be unavailable
-            }
-        }
-
-        function collectCurrentOdsSyncStatuses() {
-            const out = {};
-            document.querySelectorAll('.owned-request-row[data-ods-sync-status]').forEach((row) => {
-                if (row.querySelector('.owned-ods-action-btn')) {
-                    return;
-                }
-                const status = (row.dataset.odsSyncStatus || '').trim();
-                if (status !== 'ok' && status !== 'pending' && status !== 'bad') {
-                    return;
-                }
-                const brid = (row.dataset.requestId || '').trim();
-                if (brid) {
-                    out[brid] = status;
-                }
-            });
-            return out;
-        }
-
-        function buildOdsSyncChangeMessages(prev, current) {
-            const messages = [];
-            Object.keys(current).forEach((brid) => {
-                if (prev[brid] !== 'pending') {
-                    return;
-                }
-                const next = current[brid];
-                if (next === 'ok') {
-                    messages.push({ brid, kind: 'ok' });
-                } else if (next === 'bad') {
-                    messages.push({ brid, kind: 'bad' });
-                }
-            });
-            messages.sort((a, b) => a.brid.localeCompare(b.brid, 'ru', { numeric: true }));
-            return messages;
-        }
-
-        function renderHomeWorkflowOdsSyncChanges(messages) {
-            const block = document.getElementById('home-workflow-ods-sync-block');
-            const list = document.getElementById('home-workflow-ods-sync-list');
-            if (!block || !list) {
-                return;
-            }
-            list.replaceChildren();
-            if (!messages.length) {
-                block.hidden = true;
-                return;
-            }
-            messages.forEach((msg) => {
-                const li = document.createElement('li');
-                li.className = msg.kind === 'ok'
-                    ? 'home-workflow-ods-sync-item home-workflow-ods-sync-item--ok'
-                    : 'home-workflow-ods-sync-item home-workflow-ods-sync-item--bad';
-                li.textContent = msg.kind === 'ok'
-                    ? `Заявка № ${msg.brid} подтверждена АСУ ОДС`
-                    : `Заявка № ${msg.brid} не подтверждена АСУ ОДС`;
-                list.appendChild(li);
-            });
-            block.hidden = false;
-        }
-
-        function applyHomeWorkflowOdsSyncNotifications() {
-            const prev = readOdsSyncSnapshot();
-            const current = collectCurrentOdsSyncStatuses();
-            const messages = buildOdsSyncChangeMessages(prev, current);
-            renderHomeWorkflowOdsSyncChanges(messages);
-            writeOdsSyncSnapshot(current);
-        }
         const ownedMapEl = document.getElementById('owned-passports-map');
         const ownedGeoDataEl = document.getElementById('owned-passports-geojson-data');
         const hoodWorkAreaGeoEl = document.getElementById('hood-work-area-geojson-data');
@@ -198,9 +108,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (source === 'ОЗН' || source === 'ОО') {
                 return 'ОЗН';
-            }
-            if (source === 'ТОП' || source === 'TOP') {
-                return 'ТОП';
             }
             if (odsSourceLabelNorm && source === odsSourceLabelNorm) {
                 return odsSourceLabelNorm;
@@ -280,9 +187,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (sourceLabel === 'ОЗН' || sourceLabel === 'ОО') {
                 return { color: '#16a34a', weight: 2.5, fillOpacity: 0.22, fillColor: '#86efac' };
             }
-            if (sourceLabel === 'ТОП' || sourceLabel === 'TOP') {
-                return { color: '#ea580c', weight: 2.5, fillOpacity: 0.25, fillColor: '#fb923c' };
-            }
             return { color: '#0284c7', weight: 2.5, fillOpacity: 0.3, fillColor: '#38bdf8' };
         }
 
@@ -307,7 +211,51 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             });
 
             const map = L.map(ownedMapEl, { zoomControl: true, preferCanvas: true });
-            PV.attachBasemapControl(map, { scopeRoot: ownedMapEl.parentElement });
+            const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxNativeZoom: 19,
+                maxZoom: 30,
+                attribution: '&copy; OpenStreetMap contributors',
+            });
+            const satelliteLayer = L.tileLayer(
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                {
+                    maxNativeZoom: 19,
+                    maxZoom: 30,
+                    attribution: 'Tiles &copy; Esri',
+                }
+            );
+            topoLayer.addTo(map);
+
+            const basemapControl = L.control({ position: 'topright' });
+            basemapControl.onAdd = function () {
+                const container = L.DomUtil.create('div', 'map-basemap-control');
+                container.innerHTML =
+                    '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
+                    '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
+                    '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
+                L.DomEvent.disableClickPropagation(container);
+                return container;
+            };
+            basemapControl.addTo(map);
+
+            const setBasemap = (mode) => {
+                [topoLayer, satelliteLayer].forEach((layer) => {
+                    if (map.hasLayer(layer)) {
+                        map.removeLayer(layer);
+                    }
+                });
+                if (mode === 'topo') {
+                    topoLayer.addTo(map);
+                } else if (mode === 'sat') {
+                    satelliteLayer.addTo(map);
+                }
+                ownedMapEl.parentElement
+                    ?.querySelectorAll('.map-basemap-btn')
+                    .forEach((btn) => btn.classList.toggle('is-active', btn.dataset.map === mode));
+            };
+            ownedMapEl.parentElement?.querySelectorAll('.map-basemap-btn').forEach((btn) => {
+                btn.addEventListener('click', () => setBasemap(btn.dataset.map));
+            });
 
             function parseHoodWorkAreaGeoData() {
                 if (!hoodWorkAreaGeoEl) {
@@ -614,14 +562,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
             applyOwnedMapSourceFilters = applyMapFilters;
             applyOwnedMapSourceFilters();
-
-            const ownedMapWrap = ownedMapEl.closest('.owned-map-wrap');
-            if (ownedMapWrap && typeof ResizeObserver !== 'undefined') {
-                const mapResizeObserver = new ResizeObserver(() => {
-                    map.invalidateSize(false);
-                });
-                mapResizeObserver.observe(ownedMapWrap);
-            }
         }
         initOwnedMap();
 
@@ -634,149 +574,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const filterClearEl = document.getElementById('owned-filter-clear');
         const ownedItems = Array.from(document.querySelectorAll('.owned-item'));
         const passportForms = Array.from(document.querySelectorAll('.owned-passport-row form.owned-open-form'));
-        const requestStatusFilterEl = document.getElementById('owned-request-status-filter');
-        let statusFilterCheckboxes = [];
-        let statusDropdownTrigger = null;
-        let statusDropdownPanel = null;
-        let statusDropdownLabel = null;
-
-        function getSelectedRequestStatusSet() {
-            const checked = statusFilterCheckboxes.filter((cb) => cb.checked);
-            if (!checked.length || checked.length === statusFilterCheckboxes.length) {
-                return null;
-            }
-            return new Set(checked.map((cb) => (cb.value || '').trim()));
-        }
-
-        function updateStatusDropdownLabel() {
-            if (!statusDropdownLabel) {
-                return;
-            }
-            const checked = statusFilterCheckboxes.filter((cb) => cb.checked);
-            if (!checked.length || checked.length === statusFilterCheckboxes.length) {
-                statusDropdownLabel.textContent = 'Все статусы';
-                return;
-            }
-            if (checked.length === 1) {
-                statusDropdownLabel.textContent = checked[0].value;
-                return;
-            }
-            statusDropdownLabel.textContent = `Выбрано: ${checked.length}`;
-        }
-
-        function setStatusDropdownOpen(isOpen) {
-            if (!statusDropdownTrigger || !statusDropdownPanel) {
-                return;
-            }
-            statusDropdownTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-            statusDropdownPanel.hidden = !isOpen;
-            statusDropdownTrigger.classList.toggle('is-open', isOpen);
-        }
-
-        function resetRequestStatusFilter() {
-            statusFilterCheckboxes.forEach((cb) => {
-                cb.checked = false;
-            });
-            updateStatusDropdownLabel();
-            setStatusDropdownOpen(false);
-        }
-
-        function syncRequestStatusFilterVisibility() {
-            if (!requestStatusFilterEl) {
-                return;
-            }
-            const show =
-                getActiveOwnedListTab() === 'requests' && statusFilterCheckboxes.length > 0;
-            requestStatusFilterEl.hidden = !show;
-            if (!show) {
-                setStatusDropdownOpen(false);
-            }
-        }
-
-        function initRequestStatusFilter() {
-            if (!requestStatusFilterEl) {
-                return;
-            }
-            const statuses = new Set();
-            document.querySelectorAll('.owned-request-row').forEach((row) => {
-                const status = (row.dataset.requestStatus || '').trim();
-                if (status) {
-                    statuses.add(status);
-                }
-            });
-            const sorted = Array.from(statuses).sort((a, b) => a.localeCompare(b, 'ru'));
-            requestStatusFilterEl.replaceChildren();
-
-            const dropdown = document.createElement('div');
-            dropdown.className = 'owned-status-dropdown';
-
-            statusDropdownTrigger = document.createElement('button');
-            statusDropdownTrigger.type = 'button';
-            statusDropdownTrigger.className = 'owned-status-dropdown-trigger';
-            statusDropdownTrigger.setAttribute('aria-haspopup', 'listbox');
-            statusDropdownTrigger.setAttribute('aria-expanded', 'false');
-            statusDropdownLabel = document.createElement('span');
-            statusDropdownLabel.className = 'owned-status-dropdown-label';
-            statusDropdownLabel.textContent = 'Все статусы';
-            const chevron = document.createElement('span');
-            chevron.className = 'owned-status-dropdown-chevron';
-            chevron.setAttribute('aria-hidden', 'true');
-            chevron.textContent = '▾';
-            statusDropdownTrigger.append(statusDropdownLabel, chevron);
-
-            statusDropdownPanel = document.createElement('div');
-            statusDropdownPanel.className = 'owned-status-dropdown-panel';
-            statusDropdownPanel.hidden = true;
-
-            const list = document.createElement('ul');
-            list.className = 'owned-status-dropdown-list';
-            list.setAttribute('role', 'listbox');
-            list.setAttribute('aria-multiselectable', 'true');
-
-            statusFilterCheckboxes = sorted.map((status) => {
-                const item = document.createElement('li');
-                item.className = 'owned-status-dropdown-item';
-                item.setAttribute('role', 'option');
-                const label = document.createElement('label');
-                label.className = 'owned-status-dropdown-option';
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.value = status;
-                checkbox.addEventListener('change', () => {
-                    updateStatusDropdownLabel();
-                    applyOwnedFilters();
-                });
-                const text = document.createElement('span');
-                text.className = 'owned-status-dropdown-option-text';
-                text.textContent = status;
-                label.append(checkbox, text);
-                item.appendChild(label);
-                list.appendChild(item);
-                return checkbox;
-            });
-
-            statusDropdownPanel.appendChild(list);
-            dropdown.append(statusDropdownTrigger, statusDropdownPanel);
-            requestStatusFilterEl.appendChild(dropdown);
-
-            statusDropdownTrigger.addEventListener('click', (event) => {
-                event.stopPropagation();
-                const isOpen = statusDropdownTrigger.getAttribute('aria-expanded') === 'true';
-                setStatusDropdownOpen(!isOpen);
-            });
-
-            statusDropdownPanel.addEventListener('click', (event) => {
-                event.stopPropagation();
-            });
-
-            document.addEventListener('click', () => {
-                setStatusDropdownOpen(false);
-            });
-
-            updateStatusDropdownLabel();
-            syncRequestStatusFilterVisibility();
-        }
-
         const shouldOpenManualModal = manualModal?.dataset?.openOnLoad === '1';
 
         function closeManualModal() {
@@ -803,7 +600,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             const nameNeedle = (filterNameEl?.value || '').trim().toLowerCase();
             const activeTab = getActiveOwnedListTab();
             const selectedSources = getSelectedSourceSet();
-            const selectedStatuses = getSelectedRequestStatusSet();
             ownedItems.forEach((item) => {
                 const rootidValue = item.dataset.rootid || '';
                 const nameValue = item.dataset.name || '';
@@ -813,16 +609,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 const nameMatch = !nameNeedle || nameValue.includes(nameNeedle);
                 const sourceMatch = selectedSources.has(sourceLabel);
                 const tabMatch = tabName === activeTab;
-                const rowStatus = (item.dataset.requestStatus || '').trim();
-                const statusMatch =
-                    activeTab !== 'requests' ||
-                    !rowStatus ||
-                    selectedStatuses === null ||
-                    selectedStatuses.has(rowStatus);
-                item.style.display =
-                    rootidMatch && nameMatch && sourceMatch && tabMatch && statusMatch ? '' : 'none';
+                item.style.display = rootidMatch && nameMatch && sourceMatch && tabMatch ? '' : 'none';
             });
-            syncRequestStatusFilterVisibility();
             if (typeof applyOwnedMapSourceFilters === 'function') {
                 applyOwnedMapSourceFilters();
             }
@@ -873,11 +661,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 if (filterNameEl) {
                     filterNameEl.value = '';
                 }
-                resetRequestStatusFilter();
                 applyOwnedFilters();
             });
         }
-        initRequestStatusFilter();
         listTabButtons.forEach((btn) => {
             btn.addEventListener('click', () => {
                 setOwnedListTab(btn.dataset.ownedListTab || 'passports');
@@ -1223,7 +1009,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const mergeTargetDtRadio = document.getElementById('merge-target-dt');
         const mergeTargetOdhRadio = document.getElementById('merge-target-odh');
         const mergeTargetOznRadio = document.getElementById('merge-target-ozn');
-        const mergeTargetTopRadio = document.getElementById('merge-target-top');
         const mergeTargetSourceFieldset = document.getElementById('merge-target-source-fieldset');
         const mergePassportsRequestIntro = document.getElementById('merge-passports-request-intro');
         const mergeGeometryDetailSimplified = document.getElementById('merge-geometry-detail-simplified');
@@ -1245,9 +1030,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (sourceLabel === 'ОЗН' || sourceLabel === 'ОО') {
                 return 'ОЗН';
             }
-            if (sourceLabel === 'ТОП' || sourceLabel === 'TOP') {
-                return 'ТОП';
-            }
             return 'ДТ';
         }
 
@@ -1260,34 +1042,11 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             document.querySelectorAll('.owned-passport-row .owned-open-form button[type="submit"]').forEach((btn) => {
                 btn.disabled = mergePassportsMode;
             });
-            document.querySelectorAll('.owned-request-row .owned-open-form button[type="submit"]').forEach((btn) => {
-                btn.disabled = mergePassportsMode;
-            });
-            document.querySelectorAll('.owned-request-row .owned-ods-action-btn').forEach((btn) => {
-                btn.disabled = mergePassportsMode;
-            });
             if (!mergePassportsMode) {
                 document.querySelectorAll('.merge-passport-cb').forEach((cb) => {
                     cb.checked = false;
                 });
             }
-        }
-
-        function getMergeCheckboxPayload(cb) {
-            const mergeKind = (cb.dataset.mergeKind || 'passport').trim();
-            const sourceLabel = normalizeMergeSourceLabel(cb.dataset.sourceLabel);
-            if (mergeKind === 'request') {
-                return {
-                    rootid: '',
-                    objectKey: (cb.dataset.objectKey || '').trim(),
-                    sourceLabel,
-                };
-            }
-            return {
-                rootid: (cb.value || '').trim(),
-                objectKey: '',
-                sourceLabel,
-            };
         }
 
         function resetMergeTargetOptionRows() {
@@ -1319,9 +1078,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (mergeTargetOznRadio) {
                 mergeTargetOznRadio.checked = false;
             }
-            if (mergeTargetTopRadio) {
-                mergeTargetTopRadio.checked = false;
-            }
             mergeImplicitTargetSource = '';
             resetMergeTargetOptionRows();
             if (mergeGeometryDetailSimplified) {
@@ -1348,9 +1104,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (mergeTargetOznRadio) {
                 mergeTargetOznRadio.checked = false;
             }
-            if (mergeTargetTopRadio) {
-                mergeTargetTopRadio.checked = false;
-            }
             mergeImplicitTargetSource = '';
             if (mergeGeometryDetailSimplified) {
                 mergeGeometryDetailSimplified.checked = true;
@@ -1371,7 +1124,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 resetMergeTargetOptionRows();
                 if (mergePassportsRequestIntro) {
                     mergePassportsRequestIntro.textContent =
-                        'Укажите номер заявки для объединённого объекта. Все выбранные паспорта и/или заявки из одной таблицы — результат сохранится в той же системе.';
+                        'Укажите номер заявки для объединённого паспорта. Все выбранные паспорта из одной таблицы — результат сохранится в той же системе.';
                 }
             } else {
                 mergeImplicitTargetSource = '';
@@ -1389,7 +1142,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 }
                 if (mergePassportsRequestIntro) {
                     mergePassportsRequestIntro.textContent =
-                        'Выбраны объекты из разных таблиц. Укажите номер заявки и выберите, в какой из таблиц выбранных типов сохранить объединённый объект.';
+                        'Выбраны паспорта из разных таблиц. Укажите номер заявки и выберите, в какой из таблиц выбранных типов сохранить объединённый паспорт.';
                 }
             }
             if (mergeRequestModal) {
@@ -1401,10 +1154,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         function submitMergePassportsContinue() {
             const checked = Array.from(document.querySelectorAll('.merge-passport-cb:checked'));
             if (checked.length < 2) {
-                window.alert('Отметьте не менее двух объектов (паспорта и/или заявки).');
+                window.alert('Отметьте не менее двух паспортов.');
                 return;
             }
-            const sources = new Set(checked.map((cb) => getMergeCheckboxPayload(cb).sourceLabel));
+            const sources = new Set(
+                checked.map((cb) => {
+                    return normalizeMergeSourceLabel(cb.dataset.sourceLabel);
+                })
+            );
             openMergeRequestModalWithSources(sources);
         }
 
@@ -1423,14 +1180,16 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 return;
             }
             const checked = Array.from(document.querySelectorAll('.merge-passport-cb:checked'));
-            const allowedTargetSources = new Set(checked.map((cb) => getMergeCheckboxPayload(cb).sourceLabel));
+            const allowedTargetSources = new Set(
+                checked.map((cb) => normalizeMergeSourceLabel(cb.dataset.sourceLabel))
+            );
 
             let targetSourceValue = (mergeImplicitTargetSource || '').trim();
             if (targetSourceValue) {
                 targetSourceValue = normalizeMergeSourceLabel(targetSourceValue);
                 if (!allowedTargetSources.has(targetSourceValue)) {
                     if (mergeRequestError) {
-                        mergeRequestError.textContent = 'Несогласованность выбора источников. Закройте окно и выберите объекты заново.';
+                        mergeRequestError.textContent = 'Несогласованность выбора источников. Закройте окно и выберите паспорты заново.';
                     }
                     return;
                 }
@@ -1440,14 +1199,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 );
                 if (!targetRadio) {
                     if (mergeRequestError) {
-                        mergeRequestError.textContent = 'Выберите таблицу для сохранения объединённого объекта.';
+                        mergeRequestError.textContent = 'Выберите таблицу для сохранения объединённого паспорта.';
                     }
                     return;
                 }
                 targetSourceValue = normalizeMergeSourceLabel(targetRadio.value);
                 if (!allowedTargetSources.has(targetSourceValue)) {
                     if (mergeRequestError) {
-                        mergeRequestError.textContent = 'Можно сохранить только в одну из таблиц, из которых выбраны объекты.';
+                        mergeRequestError.textContent = 'Можно сохранить только в одну из таблиц, из которых выбраны паспорта.';
                     }
                     return;
                 }
@@ -1457,21 +1216,16 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             mergeItemsContainer.innerHTML = '';
             checked.forEach((cb) => {
-                const payload = getMergeCheckboxPayload(cb);
+                const sl = normalizeMergeSourceLabel(cb.dataset.sourceLabel);
                 const rid = document.createElement('input');
                 rid.type = 'hidden';
                 rid.name = 'merge_item_rootid';
-                rid.value = payload.rootid;
+                rid.value = cb.value || '';
                 mergeItemsContainer.appendChild(rid);
-                const okInp = document.createElement('input');
-                okInp.type = 'hidden';
-                okInp.name = 'merge_item_object_key';
-                okInp.value = payload.objectKey;
-                mergeItemsContainer.appendChild(okInp);
                 const srcInp = document.createElement('input');
                 srcInp.type = 'hidden';
                 srcInp.name = 'merge_item_source';
-                srcInp.value = payload.sourceLabel;
+                srcInp.value = sl;
                 mergeItemsContainer.appendChild(srcInp);
             });
             mergeRequestIdHidden.value = raw;
@@ -1617,31 +1371,24 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     if (mergePassportsBtn) {
                         mergePassportsBtn.classList.add('is-active');
                     }
+                    setOwnedListTab('passports');
+                    applyOwnedFilters();
                     const targetNorm = shortRoot.trim().toLowerCase();
+                    document.querySelectorAll('.merge-passport-cb').forEach((cb) => {
+                        const v = (cb.value || '').trim().toLowerCase();
+                        cb.checked = Boolean(targetNorm) && v === targetNorm;
+                    });
                     let targetRow = null;
-                    let foundOnRequests = false;
-                    document.querySelectorAll('.owned-request-row .merge-passport-cb').forEach((cb) => {
+                    document.querySelectorAll('.owned-passport-row').forEach((row) => {
+                        const cb = row.querySelector('.merge-passport-cb');
+                        if (!cb) {
+                            return;
+                        }
                         const v = (cb.value || '').trim().toLowerCase();
                         if (Boolean(targetNorm) && v === targetNorm) {
-                            cb.checked = true;
-                            foundOnRequests = true;
-                            targetRow = cb.closest('.owned-request-row');
+                            targetRow = row;
                         }
                     });
-                    if (!foundOnRequests) {
-                        setOwnedListTab('passports');
-                        applyOwnedFilters();
-                        document.querySelectorAll('.owned-passport-row .merge-passport-cb').forEach((cb) => {
-                            const v = (cb.value || '').trim().toLowerCase();
-                            cb.checked = Boolean(targetNorm) && v === targetNorm;
-                            if (Boolean(targetNorm) && v === targetNorm) {
-                                targetRow = cb.closest('.owned-passport-row');
-                            }
-                        });
-                    } else {
-                        setOwnedListTab('requests');
-                        applyOwnedFilters();
-                    }
                     if (targetRow && typeof targetRow.scrollIntoView === 'function') {
                         targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
@@ -1716,56 +1463,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             });
         }
 
-        const userGuideModal = document.getElementById('user-guide-modal');
-        const userGuideOpenBtn = document.getElementById('user-guide-open-btn');
-        const userGuideCloseBtn = document.getElementById('user-guide-close-btn');
-        let userGuidePreviousOverflow = '';
-
-        function openUserGuideModal() {
-            if (!userGuideModal) {
-                return;
-            }
-            userGuidePreviousOverflow = document.body.style.overflow;
-            document.body.style.overflow = 'hidden';
-            userGuideModal.hidden = false;
-            userGuideModal.classList.add('is-open');
-            if (userGuideCloseBtn) {
-                userGuideCloseBtn.focus();
-            }
-        }
-
-        function closeUserGuideModal() {
-            if (!userGuideModal) {
-                return;
-            }
-            userGuideModal.classList.remove('is-open');
-            userGuideModal.hidden = true;
-            document.body.style.overflow = userGuidePreviousOverflow;
-        }
-
-        if (userGuideOpenBtn) {
-            userGuideOpenBtn.addEventListener('click', openUserGuideModal);
-        }
-        if (userGuideCloseBtn) {
-            userGuideCloseBtn.addEventListener('click', closeUserGuideModal);
-        }
-        if (userGuideModal) {
-            userGuideModal.addEventListener('click', (event) => {
-                if (event.target === userGuideModal) {
-                    closeUserGuideModal();
-                }
-            });
-        }
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && userGuideModal && userGuideModal.classList.contains('is-open')) {
-                closeUserGuideModal();
-            }
-        });
-
         if (needEntryRequestIdOnLoad) {
             openEntryRequestModal('pending');
         } else if (homeWorkflowModal) {
-            applyHomeWorkflowOdsSyncNotifications();
             homeWorkflowModal.style.display = 'flex';
             setTimeout(() => {
                 const firstWorkflowBtn = homeWorkflowOdsRequestsBtn || homeWorkflowPrimaryBtn;

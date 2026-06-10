@@ -2790,6 +2790,7 @@ def _append_intersection_mask_union_part(
     selected_rootid_text,
     selected_request_id_text,
     extra_where_sql="",
+    page_type=None,
 ):
     if not table_name or not _table_exists(cursor, table_name):
         return
@@ -2799,7 +2800,8 @@ def _append_intersection_mask_union_part(
     geom_v = _sql_table_geom_valid_expr(raw_geom)
     exclude_selected_clause = ""
     exclude_selected_params = []
-    if table_source_label and normalized_source == table_source_label:
+    skip_selected_exclusion = _normalize_auto_remove_page_type(page_type) == "add_recap"
+    if table_source_label and normalized_source == table_source_label and not skip_selected_exclusion:
         exclude_conditions = []
         if selected_row_ctid_text:
             exclude_conditions.append("t.ctid::text = %s")
@@ -2844,6 +2846,7 @@ def _remove_intersections_from_geometry(
     selected_rootid="",
     selected_request_id="",
     selected_row_ctid="",
+    page_type=None,
 ):
     geometry_norm = _to_intersection_geometry(geometry)
     if not geometry_norm:
@@ -2886,12 +2889,14 @@ def _remove_intersections_from_geometry(
 
     geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
     request_id_field_pref = getattr(settings, "GIS_OBJECT_REQUEST_ID_FIELD", "request_id")
+    page_type_norm = _normalize_auto_remove_page_type(page_type)
     mask_context = {
         "normalized_source": normalized_source,
         "selected_geometry_json": selected_geometry_json,
         "selected_row_ctid_text": selected_row_ctid_text,
         "selected_rootid_text": selected_rootid_text,
         "selected_request_id_text": selected_request_id_text,
+        "page_type": page_type_norm,
     }
 
     with connection.cursor() as cursor:
@@ -3011,6 +3016,7 @@ def _auto_remove_mask_context(
     selected_rootid,
     selected_request_id,
     selected_row_ctid,
+    page_type=None,
 ):
     selected_geometry_norm = _to_intersection_geometry(selected_geometry)
     selected_geometry_json = json.dumps(selected_geometry_norm) if selected_geometry_norm else None
@@ -3020,6 +3026,7 @@ def _auto_remove_mask_context(
         "selected_row_ctid_text": str(selected_row_ctid or "").strip(),
         "selected_rootid_text": str(selected_rootid or "").strip(),
         "selected_request_id_text": str(selected_request_id or "").strip(),
+        "page_type": _normalize_auto_remove_page_type(page_type),
     }
 
 
@@ -3185,6 +3192,7 @@ def _measure_auto_remove_squares_m2(
     selected_request_id="",
     selected_row_ctid="",
     summ_m2=None,
+    page_type=None,
 ):
     geometry_norm = _to_intersection_geometry(geometry)
     cleaned_norm = _to_intersection_geometry(cleaned_geometry)
@@ -3223,6 +3231,7 @@ def _measure_auto_remove_squares_m2(
         selected_rootid,
         selected_request_id,
         selected_row_ctid,
+        page_type=page_type,
     )
     selected_geometry_json = mask_context["selected_geometry_json"]
 
@@ -5352,6 +5361,7 @@ def auto_remove_intersections(request):
             selected_rootid=selected_rootid,
             selected_request_id=selected_request_id,
             selected_row_ctid=selected_row_ctid,
+            page_type=page_type,
         )
     except Exception:
         logger.exception("auto_remove_intersections: failed subtracting intersections")
@@ -5371,6 +5381,7 @@ def auto_remove_intersections(request):
                 selected_request_id=selected_request_id,
                 selected_row_ctid=selected_row_ctid,
                 summ_m2=summ_m2,
+                page_type=page_type,
             )
             owner_id = _get_current_user_owner_id(request.user.username)
             _insert_auto_remove_square(request.user.username, owner_id, areas, page_type=page_type)

@@ -156,13 +156,16 @@ if (L && L.drawLocal) {
             return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : null;
         }
 
-        function readGeometryScriptId(id) {
+        function parseGeometryData(id) {
             const el = document.getElementById(id);
             if (!el) {
                 return null;
             }
             try {
                 const raw = JSON.parse(el.textContent);
+                if (!raw) {
+                    return null;
+                }
                 return typeof raw === 'string' ? JSON.parse(raw) : raw;
             } catch (error) {
                 console.error('PassViewer add_recap: invalid geometry JSON for', id, error);
@@ -170,7 +173,7 @@ if (L && L.drawLocal) {
             }
         }
 
-        const selectedGeometry = readGeometryScriptId('selected-geometry-data');
+        const selectedGeometry = parseGeometryData('selected-geometry-data');
         const requestId = "{{ request_id|default:''|escapejs }}";
         const objectName = "{{ name|default:''|escapejs }}";
         const selectedSourceLabel = "{{ selected_source_label|default:'ДТ'|escapejs }}";
@@ -278,6 +281,8 @@ if (L && L.drawLocal) {
         let pendingCommentLatLng = null;
         let commentPickCaptureLayer = null;
         let dbLoadingCounter = 0;
+        let editToolbar = null;
+        let pendingRepairedGeometryForSave = null;
 
         function showDbLoadingModal() {
             if (!dbLoadingModal) {
@@ -1393,13 +1398,107 @@ if (L && L.drawLocal) {
             updateEditableAreaInfo();
         }
 
-        function buildCurrentGeometry() {
-            const geo = dossierGroup.toGeoJSON();
-            if (geo.features && geo.features.length) {
-                return geo.features[0].geometry;
+        function buildExportGeometry(editedGeojson) {
+            if (!editedGeojson.features.length) {
+                return null;
             }
-            return selectedGeometry;
+            if (editedGeojson.features.length === 1) {
+                return editedGeojson.features[0].geometry;
+            }
+            const allPolygons = editedGeojson.features.every(
+                (feature) => feature.geometry && feature.geometry.type === 'Polygon'
+            );
+            if (allPolygons) {
+                return {
+                    type: 'MultiPolygon',
+                    coordinates: editedGeojson.features.map((feature) => feature.geometry.coordinates),
+                };
+            }
+            return {
+                type: 'GeometryCollection',
+                geometries: editedGeojson.features.map((feature) => feature.geometry).filter(Boolean),
+            };
         }
+
+        function clearPendingRepairedGeometry() {
+            pendingRepairedGeometryForSave = null;
+        }
+
+        function hasDossierPolygon() {
+            return dossierGroup.getLayers().length > 0;
+        }
+
+        function getDossierGeometryForExport() {
+            if (!hasDossierPolygon()) {
+                return null;
+            }
+            if (!mps.buildGeometryForExport) {
+                const geo = dossierGroup.toGeoJSON();
+                if (!geo.features.length) {
+                    return null;
+                }
+                return geo.features.length === 1
+                    ? geo.features[0].geometry
+                    : buildExportGeometry(geo);
+            }
+            return mps.buildGeometryForExport({
+                featureGroup: dossierGroup,
+                isEditing: true,
+                buildExportGeometry,
+                pendingRepairedGeometry: pendingRepairedGeometryForSave,
+                editToolbar,
+            });
+        }
+
+        function buildCurrentGeometry() {
+            return getDossierGeometryForExport();
+        }
+
+        function enableDossierEditToolbar() {
+            if (!hasDossierPolygon()) {
+                if (editToolbar) {
+                    editToolbar.disable();
+                }
+                return;
+            }
+            if (editToolbar) {
+                editToolbar.disable();
+            }
+            editToolbar = new L.EditToolbar.Edit(map, {featureGroup: dossierGroup});
+            editToolbar.enable();
+        }
+
+        function updateDossierToolbarState() {
+            const hasDossier = hasDossierPolygon();
+            checkRelationsButton.disabled = !hasDossier;
+            checkDgiIntersectionsButton.disabled = !hasDossier;
+            autoRemoveIntersectionsButton.disabled = !hasDossier;
+            updateEditableAreaInfo();
+            refreshObjectLayersControl();
+        }
+
+        async function finishDossierPolygon(layer) {
+            clearPendingRepairedGeometry();
+            dossierGroup.clearLayers();
+            bindDossierPolygonPopup(layer);
+            dossierGroup.addLayer(layer);
+            clearStartVertexFlag();
+            if (polygonDrawer) {
+                polygonDrawer.disable();
+                polygonDrawer = null;
+            }
+            if (freehandMode || drawModeFreehandToggle.checked) {
+                drawModeFreehandToggle.checked = false;
+                stopFreehandMode();
+            }
+            clearDrawSnapPreview();
+            enableDossierEditToolbar();
+            statusEl.textContent = 'Полигон досъёма добавлен. Можно редактировать и проверить пересечения.';
+            rebuildSnapGuideLines();
+            updateDossierToolbarState();
+            await checkRelations();
+        }
+
         function updateEditableAreaInfo() {
             if (!areaInfoVisible) {
                 editableAreaInfoEl.style.display = 'none';
@@ -1457,32 +1556,32 @@ if (L && L.drawLocal) {
                 polygonDrawer.disable();
                 polygonDrawer = null;
             }
+            if (editToolbar) {
+                editToolbar.disable();
+                editToolbar = null;
+            }
             clearStartVertexFlag();
             stopFreehandMode();
             clearDrawSnapPreview();
             dossierGroup.clearLayers();
+            clearPendingRepairedGeometry();
             statusEl.textContent = 'Добавление досъёма отменено.';
             areaInfoVisible = false;
-            updateEditableAreaInfo();
+            updateDossierToolbarState();
         });
 
         map.on(L.Draw.Event.CREATED, (event) => {
             if (event.layerType !== 'polygon') {
                 return;
             }
-            dossierGroup.clearLayers();
-            bindDossierPolygonPopup(event.layer);
-            dossierGroup.addLayer(event.layer);
-            clearStartVertexFlag();
-            if (freehandMode || drawModeFreehandToggle.checked) {
-                drawModeFreehandToggle.checked = false;
-                stopFreehandMode();
-            }
-            clearDrawSnapPreview();
-            statusEl.textContent = 'Полигон досъёма добавлен. Можно сохранить.';
-            rebuildSnapGuideLines();
-            refreshObjectLayersControl();
-            updateEditableAreaInfo();
+            void finishDossierPolygon(event.layer);
+        });
+
+        map.on(L.Draw.Event.EDITED, () => {
+            clearPendingRepairedGeometry();
+            statusEl.textContent = 'Геометрия обновлена. Пересчитываем связанные объекты...';
+            updateDossierToolbarState();
+            void checkRelations();
         });
 
         map.on(L.Draw.Event.DRAWVERTEX, (event) => {
@@ -1575,21 +1674,13 @@ if (L && L.drawLocal) {
             }
             const polygon = L.polygon(freehandLatLngs, {color: '#2563eb', weight: 3, fillOpacity: 0.2});
             freehandLatLngs = [];
-            dossierGroup.clearLayers();
-            bindDossierPolygonPopup(polygon);
-            dossierGroup.addLayer(polygon);
-            drawModeFreehandToggle.checked = false;
-            stopFreehandMode();
-            clearDrawSnapPreview();
-            statusEl.textContent = 'Полигон досъёма добавлен. Можно сохранить.';
-            rebuildSnapGuideLines();
-            updateEditableAreaInfo();
+            void finishDossierPolygon(polygon);
         });
 
         async function checkRelations() {
             const geometry = buildCurrentGeometry();
             if (!geometry) {
-                statusEl.textContent = 'Нет геометрии для проверки связей.';
+                statusEl.textContent = 'Сначала нарисуйте полигон досъёма.';
                 return;
             }
             const dossierGeo = dossierGroup.toGeoJSON();
@@ -1625,7 +1716,7 @@ if (L && L.drawLocal) {
                 statusEl.textContent = error.message || 'Не удалось обновить связи.';
             } finally {
                 hideDbLoadingModal();
-                checkRelationsButton.disabled = false;
+                updateDossierToolbarState();
             }
         }
 
@@ -1652,7 +1743,7 @@ if (L && L.drawLocal) {
         async function checkDgiIntersections() {
             const geometry = buildCurrentGeometry();
             if (!geometry) {
-                statusEl.textContent = 'Нет геометрии для проверки пересечений.';
+                statusEl.textContent = 'Сначала нарисуйте полигон досъёма.';
                 return;
             }
             checkDgiIntersectionsButton.disabled = true;
@@ -1675,7 +1766,7 @@ if (L && L.drawLocal) {
             } catch (error) {
                 statusEl.textContent = error.message || 'Не удалось проверить пересечения с ДГИ.';
             } finally {
-                checkDgiIntersectionsButton.disabled = false;
+                updateDossierToolbarState();
             }
         }
 
@@ -1815,13 +1906,31 @@ if (L && L.drawLocal) {
             });
             rebuildSnapGuideLines();
             refreshObjectLayersControl();
+            enableDossierEditToolbar();
+            const toEditableFC =
+                window.PassViewer && typeof window.PassViewer.toEditableFeatureCollection === 'function'
+                    ? window.PassViewer.toEditableFeatureCollection.bind(window.PassViewer)
+                    : normalizeGeoJson;
+            if (mps.exportGeometryFromRaw) {
+                pendingRepairedGeometryForSave = mps.exportGeometryFromRaw(
+                    geometry,
+                    buildExportGeometry,
+                    toEditableFC
+                );
+            }
+            updateDossierToolbarState();
             return true;
         }
 
         async function autoRemoveIntersections() {
             const geometry = buildCurrentGeometry();
             if (!geometry) {
-                statusEl.textContent = 'Нет геометрии для автоматического удаления пересечений.';
+                statusEl.textContent = 'Сначала нарисуйте полигон досъёма.';
+                return;
+            }
+            const visibleLayerCount = refreshAutoRemoveModalOptions();
+            if (!visibleLayerCount) {
+                autoRemoveModalErrorEl.textContent = autoRemoveNoLayersMessage;
                 return;
             }
             const selectedSources = getAutoRemoveSources();
@@ -1844,8 +1953,7 @@ if (L && L.drawLocal) {
                         geometry,
                         selected_sources: selectedSources,
                         source_label: selectedSourceLabel,
-                        selected_geometry: selectedGeometry,
-                        selected_request_id: requestId
+                        page: 'add_recap',
                     })
                 });
                 const data = await response.json();
@@ -1860,13 +1968,12 @@ if (L && L.drawLocal) {
                 }
                 closeAutoRemoveModal();
                 statusEl.textContent = 'Пересечения автоматически удалены.';
-                updateEditableAreaInfo();
                 await checkRelations();
             } catch (error) {
                 autoRemoveModalErrorEl.textContent = error.message || 'Не удалось удалить пересечения.';
                 statusEl.textContent = error.message || 'Не удалось удалить пересечения.';
             } finally {
-                autoRemoveIntersectionsButton.disabled = false;
+                updateDossierToolbarState();
                 autoRemoveModalSubmit.disabled = false;
             }
         }
@@ -1894,13 +2001,19 @@ if (L && L.drawLocal) {
             if (dossierGroup.hasLayer(pendingDeleteLayer)) {
                 dossierGroup.removeLayer(pendingDeleteLayer);
             }
+            if (editToolbar) {
+                editToolbar.disable();
+                editToolbar = null;
+            }
+            clearPendingRepairedGeometry();
             closeDeletePolygonModal();
             clearDrawSnapPreview();
             rebuildSnapGuideLines();
-            refreshObjectLayersControl();
             statusEl.textContent = 'Полигон удалён.';
-            updateEditableAreaInfo();
-            checkRelations();
+            updateDossierToolbarState();
+            if (hasDossierPolygon()) {
+                void checkRelations();
+            }
         }
 
         deletePolygonModalCancel.addEventListener('click', () => {
@@ -1937,12 +2050,11 @@ if (L && L.drawLocal) {
         }
 
         async function saveDossier() {
-            const geo = dossierGroup.toGeoJSON();
-            if (!geo.features.length) {
+            const geometry = getDossierGeometryForExport();
+            if (!geometry) {
                 statusEl.textContent = 'Сначала нарисуйте полигон досъёма.';
                 return;
             }
-            const geometry = geo.features[0].geometry;
             const recapId = (newRecapIdInput.value || '').trim();
             if (!recapId) {
                 saveModalErrorEl.textContent = 'Укажите номер досъёма (recap_id).';
@@ -2154,12 +2266,12 @@ if (L && L.drawLocal) {
                 checkDgiUrl: "{% url 'check_dgi_intersections' %}",
                 getCookie: getCookie,
                 getGeometry: () => {
-                    const geo = dossierGroup.toGeoJSON();
-                    if (!geo.features.length) {
+                    const geometry = getDossierGeometryForExport();
+                    if (!geometry) {
                         statusEl.textContent = 'Сначала нарисуйте полигон досъёма.';
                         return null;
                     }
-                    return geo.features[0].geometry;
+                    return geometry;
                 },
                 openSaveModal: openSaveModal,
                 dgiConfirmModal: dgiExportConfirmModal,
@@ -2173,19 +2285,19 @@ if (L && L.drawLocal) {
 
         try {
             renderRelationLayers({
-                intersects: readGeometryScriptId('intersects-geometry-data'),
-                touches: readGeometryScriptId('touches-geometry-data'),
-                nearby: readGeometryScriptId('nearby-geometry-data'),
-                request_objects: readGeometryScriptId('request-objects-geometry-data'),
-                dgi_moscow: readGeometryScriptId('dgi-moscow-geometry-data'),
-                dgi_private: readGeometryScriptId('dgi-private-geometry-data'),
-                odh: readGeometryScriptId('odh-geometry-data'),
-                ozn: readGeometryScriptId('ozn-geometry-data'),
-                renew: readGeometryScriptId('renew-geometry-data'),
-                oozt: readGeometryScriptId('oozt-geometry-data'),
-                rzd: readGeometryScriptId('rzd-geometry-data'),
-                top: readGeometryScriptId('top-geometry-data'),
-                recaps: readGeometryScriptId('recaps-geometry-data'),
+                intersects: parseGeometryData('intersects-geometry-data'),
+                touches: parseGeometryData('touches-geometry-data'),
+                nearby: parseGeometryData('nearby-geometry-data'),
+                request_objects: parseGeometryData('request-objects-geometry-data'),
+                dgi_moscow: parseGeometryData('dgi-moscow-geometry-data'),
+                dgi_private: parseGeometryData('dgi-private-geometry-data'),
+                odh: parseGeometryData('odh-geometry-data'),
+                ozn: parseGeometryData('ozn-geometry-data'),
+                renew: parseGeometryData('renew-geometry-data'),
+                oozt: parseGeometryData('oozt-geometry-data'),
+                rzd: parseGeometryData('rzd-geometry-data'),
+                top: parseGeometryData('top-geometry-data'),
+                recaps: parseGeometryData('recaps-geometry-data'),
             });
             updateEditableAreaInfo();
         } catch (error) {
@@ -2196,4 +2308,5 @@ if (L && L.drawLocal) {
         }
 
         refreshObjectLayersControl();
+        updateDossierToolbarState();
         loadCommentPointsForMap();

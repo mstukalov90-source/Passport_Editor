@@ -140,6 +140,7 @@ REPLACEMENTS = [
     (r'"\{\{ request_id\|default:\'\'\|escapejs \}\}"', 'cfg.requestId || ""'),
     (r'"\{\{ name\|default:\'\'\|escapejs \}\}"', 'cfg.objectName || ""'),
     (r"'\{\{ initial_recap_id\|default:\"\"\|escapejs \}\}'", 'cfg.initialRecapId || ""'),
+    (r"page: 'add_recap'", 'page: cfg.page || "add_recap"'),
 ]
 
 HEADER = """(function () {
@@ -159,6 +160,9 @@ HEADER = """(function () {
     const calculateGeometryAreaSqMeters = PV.calculateGeometryAreaSqMeters.bind(PV);
     const buildObjectPopup = PV.buildObjectPopup.bind(PV);
     const buildPdfIntersectionPopupHtml = PV.buildPdfIntersectionPopupHtml.bind(PV);
+    const formatAdjacentRelationsSearchStatus = PV.formatAdjacentRelationsSearchStatus.bind(PV);
+    const filterPassportOnlyGeoJson = PV.filterPassportOnlyGeoJson.bind(PV);
+    const mps = PV.multipolygonSave || {};
 
 """
 
