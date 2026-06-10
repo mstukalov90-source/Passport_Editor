@@ -30,12 +30,18 @@ python manage.py runserver
 
 ### Сид данных (опционально)
 
-Если в корне проекта есть JSON/GeoJSON-файлы таблиц:
+Положите файлы в каталог [`import/`](import/) (имя файла = имя таблицы: `pass_objects.geojson`, `ods_request.json`, …).
+По умолчанию команда ищет данные в `import/`, если каталог существует.
 
 ```bash
 python manage.py import_seed_from_files --list
-python manage.py import_seed_from_files --table users
+python manage.py import_seed_from_files --dry-run --all   # подсчёт без записи
+python manage.py import_seed_from_files --all               # TRUNCATE + загрузка
+python manage.py import_seed_from_files --table ods_request
 ```
+
+Большие GeoJSON (сотни МБ–ГБ) читаются потоково; полный импорт может занять десятки минут.
+Миграции для загрузки не нужны — только существующие таблицы в PostGIS.
 
 ## Проверки качества
 

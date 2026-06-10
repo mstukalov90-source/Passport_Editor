@@ -2,7 +2,7 @@
 Registry of database tables that can be populated from flat files during deploy.
 
 File naming: same stem as the table name, extension .json or .geojson (see kind).
-Root directory: pass `--root` to the management command (default: settings.BASE_DIR).
+Root directory: pass `--root` to the management command (default: BASE_DIR/import if present).
 """
 
 from collections.abc import Iterator
@@ -50,7 +50,7 @@ def build_default_registry() -> list[TableImportSpec]:
             FileKind.JSON,
             note="ODS bidregistry_view rows from ods_request.json (migration 0014)",
         ),
-        TableImportSpec("ozn", FileKind.GEOJSON, delegate_command="import_ozn_geojson"),
+        TableImportSpec("ozn", FileKind.GEOJSON, dynamic_geojson=True),
         TableImportSpec("renew", FileKind.GEOJSON, delegate_command="import_renew_geojson"),
         TableImportSpec("hood", FileKind.GEOJSON, dynamic_geojson=True, note="Rayon / okrug polygons (hood.geojson)"),
         TableImportSpec(

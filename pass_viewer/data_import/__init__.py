@@ -1,7 +1,7 @@
 """
 Helpers for loading seed / reference data from JSON and GeoJSON files.
 
-Expected layout (by default: Django project root = directory containing manage.py):
+Expected layout (by default: ``import/`` under project root, else project root):
   users.json
   id_names.json
   ods_request.json

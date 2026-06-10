@@ -1,35 +1,42 @@
 """
-Load seed / reference data from JSON and GeoJSON files in the project root.
+Load seed / reference data from JSON and GeoJSON files.
 
-Default root is Django BASE_DIR (directory containing manage.py). Filenames match table names:
-  users.json, id_names.json, ods_request.json, ozn.geojson, renew.geojson, hood.geojson, pass_objects.geojson, ...
+Default root is ``import/`` under BASE_DIR when that directory exists, else BASE_DIR.
+Filenames match table names: users.json, ods_request.json, pass_objects.geojson, ...
 
 When using --all, tables without a matching file are skipped. When using --table, the file must exist.
 
 Examples:
   python manage.py import_seed_from_files --list
   python manage.py import_seed_from_files --dry-run --all
-  python manage.py import_seed_from_files --table users
+  python manage.py import_seed_from_files --table ods_request
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
-from pass_viewer.data_import.geojson_dynamic import import_geojson_dynamic
+from pass_viewer.data_import.geojson_dynamic import import_geojson_dynamic_from_path
 from pass_viewer.data_import.json_loaders import import_id_names, import_ods_request, import_users
 from pass_viewer.data_import.table_registry import TableImportSpec, build_default_registry, expected_filename
+
+
+def default_import_root() -> Path:
+    base = Path(settings.BASE_DIR)
+    import_dir = base / "import"
+    if import_dir.is_dir():
+        return import_dir
+    return base
 
 
 class Command(BaseCommand):
     help = (
         "Import tables from flat files named like tables (.json / .geojson) under --root "
-        "(default: project root / BASE_DIR)."
+        "(default: BASE_DIR/import when present, else BASE_DIR)."
     )
 
     def add_arguments(self, parser):
@@ -37,7 +44,7 @@ class Command(BaseCommand):
             "--root",
             type=Path,
             default=None,
-            help="Directory containing data files (default: settings.BASE_DIR).",
+            help="Directory containing data files (default: BASE_DIR/import or BASE_DIR).",
         )
         parser.add_argument(
             "--table",
@@ -67,6 +74,12 @@ class Command(BaseCommand):
             help="Target SRID for dynamic GeoJSON import (default: 4326).",
         )
         parser.add_argument(
+            "--batch-size",
+            type=int,
+            default=1000,
+            help="GeoJSON INSERT batch size for streaming import (default: 1000).",
+        )
+        parser.add_argument(
             "--list",
             action="store_true",
             dest="list_tables",
@@ -74,10 +87,11 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        root: Path = (options["root"] or Path(settings.BASE_DIR)).expanduser().resolve()
+        root: Path = (options["root"] or default_import_root()).expanduser().resolve()
         dry_run: bool = options["dry_run"]
         append: bool = options["append"]
         target_srid: int = options["srid"]
+        batch_size: int = options["batch_size"]
 
         registry = build_default_registry()
 
@@ -112,6 +126,7 @@ class Command(BaseCommand):
                 dry_run=dry_run,
                 append=append,
                 target_srid=target_srid,
+                batch_size=batch_size,
                 require_file=explicit_table,
             )
 
@@ -139,6 +154,7 @@ class Command(BaseCommand):
         dry_run: bool,
         append: bool,
         target_srid: int,
+        batch_size: int,
         require_file: bool,
     ) -> None:
         filename = expected_filename(spec)
@@ -194,16 +210,16 @@ class Command(BaseCommand):
 
         if spec.dynamic_geojson:
             try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
+                imported, skipped = import_geojson_dynamic_from_path(
+                    spec.table,
+                    path,
+                    target_srid=target_srid,
+                    append=append,
+                    batch_size=batch_size,
+                    dry_run=dry_run,
+                )
             except Exception as exc:
-                raise CommandError(f"{spec.table}: invalid JSON: {exc}") from exc
-            imported, skipped = import_geojson_dynamic(
-                spec.table,
-                payload,
-                target_srid=target_srid,
-                append=append,
-                dry_run=dry_run,
-            )
+                raise CommandError(f"{spec.table}: import failed: {exc}") from exc
             if dry_run:
                 self.stdout.write(
                     self.style.SUCCESS(f"[dry-run] would import up to {imported} features into {spec.table}")
