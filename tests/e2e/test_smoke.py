@@ -56,6 +56,24 @@ def test_static_home_js_served(page, live_server, e2e_credentials):
     assert 'merge_item_object_key' in body
 
 
+def _dismiss_home_workflow_modal_if_open(page) -> None:
+    """home.js opens #home-workflow-modal after load; wait then close to unblock clicks."""
+    page.wait_for_function(
+        """() => {
+            const modal = document.getElementById('home-workflow-modal');
+            if (!modal) return true;
+            const display = modal.style.display;
+            return display === 'flex' || display === 'none';
+        }"""
+    )
+    workflow_modal = page.locator('#home-workflow-modal')
+    if workflow_modal.evaluate('el => el.style.display === "flex"'):
+        page.locator('#home-workflow-close-btn').click()
+        page.wait_for_function(
+            '() => document.getElementById("home-workflow-modal").style.display === "none"'
+        )
+
+
 @pytest.mark.e2e
 @pytest.mark.django_db
 def test_user_guide_modal_opens(page, live_server, e2e_credentials):
@@ -64,10 +82,7 @@ def test_user_guide_modal_opens(page, live_server, e2e_credentials):
     page.fill('input[name="password"]', e2e_credentials['password'])
     page.get_by_role('button', name='Войти').click()
     page.wait_for_selector('.owned-home-shell', state='visible')
-    workflow_modal = page.locator('#home-workflow-modal')
-    if workflow_modal.is_visible():
-        page.locator('#home-workflow-close-btn').click()
-        page.wait_for_selector('#home-workflow-modal', state='hidden')
+    _dismiss_home_workflow_modal_if_open(page)
     page.locator('#user-guide-open-btn').click()
     guide_modal = page.locator('#user-guide-modal')
     assert guide_modal.evaluate('el => !el.hidden') is True
