@@ -46,9 +46,7 @@ jobs:
       - name: Install Python dependencies
         run: bash scripts/ci_install_deps.sh
       - name: Resolve GDAL/GEOS paths
-        run: |
-          echo "GDAL_LIBRARY_PATH=$(find /usr/lib -name 'libgdal.so*' 2>/dev/null | head -1)" >> "$GITHUB_ENV"
-          echo "GEOS_LIBRARY_PATH=$(find /usr/lib -name 'libgeos_c.so*' 2>/dev/null | head -1)" >> "$GITHUB_ENV"
+        run: source scripts/ci_resolve_gdal_paths.sh --github-env
       - name: Django smoke tests
         env:
           POSTGIS_DB_HOST: localhost
@@ -87,9 +85,7 @@ jobs:
       - name: Install Python dependencies
         run: bash scripts/ci_install_deps.sh
       - name: Resolve GDAL/GEOS paths
-        run: |
-          echo "GDAL_LIBRARY_PATH=$(find /usr/lib -name 'libgdal.so*' 2>/dev/null | head -1)" >> "$GITHUB_ENV"
-          echo "GEOS_LIBRARY_PATH=$(find /usr/lib -name 'libgeos_c.so*' 2>/dev/null | head -1)" >> "$GITHUB_ENV"
+        run: source scripts/ci_resolve_gdal_paths.sh --github-env
       - name: Install Playwright browser
         run: playwright install --with-deps chromium
       - name: E2E smoke tests

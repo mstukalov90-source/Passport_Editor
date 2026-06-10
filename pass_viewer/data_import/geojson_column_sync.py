@@ -6,13 +6,13 @@ Uses ijson so multi-gigabyte files are not loaded into memory whole.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
-import ijson
 from django.db import connection, transaction
 from psycopg2.extras import execute_values
+
+from pass_viewer.data_import.geojson_stream import iter_geojson_features
 
 
 @dataclass(frozen=True)
@@ -27,13 +27,6 @@ SPECS = {
     "odh": TableSyncSpec("odh", "objectid", "int"),
     "ozn": TableSyncSpec("ozn", "rootid", "text"),
 }
-
-
-def iter_geojson_features(path: str) -> Iterator[dict]:
-    with open(path, "rb") as f:
-        for feature in ijson.items(f, "features.item", use_float=True):
-            if isinstance(feature, dict):
-                yield feature
 
 
 def pick_property(props: dict[str, Any], *candidates: str) -> Any:

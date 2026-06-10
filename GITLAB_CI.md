@@ -58,6 +58,7 @@ git push hub main
 | Pipeline pending, нет runner | Включить shared runners / назначить project runner |
 | `pull access denied` для image | Задать `POSTGIS_IMAGE` / `PYTHON_IMAGE` из корп. registry |
 | GDAL / osgeo import error | В логе job проверить `System GDAL version` и шаг `ci_install_deps.sh` |
+| `ogdi/.../libgdal.so: undefined symbol: GDALVersionInfo` | Не использовать `find /usr/lib` для GDAL; нужен [`scripts/ci_resolve_gdal_paths.sh`](scripts/ci_resolve_gdal_paths.sh) |
 | E2E timeout на Playwright | Увеличить job timeout; проверить установку chromium в логе `e2e` |
 
 ## Синхронизация с GitHub
