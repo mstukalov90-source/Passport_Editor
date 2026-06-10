@@ -51,3 +51,26 @@ def test_static_home_js_served(page, live_server, e2e_credentials):
     page.wait_for_selector('.owned-home-shell', state='visible')
     response = page.request.get(f'{live_server.url}/static/pass_viewer/js/home.js')
     assert response.status == 200
+    body = response.text()
+    assert 'getMergeCheckboxPayload' in body
+    assert 'merge_item_object_key' in body
+
+
+@pytest.mark.e2e
+@pytest.mark.django_db
+def test_user_guide_modal_opens(page, live_server, e2e_credentials):
+    page.goto(f'{live_server.url}{reverse("login")}')
+    page.fill('input[name="username"]', e2e_credentials['username'])
+    page.fill('input[name="password"]', e2e_credentials['password'])
+    page.get_by_role('button', name='Войти').click()
+    page.wait_for_selector('.owned-home-shell', state='visible')
+    workflow_modal = page.locator('#home-workflow-modal')
+    if workflow_modal.is_visible():
+        page.locator('#home-workflow-close-btn').click()
+        page.wait_for_selector('#home-workflow-modal', state='hidden')
+    page.locator('#user-guide-open-btn').click()
+    guide_modal = page.locator('#user-guide-modal')
+    assert guide_modal.evaluate('el => !el.hidden') is True
+    assert 'is-open' in (guide_modal.get_attribute('class') or '')
+    page.locator('#user-guide-close-btn').click()
+    assert guide_modal.evaluate('el => el.hidden') is True
