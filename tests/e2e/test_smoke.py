@@ -57,15 +57,8 @@ def test_static_home_js_served(page, live_server, e2e_credentials):
 
 
 def _dismiss_home_workflow_modal_if_open(page) -> None:
-    """home.js opens #home-workflow-modal after load; wait then close to unblock clicks."""
-    page.wait_for_function(
-        """() => {
-            const modal = document.getElementById('home-workflow-modal');
-            if (!modal) return true;
-            const display = modal.style.display;
-            return display === 'flex' || display === 'none';
-        }"""
-    )
+    """home.js opens #home-workflow-modal after scripts run; close it to unblock clicks."""
+    page.wait_for_load_state('networkidle')
     workflow_modal = page.locator('#home-workflow-modal')
     if workflow_modal.evaluate('el => el.style.display === "flex"'):
         page.locator('#home-workflow-close-btn').click()
