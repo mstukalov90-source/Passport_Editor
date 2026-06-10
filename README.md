@@ -69,7 +69,7 @@ Smoke-тесты создают отдельную `test_geodb` и таблиц�
 
 ## CI
 
-Одинаковые проверки: **ruff** → **pytest smoke** → **Playwright E2E** (PostGIS 16, GDAL через `apt`, скрипт [`scripts/ci_install_deps.sh`](scripts/ci_install_deps.sh)).
+Одинаковые проверки: **ruff** → **pytest smoke** → **Playwright E2E** (PostGIS 16, GDAL через `apt`, скрипты [`scripts/ci_install_deps.sh`](scripts/ci_install_deps.sh) и [`scripts/ci_resolve_gdal_paths.sh`](scripts/ci_resolve_gdal_paths.sh)).
 
 | Платформа | Конфиг | Документация |
 |-----------|--------|--------------|
@@ -96,8 +96,9 @@ git push hub main
    pytest -m "not e2e"
    ```
 
-4. Если упал job **test** / **e2e** на шаге установки GDAL — смотрите лог `Install Python dependencies`; версия pip `gdal` должна совпасть с `gdal-config --version` на runner.
-5. Если упал **e2e** на Playwright — перезапуск run; при повторе проверьте лог PostGIS health.
+4. Если упал job **test** / **e2e** с `undefined symbol: GDALVersionInfo` и путём `ogdi/.../libgdal.so` — CI должен использовать `ci_resolve_gdal_paths.sh`, не `find /usr/lib`.
+5. Если упал job **test** / **e2e** на шаге установки GDAL — смотрите лог `Install Python dependencies`; версия pip `gdal` должна совпасть с `gdal-config --version` на runner.
+6. Если упал **e2e** на Playwright — перезапуск run; при повторе проверьте лог PostGIS health.
 
 Просмотр статуса с CLI (если установлен `gh`):
 
