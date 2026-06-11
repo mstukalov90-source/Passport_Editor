@@ -7,10 +7,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from django.contrib.auth.models import User
+from django.test import RequestFactory
 from django.urls import reverse
 
 from pass_viewer.models import ExternalUser
-from pass_viewer.views import _get_recap_counts_by_request_ids
+from pass_viewer.views import _get_recap_counts_by_request_ids, delete_recap_object
 
 
 @pytest.mark.django_db
@@ -107,10 +108,13 @@ def test_export_recap_geometry_not_found(client):
     assert response.json()["ok"] is False
 
 
-@pytest.mark.django_db
-def test_delete_recap_object_success(client):
-    user = User.objects.create_user(username="recap_delete_user", password="pass")
-    client.force_login(user)
+def test_delete_recap_object_success():
+    request = RequestFactory().post(
+        "/owned/recaps/delete/",
+        data=json.dumps({"recap_id": "77"}),
+        content_type="application/json",
+    )
+    request.user = MagicMock(is_authenticated=True, username="recap_delete_user")
 
     cursor = MagicMock()
     cursor.fetchone.return_value = ("77",)
@@ -123,14 +127,10 @@ def test_delete_recap_object_success(client):
         return_value=("OwnerLegalPersonId", "request_id", "name", "geom", "", []),
     ):
         cursor_ctx.return_value.__enter__.return_value = cursor
-        response = client.post(
-            reverse("delete_recap_object"),
-            data=json.dumps({"recap_id": "77"}),
-            content_type="application/json",
-        )
+        response = delete_recap_object(request)
 
     assert response.status_code == 200
-    assert response.json() == {"ok": True, "recap_id": "77"}
+    assert json.loads(response.content) == {"ok": True, "recap_id": "77"}
     cursor.execute.assert_called_once()
 
 

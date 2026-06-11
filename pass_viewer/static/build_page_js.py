@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent / "pass_viewer" / "js"
