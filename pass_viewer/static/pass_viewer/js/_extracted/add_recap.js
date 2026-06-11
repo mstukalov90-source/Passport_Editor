@@ -36,7 +36,8 @@ if (L && L.drawLocal) {
             L.drawLocal.edit.handlers.remove.tooltip.text = 'Кликните по объекту, чтобы удалить его.';
         }
 
-        const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 12);
+        const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.61], 12);
+        const signalTapeRenderer = L.svg({padding: 0.5});
 
         let popupHighlightLayer = null;
         const POPUP_HIGHLIGHT_WEIGHT_DELTA = 3;
@@ -95,56 +96,7 @@ if (L && L.drawLocal) {
             clearPopupHighlight();
         });
 
-        const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxNativeZoom: 19,
-            maxZoom: 30,
-            attribution: '&copy; OpenStreetMap contributors'
-        });
-        const satelliteLayer = L.tileLayer(
-            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            {
-                maxNativeZoom: 19,
-                maxZoom: 30,
-                attribution: 'Tiles &copy; Esri'
-            }
-        );
-        topoLayer.addTo(map);
-        const basemapControl = L.control({position: 'topright'});
-        basemapControl.onAdd = function () {
-            const container = L.DomUtil.create('div', 'map-basemap-control');
-            container.innerHTML =
-                '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="sat">Спутник</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="none">Без подложки</button>';
-            L.DomEvent.disableClickPropagation(container);
-            return container;
-        };
-        basemapControl.addTo(map);
-        function setBasemap(mode) {
-            const removeBasemapLayers = () => {
-                if (map.hasLayer(topoLayer)) {
-                    map.removeLayer(topoLayer);
-                }
-                if (map.hasLayer(satelliteLayer)) {
-                    map.removeLayer(satelliteLayer);
-                }
-            };
-            if (mode === 'none') {
-                removeBasemapLayers();
-            } else if (mode === 'topo') {
-                removeBasemapLayers();
-                map.addLayer(topoLayer);
-            } else if (mode === 'sat') {
-                removeBasemapLayers();
-                map.addLayer(satelliteLayer);
-            }
-            document.querySelectorAll('.map-basemap-btn').forEach((btn) => {
-                btn.classList.toggle('is-active', btn.dataset.map === mode);
-            });
-        }
-        map.getContainer().querySelectorAll('.map-basemap-btn').forEach((btn) => {
-            btn.addEventListener('click', () => setBasemap(btn.dataset.map));
-        });
+        PV.attachBasemapControl(map);
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
@@ -879,7 +831,9 @@ if (L && L.drawLocal) {
                 return;
             }
             const ensureSignalPattern = (patternId, stripeColorHex, backgroundColorHex) => {
-                const svg = map.getPanes().overlayPane.querySelector('svg');
+                const svg =
+                    (signalTapeRenderer._container && signalTapeRenderer._container.ownerSVGElement) ||
+                    map.getPanes().overlayPane.querySelector('svg');
                 if (!svg) {
                     return null;
                 }
@@ -930,6 +884,7 @@ if (L && L.drawLocal) {
                 }).addTo(targetGroup);
             }
             L.geoJSON(geo, {
+                ...(isSignalTape ? {renderer: signalTapeRenderer} : {}),
                 style: {
                     color: isOdh ? '#00bfff' : (isOzn || isOozt) ? '#16a34a' : isRenew ? '#b45309' : '#dc2626',
                     weight: 4,
@@ -1152,7 +1107,7 @@ if (L && L.drawLocal) {
 
         function renderTopLayer(topGeo) {
             topSignalGroup.clearLayers();
-            const geo = normalizeGeoJson(topGeo);
+            const geo = normalizeGeoJson(filterPassportOnlyGeoJson(topGeo));
             if (!geo) {
                 return;
             }
@@ -1386,8 +1341,8 @@ if (L && L.drawLocal) {
             }
             addSignalTapeLayer(dgiMoscowSignalGroup, parsed.dgi_moscow, 'ДГИ');
             addSignalTapeLayer(dgiPrivateSignalGroup, parsed.dgi_private, 'ДГИ');
-            addSignalTapeLayer(odhSignalGroup, parsed.odh, 'ОДХ');
-            addSignalTapeLayer(oznSignalGroup, parsed.ozn, 'ОЗН');
+            addSignalTapeLayer(odhSignalGroup, filterPassportOnlyGeoJson(parsed.odh), 'ОДХ');
+            addSignalTapeLayer(oznSignalGroup, filterPassportOnlyGeoJson(parsed.ozn), 'ОЗН');
             renderRecapsLayer(parsed.recaps);
             renderRenewLayer(parsed.renew);
             addSignalTapeLayer(ooztSignalGroup, parsed.oozt, 'ООЗТ');

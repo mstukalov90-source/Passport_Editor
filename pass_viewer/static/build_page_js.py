@@ -10,7 +10,9 @@ Then: python3 pass_viewer/static/build_page_js.py
 
 from __future__ import annotations
 
+import argparse
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent / "pass_viewer" / "js"
@@ -169,24 +171,48 @@ HEADER = """(function () {
 FOOTER = "\n})();\n"
 
 
+def build_page(src_name: str, out_name: str) -> None:
+    raw = (EXTRACTED / f"{src_name}.js").read_text(encoding="utf-8")
+    body = strip_shared(raw)
+    for pat, repl in REPLACEMENTS:
+        body = re.sub(pat, repl, body)
+    lines = body.splitlines()
+    if lines and lines[0].startswith("        "):
+        lines = [ln[8:] if ln.startswith("        ") else ln for ln in lines]
+    body = "\n".join(lines).strip() + "\n"
+    for fn in UTIL_FUNCS + POPUP_FUNCS:
+        body = remove_function_block(body, fn)
+    out = HEADER + body + FOOTER
+    (ROOT / out_name).write_text(out, encoding="utf-8")
+    print(f"wrote {out_name} ({len(out.splitlines())} lines)")
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Regenerate pass_viewer page JS from _extracted snapshots.")
+    parser.add_argument(
+        "--page",
+        choices=sorted(PAGE_MAP.keys()),
+        help="Rebuild only this page (e.g. add_recap). Safer when _extracted snapshots for other pages are stale.",
+    )
+    args = parser.parse_args()
+
     if not EXTRACTED.is_dir():
         raise SystemExit(f"Missing {EXTRACTED}; run extraction from templates first.")
 
+    if args.page:
+        src_name = args.page
+        out_name = PAGE_MAP[src_name]
+        build_page(src_name, out_name)
+        return
+
+    print(
+        "WARNING: full rebuild overwrites main.js, home.js, add-object.js, and add-recap.js "
+        "from _extracted/*.js. If you only changed add_recap, run:\n"
+        "  python3 pass_viewer/static/build_page_js.py --page add_recap\n",
+        file=sys.stderr,
+    )
     for src_name, out_name in PAGE_MAP.items():
-        raw = (EXTRACTED / f"{src_name}.js").read_text(encoding="utf-8")
-        body = strip_shared(raw)
-        for pat, repl in REPLACEMENTS:
-            body = re.sub(pat, repl, body)
-        lines = body.splitlines()
-        if lines and lines[0].startswith("        "):
-            lines = [ln[8:] if ln.startswith("        ") else ln for ln in lines]
-        body = "\n".join(lines).strip() + "\n"
-        for fn in UTIL_FUNCS + POPUP_FUNCS:
-            body = remove_function_block(body, fn)
-        out = HEADER + body + FOOTER
-        (ROOT / out_name).write_text(out, encoding="utf-8")
-        print(f"wrote {out_name} ({len(out.splitlines())} lines)")
+        build_page(src_name, out_name)
 
 
 if __name__ == "__main__":
