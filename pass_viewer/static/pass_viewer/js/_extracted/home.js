@@ -534,7 +534,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     }
                     if (
                         event.target.closest(
-                            'form.owned-open-form button[type="submit"], .owned-split-form, .owned-split-btn, .add-recap-entry-btn, .owned-confirm-open-btn, input, a, label'
+                            'form.owned-open-form button[type="submit"], .owned-split-form, .owned-split-btn, .add-recap-entry-btn, .owned-recaps-open-btn, .owned-recap-download-btn, .owned-recap-delete-btn, .owned-confirm-open-btn, input, a, label'
                         )
                     ) {
                         return;
@@ -747,6 +747,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const prepareAddObjectHidden = document.getElementById('prepare-add-object-request-id');
         const cancelPendingUrl = '{% url "cancel_pending_entry" %}';
         const addRecapBaseUrl = '{% url "add_recap" %}';
+        const listOwnedRecapsUrl = '{% url "list_owned_recaps" %}';
+        const exportRecapUrl = '{% url "export_recap_geometry" %}';
+        const deleteRecapUrl = '{% url "delete_recap_object" %}';
         let entryRequestMode = null;
         let pendingOwnedForm = null;
         let pendingOdsOpenOwned = null;
@@ -837,6 +840,240 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 if (event.key === 'Enter') {
                     event.preventDefault();
                     submitEntryRecapModal();
+                }
+            });
+        }
+
+        const ownedRecapsModal = document.getElementById('owned-recaps-modal');
+        const ownedRecapsListEl = document.getElementById('owned-recaps-list');
+        const ownedRecapsStatusEl = document.getElementById('owned-recaps-status');
+        const ownedRecapsModalTitle = document.getElementById('owned-recaps-modal-title');
+        const ownedRecapsModalSubtitle = document.getElementById('owned-recaps-modal-subtitle');
+        const ownedRecapsCloseBtn = document.getElementById('owned-recaps-close-btn');
+        const ownedRecapsDoneBtn = document.getElementById('owned-recaps-done-btn');
+        let activeOwnedRecapsBtn = null;
+
+        function ownedRecapsEscapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function getOwnedRecapsCsrfToken() {
+            if (typeof getCookie === 'function') {
+                return getCookie('csrftoken') || '';
+            }
+            const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+            return match ? decodeURIComponent(match[1]) : '';
+        }
+
+        function closeOwnedRecapsModal() {
+            if (ownedRecapsModal) {
+                ownedRecapsModal.style.display = 'none';
+            }
+            activeOwnedRecapsBtn = null;
+            if (ownedRecapsListEl) {
+                ownedRecapsListEl.innerHTML = '';
+            }
+            if (ownedRecapsStatusEl) {
+                ownedRecapsStatusEl.textContent = '';
+            }
+        }
+
+        function updateOwnedRecapsBadge(btn, count) {
+            if (!btn) {
+                return;
+            }
+            btn.dataset.recapCount = String(count);
+            if (count > 0) {
+                btn.textContent = 'Заявок на досъём: ' + count;
+                return;
+            }
+            const span = document.createElement('span');
+            span.style.cssText =
+                'align-self: center; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 8px; padding: 8px 10px; font-size: 13px; white-space: nowrap;';
+            span.title = 'Количество заявок на досъём в recaps с этим request_id';
+            span.textContent = 'Заявок на досъём: 0';
+            btn.replaceWith(span);
+        }
+
+        function renderOwnedRecapsList(recaps) {
+            if (!ownedRecapsListEl) {
+                return;
+            }
+            ownedRecapsListEl.innerHTML = '';
+            recaps.forEach((recap) => {
+                const row = document.createElement('div');
+                row.className = 'owned-recap-row';
+                row.dataset.recapId = recap.recap_id || '';
+                row.style.cssText =
+                    'display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc;';
+
+                const info = document.createElement('div');
+                info.style.flex = '1';
+                info.style.minWidth = '140px';
+                info.innerHTML =
+                    '<div><strong>№ досъёма:</strong> ' + ownedRecapsEscapeHtml(recap.recap_id) + '</div>' +
+                    (recap.name
+                        ? '<div style="font-size: 13px; color: #64748b;"><strong>Название:</strong> ' +
+                          ownedRecapsEscapeHtml(recap.name) +
+                          '</div>'
+                        : '');
+
+                const downloadBtn = document.createElement('button');
+                downloadBtn.type = 'button';
+                downloadBtn.className = 'owned-recap-download-btn';
+                downloadBtn.textContent = 'Скачать';
+                downloadBtn.style.cssText =
+                    'background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit;';
+                downloadBtn.addEventListener('click', () => {
+                    void downloadOwnedRecap(recap, downloadBtn, row);
+                });
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'owned-recap-delete-btn';
+                deleteBtn.textContent = 'Удалить';
+                deleteBtn.style.cssText =
+                    'background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit;';
+                deleteBtn.addEventListener('click', () => {
+                    void deleteOwnedRecap(recap, row);
+                });
+
+                const linksEl = document.createElement('div');
+                linksEl.className = 'owned-recap-download-links';
+                linksEl.style.cssText = 'width: 100%; display: none; gap: 8px; flex-wrap: wrap;';
+
+                row.appendChild(info);
+                row.appendChild(downloadBtn);
+                row.appendChild(deleteBtn);
+                row.appendChild(linksEl);
+                ownedRecapsListEl.appendChild(row);
+            });
+        }
+
+        async function downloadOwnedRecap(recap, btn, row) {
+            const linksEl = row.querySelector('.owned-recap-download-links');
+            btn.disabled = true;
+            try {
+                const res = await fetch(exportRecapUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getOwnedRecapsCsrfToken(),
+                    },
+                    body: JSON.stringify({ recap_id: recap.recap_id }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    throw new Error(data.error || 'Не удалось сформировать файлы.');
+                }
+                if (linksEl) {
+                    linksEl.style.display = 'flex';
+                    linksEl.innerHTML =
+                        '<a class="button-link" href="' +
+                        ownedRecapsEscapeHtml(data.geojson_url) +
+                        '" download>Скачать GeoJSON</a> ' +
+                        '<a class="button-link" href="' +
+                        ownedRecapsEscapeHtml(data.shapefile_url) +
+                        '">Скачать SHP (ZIP)</a>';
+                }
+            } catch (error) {
+                window.alert(error.message || 'Ошибка скачивания.');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function deleteOwnedRecap(recap, row) {
+            if (!window.confirm('Удалить досъём № ' + (recap.recap_id || '') + '?')) {
+                return;
+            }
+            try {
+                const res = await fetch(deleteRecapUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getOwnedRecapsCsrfToken(),
+                    },
+                    body: JSON.stringify({ recap_id: recap.recap_id }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    throw new Error(data.error || 'Не удалось удалить досъём.');
+                }
+                row.remove();
+                const remaining = ownedRecapsListEl
+                    ? ownedRecapsListEl.querySelectorAll('.owned-recap-row').length
+                    : 0;
+                if (ownedRecapsStatusEl && remaining === 0) {
+                    ownedRecapsStatusEl.textContent = 'Нет сохранённых досъёмов.';
+                }
+                if (activeOwnedRecapsBtn) {
+                    updateOwnedRecapsBadge(activeOwnedRecapsBtn, remaining);
+                }
+            } catch (error) {
+                window.alert(error.message || 'Ошибка удаления.');
+            }
+        }
+
+        async function openOwnedRecapsModal(btn) {
+            activeOwnedRecapsBtn = btn;
+            const requestId = btn.dataset.requestId || '';
+            const requestName = btn.dataset.name || '';
+            if (ownedRecapsModalTitle) {
+                ownedRecapsModalTitle.textContent = 'Досъёмы по заявке № ' + requestId;
+            }
+            if (ownedRecapsModalSubtitle) {
+                ownedRecapsModalSubtitle.textContent = requestName ? 'Объект: ' + requestName : '';
+            }
+            if (ownedRecapsModal) {
+                ownedRecapsModal.style.display = 'flex';
+            }
+            if (ownedRecapsListEl) {
+                ownedRecapsListEl.innerHTML = '';
+            }
+            if (ownedRecapsStatusEl) {
+                ownedRecapsStatusEl.textContent = 'Загрузка...';
+            }
+            try {
+                const url = listOwnedRecapsUrl + '?request_id=' + encodeURIComponent(requestId);
+                const res = await fetch(url);
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    throw new Error(data.error || 'Не удалось загрузить список досъёмов.');
+                }
+                const recaps = data.recaps || [];
+                renderOwnedRecapsList(recaps);
+                if (ownedRecapsStatusEl) {
+                    ownedRecapsStatusEl.textContent = recaps.length ? '' : 'Нет сохранённых досъёмов.';
+                }
+                updateOwnedRecapsBadge(btn, recaps.length);
+            } catch (error) {
+                if (ownedRecapsStatusEl) {
+                    ownedRecapsStatusEl.textContent = error.message || 'Ошибка загрузки.';
+                }
+            }
+        }
+
+        document.querySelectorAll('.owned-recaps-open-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                void openOwnedRecapsModal(btn);
+            });
+        });
+        if (ownedRecapsCloseBtn) {
+            ownedRecapsCloseBtn.addEventListener('click', closeOwnedRecapsModal);
+        }
+        if (ownedRecapsDoneBtn) {
+            ownedRecapsDoneBtn.addEventListener('click', closeOwnedRecapsModal);
+        }
+        if (ownedRecapsModal) {
+            ownedRecapsModal.addEventListener('click', (event) => {
+                if (event.target === ownedRecapsModal) {
+                    closeOwnedRecapsModal();
                 }
             });
         }

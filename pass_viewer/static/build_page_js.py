@@ -114,6 +114,9 @@ REPLACEMENTS = [
     (r'"\{% url \'save_recap_object\' %\}"', "cfg.urls.saveRecap"),
     (r"'\{% url \"cancel_pending_entry\" %\}'", "cfg.urls.cancelPending"),
     (r"'\{% url \"add_recap\" %\}'", "cfg.urls.addRecap"),
+    (r"'\{% url \"list_owned_recaps\" %\}'", "cfg.urls.listOwnedRecaps"),
+    (r"'\{% url \"export_recap_geometry\" %\}'", "cfg.urls.exportRecap"),
+    (r"'\{% url \"delete_recap_object\" %\}'", "cfg.urls.deleteRecap"),
     (r'"\{\{ selected_rootid\|default:\'\'\|escapejs \}\}"', 'cfg.selectedRootid || ""'),
     (r'"\{\{ selected_name\|default:\'\'\|escapejs \}\}"', 'cfg.selectedName || ""'),
     (r'"\{\{ selected_request_id\|default:\'\'\|escapejs \}\}"', 'cfg.selectedRequestId || ""'),
@@ -207,8 +210,8 @@ def main() -> None:
 
     print(
         "WARNING: full rebuild overwrites main.js, home.js, add-object.js, and add-recap.js "
-        "from _extracted/*.js. If you only changed add_recap, run:\n"
-        "  python3 pass_viewer/static/build_page_js.py --page add_recap\n",
+        "from _extracted/*.js. Built files may contain fixes not yet in _extracted/ — "
+        "prefer --page <name> (e.g. --page home) unless _extracted is fully synced.\n",
         file=sys.stderr,
     )
     for src_name, out_name in PAGE_MAP.items():

@@ -20,6 +20,11 @@ REQUIRED_SYMBOLS = [
     "source === 'ТОП' || source === 'TOP'",
     "sourceLabel === 'ТОП' || sourceLabel === 'TOP'",
     "PV.attachBasemapControl",
+    "function openOwnedRecapsModal",
+    "cfg.urls.listOwnedRecaps",
+    "cfg.urls.exportRecap",
+    "cfg.urls.deleteRecap",
+    ".owned-recaps-open-btn",
 ]
 
 
