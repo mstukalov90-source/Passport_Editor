@@ -174,6 +174,39 @@
                                         </button>
                                     </div>
                                     <span class="source-badge source-badge--ods">{{ item.source_label|default:ods_request_source_label }}</span>
+                                    {% if item.request_id and item.ods_uses_gis_geometry %}
+                                        {% if item.recap_count %}
+                                        <button
+                                            type="button"
+                                            class="owned-recaps-open-btn"
+                                            style="align-self: center; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 8px; padding: 8px 10px; font-size: 13px; white-space: nowrap; cursor: pointer; font: inherit;"
+                                            title="Показать созданные досъёмы по этой заявке"
+                                            data-request-id="{{ item.request_id|default:'' }}"
+                                            data-name="{{ item.name|default:'' }}"
+                                            data-recap-count="{{ item.recap_count|default:0 }}"
+                                        >
+                                            Заявок на досъём: {{ item.recap_count|default:0 }}
+                                        </button>
+                                        {% else %}
+                                        <span
+                                            style="align-self: center; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 8px; padding: 8px 10px; font-size: 13px; white-space: nowrap;"
+                                            title="Количество заявок на досъём в recaps с этим request_id"
+                                        >
+                                            Заявок на досъём: 0
+                                        </span>
+                                        {% endif %}
+                                        <button
+                                            type="button"
+                                            class="add-recap-entry-btn"
+                                            style="background: #e0ecff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 10px; align-self: center; cursor: pointer; font: inherit;"
+                                            data-request-id="{{ item.request_id|default:'' }}"
+                                            data-name="{{ item.name|default:'' }}"
+                                            data-object-key="{{ item.object_key|default:'' }}"
+                                            data-source-label="{{ item.source_label|default:ods_request_source_label }}"
+                                        >
+                                            Заявка на досъём
+                                        </button>
+                                    {% endif %}
                                 {% else %}
                                 <input
                                     type="checkbox"

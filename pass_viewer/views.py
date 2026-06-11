@@ -1160,6 +1160,91 @@ def _get_owned_ods_requests(owner_legal_person_id):
     return out
 
 
+ODS_REQUEST_OBJECT_KEY_PREFIX = "ods_request:"
+
+
+def _parse_ods_request_object_key(object_key):
+    key = str(object_key or "").strip()
+    if not key.startswith(ODS_REQUEST_OBJECT_KEY_PREFIX):
+        return None
+    pk = key[len(ODS_REQUEST_OBJECT_KEY_PREFIX) :].strip()
+    return pk if pk.isdigit() else None
+
+
+def _find_gis_geometry_for_ods_short_root(owner_legal_person_id, short_object_root_id):
+    sr = _norm_registry_id(short_object_root_id)
+    if not sr:
+        return None
+    for item in _get_owned_objects(owner_legal_person_id):
+        if _norm_registry_id(item.get("rootid")) != sr:
+            continue
+        geom = (item.get("geom_json") or "").strip()
+        if geom:
+            return geom
+    return None
+
+
+def _get_owned_ods_request_for_recap(owner_legal_person_id, object_key):
+    pk = _parse_ods_request_object_key(object_key)
+    if not pk or not owner_legal_person_id:
+        return None
+
+    table = getattr(settings, "GIS_ODS_REQUEST_TABLE", "ods_request")
+    source_label = getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС")
+
+    with connection.cursor() as cursor:
+        if not _table_exists(cursor, table) or not _column_exists(cursor, table, "ownerid"):
+            return None
+        if not _column_exists(cursor, table, "id"):
+            return None
+
+        owner_col = _resolve_column_name(cursor, table, "ownerid")
+        id_col = _resolve_column_name(cursor, table, "id")
+
+        brid_expr = "NULL::text"
+        if _column_exists(cursor, table, "BrId"):
+            bc = _resolve_column_name(cursor, table, "BrId")
+            brid_expr = f"COALESCE({_quote_ident(bc)}::text, ''::text)"
+        name_expr = "NULL::text"
+        if _column_exists(cursor, table, "ObjectName"):
+            nc = _resolve_column_name(cursor, table, "ObjectName")
+            name_expr = f"COALESCE({_quote_ident(nc)}::text, ''::text)"
+        rootid_expr = "NULL::text"
+        if _column_exists(cursor, table, "ShortObjectRootId"):
+            rc = _resolve_column_name(cursor, table, "ShortObjectRootId")
+            rootid_expr = f"COALESCE({_quote_ident(rc)}::text, ''::text)"
+
+        query = (
+            f"SELECT {brid_expr}, {name_expr}, {rootid_expr} "
+            f"FROM {_quote_ident(table)} "
+            f"WHERE {_quote_ident(id_col)}::text = %s "
+            f"AND {_quote_ident(owner_col)}::text = %s "
+            f"LIMIT 1"
+        )
+        cursor.execute(query, [pk, str(owner_legal_person_id)])
+        row = cursor.fetchone()
+
+    if not row:
+        return None
+
+    brid = (row[0] or "").strip()
+    if not brid or not brid.isdigit():
+        return None
+
+    name = row[1] or ""
+    short_root = row[2] or ""
+    geometry_json = _find_gis_geometry_for_ods_short_root(owner_legal_person_id, short_root)
+
+    return {
+        "object_key": object_key,
+        "rootid": "",
+        "name": name,
+        "request_id": brid,
+        "geometry_json": geometry_json,
+        "source_label": source_label,
+    }
+
+
 def _get_owned_ods_brids(owner_legal_person_id):
     """Уникальные BrId из ods_request для пользователя (подсказки в модалке номера заявки)."""
     if not owner_legal_person_id:
@@ -5257,8 +5342,14 @@ def add_recap(request):
     recap_id_param = (request.GET.get("recap_id") or "").strip()
     initial_recap_id = recap_id_param if recap_id_param.isdigit() else ""
     owner_id = _get_current_user_owner_id(request.user.username)
-    selected_object = _get_owned_request_object(owner_id, object_key, source_label=source_label)
+    ods_pk = _parse_ods_request_object_key(object_key)
+    if ods_pk:
+        selected_object = _get_owned_ods_request_for_recap(owner_id, object_key)
+    else:
+        selected_object = _get_owned_request_object(owner_id, object_key, source_label=source_label)
     if not selected_object:
+        return redirect("home")
+    if ods_pk and not selected_object.get("geometry_json"):
         return redirect("home")
 
     selected_geometry = None
