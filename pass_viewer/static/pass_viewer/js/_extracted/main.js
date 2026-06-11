@@ -1,124 +1,4 @@
-if (L && L.drawLocal) {
-            L.drawLocal.draw.toolbar.actions.title = 'Отменить рисование';
-            L.drawLocal.draw.toolbar.actions.text = 'Отмена';
-            L.drawLocal.draw.toolbar.finish.title = 'Завершить рисование';
-            L.drawLocal.draw.toolbar.finish.text = 'Завершить';
-            L.drawLocal.draw.toolbar.undo.title = 'Удалить последнюю точку';
-            L.drawLocal.draw.toolbar.undo.text = 'Назад';
-            L.drawLocal.draw.toolbar.buttons.polyline = 'Нарисовать линию';
-            L.drawLocal.draw.toolbar.buttons.polygon = 'Нарисовать полигон';
-            L.drawLocal.draw.toolbar.buttons.rectangle = 'Нарисовать прямоугольник';
-            L.drawLocal.draw.toolbar.buttons.circle = 'Нарисовать круг';
-            L.drawLocal.draw.toolbar.buttons.marker = 'Поставить маркер';
-            L.drawLocal.draw.toolbar.buttons.circlemarker = 'Поставить круглый маркер';
-            L.drawLocal.draw.handlers.polyline.tooltip.start = 'Кликните, чтобы начать линию.';
-            L.drawLocal.draw.handlers.polyline.tooltip.cont = 'Кликайте, чтобы продолжить линию.';
-            L.drawLocal.draw.handlers.polyline.tooltip.end = 'Кликните последнюю точку, чтобы завершить линию.';
-            L.drawLocal.draw.handlers.polygon.tooltip.start = 'Кликните, чтобы начать полигон.';
-            L.drawLocal.draw.handlers.polygon.tooltip.cont = 'Кликайте, чтобы продолжить полигон.';
-            L.drawLocal.draw.handlers.polygon.tooltip.end = 'Кликните первую точку, чтобы замкнуть полигон.';
-            L.drawLocal.draw.handlers.rectangle.tooltip.start = 'Нажмите и тяните, чтобы нарисовать прямоугольник.';
-            L.drawLocal.draw.handlers.simpleshape.tooltip.end = 'Отпустите кнопку мыши, чтобы завершить фигуру.';
-            L.drawLocal.draw.handlers.circle.tooltip.start = 'Нажмите и тяните, чтобы нарисовать круг.';
-            L.drawLocal.draw.handlers.marker.tooltip.start = 'Кликните по карте, чтобы поставить маркер.';
-            L.drawLocal.edit.toolbar.actions.save.title = 'Сохранить изменения';
-            L.drawLocal.edit.toolbar.actions.save.text = 'Сохранить';
-            L.drawLocal.edit.toolbar.actions.cancel.title = 'Отменить редактирование, сбросить изменения';
-            L.drawLocal.edit.toolbar.actions.cancel.text = 'Отмена';
-            L.drawLocal.edit.toolbar.actions.clearAll.title = 'Удалить все объекты';
-            L.drawLocal.edit.toolbar.actions.clearAll.text = 'Удалить все';
-            L.drawLocal.edit.toolbar.buttons.edit = 'Редактировать объекты';
-            L.drawLocal.edit.toolbar.buttons.editDisabled = 'Нет объектов для редактирования';
-            L.drawLocal.edit.toolbar.buttons.remove = 'Удалить объекты';
-            L.drawLocal.edit.toolbar.buttons.removeDisabled = 'Нет объектов для удаления';
-            L.drawLocal.edit.handlers.edit.tooltip.text = 'Перетаскивайте маркеры или объекты для изменения.';
-            L.drawLocal.edit.handlers.edit.tooltip.subtext = 'Нажмите "Отмена", чтобы отменить изменения.';
-            L.drawLocal.edit.handlers.remove.tooltip.text = 'Кликните по объекту, чтобы удалить его.';
-        }
-
-        function getCookie(name) {
-            const cookieValue = document.cookie
-                .split('; ')
-                .find((row) => row.startsWith(name + '='));
-            return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : null;
-        }
-
-        function parseGeometryData(id) {
-            const raw = JSON.parse(document.getElementById(id).textContent);
-            return raw ? JSON.parse(raw) : null;
-        }
-
-        function normalizeGeoJson(geojsonObject) {
-            if (!geojsonObject) {
-                return null;
-            }
-            if (typeof geojsonObject === 'string') {
-                try {
-                    geojsonObject = JSON.parse(geojsonObject);
-                } catch (e) {
-                    return null;
-                }
-            }
-            if (geojsonObject.type === 'FeatureCollection' || geojsonObject.type === 'Feature') {
-                return geojsonObject;
-            }
-            return {
-                type: 'FeatureCollection',
-                features: [
-                    {type: 'Feature', properties: {}, geometry: geojsonObject}
-                ]
-            };
-        }
-
-        function mergeAdjacentDtPassportsGeoJson(intersectsGeo, touchesGeo, nearbyGeo) {
-            const mergedFeatures = [];
-            const seenRootids = new Set();
-            const appendFrom = (geojsonObject) => {
-                let g = normalizeGeoJson(geojsonObject);
-                if (!g) {
-                    return;
-                }
-                if (g.type === 'Feature') {
-                    g = {type: 'FeatureCollection', features: [g]};
-                }
-                if (g.type !== 'FeatureCollection' || !Array.isArray(g.features)) {
-                    return;
-                }
-                for (const f of g.features) {
-                    const reqRaw = f?.properties?.request_id;
-                    const reqStr = reqRaw == null ? '' : String(reqRaw).trim();
-                    if (reqStr) {
-                        continue;
-                    }
-                    const rid = String(f?.properties?.rootid ?? '').trim();
-                    if (rid) {
-                        if (seenRootids.has(rid)) {
-                            continue;
-                        }
-                        seenRootids.add(rid);
-                    }
-                    mergedFeatures.push(f);
-                }
-            };
-            appendFrom(intersectsGeo);
-            appendFrom(touchesGeo);
-            appendFrom(nearbyGeo);
-            if (!mergedFeatures.length) {
-                return null;
-            }
-            return {type: 'FeatureCollection', features: mergedFeatures};
-        }
-
-        function escapeHtml(value) {
-            return String(value ?? '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-
-        function formatDgiShortSobstvRr(value) {
+function formatDgiShortSobstvRr(value) {
             const raw = String(value ?? '').trim();
             if (!raw || ['null', 'none', '-'].includes(raw.toLowerCase())) {
                 return '';
@@ -129,262 +9,12 @@ if (L && L.drawLocal) {
             return raw;
         }
 
-        function pickPopupProperty(props, ...keys) {
-            if (!props) {
-                return '';
-            }
-            for (let i = 0; i < keys.length; i += 1) {
-                const k = keys[i];
-                if (Object.prototype.hasOwnProperty.call(props, k) && props[k] != null && String(props[k]).trim() !== '') {
-                    return props[k];
-                }
-            }
-            return '';
-        }
-
-        function formatPopupDateToDay(value) {
-            if (value == null || value === '') {
-                return '';
-            }
-            const s = String(value).trim();
-            if (!s || ['null', 'none', '-'].includes(s.toLowerCase())) {
-                return '';
-            }
-            const ymd = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-            if (ymd) {
-                return escapeHtml(ymd[3] + '.' + ymd[2] + '.' + ymd[1]);
-            }
-            const d = new Date(s);
-            if (!Number.isFinite(d.getTime())) {
-                return escapeHtml(s);
-            }
-            const y = d.getFullYear();
-            const mo = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return escapeHtml(day + '.' + mo + '.' + y);
-        }
-
-        function buildPopupMetaFieldsHtml(properties) {
-            const props = properties || {};
-            const startRaw = pickPopupProperty(props, 'startdate', 'StartDate');
-            const surveyRaw = pickPopupProperty(props, 'datesurvey', 'DateSurvey');
-            const createRaw = pickPopupProperty(props, 'createtype', 'CreateType');
-            const startDis = formatPopupDateToDay(startRaw);
-            const surveyDis = formatPopupDateToDay(surveyRaw);
-            const createTxt = String(createRaw == null ? '' : createRaw).trim();
-            const createDis =
-                createTxt && !['null', 'none', '-'].includes(createTxt.toLowerCase())
-                    ? escapeHtml(createTxt)
-                    : '—';
-            return (
-                '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">' +
-                '<div style="margin-top: 4px;"><strong>Дата утверждения:</strong> ' +
-                (startDis || '—') +
-                '</div>' +
-                '<div style="margin-top: 4px;"><strong>Дата полевого обследования:</strong> ' +
-                (surveyDis || '—') +
-                '</div>' +
-                '<div style="margin-top: 4px;"><strong>Тип создания:</strong> ' +
-                createDis +
-                '</div>' +
-                '</div>'
-            );
-        }
-
-        function calculateGeometryAreaSqMeters(geometry) {
-            if (!geometry || !L?.GeometryUtil?.geodesicArea) {
-                return null;
-            }
-            const ringArea = (ring) => {
-                if (!Array.isArray(ring) || ring.length < 3) {
-                    return 0;
-                }
-                const latLngs = ring.map((coord) => L.latLng(coord[1], coord[0]));
-                return Math.abs(L.GeometryUtil.geodesicArea(latLngs));
-            };
-            const polygonArea = (coordinates) => {
-                if (!Array.isArray(coordinates) || !coordinates.length) {
-                    return 0;
-                }
-                const outer = ringArea(coordinates[0]);
-                const holes = coordinates.slice(1).reduce((sum, hole) => sum + ringArea(hole), 0);
-                return Math.max(0, outer - holes);
-            };
-            if (geometry.type === 'Polygon') {
-                return polygonArea(geometry.coordinates);
-            }
-            if (geometry.type === 'MultiPolygon') {
-                return (geometry.coordinates || []).reduce((sum, polygonCoords) => sum + polygonArea(polygonCoords), 0);
-            }
-            if (geometry.type === 'GeometryCollection') {
-                return (geometry.geometries || []).reduce((sum, child) => sum + (calculateGeometryAreaSqMeters(child) || 0), 0);
-            }
-            return null;
-        }
-
-        function buildObjectPopup(
-            properties,
-            fallbackRootid = '-',
-            fallbackName = '-',
-            fallbackRequestId = '-',
-            fallbackCustomerLegalPersonId = '-',
-            fallbackDepartmentLegalPersonId = '-',
-            fallbackCustomerLegalPersonName = '-',
-            fallbackDepartmentLegalPersonName = '-'
-        ) {
-            const rootid = properties?.rootid ?? fallbackRootid;
-            const name = properties?.name ?? fallbackName;
-            const requestId = properties?.request_id ?? fallbackRequestId;
-            const ownerLegalPersonId = properties?.owner_legal_person_id ?? '-';
-            const ownerLegalPersonName = properties?.owner_legal_person_name ?? '-';
-            const customerLegalPersonId = properties?.customer_legal_person_id ?? fallbackCustomerLegalPersonId;
-            const departmentLegalPersonId = properties?.department_legal_person_id ?? fallbackDepartmentLegalPersonId;
-            const customerLegalPersonName = properties?.customer_legal_person_name ?? fallbackCustomerLegalPersonName;
-            const departmentLegalPersonName = properties?.department_legal_person_name ?? fallbackDepartmentLegalPersonName;
-            const rootidText = String(rootid ?? '').trim().toLowerCase();
-            const requestIdText = String(requestId ?? '').trim().toLowerCase();
-            const isMissingRootid = !rootidText || rootidText === 'null' || rootidText === 'none' || rootidText === '-';
-            const hasRequestId = !!requestIdText && requestIdText !== 'null' && requestIdText !== 'none' && requestIdText !== '-';
-            const ownerText = String(ownerLegalPersonId ?? '').trim();
-            const customerText = String(customerLegalPersonId ?? '').trim();
-            const departmentText = String(departmentLegalPersonId ?? '').trim();
-            const ownerNameText = String(ownerLegalPersonName ?? '').trim();
-            const customerNameText = String(customerLegalPersonName ?? '').trim();
-            const departmentNameText = String(departmentLegalPersonName ?? '').trim();
-            const hasOwner = !!ownerText && !['null', 'none', '-'].includes(ownerText.toLowerCase());
-            const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
-            const hasDepartmentId = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
-            const hasOwnerName = !!ownerNameText && !['null', 'none', '-'].includes(ownerNameText.toLowerCase());
-            const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
-            const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
-            const hasDepartment = hasDepartmentId || hasDepartmentName;
-            const ownerDisplay = hasOwnerName
-                ? String(ownerLegalPersonName || '-')
-                : String(ownerLegalPersonId || '-');
-            const customerDisplay = hasCustomerName
-                ? String(customerLegalPersonName || '-')
-                : String(customerLegalPersonId || '-');
-            const departmentDisplay = hasDepartmentName
-                ? String(departmentLegalPersonName || '-')
-                : String(departmentLegalPersonId || '-');
-            const ownerLines =
-                ((hasOwner || hasCustomer)
-                    ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(hasOwner ? ownerDisplay : customerDisplay) + '</div>')
-                    : '') +
-                (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>') : '');
-            if (isMissingRootid && hasRequestId) {
-                return (
-                    '<div style="min-width: 220px;">' +
-                    '<div><strong>ДТ</strong></div>' +
-                    '<div><strong>№ Заявки:</strong> ' + escapeHtml(requestId || '-') + '</div>' +
-                    '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
-                    ownerLines +
-                    buildPopupMetaFieldsHtml(properties) +
-                    '</div>'
-                );
-            }
-            return (
-                '<div style="min-width: 220px;">' +
-                '<div><strong>ДТ</strong></div>' +
-                '<div><strong>№ Паспорта:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
-                '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
-                ownerLines +
-                buildPopupMetaFieldsHtml(properties) +
-                '</div>'
-            );
-        }
-
-        function buildPdfIntersectionPopupHtml(properties) {
-            const src = String(properties?.source ?? '').trim();
-            if (src === 'ДГИ') {
-                const descr = properties?.descr ?? '-';
-                const address = properties?.address ?? '-';
-                const vri = properties?.vri ?? '-';
-                const sobstvRrDisplay = formatDgiShortSobstvRr(properties?.short_sobstv_rr);
-                const descrText = String(descr ?? '').trim();
-                const addressText = String(address ?? '').trim();
-                const vriText = String(vri ?? '').trim();
-                const sobstvRrText = String(sobstvRrDisplay ?? '').trim();
-                return (
-                    '<div style="min-width: 220px;">' +
-                    '<div><strong>ДГИ</strong></div>' +
-                    (!descrText || ['null', 'none', '-'].includes(descrText.toLowerCase())
-                        ? ''
-                        : '<div style="margin-top: 6px;"><strong>Кадастровый номер:</strong> ' + escapeHtml(descr) + '</div>') +
-                    (!addressText || ['null', 'none', '-'].includes(addressText.toLowerCase())
-                        ? ''
-                        : '<div style="margin-top: 6px;"><strong>Адрес:</strong> ' + escapeHtml(address) + '</div>') +
-                    (!vriText || ['null', 'none', '-'].includes(vriText.toLowerCase())
-                        ? ''
-                        : '<div style="margin-top: 6px;"><strong>Назначение:</strong> ' + escapeHtml(vri) + '</div>') +
-                    (!sobstvRrText
-                        ? ''
-                        : '<div style="margin-top: 6px;"><strong>Собственник:</strong> ' + escapeHtml(sobstvRrDisplay) + '</div>') +
-                    '</div>'
-                );
-            }
-            if (src === 'ОДХ' || src === 'ОЗН') {
-                const rootid = properties?.rootid ?? '-';
-                const name = properties?.name ?? '-';
-                const customerLegalPersonId = properties?.customer_legal_person_id ?? '-';
-                const departmentLegalPersonId = properties?.department_legal_person_id ?? '-';
-                const ownerLegalPersonId = properties?.owner_legal_person_id ?? '-';
-                const customerLegalPersonName = properties?.customer_legal_person_name ?? '-';
-                const departmentLegalPersonName = properties?.department_legal_person_name ?? '-';
-                const ownerLegalPersonName = properties?.owner_legal_person_name ?? '-';
-                const customerText = String(customerLegalPersonId ?? '').trim();
-                const departmentText = String(departmentLegalPersonId ?? '').trim();
-                const ownerText = String(ownerLegalPersonId ?? '').trim();
-                const customerNameText = String(customerLegalPersonName ?? '').trim();
-                const departmentNameText = String(departmentLegalPersonName ?? '').trim();
-                const ownerNameText = String(ownerLegalPersonName ?? '').trim();
-                const rootidText = String(rootid ?? '').trim();
-                const nameText = String(name ?? '').trim();
-                const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
-                const hasDepartmentId = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
-                const hasOwner = !!ownerText && !['null', 'none', '-'].includes(ownerText.toLowerCase());
-                const hasCustomerName =
-                    !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
-                const hasDepartmentName =
-                    !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
-                const hasDepartment = hasDepartmentId || hasDepartmentName;
-                const hasOwnerName =
-                    !!ownerNameText && !['null', 'none', '-'].includes(ownerNameText.toLowerCase());
-                const customerDisplay = hasCustomerName
-                    ? String(customerLegalPersonName || '-')
-                    : String(customerLegalPersonId || '-');
-                const departmentDisplay = hasDepartmentName
-                    ? String(departmentLegalPersonName || '-')
-                    : String(departmentLegalPersonId || '-');
-                const ownerDisplay = hasOwnerName
-                    ? String(ownerLegalPersonName || '-')
-                    : String(ownerLegalPersonId || '-');
-                return (
-                    '<div style="min-width: 220px;">' +
-                    '<div><strong>' + (src === 'ОЗН' ? 'ОО' : 'ОДХ') + '</strong></div>' +
-                    (!rootidText || ['null', 'none', '-'].includes(rootidText.toLowerCase())
-                        ? ''
-                        : '<div style="margin-top: 6px;"><strong>Паспорт №:</strong> ' + escapeHtml(rootid) + '</div>') +
-                    (!nameText || ['null', 'none', '-'].includes(nameText.toLowerCase())
-                        ? ''
-                        : '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name) + '</div>') +
-                    ((src === 'ОЗН')
-                        ? (hasOwner
-                            ? '<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(ownerDisplay) + '</div>'
-                            : '')
-                        : (hasCustomer
-                            ? '<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(customerDisplay) + '</div>'
-                            : '')) +
-                    (hasDepartment
-                        ? '<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>'
-                        : '') +
-                    buildPopupMetaFieldsHtml(properties) +
-                    '</div>'
-                );
-            }
-            return buildObjectPopup(properties);
-        }
-
+        
+        
+        
+        
+        
+        
         function buildEditableDeletePopupHtml(baseHtml) {
             return (
                 baseHtml +
@@ -419,38 +49,7 @@ if (L && L.drawLocal) {
             layer.eachLayer((item) => item.bindPopup(popupHtml));
         }
 
-        function toEditableFeatureCollection(geojsonObject) {
-            const normalized = normalizeGeoJson(geojsonObject);
-            if (!normalized) {
-                return null;
-            }
-            const features = [];
-            normalized.features.forEach((feature) => {
-                const geometry = feature.geometry;
-                if (!geometry) {
-                    return;
-                }
-                if (geometry.type === 'Polygon') {
-                    features.push({
-                        type: 'Feature',
-                        properties: feature.properties || {},
-                        geometry: geometry
-                    });
-                    return;
-                }
-                if (geometry.type === 'MultiPolygon') {
-                    geometry.coordinates.forEach((polyCoords) => {
-                        features.push({
-                            type: 'Feature',
-                            properties: feature.properties || {},
-                            geometry: {type: 'Polygon', coordinates: polyCoords}
-                        });
-                    });
-                }
-            });
-            return {type: 'FeatureCollection', features: features};
-        }
-
+        
         const editButton = document.getElementById('edit-geometry-btn');
         const addPolygonButton = document.getElementById('add-polygon-btn');
         const cutPolygonButton = document.getElementById('cut-polygon-btn');
@@ -482,6 +81,9 @@ if (L && L.drawLocal) {
         const newObjectNameInput = document.getElementById('new-object-name');
         const newObjectRequestIdInput = document.getElementById('new-object-request-id');
         const saveModalErrorEl = document.getElementById('save-modal-error');
+        const saveModalSuccessEl = document.getElementById('save-modal-success');
+        const saveModalFixPolygon = document.getElementById('save-modal-fix-polygon');
+        const mps = PV.multipolygonSave || {};
         const saveModalDgiWarning = document.getElementById('save-modal-dgi-warning');
         const dgiExportConfirmModal = document.getElementById('dgi-export-confirm-modal');
         const dgiExportConfirmAgree = document.getElementById('dgi-export-confirm-agree');
@@ -496,8 +98,12 @@ if (L && L.drawLocal) {
         const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
         const autoRemoveDgiMoscowCheckbox = document.getElementById('auto-remove-dgi-moscow');
         const autoRemoveDgiPrivateCheckbox = document.getElementById('auto-remove-dgi-private');
+        const autoRemoveRenewCheckbox = document.getElementById('auto-remove-renew');
+        const autoRemoveTopCheckbox = document.getElementById('auto-remove-top');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
         const autoRemoveRzdCheckbox = document.getElementById('auto-remove-rzd');
+        const autoRemoveRequestsCheckbox = document.getElementById('auto-remove-requests');
+        const autoRemoveNoLayersEl = document.getElementById('auto-remove-no-layers');
         const checkDgiModal = document.getElementById('check-dgi-modal');
         const checkDgiModalBody = document.getElementById('check-dgi-modal-body');
         const checkDgiModalClose = document.getElementById('check-dgi-modal-close');
@@ -529,7 +135,8 @@ if (L && L.drawLocal) {
             createtype: selectedCreatetype,
         };
         const selectedSourceLabel = "{{ selected_source_label|default:'ДТ'|escapejs }}";
-        const map = L.map('map', {maxZoom: 30}).setView([55.75, 37.61], 10);
+        const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.61], 10);
+        const signalTapeRenderer = L.svg({padding: 0.5});
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
@@ -600,6 +207,7 @@ if (L && L.drawLocal) {
         const odhSignalGroup = L.featureGroup().addTo(map);
         const oznSignalGroup = L.featureGroup().addTo(map);
         const renewGroup = L.featureGroup().addTo(map);
+        const topSignalGroup = L.featureGroup().addTo(map);
         const ooztSignalGroup = L.featureGroup().addTo(map);
         const rzdSignalGroup = L.featureGroup().addTo(map);
         const recapsGroup = L.featureGroup().addTo(map);
@@ -846,31 +454,7 @@ if (L && L.drawLocal) {
             pendingCommentLatLng = null;
         }
 
-        const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxNativeZoom: 19,
-            maxZoom: 30,
-            attribution: '&copy; OpenStreetMap contributors'
-        });
-        const satelliteLayer = L.tileLayer(
-            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            {
-                maxNativeZoom: 19,
-                maxZoom: 30,
-                attribution: 'Tiles &copy; Esri'
-            }
-        );
-        topoLayer.addTo(map);
-        const basemapControl = L.control({position: 'topright'});
-        basemapControl.onAdd = function () {
-            const container = L.DomUtil.create('div', 'map-basemap-control');
-            container.innerHTML =
-                '<button type="button" class="map-basemap-btn is-active" data-map="topo">OSM</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="sat">\u0421\u043f\u0443\u0442\u043d\u0438\u043a</button>' +
-                '<button type="button" class="map-basemap-btn" data-map="none">\u0411\u0435\u0437 \u043f\u043e\u0434\u043b\u043e\u0436\u043a\u0438</button>';
-            L.DomEvent.disableClickPropagation(container);
-            return container;
-        };
-        basemapControl.addTo(map);
+        PV.attachBasemapControl(map);
 
         const selectedGeometry = parseGeometryData('selected-geometry-data');
         const selectedGeometryForEditing = parseGeometryData('selected-geometry-for-editing-data') || selectedGeometry;
@@ -958,6 +542,7 @@ if (L && L.drawLocal) {
             dt: adjacentDtPassportsGroup,
             oo: oznSignalGroup,
             odh: odhSignalGroup,
+            top: topSignalGroup,
             dgi_moscow: dgiMoscowSignalGroup,
             dgi_private: dgiPrivateSignalGroup,
             renew: renewGroup,
@@ -968,7 +553,7 @@ if (L && L.drawLocal) {
             comments: commentPointsGroup,
         };
         const layerGroups = {
-            municipal: ['selected', 'dt', 'oo', 'odh'],
+            municipal: ['selected', 'dt', 'oo', 'odh', 'top'],
             requests: ['requests', 'recaps', 'comments'],
             external: ['dgi_moscow', 'dgi_private', 'renew', 'oozt', 'rzd'],
         };
@@ -1011,6 +596,7 @@ if (L && L.drawLocal) {
                 dt: countGroupFeatures(adjacentDtPassportsGroup),
                 oo: countGroupFeatures(oznSignalGroup),
                 odh: countGroupFeatures(odhSignalGroup),
+                top: countGroupFeatures(topSignalGroup),
                 dgi_moscow: countGroupFeatures(dgiMoscowSignalGroup),
                 dgi_private: countGroupFeatures(dgiPrivateSignalGroup),
                 renew: countGroupFeatures(renewGroup),
@@ -1056,7 +642,9 @@ if (L && L.drawLocal) {
                 return;
             }
             const ensureSignalPattern = (patternId, stripeColorHex, backgroundColorHex) => {
-                const svg = map.getPanes().overlayPane.querySelector('svg');
+                const svg =
+                    (signalTapeRenderer._container && signalTapeRenderer._container.ownerSVGElement) ||
+                    map.getPanes().overlayPane.querySelector('svg');
                 if (!svg) {
                     return null;
                 }
@@ -1107,6 +695,7 @@ if (L && L.drawLocal) {
                 }).addTo(targetGroup);
             }
             L.geoJSON(geo, {
+                ...(isSignalTape ? {renderer: signalTapeRenderer} : {}),
                 style: {
                     color: isOdh ? '#00bfff' : (isOzn || isOozt) ? '#16a34a' : isRenew ? '#b45309' : '#dc2626',
                     weight: 4,
@@ -1263,8 +852,21 @@ if (L && L.drawLocal) {
         function renderReferenceSignalLayers(dgiMoscowGeo, dgiPrivateGeo, odhGeo, oznGeo) {
             addSignalTapeLayer(dgiMoscowSignalGroup, dgiMoscowGeo, 'ДГИ');
             addSignalTapeLayer(dgiPrivateSignalGroup, dgiPrivateGeo, 'ДГИ');
-            addSignalTapeLayer(odhSignalGroup, odhGeo, 'ОДХ');
-            addSignalTapeLayer(oznSignalGroup, oznGeo, 'ОЗН');
+            addSignalTapeLayer(odhSignalGroup, filterPassportOnlyGeoJson(odhGeo), 'ОДХ');
+            addSignalTapeLayer(oznSignalGroup, filterPassportOnlyGeoJson(oznGeo), 'ОЗН');
+        }
+        function renderTopLayer(topGeo) {
+            topSignalGroup.clearLayers();
+            const geo = normalizeGeoJson(filterPassportOnlyGeoJson(topGeo));
+            if (!geo) {
+                return;
+            }
+            L.geoJSON(geo, {
+                style: {color: '#ea580c', weight: 2, fillColor: '#fb923c', fillOpacity: 0.25},
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup(buildObjectPopup(feature.properties || {}));
+                }
+            }).addTo(topSignalGroup);
         }
         function renderRenewLayer(renewGeo) {
             addSignalTapeLayer(renewGroup, renewGeo, 'Реновация');
@@ -1311,6 +913,7 @@ if (L && L.drawLocal) {
         renderRenewLayer(parseGeometryData('renew-geometry-data'));
         addSignalTapeLayer(ooztSignalGroup, parseGeometryData('oozt-geometry-data'), 'ООЗТ');
         addSignalTapeLayer(rzdSignalGroup, parseGeometryData('rzd-geometry-data'), 'РЖД');
+        renderTopLayer(parseGeometryData('top-geometry-data'));
 
         const mergedAdjacentDtInitial = mergeAdjacentDtPassportsGeoJson(intersectsGeometry, touchesGeometry, nearbyGeometry);
         if (mergedAdjacentDtInitial) {
@@ -1353,11 +956,7 @@ if (L && L.drawLocal) {
                 selectedPassportMetaProps,
                 selectedRootid || '-',
                 selectedName || '-',
-                selectedRequestId || '-',
-                selectedCustomerLegalPersonId || '-',
-                selectedDepartmentLegalPersonId || '-',
-                selectedCustomerLegalPersonName || '-',
-                selectedDepartmentLegalPersonName || '-'
+                { headerLabel: 'Редактируемый объект' }
             );
             bindPopupToLayer(selectedLayer, popupHtml);
             map.fitBounds(selectedLayer.getBounds(), {padding: [30, 30], maxZoom: 30});
@@ -1367,31 +966,6 @@ if (L && L.drawLocal) {
         refreshObjectLayersControl();
         loadCommentPointsForMap();
 
-        function setBasemap(mode) {
-            const removeBasemapLayers = () => {
-                if (map.hasLayer(topoLayer)) {
-                    map.removeLayer(topoLayer);
-                }
-                if (map.hasLayer(satelliteLayer)) {
-                    map.removeLayer(satelliteLayer);
-                }
-            };
-            if (mode === 'none') {
-                removeBasemapLayers();
-            } else if (mode === 'topo') {
-                removeBasemapLayers();
-                map.addLayer(topoLayer);
-            } else if (mode === 'sat') {
-                removeBasemapLayers();
-                map.addLayer(satelliteLayer);
-            }
-            document.querySelectorAll('.map-basemap-btn').forEach((btn) => {
-                btn.classList.toggle('is-active', btn.dataset.map === mode);
-            });
-        }
-        map.getContainer().querySelectorAll('.map-basemap-btn').forEach((btn) => {
-            btn.addEventListener('click', () => setBasemap(btn.dataset.map));
-        });
         function askSnapRadiusMeters(currentValue) {
             const raw = window.prompt('Введите радиус прилипания в метрах:', String(currentValue));
             if (raw === null) {
@@ -1431,19 +1005,13 @@ if (L && L.drawLocal) {
             }
         });
 
-        function buildCurrentGeometry() {
-            if (isEditing) {
-                const featureCollection = editableGroup.toGeoJSON();
-                const geometries = (featureCollection.features || [])
-                    .map((feature) => feature.geometry)
-                    .filter((geometry) => geometry && (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon'));
-                if (geometries.length === 1) {
-                    return geometries[0];
-                }
-                if (geometries.length > 1) {
-                    return {type: 'GeometryCollection', geometries: geometries};
-                }
-            }
+        let pendingRepairedGeometryForSave = null;
+
+        function clearPendingRepairedGeometry() {
+            pendingRepairedGeometryForSave = null;
+        }
+
+        function buildCurrentGeometryFromSelected() {
             const source = selectedGeo?.features || [];
             const baseGeometries = source
                 .map((feature) => feature.geometry)
@@ -1455,6 +1023,21 @@ if (L && L.drawLocal) {
                 return {type: 'GeometryCollection', geometries: baseGeometries};
             }
             return null;
+        }
+
+        function getEditableGeometryForSave() {
+            return mps.buildGeometryForExport({
+                featureGroup: editableGroup,
+                isEditing,
+                buildExportGeometry,
+                buildCurrentGeometryFromSelected,
+                pendingRepairedGeometry: pendingRepairedGeometryForSave,
+                editToolbar,
+            });
+        }
+
+        function buildCurrentGeometry() {
+            return getEditableGeometryForSave();
         }
         function countPolygonLikeGeometriesInCollection(geojsonCollection) {
             const features = geojsonCollection?.features || [];
@@ -1569,8 +1152,15 @@ if (L && L.drawLocal) {
         }
 
         function renderRelationLayers(layers) {
-            adjacentDtPassportsGroup.clearLayers();
-            requestObjectsGroup.clearLayers();
+            const hasAdjacentLayers =
+                Object.prototype.hasOwnProperty.call(layers, 'intersects')
+                || Object.prototype.hasOwnProperty.call(layers, 'touches')
+                || Object.prototype.hasOwnProperty.call(layers, 'nearby')
+                || Object.prototype.hasOwnProperty.call(layers, 'request_objects');
+            if (hasAdjacentLayers) {
+                adjacentDtPassportsGroup.clearLayers();
+                requestObjectsGroup.clearLayers();
+            }
             const parsed = {
                 intersects: normalizeGeoJson(layers.intersects),
                 touches: normalizeGeoJson(layers.touches),
@@ -1584,6 +1174,7 @@ if (L && L.drawLocal) {
                 recaps: normalizeGeoJson(layers.recaps),
                 oozt: normalizeGeoJson(layers.oozt),
                 rzd: normalizeGeoJson(layers.rzd),
+                top: normalizeGeoJson(layers.top),
             };
             const selectedRootidText = (selectedRootid || '').trim();
             const excludeSelectedRootid = (geojson) => {
@@ -1607,23 +1198,43 @@ if (L && L.drawLocal) {
             parsed.request_objects = excludeSelectedRootid(parsed.request_objects);
             parsed.odh = excludeSelectedRootid(parsed.odh);
             parsed.ozn = excludeSelectedRootid(parsed.ozn);
-            renderReferenceSignalLayers(parsed.dgi_moscow, parsed.dgi_private, parsed.odh, parsed.ozn);
-            renderRecapsLayer(parsed.recaps);
-            renderRenewLayer(parsed.renew);
-            addSignalTapeLayer(ooztSignalGroup, parsed.oozt, 'ООЗТ');
-            addSignalTapeLayer(rzdSignalGroup, parsed.rzd, 'РЖД');
-            const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsed.intersects, parsed.touches, parsed.nearby);
-            if (mergedAdjacentDt) {
-                L.geoJSON(mergedAdjacentDt, {
-                    style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
-                    onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {}))
-                }).addTo(adjacentDtPassportsGroup);
+            if (
+                Object.prototype.hasOwnProperty.call(layers, 'dgi_moscow')
+                || Object.prototype.hasOwnProperty.call(layers, 'dgi_private')
+                || Object.prototype.hasOwnProperty.call(layers, 'odh')
+                || Object.prototype.hasOwnProperty.call(layers, 'ozn')
+            ) {
+                renderReferenceSignalLayers(parsed.dgi_moscow, parsed.dgi_private, parsed.odh, parsed.ozn);
             }
-            if (parsed.request_objects) {
-                L.geoJSON(parsed.request_objects, {
-                    style: {color: '#c026d3', weight: 2, fillColor: '#f0abfc', fillOpacity: 0.28},
-                    onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
-                }).addTo(requestObjectsGroup);
+            if (Object.prototype.hasOwnProperty.call(layers, 'recaps')) {
+                renderRecapsLayer(parsed.recaps);
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'renew')) {
+                renderRenewLayer(parsed.renew);
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'oozt')) {
+                addSignalTapeLayer(ooztSignalGroup, parsed.oozt, 'ООЗТ');
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'rzd')) {
+                addSignalTapeLayer(rzdSignalGroup, parsed.rzd, 'РЖД');
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'top')) {
+                renderTopLayer(parsed.top);
+            }
+            if (hasAdjacentLayers) {
+                const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsed.intersects, parsed.touches, parsed.nearby);
+                if (mergedAdjacentDt) {
+                    L.geoJSON(mergedAdjacentDt, {
+                        style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
+                        onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {}))
+                    }).addTo(adjacentDtPassportsGroup);
+                }
+                if (parsed.request_objects) {
+                    L.geoJSON(parsed.request_objects, {
+                        style: {color: '#c026d3', weight: 2, fillColor: '#f0abfc', fillOpacity: 0.28},
+                        onEachFeature: (feature, layer) => layer.bindPopup(buildObjectPopup(feature.properties || {})),
+                    }).addTo(requestObjectsGroup);
+                }
             }
             refreshObjectLayersControl();
             rebuildSnapGuideLines();
@@ -1643,7 +1254,7 @@ if (L && L.drawLocal) {
             const selectedGeometryForCheck = hasNewPolygon ? toIntersectionGeometry(selectedGeometry) : null;
             const newGeometryForSelectedCheck = hasNewPolygon ? buildNewGeometryBeyondSelected() : null;
             checkRelationsButton.disabled = true;
-            statusEl.textContent = 'Ищем смежные паспорта ДТ (пересечение, общая граница, до 10 м)...';
+            statusEl.textContent = formatAdjacentRelationsSearchStatus(cfg.adjacentNearbyMeters);
             showDbLoadingModal();
             try {
                 const response = await fetch("{% url 'check_new_object_relations' %}", {
@@ -1668,7 +1279,7 @@ if (L && L.drawLocal) {
                         })()
                     )
                 });
-                const data = await response.json();
+                const data = await parseJsonResponse(response);
                 if (!response.ok || !data.ok) {
                     throw new Error(data.error || 'Ошибка запроса.');
                 }
@@ -1680,6 +1291,78 @@ if (L && L.drawLocal) {
                 statusEl.textContent = 'Границы объектов и площадь обновлены.';
             } catch (error) {
                 statusEl.textContent = error.message || 'Не удалось проверить связанные объекты.';
+            } finally {
+                hideDbLoadingModal();
+                updateRelationsButtonState();
+            }
+        }
+
+        async function fetchMapLayersJson(url, body) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken') || '',
+                },
+                body: body,
+            });
+            const data = await parseJsonResponse(response);
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'Ошибка загрузки слоёв.');
+            }
+            return data.layers || {};
+        }
+
+        async function loadInitialMapContextLayers() {
+            if (!cfg.features?.deferredMapContextLayers) {
+                return;
+            }
+            const layerUrl = cfg.urls?.loadMapLayer;
+            const geometryForLayers = buildCurrentGeometry() || selectedGeometry;
+            if (!geometryForLayers || !layerUrl) {
+                return;
+            }
+            const layerSpecs = Array.isArray(cfg.mapLayerLoadOrder) ? cfg.mapLayerLoadOrder : [];
+            if (!layerSpecs.length) {
+                return;
+            }
+            showDbLoadingModal();
+            let mergedLayers = {};
+            let loadedCount = 0;
+            let failedCount = 0;
+            const entryRid = String(effectiveEntryRequestId || '').trim();
+            try {
+                for (const spec of layerSpecs) {
+                    const layerKey = spec?.key;
+                    if (!layerKey) {
+                        continue;
+                    }
+                    statusEl.textContent = 'Загружаем: ' + (spec.label || layerKey) + '...';
+                    try {
+                        const payload = {
+                            layer: layerKey,
+                            geometry: geometryForLayers,
+                        };
+                        if (entryRid) {
+                            payload.request_id = entryRid;
+                        }
+                        const partial = await fetchMapLayersJson(layerUrl, JSON.stringify(payload));
+                        mergedLayers = mergeMapLayerPayload(mergedLayers, partial);
+                        renderRelationLayers(mergedLayers);
+                        loadedCount += 1;
+                    } catch (layerError) {
+                        failedCount += 1;
+                        console.warn('Layer load failed:', layerKey, layerError);
+                    }
+                }
+                if (!loadedCount) {
+                    statusEl.textContent = 'Не удалось загрузить слои карты.';
+                } else if (failedCount) {
+                    statusEl.textContent =
+                        'Карта готова (загружено ' + loadedCount + ' из ' + layerSpecs.length + ' слоёв).';
+                } else {
+                    statusEl.textContent = 'Карта готова.';
+                }
             } finally {
                 hideDbLoadingModal();
                 updateRelationsButtonState();
@@ -1748,14 +1431,87 @@ if (L && L.drawLocal) {
             checkDgiIntersections();
         });
 
+        const autoRemoveSourceToGroup = {
+            dt: adjacentDtPassportsGroup,
+            odh: odhSignalGroup,
+            ozn: oznSignalGroup,
+            top: topSignalGroup,
+            requests: requestObjectsGroup,
+            dgi_moscow: dgiMoscowSignalGroup,
+            dgi_private: dgiPrivateSignalGroup,
+            renew: renewGroup,
+            oozt: ooztSignalGroup,
+            rzd: rzdSignalGroup,
+        };
+        const autoRemoveOptionLabels = autoRemoveModal
+            ? Array.from(autoRemoveModal.querySelectorAll('[data-auto-remove-source]'))
+            : [];
+        const autoRemoveNoLayersMessage =
+            'Нет отображённых слоёв. Включите нужные слои в панели управления картой.';
+
+        function isAutoRemoveSourceDisplayed(source) {
+            const group = autoRemoveSourceToGroup[source];
+            if (!group) {
+                return false;
+            }
+            return map.hasLayer(group) && countGroupFeatures(group) > 0;
+        }
+
+        function resetAutoRemoveCheckboxes() {
+            [
+                autoRemoveDtCheckbox,
+                autoRemoveOdhCheckbox,
+                autoRemoveOznCheckbox,
+                autoRemoveTopCheckbox,
+                autoRemoveRequestsCheckbox,
+                autoRemoveDgiMoscowCheckbox,
+                autoRemoveDgiPrivateCheckbox,
+                autoRemoveRenewCheckbox,
+                autoRemoveOoztCheckbox,
+                autoRemoveRzdCheckbox,
+            ].forEach((el) => {
+                if (el) {
+                    el.checked = false;
+                }
+            });
+        }
+
+        function refreshAutoRemoveModalOptions() {
+            let visibleCount = 0;
+            autoRemoveOptionLabels.forEach((label) => {
+                const source = label.dataset.autoRemoveSource;
+                const checkbox = label.querySelector('input[type="checkbox"]');
+                const displayed = isAutoRemoveSourceDisplayed(source);
+                label.classList.toggle('auto-remove-option--hidden', !displayed);
+                if (!displayed && checkbox) {
+                    checkbox.checked = false;
+                }
+                if (displayed) {
+                    visibleCount += 1;
+                }
+            });
+            if (autoRemoveNoLayersEl) {
+                autoRemoveNoLayersEl.style.display = visibleCount === 0 ? 'block' : 'none';
+            }
+            if (autoRemoveModalSubmit) {
+                autoRemoveModalSubmit.disabled = visibleCount === 0;
+            }
+            return visibleCount;
+        }
+
         function openAutoRemoveModal() {
             autoRemoveModalErrorEl.textContent = '';
+            resetAutoRemoveCheckboxes();
+            refreshAutoRemoveModalOptions();
             autoRemoveModal.style.display = 'flex';
         }
 
         function closeAutoRemoveModal() {
             autoRemoveModal.style.display = 'none';
             autoRemoveModalErrorEl.textContent = '';
+            if (autoRemoveModalSubmit) {
+                autoRemoveModalSubmit.disabled = false;
+            }
         }
 
         function getAutoRemoveSources() {
@@ -1769,11 +1525,20 @@ if (L && L.drawLocal) {
             if (autoRemoveOznCheckbox.checked) {
                 sources.push('ozn');
             }
+            if (autoRemoveTopCheckbox && autoRemoveTopCheckbox.checked) {
+                sources.push('top');
+            }
+            if (autoRemoveRequestsCheckbox?.checked) {
+                sources.push('requests');
+            }
             if (autoRemoveDgiMoscowCheckbox.checked) {
                 sources.push('dgi_moscow');
             }
             if (autoRemoveDgiPrivateCheckbox.checked) {
                 sources.push('dgi_private');
+            }
+            if (autoRemoveRenewCheckbox.checked) {
+                sources.push('renew');
             }
             if (autoRemoveOoztCheckbox.checked) {
                 sources.push('oozt');
@@ -1800,11 +1565,7 @@ if (L && L.drawLocal) {
                         selectedPassportMetaProps,
                         selectedRootid || '-',
                         selectedName || '-',
-                        selectedRequestId || '-',
-                        selectedCustomerLegalPersonId || '-',
-                        selectedDepartmentLegalPersonId || '-',
-                        selectedCustomerLegalPersonName || '-',
-                        selectedDepartmentLegalPersonName || '-'
+                        { headerLabel: 'Редактируемый объект' }
                     )
                 );
                 editableGroup.addLayer(layer);
@@ -1824,6 +1585,11 @@ if (L && L.drawLocal) {
             const geometry = buildCurrentGeometry();
             if (!geometry) {
                 statusEl.textContent = 'Сначала выберите или отредактируйте объект.';
+                return;
+            }
+            const visibleLayerCount = refreshAutoRemoveModalOptions();
+            if (!visibleLayerCount) {
+                autoRemoveModalErrorEl.textContent = autoRemoveNoLayersMessage;
                 return;
             }
             const selectedSources = getAutoRemoveSources();
@@ -1861,6 +1627,11 @@ if (L && L.drawLocal) {
                 if (!applyGeometryToEditableGroup(data.geometry)) {
                     throw new Error('Не удалось применить обновлённую геометрию.');
                 }
+                pendingRepairedGeometryForSave = mps.exportGeometryFromRaw(
+                    data.geometry,
+                    buildExportGeometry,
+                    toEditableFeatureCollection
+                );
                 closeAutoRemoveModal();
                 statusEl.textContent = 'Пересечения автоматически удалены.';
                 await checkRelations();
@@ -2579,11 +2350,7 @@ if (L && L.drawLocal) {
                     selectedPassportMetaProps,
                     selectedRootid || '-',
                     selectedName || '-',
-                    selectedRequestId || '-',
-                    selectedCustomerLegalPersonId || '-',
-                    selectedDepartmentLegalPersonId || '-',
-                    selectedCustomerLegalPersonName || '-',
-                    selectedDepartmentLegalPersonName || '-'
+                    { headerLabel: 'Редактируемый объект' }
                 )
             );
             if (polygonDrawer) {
@@ -2631,11 +2398,7 @@ if (L && L.drawLocal) {
                         selectedPassportMetaProps,
                         selectedRootid || '-',
                         selectedName || '-',
-                        selectedRequestId || '-',
-                        selectedCustomerLegalPersonId || '-',
-                        selectedDepartmentLegalPersonId || '-',
-                        selectedCustomerLegalPersonName || '-',
-                        selectedDepartmentLegalPersonName || '-'
+                        { headerLabel: 'Редактируемый объект' }
                     )
                 );
                 editableGroup.addLayer(layer);
@@ -2845,6 +2608,7 @@ if (L && L.drawLocal) {
             stopFreehandMode();
             clearStartVertexFlag();
             editableGroup.clearLayers();
+            clearPendingRepairedGeometry();
             if (selectedLayer && !map.hasLayer(selectedLayer)) {
                 map.addLayer(selectedLayer);
             }
@@ -2874,11 +2638,98 @@ if (L && L.drawLocal) {
             };
         }
 
+        function hideSaveModalFixUi() {
+            if (saveModalFixPolygon) {
+                saveModalFixPolygon.style.display = 'none';
+            }
+            if (saveModalSuccessEl) {
+                saveModalSuccessEl.style.display = 'none';
+                saveModalSuccessEl.textContent = '';
+            }
+        }
+
+        function setSaveModalGeometryError(message) {
+            hideSaveModalFixUi();
+            saveModalErrorEl.textContent = message || '';
+            if (
+                message &&
+                mps.isMultipolygonSaveError &&
+                mps.isMultipolygonSaveError(message) &&
+                mps.requiresMultipolygonSave &&
+                mps.requiresMultipolygonSave(selectedSourceLabel) &&
+                saveModalFixPolygon
+            ) {
+                saveModalFixPolygon.style.display = '';
+            }
+        }
+
+        function clearSaveModalMessages() {
+            saveModalErrorEl.textContent = '';
+            hideSaveModalFixUi();
+        }
+
+        async function repairPolygonFromSaveModal() {
+            const geometry = buildCurrentGeometry();
+            if (!geometry) {
+                setSaveModalGeometryError('Нет геометрии для исправления.');
+                return;
+            }
+            if (!cfg.urls || !cfg.urls.repairGeometry) {
+                setSaveModalGeometryError('Исправление полигона недоступно.');
+                return;
+            }
+            if (saveModalFixPolygon) {
+                saveModalFixPolygon.disabled = true;
+            }
+            hideSaveModalFixUi();
+            saveModalErrorEl.textContent = 'Исправляем полигон...';
+            try {
+                const data = await mps.repairMultipolygonGeometry(
+                    cfg.urls.repairGeometry,
+                    geometry,
+                    getCookie('csrftoken')
+                );
+                if (editToolbar) {
+                    editToolbar.disable();
+                }
+                pendingRepairedGeometryForSave = mps.exportGeometryFromRaw(
+                    data.geometry,
+                    buildExportGeometry,
+                    toEditableFeatureCollection
+                );
+                if (!applyGeometryToEditableGroup(data.geometry)) {
+                    pendingRepairedGeometryForSave = null;
+                    throw new Error('Не удалось применить исправленную геометрию.');
+                }
+                saveModalErrorEl.textContent = '';
+                hideSaveModalFixUi();
+                if (saveModalSuccessEl) {
+                    saveModalSuccessEl.textContent =
+                        'Полигон исправлен. Проверьте контур на карте и нажмите «Сохранить».';
+                    saveModalSuccessEl.style.display = '';
+                }
+                updateRelationsButtonState();
+                statusEl.textContent = 'Полигон исправлен. Проверьте контур и сохраните объект.';
+                requestAnimationFrame(() => {
+                    const bounds = editableGroup.getBounds();
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds.pad(0.1));
+                    }
+                });
+            } catch (error) {
+                setSaveModalGeometryError(error.message || 'Не удалось исправить полигон.');
+            } finally {
+                if (saveModalFixPolygon) {
+                    saveModalFixPolygon.disabled = false;
+                }
+            }
+        }
+
         function openSaveModal(opts) {
             opts = opts || {};
             newObjectNameInput.value = (selectedName || '').trim();
             newObjectRequestIdInput.value = (effectiveEntryRequestId || '').trim();
-            saveModalErrorEl.textContent = '';
+            clearSaveModalMessages();
             if (saveModalDgiWarning) {
                 const warningText = PV.buildDgiExportWarningText(opts.warningPercent);
                 if (warningText) {
@@ -2953,50 +2804,7 @@ if (L && L.drawLocal) {
         let lastPdfExportContext = null;
         let pdfExportInProgress = false;
 
-        function stripPopupButtons(html) {
-            return String(html || '').replace(/<button[\s\S]*?<\/button>/gi, '');
-        }
-
-        function mergePdfIntersectFeatureCollections(passportFc, dgiFc, odhFc) {
-            const out = [];
-            const passportKey = (props) => {
-                const r = String(props?.rootid ?? '').trim();
-                const q = String(props?.request_id ?? '').trim();
-                return 'p:' + r + ':' + q;
-            };
-            const seenPassportLike = new Set();
-            const pushFc = (fc) => {
-                const n = normalizeGeoJson(fc);
-                if (!n || !Array.isArray(n.features)) {
-                    return;
-                }
-                n.features.forEach((f) => {
-                    const props = f?.properties || {};
-                    const src = String(props.source ?? '').trim();
-                    if (src !== 'ДГИ' && src !== 'ОДХ') {
-                        out.push(f);
-                        const k = passportKey(props);
-                        if (k && k !== 'p::' && k !== 'p:null:null') {
-                            seenPassportLike.add(k);
-                        }
-                        return;
-                    }
-                    if (src === 'ОДХ' || src === 'ОЗН') {
-                        const k = passportKey(props);
-                        if (k && seenPassportLike.has(k)) {
-                            return;
-                        }
-                    }
-                    out.push(f);
-                });
-            };
-            pushFc(passportFc);
-            pushFc(dgiFc);
-            pushFc(odhFc);
-            return {type: 'FeatureCollection', features: out};
-        }
-
-        async function fetchIntersectsLayerForPdfExport(geometry) {
+        async function fetchPdfExportData(geometry) {
             const hasNewPolygon = typeof hasNewPolygonBeyondSelected === 'function' && hasNewPolygonBeyondSelected();
             const selectedGeometryForCheck =
                 hasNewPolygon && typeof toIntersectionGeometry === 'function'
@@ -3029,171 +2837,89 @@ if (L && L.drawLocal) {
             if (!response.ok || !data.ok) {
                 throw new Error(data.error || 'Не удалось получить пересечения для PDF.');
             }
-            return mergePdfIntersectFeatureCollections(
-                data.layers?.intersects,
-                data.layers?.dgi_intersects,
-                data.layers?.odh_intersects
+            const layers = data.layers || {};
+            const intersections = PdfExport.mergePdfIntersectFeatureCollections(
+                layers.intersects,
+                layers.dgi_intersects,
+                layers.odh_intersects
             );
-        }
-
-        function waitForVisibleTilesLoaded(mapElement, timeoutMs) {
-            const started = Date.now();
-            return new Promise((resolve) => {
-                const tick = () => {
-                    const tiles = mapElement.querySelectorAll('img.leaflet-tile');
-                    let pending = 0;
-                    tiles.forEach((img) => {
-                        if (!img.complete || img.naturalWidth === 0) {
-                            pending += 1;
-                        }
-                    });
-                    if (pending === 0 || Date.now() - started > timeoutMs) {
-                        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-                        return;
-                    }
-                    setTimeout(tick, 90);
-                };
-                setTimeout(tick, 100);
-            });
-        }
-
-        function leafletRedrawAllVectorLayers(leafletMap) {
-            const visit = (layer) => {
-                if (!layer) {
-                    return;
-                }
-                if (typeof layer.eachLayer === 'function') {
-                    layer.eachLayer(visit);
-                    return;
-                }
-                if (typeof layer.redraw === 'function') {
-                    try {
-                        layer.redraw();
-                    } catch (e) {
-                        /* ignore */
-                    }
-                }
+            const adjacentDt = mergeAdjacentDtPassportsGeoJson(layers.intersects, layers.touches, layers.nearby);
+            return {
+                intersections,
+                mapLayers: {
+                    selected: {
+                        type: 'FeatureCollection',
+                        features: [{type: 'Feature', geometry, properties: {}}],
+                    },
+                    adjacentDt: filterOutSelectedRootid(adjacentDt, selectedRootid),
+                    odh: filterOutSelectedRootid(normalizeGeoJson(layers.odh), selectedRootid),
+                    ozn: filterOutSelectedRootid(normalizeGeoJson(layers.ozn), selectedRootid),
+                },
             };
-            leafletMap.eachLayer(visit);
         }
 
-        async function captureLeafletMapPngCanvas() {
-            const mapDiv = map.getContainer();
-            clearDrawSnapPreview();
-            let vertexFlagWasOnMap = false;
-            if (startVertexFlagMarker && map.hasLayer(startVertexFlagMarker)) {
-                vertexFlagWasOnMap = true;
-                map.removeLayer(startVertexFlagMarker);
-            }
-            mapDiv.classList.add('pass-viewer-pdf-capture');
-            const controls = mapDiv.querySelector('.leaflet-control-container');
-            const prevCtrl = controls ? controls.style.display : '';
-            if (controls) {
-                controls.style.display = 'none';
-            }
-            const dragWas = map.dragging && map.dragging.enabled();
-            if (dragWas) {
-                map.dragging.disable();
-            }
-            const wheelWas = map.scrollWheelZoom && map.scrollWheelZoom.enabled();
-            if (wheelWas) {
-                map.scrollWheelZoom.disable();
-            }
-            let canvas;
+        async function captureMapCanvasForPdf(mapLayers) {
+            const editLayerGroups = [
+                editableGroup,
+                selectedGroup,
+                requestObjectsGroup,
+                dgiMoscowSignalGroup,
+                dgiPrivateSignalGroup,
+                renewGroup,
+                topSignalGroup,
+                ooztSignalGroup,
+                rzdSignalGroup,
+                recapsGroup,
+                commentPointsGroup,
+            ];
+            const savedAdjacentDt = adjacentDtPassportsGroup.toGeoJSON();
+            const savedOdh = odhSignalGroup.toGeoJSON();
+            const savedOzn = oznSignalGroup.toGeoJSON();
+
+            const restore = PdfExport.prepareMapForPdfCapture(map, {
+                mapLayers,
+                hiddenGroups: editLayerGroups,
+                renderMapLayers: (layers) => {
+                    addSignalTapeLayer(odhSignalGroup, layers.odh, 'ОДХ');
+                    addSignalTapeLayer(oznSignalGroup, layers.ozn, 'ОЗН');
+                    adjacentDtPassportsGroup.clearLayers();
+                    if (layers.adjacentDt) {
+                        L.geoJSON(layers.adjacentDt, {
+                            style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
+                        }).addTo(adjacentDtPassportsGroup);
+                    }
+                },
+            });
+
             try {
-                map.invalidateSize(false);
-                mapDiv.scrollTop = 0;
-                mapDiv.scrollLeft = 0;
-                await waitForVisibleTilesLoaded(mapDiv, 3200);
-                await new Promise((r) => setTimeout(r, 80));
-                leafletRedrawAllVectorLayers(map);
-                await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 40))));
-                const w = mapDiv.clientWidth;
-                const h = mapDiv.clientHeight;
-                canvas = await html2canvas(mapDiv, {
-                    useCORS: true,
-                    allowTaint: false,
-                    scale: 1,
-                    logging: false,
-                    backgroundColor: '#f1f5f9',
-                    foreignObjectRendering: false,
-                    x: 0,
-                    y: 0,
-                    width: w,
-                    height: h,
-                    windowWidth: w,
-                    windowHeight: h,
+                return await PdfExport.captureLeafletMapPngCanvas(map, {
+                    beforeCapture: () => {
+                        clearDrawSnapPreview();
+                        let vertexFlagWasOnMap = false;
+                        if (startVertexFlagMarker && map.hasLayer(startVertexFlagMarker)) {
+                            vertexFlagWasOnMap = true;
+                            map.removeLayer(startVertexFlagMarker);
+                        }
+                        return () => {
+                            if (vertexFlagWasOnMap && startVertexFlagMarker) {
+                                startVertexFlagMarker.addTo(map);
+                            }
+                        };
+                    },
                 });
             } finally {
-                mapDiv.classList.remove('pass-viewer-pdf-capture');
-                if (controls) {
-                    controls.style.display = prevCtrl;
+                restore();
+                adjacentDtPassportsGroup.clearLayers();
+                if (savedAdjacentDt && Array.isArray(savedAdjacentDt.features) && savedAdjacentDt.features.length) {
+                    L.geoJSON(savedAdjacentDt, {
+                        style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
+                        onEachFeature: (feature, layer) =>
+                            layer.bindPopup(buildObjectPopup(feature.properties || {})),
+                    }).addTo(adjacentDtPassportsGroup);
                 }
-                if (dragWas) {
-                    map.dragging.enable();
-                }
-                if (wheelWas) {
-                    map.scrollWheelZoom.enable();
-                }
-                if (vertexFlagWasOnMap && startVertexFlagMarker) {
-                    startVertexFlagMarker.addTo(map);
-                }
-            }
-            return canvas;
-        }
-
-        function addMapCanvasAsFullFirstPdfPage(pdf, canvas) {
-            /* Ожидается первая страница A4 в альбомной ориентации (как широкий экран с картой). */
-            const pageW = pdf.internal.pageSize.getWidth();
-            const pageH = pdf.internal.pageSize.getHeight();
-            const marginMm = 5;
-            const innerW = pageW - 2 * marginMm;
-            const innerH = pageH - 2 * marginMm;
-            const imgRatio = canvas.width / canvas.height;
-            const boxRatio = innerW / innerH;
-            let drawW;
-            let drawH;
-            let offX;
-            let offY;
-            if (imgRatio > boxRatio) {
-                drawH = innerH;
-                drawW = drawH * imgRatio;
-                offX = marginMm + (innerW - drawW) / 2;
-                offY = marginMm;
-            } else {
-                drawW = innerW;
-                drawH = drawW / imgRatio;
-                offX = marginMm;
-                offY = marginMm + (innerH - drawH) / 2;
-            }
-            pdf.addImage(canvas.toDataURL('image/png', 0.93), 'PNG', offX, offY, drawW, drawH);
-        }
-
-        function addCanvasToPdfPaginated(pdf, canvas, marginMm) {
-            const pageW = pdf.internal.pageSize.getWidth();
-            const pageH = pdf.internal.pageSize.getHeight();
-            const imgWmm = pageW - 2 * marginMm;
-            const pxPerMm = canvas.width / imgWmm;
-            const pageContentHmm = pageH - 2 * marginMm;
-            let offsetY = 0;
-            let first = true;
-            const eps = 0.5;
-            while (offsetY < canvas.height - eps) {
-                if (!first) {
-                    pdf.addPage('a4', 'p');
-                }
-                first = false;
-                const sliceHeightPx = Math.min(canvas.height - offsetY, Math.ceil(pageContentHmm * pxPerMm));
-                if (sliceHeightPx <= eps) {
-                    break;
-                }
-                const slice = document.createElement('canvas');
-                slice.width = canvas.width;
-                slice.height = sliceHeightPx;
-                slice.getContext('2d').drawImage(canvas, 0, offsetY, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
-                const sliceHmm = sliceHeightPx / pxPerMm;
-                pdf.addImage(slice.toDataURL('image/png'), 'PNG', marginMm, marginMm, imgWmm, sliceHmm);
-                offsetY += sliceHeightPx;
+                addSignalTapeLayer(odhSignalGroup, savedOdh, 'ОДХ');
+                addSignalTapeLayer(oznSignalGroup, savedOzn, 'ОЗН');
+                refreshObjectLayersControl();
             }
         }
 
@@ -3201,7 +2927,7 @@ if (L && L.drawLocal) {
             if (pdfExportInProgress) {
                 return;
             }
-            if (typeof html2canvas === 'undefined' || !window.jspdf?.jsPDF) {
+            if (typeof html2canvas === 'undefined' || !window.jspdf?.jsPDF || !PdfExport) {
                 window.alert('Библиотеки PDF не загрузились. Обновите страницу.');
                 return;
             }
@@ -3212,91 +2938,35 @@ if (L && L.drawLocal) {
             }
             pdfExportInProgress = true;
             const prevStatus = statusEl.textContent;
-            let wrap = null;
             try {
-                statusEl.textContent = 'Готовим PDF: запрос пересечений...';
-                const intersectsGeo = await fetchIntersectsLayerForPdfExport(ctx.geometry);
-                statusEl.textContent = 'Готовим PDF: снимок карты...';
-                const mapCanvas = await captureLeafletMapPngCanvas();
-                const pdf = new window.jspdf.jsPDF({unit: 'mm', format: 'a4', orientation: 'landscape'});
-                addMapCanvasAsFullFirstPdfPage(pdf, mapCanvas);
-
+                statusEl.textContent = 'Готовим PDF: запрос данных...';
+                const exportData = await fetchPdfExportData(ctx.geometry);
                 const features =
-                    intersectsGeo && intersectsGeo.type === 'FeatureCollection' && Array.isArray(intersectsGeo.features)
-                        ? intersectsGeo.features
+                    exportData.intersections &&
+                    exportData.intersections.type === 'FeatureCollection' &&
+                    Array.isArray(exportData.intersections.features)
+                        ? exportData.intersections.features
                         : [];
-                wrap = document.createElement('div');
-                Object.assign(wrap.style, {
-                    position: 'fixed',
-                    left: '-12000px',
-                    top: '0',
-                    width: '794px',
-                    background: '#ffffff',
-                    color: '#0f172a',
-                    fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-                    padding: '24px',
-                    boxSizing: 'border-box',
-                });
-                const title = document.createElement('h1');
-                title.textContent = 'Пересечения (паспорта, ДГИ, ОДХ)';
-                title.style.cssText = 'margin:0 0 12px;font-size:18px;font-weight:700;';
-                wrap.appendChild(title);
-                const sub = document.createElement('div');
-                sub.style.cssText = 'margin-bottom:14px;font-size:12px;color:#475569;line-height:1.4;';
-                sub.textContent =
-                    'Содержимое всплывающих окон для паспортов ДТ/ОДХ и пересекающихся объектов ДГИ и ОДХ (по данным PostGIS).';
-                wrap.appendChild(sub);
-                if (!features.length) {
-                    const p = document.createElement('p');
-                    p.style.margin = '0';
-                    p.style.fontSize = '13px';
-                    p.textContent = 'Пересечений с паспортами и объектами ДГИ/ОДХ не найдено.';
-                    wrap.appendChild(p);
-                } else {
-                    features.forEach((feature, idx) => {
-                        const props = feature?.properties || {};
-                        const rawHtml = buildPdfIntersectionPopupHtml(props);
-                        const box = document.createElement('div');
-                        box.style.cssText =
-                            'border:1px solid #cbd5e1;border-radius:8px;padding:12px;margin-bottom:12px;background:#f8fafc;font-size:13px;line-height:1.45;';
-                        const head = document.createElement('div');
-                        head.style.cssText = 'font-weight:600;margin-bottom:8px;color:#0369a1;';
-                        head.textContent = 'Пересечение ' + (idx + 1);
-                        box.appendChild(head);
-                        const inner = document.createElement('div');
-                        inner.innerHTML = stripPopupButtons(rawHtml);
-                        box.appendChild(inner);
-                        wrap.appendChild(box);
-                    });
+                statusEl.textContent = 'Готовим PDF: снимок карты...';
+                let mapCanvas = null;
+                try {
+                    mapCanvas = await captureMapCanvasForPdf(exportData.mapLayers);
+                } catch (mapErr) {
+                    mapCanvas = null;
                 }
-                document.body.appendChild(wrap);
                 statusEl.textContent = 'Готовим PDF: список пересечений...';
-                await new Promise((r) => requestAnimationFrame(() => r()));
-                await new Promise((r) => setTimeout(r, 80));
-                const listCanvas = await html2canvas(wrap, {
-                    scale: 1.75,
-                    useCORS: true,
-                    allowTaint: true,
-                    logging: false,
-                    backgroundColor: '#ffffff',
+                const fname = await PdfExport.buildAndSavePdf({
+                    objectInfo: PdfExport.buildObjectInfoFromContext(ctx),
+                    features,
+                    buildIntersectionHtml: buildPdfIntersectionPopupHtml,
+                    fileName: PdfExport.buildExportFileName(ctx),
+                    mapCanvas,
                 });
-                pdf.addPage('a4', 'p');
-                addCanvasToPdfPaginated(pdf, listCanvas, 10);
-                const fname =
-                    'export_map_' +
-                    String(ctx.requestId || 'object').replace(/\W+/g, '_') +
-                    '_' +
-                    new Date().toISOString().slice(0, 10) +
-                    '.pdf';
-                pdf.save(fname);
                 statusEl.textContent = 'PDF сохранён: ' + fname;
             } catch (err) {
                 window.alert(err.message || 'Не удалось сформировать PDF.');
                 statusEl.textContent = prevStatus;
             } finally {
-                if (wrap && wrap.parentNode) {
-                    wrap.parentNode.removeChild(wrap);
-                }
                 pdfExportInProgress = false;
             }
         }
@@ -3317,14 +2987,9 @@ if (L && L.drawLocal) {
                 statusEl.textContent = '\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0432\u043a\u043b\u044e\u0447\u0438\u0442\u0435 \u0440\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f.';
                 return;
             }
-            const editedGeojson = editableGroup.toGeoJSON();
-            if (!editedGeojson.features.length) {
-                statusEl.textContent = 'Нет геометрии для сохранения.';
-                return;
-            }
-            const geometryToSave = buildExportGeometry(editedGeojson);
+            const geometryToSave = getEditableGeometryForSave();
             if (!geometryToSave) {
-                statusEl.textContent = 'Не удалось собрать геометрию для сохранения.';
+                statusEl.textContent = 'Нет геометрии для сохранения.';
                 return;
             }
 
@@ -3338,13 +3003,22 @@ if (L && L.drawLocal) {
                 saveModalErrorEl.textContent = 'Номер заявки должен содержать только цифры.';
                 return;
             }
-            saveModalErrorEl.textContent = '';
+            clearSaveModalMessages();
+
+            const multipolygonValidationError =
+                mps.validateMultipolygonTargetGeometry &&
+                mps.validateMultipolygonTargetGeometry(geometryToSave, selectedSourceLabel);
+            if (multipolygonValidationError) {
+                setSaveModalGeometryError(multipolygonValidationError);
+                return;
+            }
 
             saveModalSubmit.disabled = true;
             saveButton.disabled = true;
             statusEl.textContent = 'Сохраняем объект в базе...';
             try {
                 const saveResult = await saveObjectToDb(geometryToSave, name, requestId);
+                clearPendingRepairedGeometry();
                 statusEl.textContent = 'Объект сохранён в базе. Формируем файлы...';
                 const exportResult = await exportObjectFiles(geometryToSave, {
                     name: name,
@@ -3355,18 +3029,29 @@ if (L && L.drawLocal) {
                 pendingDgiApprove = null;
                 statusEl.textContent =
                     'Объект сохранён в базе. Идентификатор владельца: ' + saveResult.owner_id + '. Файлы сформированы.';
-                lastPdfExportContext = {geometry: geometryToSave, requestId: requestId};
+                lastPdfExportContext = {
+                    geometry: geometryToSave,
+                    requestId: requestId,
+                    passportNo: selectedRootid,
+                    name: name,
+                };
                 exportLinksEl.innerHTML =
                     '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
                     '<a class="button-link" href="' + exportResult.shapefile_url + '">Скачать SHP (ZIP)</a> ' +
                     '<a class="button-link" href="#" data-export-pdf-link="1">Скачать PDF (карта и пересечения)</a>';
                 bindPdfExportLink();
             } catch (error) {
-                saveModalErrorEl.textContent = error.message || 'Ошибка сохранения объекта.';
+                setSaveModalGeometryError(error.message || 'Ошибка сохранения объекта.');
             } finally {
                 saveModalSubmit.disabled = false;
                 saveButton.disabled = false;
             }
+        }
+
+        if (saveModalFixPolygon) {
+            saveModalFixPolygon.addEventListener('click', () => {
+                void repairPolygonFromSaveModal();
+            });
         }
 
         saveModalCancel.addEventListener('click', () => {
@@ -3390,12 +3075,12 @@ if (L && L.drawLocal) {
                     statusEl.textContent = 'Сначала включите режим редактирования.';
                     return null;
                 }
-                const editedGeojson = editableGroup.toGeoJSON();
-                if (!editedGeojson.features.length) {
+                const geometry = getEditableGeometryForSave();
+                if (!geometry) {
                     statusEl.textContent = 'Нет геометрии для выгрузки.';
                     return null;
                 }
-                return buildExportGeometry(editedGeojson);
+                return geometry;
             },
             openSaveModal: openSaveModal,
             dgiConfirmModal: dgiExportConfirmModal,
@@ -3534,3 +3219,4 @@ if (L && L.drawLocal) {
         }
 
         updateRelationsButtonState();
+        loadInitialMapContextLayers();

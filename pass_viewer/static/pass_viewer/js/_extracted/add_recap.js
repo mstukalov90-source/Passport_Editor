@@ -1,42 +1,4 @@
-if (L && L.drawLocal) {
-            L.drawLocal.draw.toolbar.actions.title = 'Отменить рисование';
-            L.drawLocal.draw.toolbar.actions.text = 'Отмена';
-            L.drawLocal.draw.toolbar.finish.title = 'Завершить рисование';
-            L.drawLocal.draw.toolbar.finish.text = 'Завершить';
-            L.drawLocal.draw.toolbar.undo.title = 'Удалить последнюю точку';
-            L.drawLocal.draw.toolbar.undo.text = 'Назад';
-            L.drawLocal.draw.toolbar.buttons.polyline = 'Нарисовать линию';
-            L.drawLocal.draw.toolbar.buttons.polygon = 'Нарисовать полигон';
-            L.drawLocal.draw.toolbar.buttons.rectangle = 'Нарисовать прямоугольник';
-            L.drawLocal.draw.toolbar.buttons.circle = 'Нарисовать круг';
-            L.drawLocal.draw.toolbar.buttons.marker = 'Поставить маркер';
-            L.drawLocal.draw.toolbar.buttons.circlemarker = 'Поставить круглый маркер';
-            L.drawLocal.draw.handlers.polyline.tooltip.start = 'Кликните, чтобы начать линию.';
-            L.drawLocal.draw.handlers.polyline.tooltip.cont = 'Кликайте, чтобы продолжить линию.';
-            L.drawLocal.draw.handlers.polyline.tooltip.end = 'Кликните последнюю точку, чтобы завершить линию.';
-            L.drawLocal.draw.handlers.polygon.tooltip.start = 'Кликните, чтобы начать полигон.';
-            L.drawLocal.draw.handlers.polygon.tooltip.cont = 'Кликайте, чтобы продолжить полигон.';
-            L.drawLocal.draw.handlers.polygon.tooltip.end = 'Кликните первую точку, чтобы замкнуть полигон.';
-            L.drawLocal.draw.handlers.rectangle.tooltip.start = 'Нажмите и тяните, чтобы нарисовать прямоугольник.';
-            L.drawLocal.draw.handlers.simpleshape.tooltip.end = 'Отпустите кнопку мыши, чтобы завершить фигуру.';
-            L.drawLocal.draw.handlers.circle.tooltip.start = 'Нажмите и тяните, чтобы нарисовать круг.';
-            L.drawLocal.draw.handlers.marker.tooltip.start = 'Кликните по карте, чтобы поставить маркер.';
-            L.drawLocal.edit.toolbar.actions.save.title = 'Сохранить изменения';
-            L.drawLocal.edit.toolbar.actions.save.text = 'Сохранить';
-            L.drawLocal.edit.toolbar.actions.cancel.title = 'Отменить редактирование, сбросить изменения';
-            L.drawLocal.edit.toolbar.actions.cancel.text = 'Отмена';
-            L.drawLocal.edit.toolbar.actions.clearAll.title = 'Удалить все объекты';
-            L.drawLocal.edit.toolbar.actions.clearAll.text = 'Удалить все';
-            L.drawLocal.edit.toolbar.buttons.edit = 'Редактировать объекты';
-            L.drawLocal.edit.toolbar.buttons.editDisabled = 'Нет объектов для редактирования';
-            L.drawLocal.edit.toolbar.buttons.remove = 'Удалить объекты';
-            L.drawLocal.edit.toolbar.buttons.removeDisabled = 'Нет объектов для удаления';
-            L.drawLocal.edit.handlers.edit.tooltip.text = 'Перетаскивайте маркеры или объекты для изменения.';
-            L.drawLocal.edit.handlers.edit.tooltip.subtext = 'Нажмите "Отмена", чтобы отменить изменения.';
-            L.drawLocal.edit.handlers.remove.tooltip.text = 'Кликните по объекту, чтобы удалить его.';
-        }
-
-        const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.61], 12);
+const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.61], 12);
         const signalTapeRenderer = L.svg({padding: 0.5});
 
         let popupHighlightLayer = null;
@@ -101,30 +63,8 @@ if (L && L.drawLocal) {
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
 
-        function getCookie(name) {
-            const cookieValue = document.cookie
-                .split('; ')
-                .find((row) => row.startsWith(name + '='));
-            return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : null;
-        }
-
-        function parseGeometryData(id) {
-            const el = document.getElementById(id);
-            if (!el) {
-                return null;
-            }
-            try {
-                const raw = JSON.parse(el.textContent);
-                if (!raw) {
-                    return null;
-                }
-                return typeof raw === 'string' ? JSON.parse(raw) : raw;
-            } catch (error) {
-                console.error('PassViewer add_recap: invalid geometry JSON for', id, error);
-                return null;
-            }
-        }
-
+        
+        
         const selectedGeometry = parseGeometryData('selected-geometry-data');
         const requestId = "{{ request_id|default:''|escapejs }}";
         const objectName = "{{ name|default:''|escapejs }}";
@@ -440,59 +380,8 @@ if (L && L.drawLocal) {
             pendingCommentLatLng = null;
         }
 
-        function normalizeGeoJson(raw) {
-            if (!raw) {
-                return null;
-            }
-            if (typeof raw === 'string') {
-                try {
-                    return JSON.parse(raw);
-                } catch (e) {
-                    return null;
-                }
-            }
-            return raw;
-        }
-
-        function mergeAdjacentDtPassportsGeoJson(intersectsGeo, touchesGeo, nearbyGeo) {
-            const mergedFeatures = [];
-            const seenRootids = new Set();
-            const appendFrom = (geojsonObject) => {
-                let g = normalizeGeoJson(geojsonObject);
-                if (!g) {
-                    return;
-                }
-                if (g.type === 'Feature') {
-                    g = {type: 'FeatureCollection', features: [g]};
-                }
-                if (g.type !== 'FeatureCollection' || !Array.isArray(g.features)) {
-                    return;
-                }
-                for (const f of g.features) {
-                    const reqRaw = f?.properties?.request_id;
-                    const reqStr = reqRaw == null ? '' : String(reqRaw).trim();
-                    if (reqStr) {
-                        continue;
-                    }
-                    const rid = String(f?.properties?.rootid ?? '').trim();
-                    if (rid) {
-                        if (seenRootids.has(rid)) {
-                            continue;
-                        }
-                        seenRootids.add(rid);
-                    }
-                    mergedFeatures.push(f);
-                }
-            };
-            appendFrom(intersectsGeo);
-            appendFrom(touchesGeo);
-            appendFrom(nearbyGeo);
-            if (!mergedFeatures.length) {
-                return null;
-            }
-            return {type: 'FeatureCollection', features: mergedFeatures};
-        }
-
+        
+        
         function filterByRequestedName(geojsonObject) {
             const geo = normalizeGeoJson(geojsonObject);
             if (!geo || geo.type !== 'FeatureCollection' || !Array.isArray(geo.features)) {
@@ -511,37 +400,7 @@ if (L && L.drawLocal) {
             };
         }
 
-        function calculateGeometryAreaSqMeters(geometry) {
-            if (!geometry || !L?.GeometryUtil?.geodesicArea) {
-                return null;
-            }
-            const ringArea = (ring) => {
-                if (!Array.isArray(ring) || ring.length < 3) {
-                    return 0;
-                }
-                const latLngs = ring.map((coord) => L.latLng(coord[1], coord[0]));
-                return Math.abs(L.GeometryUtil.geodesicArea(latLngs));
-            };
-            const polygonArea = (coordinates) => {
-                if (!Array.isArray(coordinates) || !coordinates.length) {
-                    return 0;
-                }
-                const outer = ringArea(coordinates[0]);
-                const holes = coordinates.slice(1).reduce((sum, hole) => sum + ringArea(hole), 0);
-                return Math.max(0, outer - holes);
-            };
-            if (geometry.type === 'Polygon') {
-                return polygonArea(geometry.coordinates);
-            }
-            if (geometry.type === 'MultiPolygon') {
-                return (geometry.coordinates || []).reduce((sum, polygonCoords) => sum + polygonArea(polygonCoords), 0);
-            }
-            if (geometry.type === 'GeometryCollection') {
-                return (geometry.geometries || []).reduce((sum, child) => sum + (calculateGeometryAreaSqMeters(child) || 0), 0);
-            }
-            return null;
-        }
-
+        
         function buildEditableDeletePopupHtml(baseHtml) {
             return (
                 baseHtml +
@@ -742,15 +601,7 @@ if (L && L.drawLocal) {
             refreshLayerPanelCounts();
         }
 
-        function escapeHtml(value) {
-            return String(value ?? '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-
+        
         function formatDgiShortSobstvRr(value) {
             const raw = String(value ?? '').trim();
             if (!raw || ['null', 'none', '-'].includes(raw.toLowerCase())) {
@@ -762,68 +613,9 @@ if (L && L.drawLocal) {
             return raw;
         }
 
-        function pickPopupProperty(props, ...keys) {
-            if (!props) {
-                return '';
-            }
-            for (let i = 0; i < keys.length; i += 1) {
-                const k = keys[i];
-                if (Object.prototype.hasOwnProperty.call(props, k) && props[k] != null && String(props[k]).trim() !== '') {
-                    return props[k];
-                }
-            }
-            return '';
-        }
-
-        function formatPopupDateToDay(value) {
-            if (value == null || value === '') {
-                return '';
-            }
-            const s = String(value).trim();
-            if (!s || ['null', 'none', '-'].includes(s.toLowerCase())) {
-                return '';
-            }
-            const ymd = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-            if (ymd) {
-                return escapeHtml(ymd[3] + '.' + ymd[2] + '.' + ymd[1]);
-            }
-            const d = new Date(s);
-            if (!Number.isFinite(d.getTime())) {
-                return escapeHtml(s);
-            }
-            const y = d.getFullYear();
-            const mo = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return escapeHtml(day + '.' + mo + '.' + y);
-        }
-
-        function buildPopupMetaFieldsHtml(properties) {
-            const props = properties || {};
-            const startRaw = pickPopupProperty(props, 'startdate', 'StartDate');
-            const surveyRaw = pickPopupProperty(props, 'datesurvey', 'DateSurvey');
-            const createRaw = pickPopupProperty(props, 'createtype', 'CreateType');
-            const startDis = formatPopupDateToDay(startRaw);
-            const surveyDis = formatPopupDateToDay(surveyRaw);
-            const createTxt = String(createRaw == null ? '' : createRaw).trim();
-            const createDis =
-                createTxt && !['null', 'none', '-'].includes(createTxt.toLowerCase())
-                    ? escapeHtml(createTxt)
-                    : '—';
-            return (
-                '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">' +
-                '<div style="margin-top: 4px;"><strong>Дата утверждения:</strong> ' +
-                (startDis || '—') +
-                '</div>' +
-                '<div style="margin-top: 4px;"><strong>Дата полевого обследования:</strong> ' +
-                (surveyDis || '—') +
-                '</div>' +
-                '<div style="margin-top: 4px;"><strong>Тип создания:</strong> ' +
-                createDis +
-                '</div>' +
-                '</div>'
-            );
-        }
-
+        
+        
+        
         function addSignalTapeLayer(targetGroup, geojsonObject, sourceLabel) {
             targetGroup.clearLayers();
             const geo = normalizeGeoJson(geojsonObject);
@@ -1038,69 +830,7 @@ if (L && L.drawLocal) {
                 }
             }).addTo(targetGroup);
         }
-        function buildObjectPopup(properties) {
-            const rootid = properties?.rootid ?? '-';
-            const name = properties?.name ?? '-';
-            const requestId = properties?.request_id ?? '-';
-            const ownerLegalPersonId = properties?.owner_legal_person_id ?? '-';
-            const ownerLegalPersonName = properties?.owner_legal_person_name ?? '-';
-            const customerLegalPersonId = properties?.customer_legal_person_id ?? '-';
-            const departmentLegalPersonId = properties?.department_legal_person_id ?? '-';
-            const customerLegalPersonName = properties?.customer_legal_person_name ?? '-';
-            const departmentLegalPersonName = properties?.department_legal_person_name ?? '-';
-            const rootidText = String(rootid ?? '').trim().toLowerCase();
-            const requestIdText = String(requestId ?? '').trim().toLowerCase();
-            const isMissingRootid = !rootidText || rootidText === 'null' || rootidText === 'none' || rootidText === '-';
-            const hasRequestId = !!requestIdText && requestIdText !== 'null' && requestIdText !== 'none' && requestIdText !== '-';
-            const ownerText = String(ownerLegalPersonId ?? '').trim();
-            const customerText = String(customerLegalPersonId ?? '').trim();
-            const departmentText = String(departmentLegalPersonId ?? '').trim();
-            const ownerNameText = String(ownerLegalPersonName ?? '').trim();
-            const customerNameText = String(customerLegalPersonName ?? '').trim();
-            const departmentNameText = String(departmentLegalPersonName ?? '').trim();
-            const hasOwner = !!ownerText && !['null', 'none', '-'].includes(ownerText.toLowerCase());
-            const hasCustomer = !!customerText && !['null', 'none', '-'].includes(customerText.toLowerCase());
-            const hasDepartmentId = !!departmentText && !['null', 'none', '-'].includes(departmentText.toLowerCase());
-            const hasOwnerName = !!ownerNameText && !['null', 'none', '-'].includes(ownerNameText.toLowerCase());
-            const hasCustomerName = !!customerNameText && !['null', 'none', '-'].includes(customerNameText.toLowerCase());
-            const hasDepartmentName = !!departmentNameText && !['null', 'none', '-'].includes(departmentNameText.toLowerCase());
-            const hasDepartment = hasDepartmentId || hasDepartmentName;
-            const ownerDisplay = hasOwnerName
-                ? String(ownerLegalPersonName || '-')
-                : String(ownerLegalPersonId || '-');
-            const customerDisplay = hasCustomerName
-                ? String(customerLegalPersonName || '-')
-                : String(customerLegalPersonId || '-');
-            const departmentDisplay = hasDepartmentName
-                ? String(departmentLegalPersonName || '-')
-                : String(departmentLegalPersonId || '-');
-            const ownerLines =
-                ((hasOwner || hasCustomer)
-                    ? ('<div style="margin-top: 6px;"><strong>Балансодержатель:</strong> ' + escapeHtml(hasOwner ? ownerDisplay : customerDisplay) + '</div>')
-                    : '') +
-                (hasDepartment ? ('<div style="margin-top: 6px;"><strong>Отраслевой ОИВ:</strong> ' + escapeHtml(departmentDisplay) + '</div>') : '');
-            if (isMissingRootid && hasRequestId) {
-                return (
-                    '<div style="min-width: 220px;">' +
-                    '<div><strong>ДТ</strong></div>' +
-                    '<div><strong>№ Заявки:</strong> ' + escapeHtml(requestId || '-') + '</div>' +
-                    '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
-                    ownerLines +
-                    buildPopupMetaFieldsHtml(properties) +
-                    '</div>'
-                );
-            }
-            return (
-                '<div style="min-width: 220px;">' +
-                '<div><strong>ДТ</strong></div>' +
-                '<div><strong>№ Паспорта:</strong> ' + escapeHtml(rootid || '-') + '</div>' +
-                '<div style="margin-top: 6px;"><strong>Название:</strong> ' + escapeHtml(name || '-') + '</div>' +
-                ownerLines +
-                buildPopupMetaFieldsHtml(properties) +
-                '</div>'
-            );
-        }
-
+        
         function renderRenewLayer(renewGeo) {
             addSignalTapeLayer(renewGroup, renewGeo, 'Реновация');
         }

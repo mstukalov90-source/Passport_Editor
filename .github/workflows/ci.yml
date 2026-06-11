@@ -47,6 +47,8 @@ jobs:
         run: bash scripts/ci_install_deps.sh
       - name: Resolve GDAL/GEOS paths
         run: source scripts/ci_resolve_gdal_paths.sh --github-env
+      - name: Verify page JS is built from _extracted
+        run: python3 pass_viewer/static/build_page_js.py --check
       - name: Django smoke tests
         env:
           POSTGIS_DB_HOST: localhost

@@ -10,3 +10,11 @@ repos:
         name: ruff check (pass_map, pass_viewer)
         args: [--fix]
         files: ^(pass_map|pass_viewer)/.*\.py$
+  - repo: local
+    hooks:
+      - id: page-js-check
+        name: page JS _extracted sync check
+        entry: python3 pass_viewer/static/build_page_js.py --check
+        language: system
+        pass_filenames: false
+        files: ^pass_viewer/static/pass_viewer/js/
