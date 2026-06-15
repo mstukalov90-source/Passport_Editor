@@ -64,6 +64,9 @@ def home_page_config(*, need_entry_request_id, ods_source_label, owner_id=None):
         urls={
             "cancelPending": reverse("cancel_pending_entry"),
             "addRecap": reverse("add_recap"),
+            "listOwnedRecaps": reverse("list_owned_recaps"),
+            "exportRecap": reverse("export_recap_geometry"),
+            "deleteRecap": reverse("delete_recap_object"),
         },
         needEntryRequestId=bool(need_entry_request_id),
         odsSourceLabel=ods_source_label or "ОДС",

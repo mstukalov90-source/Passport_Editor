@@ -118,6 +118,9 @@ gh run watch
 | Путь | Назначение |
 |------|------------|
 | [tests/test_auth_smoke.py](tests/test_auth_smoke.py) | Редирект на login, вход, загрузка home |
+| [tests/test_build_page_js.py](tests/test_build_page_js.py) | `_extracted/` и собранные `.js` в синхроне |
+| [tests/test_home_js_smoke.py](tests/test_home_js_smoke.py) | Символы home.js (фильтр ОДС, досъёмы, TOP) |
+| [tests/test_main_js_smoke.py](tests/test_main_js_smoke.py) | Символы main.js (смежные слои, auto-remove) |
 | [tests/e2e/test_smoke.py](tests/e2e/test_smoke.py) | Браузер: login, home, статика, page-config |
 | [pass_viewer/management/commands/ensure_e2e_user.py](pass_viewer/management/commands/ensure_e2e_user.py) | Тестовый пользователь в таблице `users` |
 
@@ -129,3 +132,19 @@ python manage.py ensure_e2e_user
 python manage.py collectstatic --noinput
 python manage.py runserver
 ```
+
+## Page JS (`home.js`, `main.js`, …)
+
+Источник правды — снимки в [`pass_viewer/static/pass_viewer/js/_extracted/`](pass_viewer/static/pass_viewer/js/_extracted/), не готовые файлы в `pass_viewer/js/`.
+
+После правок в `_extracted/`:
+
+```bash
+python3 pass_viewer/static/build_page_js.py --page home   # одна страница
+python3 pass_viewer/static/build_page_js.py --all         # все страницы
+python3 pass_viewer/static/build_page_js.py --check       # проверка синхронизации (CI)
+```
+
+В коммит включайте **и** `_extracted/*.js`, **и** сгенерированные `home.js` / `main.js` / `add-object.js` / `add-recap.js`.
+
+Не запускайте `build_page_js.py` без `--page` / `--all` / `--check` — полная пересборка только через `--all`.

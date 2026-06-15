@@ -1160,6 +1160,91 @@ def _get_owned_ods_requests(owner_legal_person_id):
     return out
 
 
+ODS_REQUEST_OBJECT_KEY_PREFIX = "ods_request:"
+
+
+def _parse_ods_request_object_key(object_key):
+    key = str(object_key or "").strip()
+    if not key.startswith(ODS_REQUEST_OBJECT_KEY_PREFIX):
+        return None
+    pk = key[len(ODS_REQUEST_OBJECT_KEY_PREFIX) :].strip()
+    return pk if pk.isdigit() else None
+
+
+def _find_gis_geometry_for_ods_short_root(owner_legal_person_id, short_object_root_id):
+    sr = _norm_registry_id(short_object_root_id)
+    if not sr:
+        return None
+    for item in _get_owned_objects(owner_legal_person_id):
+        if _norm_registry_id(item.get("rootid")) != sr:
+            continue
+        geom = (item.get("geom_json") or "").strip()
+        if geom:
+            return geom
+    return None
+
+
+def _get_owned_ods_request_for_recap(owner_legal_person_id, object_key):
+    pk = _parse_ods_request_object_key(object_key)
+    if not pk or not owner_legal_person_id:
+        return None
+
+    table = getattr(settings, "GIS_ODS_REQUEST_TABLE", "ods_request")
+    source_label = getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС")
+
+    with connection.cursor() as cursor:
+        if not _table_exists(cursor, table) or not _column_exists(cursor, table, "ownerid"):
+            return None
+        if not _column_exists(cursor, table, "id"):
+            return None
+
+        owner_col = _resolve_column_name(cursor, table, "ownerid")
+        id_col = _resolve_column_name(cursor, table, "id")
+
+        brid_expr = "NULL::text"
+        if _column_exists(cursor, table, "BrId"):
+            bc = _resolve_column_name(cursor, table, "BrId")
+            brid_expr = f"COALESCE({_quote_ident(bc)}::text, ''::text)"
+        name_expr = "NULL::text"
+        if _column_exists(cursor, table, "ObjectName"):
+            nc = _resolve_column_name(cursor, table, "ObjectName")
+            name_expr = f"COALESCE({_quote_ident(nc)}::text, ''::text)"
+        rootid_expr = "NULL::text"
+        if _column_exists(cursor, table, "ShortObjectRootId"):
+            rc = _resolve_column_name(cursor, table, "ShortObjectRootId")
+            rootid_expr = f"COALESCE({_quote_ident(rc)}::text, ''::text)"
+
+        query = (
+            f"SELECT {brid_expr}, {name_expr}, {rootid_expr} "
+            f"FROM {_quote_ident(table)} "
+            f"WHERE {_quote_ident(id_col)}::text = %s "
+            f"AND {_quote_ident(owner_col)}::text = %s "
+            f"LIMIT 1"
+        )
+        cursor.execute(query, [pk, str(owner_legal_person_id)])
+        row = cursor.fetchone()
+
+    if not row:
+        return None
+
+    brid = (row[0] or "").strip()
+    if not brid or not brid.isdigit():
+        return None
+
+    name = row[1] or ""
+    short_root = row[2] or ""
+    geometry_json = _find_gis_geometry_for_ods_short_root(owner_legal_person_id, short_root)
+
+    return {
+        "object_key": object_key,
+        "rootid": "",
+        "name": name,
+        "request_id": brid,
+        "geometry_json": geometry_json,
+        "source_label": source_label,
+    }
+
+
 def _get_owned_ods_brids(owner_legal_person_id):
     """Уникальные BrId из ods_request для пользователя (подсказки в модалке номера заявки)."""
     if not owner_legal_person_id:
@@ -1437,24 +1522,102 @@ def _get_source_table(source_label):
     return settings.GIS_OBJECT_TABLE
 
 
-def _get_recap_counts_by_request_ids(request_ids):
+def _recaps_owner_scope_columns(cursor, table_alias="t"):
+    table = "recaps"
+    owner_field_pref = getattr(settings, "GIS_OBJECT_OWNER_FIELD", "OwnerLegalPersonId")
+    request_id_field_pref = getattr(settings, "GIS_OBJECT_REQUEST_ID_FIELD", "request_id")
+    name_field_pref = settings.GIS_OBJECT_NAME_FIELD
+    geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
+    owner_field = _resolve_column_name(cursor, table, owner_field_pref)
+    request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
+    name_field = _resolve_column_name(cursor, table, name_field_pref)
+    geom_field = _resolve_column_name(cursor, table, geom_field_pref)
+    hood_suf, hood_prm = get_hood_intersects_sql_suffix(f"{table_alias}.{_quote_ident(geom_field)}")
+    return owner_field, request_id_field, name_field, geom_field, hood_suf, hood_prm
+
+
+def _get_recap_counts_by_request_ids(owner_legal_person_id, request_ids):
     normalized_ids = [str(value).strip() for value in request_ids if str(value).strip()]
-    if not normalized_ids:
+    if not normalized_ids or not owner_legal_person_id:
         return {}
 
     with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT "request_id"::text AS request_id, COUNT(*)::int AS recap_count
-            FROM recaps
-            WHERE "request_id"::text = ANY(%s)
-            GROUP BY "request_id"::text
-            """,
-            [normalized_ids],
+        owner_field, request_id_field, _name_field, _geom_field, hood_suf, hood_prm = _recaps_owner_scope_columns(
+            cursor
         )
+        query = (
+            f"SELECT {_quote_ident(request_id_field)}::text AS request_id, COUNT(*)::int AS recap_count "
+            "FROM recaps t "
+            f"WHERE {_quote_ident(owner_field)} = %s "
+            f"AND {_quote_ident(request_id_field)}::text = ANY(%s)"
+            f"{hood_suf} "
+            f"GROUP BY {_quote_ident(request_id_field)}::text"
+        )
+        cursor.execute(query, [owner_legal_person_id, normalized_ids] + hood_prm)
         rows = cursor.fetchall()
 
     return {row[0]: row[1] for row in rows}
+
+
+def _get_owned_recaps_for_request(owner_legal_person_id, request_id):
+    request_id_text = str(request_id or "").strip()
+    if not owner_legal_person_id or not request_id_text:
+        return []
+
+    with connection.cursor() as cursor:
+        owner_field, request_id_field, name_field, _geom_field, hood_suf, hood_prm = _recaps_owner_scope_columns(
+            cursor
+        )
+        query = (
+            f"SELECT t.recap_id::text, {_quote_ident(request_id_field)}::text, "
+            f"{_quote_ident(name_field)}::text "
+            "FROM recaps t "
+            f"WHERE {_quote_ident(owner_field)} = %s "
+            f"AND {_quote_ident(request_id_field)}::text = %s"
+            f"{hood_suf} "
+            "ORDER BY t.recap_id ASC"
+        )
+        cursor.execute(query, [owner_legal_person_id, request_id_text] + hood_prm)
+        rows = cursor.fetchall()
+
+    return [
+        {
+            "recap_id": row[0] or "",
+            "request_id": row[1] or "",
+            "name": row[2] or "",
+        }
+        for row in rows
+    ]
+
+
+def _get_owned_recap_row(owner_legal_person_id, recap_id):
+    recap_id_text = str(recap_id or "").strip()
+    if not owner_legal_person_id or not recap_id_text or not recap_id_text.isdigit():
+        return None
+
+    with connection.cursor() as cursor:
+        owner_field, request_id_field, name_field, geom_field, hood_suf, hood_prm = _recaps_owner_scope_columns(cursor)
+        query = (
+            f"SELECT t.recap_id::text, {_quote_ident(request_id_field)}::text, "
+            f"{_quote_ident(name_field)}::text, ST_AsGeoJSON({_quote_ident(geom_field)})::text "
+            "FROM recaps t "
+            "WHERE t.recap_id = %s "
+            f"AND {_quote_ident(owner_field)} = %s"
+            f"{hood_suf} "
+            "LIMIT 1"
+        )
+        cursor.execute(query, [recap_id_text, owner_legal_person_id] + hood_prm)
+        row = cursor.fetchone()
+
+    if not row:
+        return None
+
+    return {
+        "recap_id": row[0] or "",
+        "request_id": row[1] or "",
+        "name": row[2] or "",
+        "geometry_json": row[3] or "",
+    }
 
 
 def _get_owned_request_object(owner_legal_person_id, object_key, source_label="ДТ"):
@@ -4392,7 +4555,10 @@ def home(request):
             owned_objects = _merge_owned_ods_requests(owned_objects, owner_id)
             owned_objects = _annotate_and_filter_ods_registry_against_gis(owned_objects)
             owned_objects = _enrich_ods_interaction_and_geometry(owned_objects)
-            recap_counts = _get_recap_counts_by_request_ids(item["request_id"] for item in owned_objects)
+            recap_counts = _get_recap_counts_by_request_ids(
+                owner_id,
+                (item["request_id"] for item in owned_objects),
+            )
             for item in owned_objects:
                 request_id = (item.get("request_id") or "").strip()
                 item["recap_count"] = recap_counts.get(request_id, 0)
@@ -4817,6 +4983,151 @@ def save_recap_object(request):
 
 
 @login_required
+@require_GET
+def list_owned_recaps(request):
+    request_id = (request.GET.get("request_id") or "").strip()
+    if not request_id:
+        return JsonResponse({"ok": False, "error": "Укажите номер заявки (request_id)."}, status=400)
+    if not request_id.isdigit():
+        return JsonResponse(
+            {"ok": False, "error": "Номер заявки (request_id) должен содержать только цифры."},
+            status=400,
+        )
+
+    owner_id = _get_current_user_owner_id(request.user.username)
+    if owner_id is None:
+        return JsonResponse(
+            {"ok": False, "error": "Не найден OwnerLegalPersonId для пользователя в таблице users."},
+            status=400,
+        )
+
+    try:
+        recaps = _get_owned_recaps_for_request(owner_id, request_id)
+    except Exception:
+        logger.exception("list_owned_recaps failed")
+        return JsonResponse({"ok": False, "error": "Не удалось получить список досъёмов."}, status=500)
+
+    return JsonResponse({"ok": True, "request_id": request_id, "recaps": recaps})
+
+
+@login_required
+@require_POST
+def export_recap_geometry(request):
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
+
+    recap_id = str(payload.get("recap_id") or "").strip()
+    if not recap_id:
+        return JsonResponse({"ok": False, "error": "Укажите номер досъёма (recap_id)."}, status=400)
+    if not recap_id.isdigit():
+        return JsonResponse(
+            {"ok": False, "error": "Номер досъёма (recap_id) должен содержать только цифры."},
+            status=400,
+        )
+
+    owner_id = _get_current_user_owner_id(request.user.username)
+    if owner_id is None:
+        return JsonResponse(
+            {"ok": False, "error": "Не найден OwnerLegalPersonId для пользователя в таблице users."},
+            status=400,
+        )
+
+    try:
+        row = _get_owned_recap_row(owner_id, recap_id)
+    except Exception:
+        logger.exception("export_recap_geometry: lookup failed")
+        return JsonResponse({"ok": False, "error": "Не удалось загрузить досъём."}, status=500)
+
+    if not row:
+        return JsonResponse(
+            {"ok": False, "error": "Досъём не найден или нет прав на скачивание."},
+            status=404,
+        )
+
+    try:
+        geometry = json.loads(row["geometry_json"])
+    except (TypeError, json.JSONDecodeError):
+        return JsonResponse({"ok": False, "error": "Некорректная геометрия досъёма."}, status=500)
+
+    if not isinstance(geometry, dict):
+        return JsonResponse({"ok": False, "error": "Некорректная геометрия досъёма."}, status=500)
+
+    try:
+        geojson_url, shapefile_url = _export_geometry_files(
+            geometry,
+            properties={
+                "name": row["name"],
+                "OwnerLegalPersonId": owner_id,
+                "request_id": row["request_id"],
+                "recap_id": row["recap_id"],
+            },
+        )
+    except Exception:
+        logger.exception("export_recap_geometry: export failed")
+        return JsonResponse(
+            {"ok": False, "error": "Ошибка формирования файлов экспорта."},
+            status=500,
+        )
+
+    return JsonResponse({"ok": True, "geojson_url": geojson_url, "shapefile_url": shapefile_url})
+
+
+@login_required
+@require_POST
+def delete_recap_object(request):
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
+
+    recap_id = str(payload.get("recap_id") or "").strip()
+    if not recap_id:
+        return JsonResponse({"ok": False, "error": "Укажите номер досъёма (recap_id)."}, status=400)
+    if not recap_id.isdigit():
+        return JsonResponse(
+            {"ok": False, "error": "Номер досъёма (recap_id) должен содержать только цифры."},
+            status=400,
+        )
+
+    owner_id = _get_current_user_owner_id(request.user.username)
+    if owner_id is None:
+        return JsonResponse(
+            {"ok": False, "error": "Не найден OwnerLegalPersonId для пользователя в таблице users."},
+            status=400,
+        )
+
+    if not _get_owned_recap_row(owner_id, recap_id):
+        return JsonResponse(
+            {"ok": False, "error": "Досъём не найден или нет прав на удаление."},
+            status=404,
+        )
+
+    try:
+        with connection.cursor() as cursor:
+            owner_field, _request_id_field, _name_field, _geom_field, _hood_suf, _hood_prm = (
+                _recaps_owner_scope_columns(cursor)
+            )
+            cursor.execute(
+                f"DELETE FROM recaps WHERE recap_id = %s AND {_quote_ident(owner_field)} = %s RETURNING recap_id",
+                [recap_id, owner_id],
+            )
+            row = cursor.fetchone()
+    except Exception:
+        logger.exception("delete_recap_object failed")
+        return JsonResponse({"ok": False, "error": "Не удалось удалить досъём."}, status=500)
+
+    if not row:
+        return JsonResponse(
+            {"ok": False, "error": "Досъём не найден или нет прав на удаление."},
+            status=404,
+        )
+
+    return JsonResponse({"ok": True, "recap_id": str(row[0])})
+
+
+@login_required
 @require_POST
 def open_owned_object(request):
     rootid = (request.POST.get("rootid") or "").strip()
@@ -5031,8 +5342,14 @@ def add_recap(request):
     recap_id_param = (request.GET.get("recap_id") or "").strip()
     initial_recap_id = recap_id_param if recap_id_param.isdigit() else ""
     owner_id = _get_current_user_owner_id(request.user.username)
-    selected_object = _get_owned_request_object(owner_id, object_key, source_label=source_label)
+    ods_pk = _parse_ods_request_object_key(object_key)
+    if ods_pk:
+        selected_object = _get_owned_ods_request_for_recap(owner_id, object_key)
+    else:
+        selected_object = _get_owned_request_object(owner_id, object_key, source_label=source_label)
     if not selected_object:
+        return redirect("home")
+    if ods_pk and not selected_object.get("geometry_json"):
         return redirect("home")
 
     selected_geometry = None

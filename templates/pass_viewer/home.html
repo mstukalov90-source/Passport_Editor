@@ -174,6 +174,39 @@
                                         </button>
                                     </div>
                                     <span class="source-badge source-badge--ods">{{ item.source_label|default:ods_request_source_label }}</span>
+                                    {% if item.request_id and item.ods_uses_gis_geometry %}
+                                        {% if item.recap_count %}
+                                        <button
+                                            type="button"
+                                            class="owned-recaps-open-btn"
+                                            style="align-self: center; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 8px; padding: 8px 10px; font-size: 13px; white-space: nowrap; cursor: pointer; font: inherit;"
+                                            title="Показать созданные досъёмы по этой заявке"
+                                            data-request-id="{{ item.request_id|default:'' }}"
+                                            data-name="{{ item.name|default:'' }}"
+                                            data-recap-count="{{ item.recap_count|default:0 }}"
+                                        >
+                                            Заявок на досъём: {{ item.recap_count|default:0 }}
+                                        </button>
+                                        {% else %}
+                                        <span
+                                            style="align-self: center; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 8px; padding: 8px 10px; font-size: 13px; white-space: nowrap;"
+                                            title="Количество заявок на досъём в recaps с этим request_id"
+                                        >
+                                            Заявок на досъём: 0
+                                        </span>
+                                        {% endif %}
+                                        <button
+                                            type="button"
+                                            class="add-recap-entry-btn"
+                                            style="background: #e0ecff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 10px; align-self: center; cursor: pointer; font: inherit;"
+                                            data-request-id="{{ item.request_id|default:'' }}"
+                                            data-name="{{ item.name|default:'' }}"
+                                            data-object-key="{{ item.object_key|default:'' }}"
+                                            data-source-label="{{ item.source_label|default:ods_request_source_label }}"
+                                        >
+                                            Заявка на досъём
+                                        </button>
+                                    {% endif %}
                                 {% else %}
                                 <input
                                     type="checkbox"
@@ -220,12 +253,26 @@
                                     {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
                                 </span>
                                 {% if item.request_id %}
+                                    {% if item.recap_count %}
+                                    <button
+                                        type="button"
+                                        class="owned-recaps-open-btn"
+                                        style="align-self: center; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 8px; padding: 8px 10px; font-size: 13px; white-space: nowrap; cursor: pointer; font: inherit;"
+                                        title="Показать созданные досъёмы по этой заявке"
+                                        data-request-id="{{ item.request_id|default:'' }}"
+                                        data-name="{{ item.name|default:'' }}"
+                                        data-recap-count="{{ item.recap_count|default:0 }}"
+                                    >
+                                        Заявок на досъём: {{ item.recap_count|default:0 }}
+                                    </button>
+                                    {% else %}
                                     <span
                                         style="align-self: center; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 8px; padding: 8px 10px; font-size: 13px; white-space: nowrap;"
                                         title="Количество заявок на досъём в recaps с этим request_id"
                                     >
-                                        Заявок на досъём: {{ item.recap_count|default:0 }}
+                                        Заявок на досъём: 0
                                     </span>
+                                    {% endif %}
                                     <button
                                         type="button"
                                         class="add-recap-entry-btn"
@@ -432,6 +479,24 @@
             <p class="note" style="margin: 0 0 14px;">Не найден объект для работы по заявке, сформируйте заявку вручную</p>
             <div style="display: flex; justify-content: flex-end;">
                 <button type="button" id="ods-gis-missing-ok-btn" style="background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;">ОК</button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        id="owned-recaps-modal"
+        style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1002; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 520px; padding: 18px; max-height: min(80vh, 640px); display: flex; flex-direction: column;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-shrink: 0;">
+                <h3 id="owned-recaps-modal-title" style="margin: 0; font-size: 18px;">Досъёмы по заявке</h3>
+                <button type="button" id="owned-recaps-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+            </div>
+            <p id="owned-recaps-modal-subtitle" class="note" style="margin: 0 0 12px; flex-shrink: 0;"></p>
+            <p id="owned-recaps-status" class="note" style="margin: 0 0 12px; flex-shrink: 0;"></p>
+            <div id="owned-recaps-list" style="overflow: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px;"></div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 14px; flex-shrink: 0;">
+                <button type="button" id="owned-recaps-done-btn" style="background: #e5e7eb; color: #111;">Закрыть</button>
             </div>
         </div>
     </div>
