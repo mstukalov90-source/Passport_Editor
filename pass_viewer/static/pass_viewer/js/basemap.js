@@ -4,6 +4,8 @@
 
     const MGGT_TILE_URL =
         'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}';
+    const SCALE_2000_TILE_URL =
+        'http://ngtst.mggt:8080/api/component/render/tile?resource=232992&nd=204&z={z}&x={x}&y={y}';
     const ERROR_TILE_URL =
         'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     /** Максимальный z, на котором сервер МГГТ отдаёт реальные тайлы; выше — Leaflet масштабирует уже загруженные. */
@@ -88,7 +90,7 @@
         };
         const parts = [];
         if (mggtAvailable) {
-            parts.push(btn('mggt', 'МГГТ'));
+            parts.push(btn('mggt', 'МГГТ'), btn('scale2000', '1:2000'));
         }
         parts.push(btn('topo', 'OSM'), btn('sat', 'Спутник'), btn('none', 'Без подложки'));
         return parts.join('');
@@ -168,7 +170,7 @@
 
     PassViewer.createBasemapLayers = function createBasemapLayers() {
         const commonTileOpts = { maxNativeZoom: 19, maxZoom: MAP_MAX_ZOOM };
-        const mggtLayer = L.tileLayer(MGGT_TILE_URL, {
+        const mggtTileOpts = {
             minZoom: 0,
             maxNativeZoom: MGGT_MAX_NATIVE_ZOOM,
             maxZoom: MAP_MAX_ZOOM,
@@ -177,6 +179,11 @@
             detectRetina: false,
             updateWhenZooming: false,
             updateWhenIdle: true,
+        };
+        const mggtLayer = L.tileLayer(MGGT_TILE_URL, mggtTileOpts);
+        const scale2000Layer = L.tileLayer(SCALE_2000_TILE_URL, {
+            ...mggtTileOpts,
+            attribution: '© МГГТ 1:2000',
         });
         const topoLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             ...commonTileOpts,
@@ -194,15 +201,17 @@
             },
         );
         bindTileLayerErrorHandling(mggtLayer, 'МГГТ');
+        bindTileLayerErrorHandling(scale2000Layer, '1:2000');
         bindTileLayerErrorHandling(topoLayer, 'OSM');
         bindTileLayerErrorHandling(satelliteLayer, 'Спутник');
-        return { mggtLayer, topoLayer, satelliteLayer };
+        return { mggtLayer, scale2000Layer, topoLayer, satelliteLayer };
     };
 
     PassViewer.attachBasemapControl = function attachBasemapControl(map, options) {
         const scopeRoot = options && options.scopeRoot;
-        const { mggtLayer, topoLayer, satelliteLayer } = PassViewer.createBasemapLayers();
-        const basemapLayers = [mggtLayer, topoLayer, satelliteLayer];
+        const { mggtLayer, scale2000Layer, topoLayer, satelliteLayer } =
+            PassViewer.createBasemapLayers();
+        const basemapLayers = [mggtLayer, scale2000Layer, topoLayer, satelliteLayer];
 
         const cachedAvailability = getCachedMggtAvailability();
         let mggtAvailable = cachedAvailability === true;
@@ -225,7 +234,7 @@
         }
 
         function setBasemap(mode) {
-            if (mode === 'mggt' && !mggtAvailable) {
+            if ((mode === 'mggt' || mode === 'scale2000') && !mggtAvailable) {
                 mode = 'topo';
             }
             currentMode = mode;
@@ -236,6 +245,8 @@
             });
             if (mode === 'mggt') {
                 map.addLayer(mggtLayer);
+            } else if (mode === 'scale2000') {
+                map.addLayer(scale2000Layer);
             } else if (mode === 'topo') {
                 map.addLayer(topoLayer);
             } else if (mode === 'sat') {
@@ -292,6 +303,6 @@
             });
         }
 
-        return { setBasemap, mggtLayer, topoLayer, satelliteLayer };
+        return { setBasemap, mggtLayer, scale2000Layer, topoLayer, satelliteLayer };
     };
 })(typeof window !== 'undefined' ? window : global);
