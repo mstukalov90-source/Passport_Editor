@@ -25,6 +25,9 @@
             <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>{% endif %}
         </h2>
         <div class="owned-home-header-actions">
+            <a href="{% url 'approval:landing' %}" class="user-guide-open-btn approval-home-link">
+                Уведомления{% if pending_approval_count %}<span class="approval-notifications-badge">{{ pending_approval_count }}</span>{% endif %}
+            </a>
             <button type="button" id="user-guide-open-btn" class="user-guide-open-btn">Инструкция пользования</button>
             <form method="post" action="{% url 'logout' %}" style="margin: 0;">
                 {% csrf_token %}
@@ -48,7 +51,16 @@
                     <div class="owned-list-tabs">
                         <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="passports">Актуальные паспорта</button>
                         <button type="button" class="owned-list-tab-btn" data-owned-list-tab="requests">Заявки</button>
+                        <button type="button" class="owned-list-tab-btn" data-owned-list-tab="approvals">Согласования</button>
                         <div id="owned-request-status-filter" class="owned-request-status-filter" hidden aria-label="Фильтр по статусу заявки"></div>
+                        <div id="owned-approval-select-wrap" class="owned-approval-select-wrap" hidden aria-label="Выбор согласования">
+                            <select id="owned-approval-select" class="owned-approval-select">
+                                <option value="">Все согласования</option>
+                                {% for item in approval_items %}
+                                    <option value="{{ item.id }}">{{ item.label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
                     <div class="owned-source-filters">
                         <button type="button" class="source-badge source-badge--dt owned-source-filter-btn is-active" data-source-filter="ДТ">ДТ</button>
@@ -301,6 +313,28 @@
                                 {% endif %}
                             </div>
                         {% endif %}
+                    {% endfor %}
+                </div>
+                <div class="owned-list-wrap owned-list-panel" data-list-panel="approvals">
+                    {% for item in approval_items %}
+                        <div
+                            class="owned-list-item owned-item owned-approval-row"
+                            data-approve-id="{{ item.id }}"
+                            data-rootid="{{ item.incoming_guid|lower }}"
+                            data-name="{{ item.label|lower }}"
+                        >
+                            <a
+                                href="{% url 'approval:landing' %}?approve={{ item.id }}"
+                                class="owned-list-open-btn owned-approval-open-link"
+                            >
+                                <strong>{{ item.label }}</strong><br>
+                                <span class="owned-approval-status{% if item.approved %} owned-approval-status--done{% endif %}">
+                                    {{ item.status_label }}
+                                </span>
+                            </a>
+                        </div>
+                    {% empty %}
+                        <p class="owned-approval-empty note">Нет доступных согласований.</p>
                     {% endfor %}
                 </div>
                 </div>

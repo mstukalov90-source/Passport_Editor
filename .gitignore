@@ -12,7 +12,9 @@ ENV/
 # =====================
 # Локальная папка с данными Postgres (если запускаете через Docker)
 postgres-data/
+postgres-data-local/
 pgdata/
+dumps/
 *.sql
 *.sql.gz
 *.dump

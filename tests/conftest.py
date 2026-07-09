@@ -9,8 +9,19 @@ os.environ.setdefault('DJANGO_ALLOW_ASYNC_UNSAFE', 'true')
 
 import pytest
 from django.core.management import call_command
+from django.db.backends.signals import connection_created
 
 pytest_plugins = ['pytest_playwright']
+
+
+def _ensure_approval_schema(sender, connection, **kwargs):
+    if connection.vendor != 'postgresql':
+        return
+    with connection.cursor() as cursor:
+        cursor.execute('CREATE SCHEMA IF NOT EXISTS approval')
+
+
+connection_created.connect(_ensure_approval_schema, dispatch_uid='approval_test_schema')
 
 
 @pytest.fixture(autouse=True)

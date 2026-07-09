@@ -20,13 +20,66 @@ python -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt -r requirements-dev.txt
 playwright install chromium
-cp .env.example .env       # при необходимости отредактировать пути GDAL и БД
-python manage.py migrate
-python manage.py ensure_e2e_user
+cp .env.example .env       # при необходимости отредактировать пути GDAL и QGIS_DB_*
+./scripts/local_postgis_up.sh
+./scripts/sync_geodb_from_prod.sh --save dumps/geodb_initial.sql.gz --yes   # первый раз: полный дамп с прода
+python manage.py check_db_connections
 python manage.py runserver
 ```
 
-Откройте http://127.0.0.1:8000/ — для входа используйте учётку из `.env` (`E2E_LOGIN` / `E2E_PASSWORD` после `ensure_e2e_user`).
+Откройте http://127.0.0.1:8000/ — логин учётками из таблицы `users` (после синхронизации с прода — те же, что на проде).
+
+Если контейнер пустой и дамп не нужен: `python manage.py migrate` и `python manage.py ensure_e2e_user`.
+
+### Локальная geodb (Docker)
+
+| Файл | Назначение |
+|------|------------|
+| [docker-compose.local.yml](docker-compose.local.yml) | PostGIS 16, контейнер `postgis-db`, порт `5433` |
+| [scripts/local_postgis_up.sh](scripts/local_postgis_up.sh) | Поднять контейнер |
+| [scripts/sync_geodb_from_prod.sh](scripts/sync_geodb_from_prod.sh) | Полная копия geodb с прода (только чтение прода) |
+
+Повторная заливка без обращения к проду:
+
+```bash
+./scripts/sync_geodb_from_prod.sh --from-file dumps/geodb_initial.sql.gz --yes
+```
+
+Скрипт синхронизации **пересоздаёт только локальную** `geodb`. Прод не изменяется (`pg_dump`). После заливки пароль роли `postgres` сбрасывается на `postgres` (как в `docker-compose.local.yml`).
+
+**Важно:** не держите одновременно SSH-туннель `ssh -L 5433:...` и локальный Docker на порту `5433` — подключения с Mac могут уйти на прод. Остановите туннель: `pkill -f 'ssh.*-L 5433:127.0.0.1:5433'`.
+
+### QGIS-витрина (alias `qgis`)
+
+Вторая БД в [`pass_map/settings.py`](pass_map/settings.py) — alias `qgis`, переменные `QGIS_DB_*`. Имя БД: **`mggt_asu`** на `172.21.197.51`.
+
+```text
+QGIS_DB_HOST=172.21.197.51
+QGIS_DB_PORT=5432
+QGIS_DB_NAME=mggt_asu
+QGIS_DB_USER=mstukalov
+QGIS_DB_PASSWORD=<ваш пароль>
+```
+
+Миграции Django на alias `qgis` **не запускать** — схема принадлежит QGIS.
+
+### Опционально: прод geodb через SSH
+
+Для отладки напрямую на прод-данных (не для ежедневной разработки): шаблон [`.env.prod-remote.example`](.env.prod-remote.example).
+
+```bash
+ssh -N -L 5433:127.0.0.1:5433 pasp-ssh-user@172.21.197.77
+```
+
+Остановите локальный `postgis-db`, если порт `5433` занят. **Не запускайте** `migrate` на прод geodb.
+
+### Проверка подключений
+
+```bash
+python manage.py check_db_connections
+```
+
+Проверяет `default` (локальная geodb) и `qgis` (mggt_asu).
 
 ### Сид данных (опционально)
 
@@ -70,8 +123,8 @@ pre-commit run --all-files  # прогон вручную до push
 Хуки: `ruff check --fix` для `pass_map/` и `pass_viewer/`.
 
 Smoke-тесты создают отдельную `test_geodb` и таблицу `users` через ORM (без полного `migrate` и без `pass_objects`).  
-Для разработки приложения по-прежнему нужны `python manage.py migrate` и сид GIS-таблиц.  
-Перед первым E2E: `playwright install chromium` и запущенный PostGIS.
+Для разработки с полными GIS-данными используйте `./scripts/sync_geodb_from_prod.sh` или сид из `import/`.  
+Перед первым E2E: `playwright install chromium` и запущенный PostGIS (`./scripts/local_postgis_up.sh`).
 
 ## CI
 
@@ -123,12 +176,16 @@ gh run watch
 | [tests/test_main_js_smoke.py](tests/test_main_js_smoke.py) | Символы main.js (смежные слои, auto-remove) |
 | [tests/e2e/test_smoke.py](tests/e2e/test_smoke.py) | Браузер: login, home, статика, page-config |
 | [pass_viewer/management/commands/ensure_e2e_user.py](pass_viewer/management/commands/ensure_e2e_user.py) | Тестовый пользователь в таблице `users` |
+| [pass_viewer/management/commands/check_db_connections.py](pass_viewer/management/commands/check_db_connections.py) | Проверка PostGIS: `default` (geodb) и `qgis` (mggt_asu) |
+| [scripts/local_postgis_up.sh](scripts/local_postgis_up.sh) | Локальный Docker PostGIS |
+| [scripts/sync_geodb_from_prod.sh](scripts/sync_geodb_from_prod.sh) | Полная синхронизация geodb с прода |
 
 ## Основные команды
 
 ```bash
 python manage.py migrate
 python manage.py ensure_e2e_user
+python manage.py check_db_connections
 python manage.py collectstatic --noinput
 python manage.py runserver
 ```

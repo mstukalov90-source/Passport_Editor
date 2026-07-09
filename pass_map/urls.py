@@ -29,6 +29,7 @@ urlpatterns = [
         name="login",
     ),
     path("accounts/", include("django.contrib.auth.urls")),
+    path("approval/", include("approval.urls")),
     path("", include("pass_viewer.urls")),
 ]
 

@@ -1,0 +1,79 @@
+<div class="approval-events" aria-label="События согласования">
+    <div class="approval-events__toolbar">
+        <div class="approval-events__title">События</div>
+        <button type="button" class="approval-events__create-btn" id="approval-create-event-btn" disabled>
+            Создать событие
+        </button>
+    </div>
+    <hr class="approval-events__divider" />
+
+    <section class="approval-events__section approval-events__section--secondary">
+        <h3 class="approval-events__section-title">Чаты дополнительных событий</h3>
+        <div class="approval-events__chat-area approval-events__chat-area--list" id="approval-secondary-chats">
+            <div id="approval-primary-event-card" class="approval-events__primary-event-slot" hidden></div>
+            <ul class="approval-event-list" id="approval-secondary-event-list"></ul>
+            <p class="approval-events__empty" id="approval-secondary-empty" hidden>Дополнительных событий пока нет.</p>
+        </div>
+    </section>
+
+    <section class="approval-events__section approval-events__section--primary">
+        <div class="approval-events__event-meta">
+            <h3 class="approval-events__section-title">Чат события</h3>
+            <span class="approval-events__status approval-events__status--active" id="approval-active-status"></span>
+        </div>
+        <p class="approval-events__event-name" id="approval-active-title"></p>
+        <div class="approval-events__approval-progress" id="approval-approval-progress" hidden></div>
+        <div class="approval-events__closed-banner" id="approval-closed-banner" hidden>Событие согласовано.</div>
+        <div class="approval-events__chat-area" id="approval-primary-chat">
+            <div class="approval-chat-thread" id="approval-chat-thread"></div>
+        </div>
+        <form class="approval-chat-composer" id="approval-chat-form" onsubmit="return false;">
+            <input
+                type="file"
+                id="approval-chat-files"
+                class="approval-chat-composer__files"
+                multiple
+                accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,image/jpeg,image/png,application/pdf"
+                hidden
+            />
+            <div class="approval-chat-composer__row">
+                <button type="button" class="approval-chat-composer__attach" id="approval-chat-attach-btn" title="Прикрепить файл">
+                    <svg class="approval-chat-composer__attach-icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1.5 1.5 0 0 1-3 0V6h1.5v9.5a.5.5 0 0 0 1 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6h1.5z"/>
+                    </svg>
+                    Прикрепить файл
+                </button>
+                <span class="approval-chat-composer__file-names" id="approval-chat-file-names"></span>
+            </div>
+            <textarea
+                id="approval-chat-input"
+                class="approval-chat-composer__input"
+                rows="2"
+                placeholder="Введите сообщение..."
+                aria-label="Текст сообщения"
+            ></textarea>
+            <div class="approval-chat-composer__actions">
+                <button type="button" class="approval-chat-composer__send" id="approval-chat-send-btn">Отправить</button>
+            </div>
+        </form>
+        <button type="button" class="approval-chat-composer__approve" id="approval-chat-approve-btn">Согласовать</button>
+    </section>
+</div>
+
+<dialog class="approval-event-dialog" id="approval-event-title-dialog">
+    <form method="dialog" class="approval-event-dialog__form" id="approval-event-title-form">
+        <h3 class="approval-event-dialog__title">Название события</h3>
+        <input
+            type="text"
+            id="approval-event-title-input"
+            class="approval-event-dialog__input"
+            maxlength="200"
+            required
+            placeholder="Например: Замечание по границе"
+        />
+        <div class="approval-event-dialog__actions">
+            <button type="button" class="approval-event-dialog__cancel" id="approval-event-title-cancel">Отмена</button>
+            <button type="submit" class="approval-event-dialog__submit">Создать</button>
+        </div>
+    </form>
+</dialog>

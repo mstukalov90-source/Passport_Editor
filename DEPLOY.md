@@ -26,7 +26,7 @@
 
 Секреты: **`/opt/passport_editor_new/.env`** (`DJANGO_*`, `POSTGIS_*` и т.д.) — не в репозитории.
 
-**Локальная БД для разработки:** Docker-контейнер `postgis-db`, БД `geodb` (как на проде по имени).
+**Локальная БД для разработки:** Docker-контейнер `postgis-db` через [`docker-compose.local.yml`](docker-compose.local.yml) (`./scripts/local_postgis_up.sh`), БД `geodb`, порт `5433`. Первичное наполнение: [`scripts/sync_geodb_from_prod.sh`](scripts/sync_geodb_from_prod.sh) (полный `pg_dump` с `172.21.197.77`, прод только читается).
 
 ## Переменные `.env` на проде
 

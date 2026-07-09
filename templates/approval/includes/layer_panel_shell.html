@@ -1,0 +1,47 @@
+<section class="approval-layer-panel" id="approval-layer-panel" aria-label="Панель управления слоями">
+    <div class="approval-layer-panel__header">
+        <h2 class="approval-layer-panel__title">Управление слоями</h2>
+        <button
+            type="button"
+            class="approval-layer-panel__toggle"
+            id="approval-layer-panel-toggle"
+            aria-expanded="true"
+            aria-controls="approval-layer-panel-body"
+            title="Свернуть панель слоёв"
+        >
+            <span class="approval-layer-panel__toggle-icon" aria-hidden="true"></span>
+        </button>
+    </div>
+    <div class="approval-layer-panel__body" id="approval-layer-panel-body">
+        {% if not layer_groups %}
+        <p class="approval-layer-panel__empty">Нет слоёв для отображения.</p>
+        {% endif %}
+        {% for group in layer_groups %}
+        <div class="approval-layer-group">
+            <label class="approval-layer-group__title">
+                <input
+                    type="checkbox"
+                    data-layer-group="{{ group.key }}"
+                    {% if group.checked %}checked{% endif %}
+                />
+                <span>{{ group.title }}</span>
+            </label>
+            {% for layer in group.layers %}
+            <label class="approval-layer-row">
+                <input
+                    type="checkbox"
+                    data-layer-key="{{ layer.key }}"
+                    {% if layer.checked %}checked{% endif %}
+                />
+                <span class="approval-layer-row__name" title="{{ layer.key }}">{{ layer.name }}</span>
+                <span class="approval-layer-row__count">({{ layer.count }})</span>
+                <span
+                    class="approval-layer-swatch approval-layer-swatch--{{ layer.swatch }}"
+                    style="border-color: {{ layer.swatch_style.borderColor }}; background: {{ layer.swatch_style.background }};"
+                ></span>
+            </label>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+</section>

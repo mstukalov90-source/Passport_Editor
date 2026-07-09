@@ -635,6 +635,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const ownedItems = Array.from(document.querySelectorAll('.owned-item'));
         const passportForms = Array.from(document.querySelectorAll('.owned-passport-row form.owned-open-form'));
         const requestStatusFilterEl = document.getElementById('owned-request-status-filter');
+        const approvalSelectWrapEl = document.getElementById('owned-approval-select-wrap');
+        const approvalSelectEl = document.getElementById('owned-approval-select');
+        const sourceFiltersEl = document.querySelector('.owned-source-filters');
         let statusFilterCheckboxes = [];
         let statusDropdownTrigger = null;
         let statusDropdownPanel = null;
@@ -691,6 +694,34 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (!show) {
                 setStatusDropdownOpen(false);
             }
+        }
+
+        function syncApprovalSelectVisibility() {
+            if (!approvalSelectWrapEl) {
+                return;
+            }
+            const approvalRows = document.querySelectorAll('.owned-approval-row');
+            const show =
+                getActiveOwnedListTab() === 'approvals' && approvalRows.length > 0;
+            approvalSelectWrapEl.hidden = !show;
+        }
+
+        function syncSourceFiltersVisibility() {
+            if (!sourceFiltersEl) {
+                return;
+            }
+            const activeTab = getActiveOwnedListTab();
+            sourceFiltersEl.hidden = activeTab === 'approvals';
+        }
+
+        function getOwnedItemTabName(item) {
+            if (item.classList.contains('owned-request-row')) {
+                return 'requests';
+            }
+            if (item.classList.contains('owned-approval-row')) {
+                return 'approvals';
+            }
+            return 'passports';
         }
 
         function initRequestStatusFilter() {
@@ -804,14 +835,15 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             const activeTab = getActiveOwnedListTab();
             const selectedSources = getSelectedSourceSet();
             const selectedStatuses = getSelectedRequestStatusSet();
+            const selectedApproveId = (approvalSelectEl?.value || '').trim();
             ownedItems.forEach((item) => {
                 const rootidValue = item.dataset.rootid || '';
                 const nameValue = item.dataset.name || '';
                 const sourceLabel = normalizeOwnedSourceLabel(item.dataset.sourceLabel || 'ДТ');
-                const tabName = item.classList.contains('owned-request-row') ? 'requests' : 'passports';
+                const tabName = getOwnedItemTabName(item);
                 const rootidMatch = !rootidNeedle || rootidValue.includes(rootidNeedle);
                 const nameMatch = !nameNeedle || nameValue.includes(nameNeedle);
-                const sourceMatch = selectedSources.has(sourceLabel);
+                const sourceMatch = activeTab === 'approvals' || selectedSources.has(sourceLabel);
                 const tabMatch = tabName === activeTab;
                 const rowStatus = (item.dataset.requestStatus || '').trim();
                 const statusMatch =
@@ -819,10 +851,19 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     !rowStatus ||
                     selectedStatuses === null ||
                     selectedStatuses.has(rowStatus);
+                const approveId = (item.dataset.approveId || '').trim();
+                const approvalMatch =
+                    activeTab !== 'approvals' ||
+                    !selectedApproveId ||
+                    approveId === selectedApproveId;
                 item.style.display =
-                    rootidMatch && nameMatch && sourceMatch && tabMatch && statusMatch ? '' : 'none';
+                    rootidMatch && nameMatch && sourceMatch && tabMatch && statusMatch && approvalMatch
+                        ? ''
+                        : 'none';
             });
             syncRequestStatusFilterVisibility();
+            syncApprovalSelectVisibility();
+            syncSourceFiltersVisibility();
             if (typeof applyOwnedMapSourceFilters === 'function') {
                 applyOwnedMapSourceFilters();
             }
@@ -874,8 +915,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     filterNameEl.value = '';
                 }
                 resetRequestStatusFilter();
+                if (approvalSelectEl) {
+                    approvalSelectEl.value = '';
+                }
                 applyOwnedFilters();
             });
+        }
+        if (approvalSelectEl) {
+            approvalSelectEl.addEventListener('change', applyOwnedFilters);
         }
         initRequestStatusFilter();
         listTabButtons.forEach((btn) => {

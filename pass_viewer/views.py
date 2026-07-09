@@ -35,6 +35,9 @@ from .page_config import (
 )
 from .user_guide import load_user_guide_html
 
+from approval.access import get_accessible_approves
+from approval.events_service import serialize_approve_option
+
 logger = logging.getLogger(__name__)
 
 
@@ -4546,6 +4549,8 @@ def home(request):
     hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
     owned_objects_error = None
     ods_user_brids = []
+    approval_items = []
+    pending_approval_count = 0
     try:
         owner_id = _get_current_user_owner_id(request.user.username)
         if owner_id is not None:
@@ -4568,6 +4573,9 @@ def home(request):
                     hood_work_area_geojson = get_hood_allowed_districts_geojson(hood_cur, owner_id)
             except Exception:
                 hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
+            accessible_approves = get_accessible_approves(owner_id)
+            approval_items = [serialize_approve_option(item) for item in accessible_approves]
+            pending_approval_count = accessible_approves.filter(approved=False).count()
     except Exception:
         owned_objects_error = (
             "Не удалось получить список объектов пользователя. Проверьте поле OwnerLegalPersonId в таблице users."
@@ -4589,6 +4597,8 @@ def home(request):
             "need_entry_request_id": need_entry_request_id,
             "ods_request_source_label": getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
             "ods_user_brids": ods_user_brids,
+            "approval_items": approval_items,
+            "pending_approval_count": pending_approval_count,
             "page_config": home_page_config(
                 need_entry_request_id=need_entry_request_id,
                 ods_source_label=getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),

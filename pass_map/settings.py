@@ -14,8 +14,12 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
@@ -41,6 +45,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "pass_viewer",
+    "approval",
 ]
 
 MIDDLEWARE = [
@@ -79,6 +84,13 @@ WSGI_APPLICATION = "pass_map.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+def _db_connect_timeout(env_name: str, default: str = "10") -> int:
+    try:
+        return int(os.getenv(env_name, default))
+    except (TypeError, ValueError):
+        return 10
+
+
 DATABASES = {
     "default": {
         "ENGINE": "django.contrib.gis.db.backends.postgis",
@@ -87,7 +99,21 @@ DATABASES = {
         "PASSWORD": os.getenv("POSTGIS_DB_PASSWORD", "postgres"),
         "HOST": os.getenv("POSTGIS_DB_HOST", "localhost"),
         "PORT": os.getenv("POSTGIS_DB_PORT", "5433"),
-    }
+        "OPTIONS": {
+            "connect_timeout": _db_connect_timeout("POSTGIS_DB_CONNECT_TIMEOUT"),
+        },
+    },
+    "qgis": {
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "NAME": os.getenv("QGIS_DB_NAME", "mggt_asu"),
+        "USER": os.getenv("QGIS_DB_USER", ""),
+        "PASSWORD": os.getenv("QGIS_DB_PASSWORD", ""),
+        "HOST": os.getenv("QGIS_DB_HOST", "172.21.197.51"),
+        "PORT": os.getenv("QGIS_DB_PORT", "5432"),
+        "OPTIONS": {
+            "connect_timeout": _db_connect_timeout("QGIS_DB_CONNECT_TIMEOUT"),
+        },
+    },
 }
 
 
@@ -206,6 +232,41 @@ GIS_RZD_SIGNAL_GEOJSON_DECIMALS = int(os.getenv("GIS_RZD_SIGNAL_GEOJSON_DECIMALS
 # GeoDjango library paths (macOS Homebrew).
 GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH", "/opt/homebrew/lib/libgdal.dylib")
 GEOS_LIBRARY_PATH = os.getenv("GEOS_LIBRARY_PATH", "/opt/homebrew/lib/libgeos_c.dylib")
+
+# Approval map: mggt_asu.work schema (alias qgis, read-only).
+APPROVAL_WORK_SCHEMA = os.getenv("APPROVAL_WORK_SCHEMA", "work")
+APPROVAL_WORK_GEOM_COLUMN = os.getenv("APPROVAL_WORK_GEOM_COLUMN", "Geometry")
+APPROVAL_WORK_TASKGUID_COLUMN = os.getenv("APPROVAL_WORK_TASKGUID_COLUMN", "TaskGUID")
+try:
+    APPROVAL_WORK_SOURCE_SRID = int(os.getenv("APPROVAL_WORK_SOURCE_SRID", "980077"))
+except (TypeError, ValueError):
+    APPROVAL_WORK_SOURCE_SRID = 980077
+try:
+    APPROVAL_WORK_MAX_FEATURES = int(os.getenv("APPROVAL_WORK_MAX_FEATURES", "5000"))
+except (TypeError, ValueError):
+    APPROVAL_WORK_MAX_FEATURES = 5000
+
+APPROVAL_ATTACHMENT_ALLOWED_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".pdf",
+    ".doc",
+    ".docx",
+}
+try:
+    APPROVAL_ATTACHMENT_MAX_BYTES = int(os.getenv("APPROVAL_ATTACHMENT_MAX_BYTES", str(10 * 1024 * 1024)))
+except (TypeError, ValueError):
+    APPROVAL_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+
+# Approval map layer styles (QML sources + generated manifest).
+APPROVAL_LAYER_STYLES_ROOT = BASE_DIR / "approval" / "layer_styles"
+APPROVAL_LAYER_STYLES_QML_DIR = APPROVAL_LAYER_STYLES_ROOT / "qml"
+APPROVAL_LAYER_STYLES_SQL = APPROVAL_LAYER_STYLES_ROOT / "create_work.sql"
+APPROVAL_LAYER_STYLES_SVG_SOURCE = APPROVAL_LAYER_STYLES_ROOT / "svg"
+APPROVAL_LAYER_STYLES_MANIFEST = BASE_DIR / "approval" / "static" / "approval" / "work_layer_styles.json"
+APPROVAL_LAYER_STYLES_SVG_STATIC = BASE_DIR / "approval" / "static" / "approval" / "icons" / "svg"
+APPROVAL_LAYER_STYLES_SVG_INDEX = BASE_DIR / "approval" / "static" / "approval" / "svg_index.json"
 
 # Django admin at /admin/ (on VPS set DJANGO_ENABLE_ADMIN=0 in .env).
 ENABLE_DJANGO_ADMIN = os.getenv("DJANGO_ENABLE_ADMIN", "1") not in ("0", "false", "False")
