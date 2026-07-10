@@ -53,12 +53,11 @@
                         <button type="button" class="owned-list-tab-btn" data-owned-list-tab="requests">Заявки</button>
                         <button type="button" class="owned-list-tab-btn" data-owned-list-tab="approvals">Согласования</button>
                         <div id="owned-request-status-filter" class="owned-request-status-filter" hidden aria-label="Фильтр по статусу заявки"></div>
-                        <div id="owned-approval-select-wrap" class="owned-approval-select-wrap" hidden aria-label="Выбор согласования">
+                        <div id="owned-approval-select-wrap" class="owned-approval-select-wrap" hidden aria-label="Фильтр по статусу согласования">
                             <select id="owned-approval-select" class="owned-approval-select">
                                 <option value="">Все согласования</option>
-                                {% for item in approval_items %}
-                                    <option value="{{ item.id }}">{{ item.label }}</option>
-                                {% endfor %}
+                                <option value="В работе">В работе</option>
+                                <option value="Согласовано">Согласовано</option>
                             </select>
                         </div>
                     </div>
@@ -320,8 +319,9 @@
                         <div
                             class="owned-list-item owned-item owned-approval-row"
                             data-approve-id="{{ item.id }}"
+                            data-approval-status="{{ item.status_label }}"
                             data-rootid="{{ item.incoming_guid|lower }}"
-                            data-name="{{ item.label|lower }}"
+                            data-name="{{ item.name|default:item.label|lower }}"
                         >
                             <a
                                 href="{% url 'approval:landing' %}?approve={{ item.id }}"

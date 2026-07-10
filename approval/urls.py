@@ -7,6 +7,7 @@ app_name = "approval"
 
 urlpatterns = [
     path("", landing, name="landing"),
+    path("api/qgis/approves/", api_views.api_qgis_upsert_approve, name="api_qgis_upsert_approve"),
     path("api/bootstrap/", api_views.api_bootstrap, name="api_bootstrap"),
     path("api/cases/", api_views.api_create_case, name="api_create_case"),
     path("api/cases/<uuid:case_id>/", api_views.api_case_detail, name="api_case_detail"),

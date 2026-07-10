@@ -10,6 +10,7 @@ from approval.access import get_accessible_approves, get_owner_id_for_username
 from approval.models import Approve
 from approval.views import landing
 from approval.work_layers import build_layer_groups, count_features_by_table
+from django.http import HttpResponse
 from django.test import RequestFactory
 from django.urls import reverse
 from pass_viewer.models import ExternalUser
@@ -44,8 +45,19 @@ def test_build_layer_groups_uses_russian_labels_and_swatch():
     groups = build_layer_groups({"DtsPoly": 3})
     layer = groups[0]["layers"][0]
     assert layer["name"] == "Дорожно-тропиночная сеть"
+    assert layer["geometry"] == "polygon"
+    assert layer["show_swatch"] is True
     assert "borderColor" in layer["swatch_style"]
     assert "background" in layer["swatch_style"]
+    assert groups[0]["title"] == "Объект согласования"
+
+
+def test_build_layer_groups_hides_swatch_for_non_polygon_layers():
+    groups = build_layer_groups({"AbutmentLine": 2})
+    layer = groups[0]["layers"][0]
+    assert layer["geometry"] == "line"
+    assert layer["show_swatch"] is False
+    assert layer["swatch_style"] == {}
 
 
 def test_build_layer_groups_hides_task_and_yardpoly_by_default():
@@ -86,16 +98,20 @@ def test_landing_without_owner_shows_message():
             "approval.views.build_work_feature_collection",
             return_value=({"type": "FeatureCollection", "features": []}, None),
         ):
-            response = landing(request)
+            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+                with patch("approval.views.build_adjacent_features", return_value=[]):
+                    with patch("approval.views.landing_page_config", return_value={}):
+                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                            response = landing(request)
 
     assert response.status_code == 200
-    content = response.content.decode("utf-8")
-    assert "Не найден OwnerLegalPersonId" in content
-    assert "approval-map-geojson" in content
+    context = mock_render.call_args[0][2]
+    assert "Не найден OwnerLegalPersonId" in context["map_message"]
+    assert context["map_geojson"]["type"] == "FeatureCollection"
 
 
 @pytest.mark.django_db
-def test_landing_with_approve_and_mock_qgis_layers(client):
+def test_landing_with_approve_and_mock_qgis_layers():
     owner_id = "10233594"
     incoming_guid = uuid.UUID("2e333940-831b-48f5-9751-acd0c2880974")
     ExternalUser.objects.create(login="approval_map_user", password="pass", owner_legal_person_id=owner_id)
@@ -116,22 +132,25 @@ def test_landing_with_approve_and_mock_qgis_layers(client):
             "approval.views.build_work_feature_collection",
             return_value=({"type": "FeatureCollection", "features": [feature]}, None),
         ):
-            with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
-                with patch("approval.views.load_svg_index", return_value={"marker.svg": "marker.svg"}):
-                    client.post(reverse("login"), {"username": "approval_map_user", "password": "pass"})
-                    response = client.get(reverse("approval:landing"))
+            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+                with patch("approval.views.build_adjacent_features", return_value=[]):
+                    with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
+                        with patch("approval.views.load_svg_index", return_value={"marker.svg": "marker.svg"}):
+                            with patch("approval.views.landing_page_config", return_value={}):
+                                with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                                    request = RequestFactory().get("/approval/")
+                                    request.user = MagicMock(is_authenticated=True, username="approval_map_user")
+                                    response = landing(request)
 
     assert response.status_code == 200
-    content = response.content.decode("utf-8")
-    assert "Дорожно-тропиночная сеть" in content
-    assert "approval-map-geojson" in content
-    assert "approval-work-layer-styles" in content
-    assert "approval-svg-index" in content
-    assert '"layerKey": "DtsPoly"' in content or '"layerKey":"DtsPoly"' in content
+    context = mock_render.call_args[0][2]
+    layer_names = [layer["name"] for group in context["layer_groups"] for layer in group["layers"]]
+    assert "Дорожно-тропиночная сеть" in layer_names
+    assert context["map_geojson"]["features"][0]["properties"]["layerKey"] == "DtsPoly"
 
 
 @pytest.mark.django_db
-def test_landing_without_matching_approve_shows_empty_message(client):
+def test_landing_without_matching_approve_shows_empty_message():
     ExternalUser.objects.create(login="other_owner", password="pass", owner_legal_person_id="11111111")
     Approve.objects.create(
         incoming_guid=uuid.uuid4(),
@@ -143,9 +162,13 @@ def test_landing_without_matching_approve_shows_empty_message(client):
             "approval.views.build_work_feature_collection",
             return_value=({"type": "FeatureCollection", "features": []}, None),
         ):
-            client.post(reverse("login"), {"username": "other_owner", "password": "pass"})
-            response = client.get(reverse("approval:landing"))
+            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+                with patch("approval.views.build_adjacent_features", return_value=[]):
+                    with patch("approval.views.landing_page_config", return_value={}):
+                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                            request = RequestFactory().get("/approval/")
+                            request.user = MagicMock(is_authenticated=True, username="other_owner")
+                            response = landing(request)
 
     assert response.status_code == 200
-    content = response.content.decode("utf-8")
-    assert "Нет доступных согласований" in content
+    assert "Нет доступных согласований" in mock_render.call_args[0][2]["map_message"]

@@ -2,7 +2,7 @@
     'use strict';
 
     let activeDrawer = null;
-    let createMode = false;
+    let drawMode = false;
     let brushMode = null;
     let brushDrawing = false;
     let brushLatLngs = [];
@@ -32,9 +32,9 @@
         brushDrawing = false;
     }
 
-    function stopCreateMode() {
+    function stopDrawMode() {
         const map = getMap();
-        createMode = false;
+        drawMode = false;
         brushMode = null;
         stopActiveDrawer();
         clearBrushPreview();
@@ -63,7 +63,7 @@
         if (!geometry) {
             return;
         }
-        stopCreateMode();
+        stopDrawMode();
         if (typeof geometryCompleteCallback === 'function') {
             geometryCompleteCallback(geometry);
         }
@@ -127,7 +127,7 @@
         }
 
         map.on(L.Draw.Event.CREATED, function (event) {
-            if (!createMode) {
+            if (!drawMode) {
                 return;
             }
             const geometry = layerToGeoJSON(event.layer);
@@ -138,7 +138,7 @@
         });
 
         map.on('mousedown', function (event) {
-            if (!createMode || !brushMode) {
+            if (!drawMode || !brushMode) {
                 return;
             }
             brushDrawing = true;
@@ -153,7 +153,7 @@
         });
 
         map.on('mousemove', function (event) {
-            if (!createMode || !brushMode || !brushDrawing) {
+            if (!drawMode || !brushMode || !brushDrawing) {
                 return;
             }
             brushLatLngs.push(event.latlng);
@@ -163,7 +163,7 @@
         });
 
         map.on('mouseup', function () {
-            if (!createMode || !brushMode || !brushDrawing) {
+            if (!drawMode || !brushMode || !brushDrawing) {
                 return;
             }
             brushDrawing = false;
@@ -191,13 +191,13 @@
         });
     }
 
-    function startCreateMode(onComplete) {
+    function startDrawMode(onComplete) {
         const map = getMap();
         if (!map) {
             return;
         }
         geometryCompleteCallback = onComplete;
-        createMode = true;
+        drawMode = true;
         const toolbar = document.getElementById('approval-draw-toolbar');
         if (toolbar) {
             toolbar.hidden = false;
@@ -221,7 +221,7 @@
 
         toolbar.querySelectorAll('[data-draw-tool]').forEach(function (button) {
             button.addEventListener('click', function () {
-                if (!createMode) {
+                if (!drawMode) {
                     return;
                 }
                 startDrawer(button.dataset.drawTool);
@@ -230,7 +230,7 @@
 
         if (cancelBtn) {
             cancelBtn.addEventListener('click', function () {
-                stopCreateMode();
+                stopDrawMode();
                 geometryCompleteCallback = null;
             });
         }
@@ -242,7 +242,9 @@
     });
 
     window.ApprovalEventDraw = {
-        startCreateMode: startCreateMode,
-        stopCreateMode: stopCreateMode,
+        startDrawMode: startDrawMode,
+        stopDrawMode: stopDrawMode,
+        startCreateMode: startDrawMode,
+        stopCreateMode: stopDrawMode,
     };
 })();

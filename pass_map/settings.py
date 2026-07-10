@@ -245,6 +245,8 @@ try:
     APPROVAL_WORK_MAX_FEATURES = int(os.getenv("APPROVAL_WORK_MAX_FEATURES", "5000"))
 except (TypeError, ValueError):
     APPROVAL_WORK_MAX_FEATURES = 5000
+APPROVAL_ADJACENT_POLY_TABLES = ["YardPoly", "OznPoly", "OdhPoly"]
+APPROVAL_WORK_ROOTID_COLUMN = os.getenv("APPROVAL_WORK_ROOTID_COLUMN", "RootId")
 
 APPROVAL_ATTACHMENT_ALLOWED_EXTENSIONS = {
     ".jpg",
@@ -258,6 +260,20 @@ try:
     APPROVAL_ATTACHMENT_MAX_BYTES = int(os.getenv("APPROVAL_ATTACHMENT_MAX_BYTES", str(10 * 1024 * 1024)))
 except (TypeError, ValueError):
     APPROVAL_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+
+# QGIS ingest API: only callable via internal server address (not public reverse-proxy host).
+APPROVAL_QGIS_ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv(
+        "APPROVAL_QGIS_ALLOWED_HOSTS",
+        "172.21.197.77,127.0.0.1,localhost,testserver",
+    ).split(",")
+    if host.strip()
+]
+APPROVAL_QGIS_API_URL = os.getenv(
+    "APPROVAL_QGIS_API_URL",
+    "http://172.21.197.77/approval/api/qgis/approves/",
+)
 
 # Approval map layer styles (QML sources + generated manifest).
 APPROVAL_LAYER_STYLES_ROOT = BASE_DIR / "approval" / "layer_styles"

@@ -6,7 +6,8 @@
         cases: [],
         activeCaseId: null,
         selectedApproveId: null,
-        pendingGeometry: null,
+        pendingMessageGeometry: null,
+        activeMessageGeometryId: null,
     };
 
     function el(id) {
@@ -89,6 +90,94 @@
             .replace(/"/g, '&quot;');
     }
 
+    function updateGeometryHint() {
+        const hint = el('approval-chat-geometry-hint');
+        if (!hint) {
+            return;
+        }
+        if (state.pendingMessageGeometry) {
+            hint.hidden = false;
+            hint.innerHTML =
+                'Геометрия добавлена к сообщению. ' +
+                '<button type="button" class="approval-chat-composer__geometry-hint-btn" data-geometry-action="edit">Изменить</button> ' +
+                '<button type="button" class="approval-chat-composer__geometry-hint-btn" data-geometry-action="remove">Убрать</button>';
+            const editBtn = hint.querySelector('[data-geometry-action="edit"]');
+            const removeBtn = hint.querySelector('[data-geometry-action="remove"]');
+            if (editBtn) {
+                editBtn.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    startGeometryDrawMode();
+                });
+            }
+            if (removeBtn) {
+                removeBtn.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    clearPendingMessageGeometry();
+                });
+            }
+        } else {
+            hint.hidden = true;
+            hint.innerHTML = '';
+        }
+    }
+
+    function setPendingMessageGeometry(geometry) {
+        state.pendingMessageGeometry = geometry;
+        if (mapApi().setPendingMessageGeometry) {
+            mapApi().setPendingMessageGeometry(geometry);
+        }
+        updateGeometryHint();
+    }
+
+    function clearPendingMessageGeometry(options) {
+        const opts = options || {};
+        state.pendingMessageGeometry = null;
+        if (mapApi().clearPendingMessageGeometry) {
+            mapApi().clearPendingMessageGeometry();
+        }
+        updateGeometryHint();
+        if (opts.stopDraw !== false) {
+            drawApi().stopDrawMode();
+        }
+    }
+
+    function startGeometryDrawMode() {
+        const caseItem = findCase(state.activeCaseId);
+        if (!caseItem || caseItem.approved) {
+            return;
+        }
+        clearPendingMessageGeometry({ stopDraw: false });
+        const startDraw = drawApi().startDrawMode || drawApi().startCreateMode;
+        if (typeof startDraw !== 'function') {
+            return;
+        }
+        startDraw(function (geometry) {
+            setPendingMessageGeometry(geometry);
+        });
+    }
+
+    function bindMessageGeometryClicks() {
+        const thread = el('approval-chat-thread');
+        if (!thread) {
+            return;
+        }
+        thread.querySelectorAll('.approval-chat-message--has-geometry').forEach(function (article) {
+            article.addEventListener('click', function () {
+                const messageId = article.dataset.messageId;
+                if (!messageId) {
+                    return;
+                }
+                state.activeMessageGeometryId = messageId;
+                thread.querySelectorAll('.approval-chat-message--geometry-active').forEach(function (node) {
+                    node.classList.remove('approval-chat-message--geometry-active');
+                });
+                article.classList.add('approval-chat-message--geometry-active');
+                mapApi().highlightMessageGeometry(messageId);
+                mapApi().fitMessageGeometry(messageId);
+            });
+        });
+    }
+
     function renderChatMessages(messages) {
         const thread = el('approval-chat-thread');
         if (!thread) {
@@ -101,9 +190,22 @@
         thread.innerHTML = messages
             .map(function (message) {
                 const ownClass = message.is_own ? ' approval-chat-message--own' : '';
+                const geometryClass = message.geometry ? ' approval-chat-message--has-geometry' : '';
+                const activeClass =
+                    state.activeMessageGeometryId &&
+                    String(message.id) === String(state.activeMessageGeometryId)
+                        ? ' approval-chat-message--geometry-active'
+                        : '';
+                const geometryBadge = message.geometry
+                    ? '<p class="approval-chat-message__geometry-badge">Геометрия</p>'
+                    : '';
                 return (
                     '<article class="approval-chat-message' +
                     ownClass +
+                    geometryClass +
+                    activeClass +
+                    '" data-message-id="' +
+                    escapeHtml(message.id) +
                     '">' +
                     '<header class="approval-chat-message__header">' +
                     '<span class="approval-chat-message__author">' +
@@ -116,11 +218,13 @@
                     '<p class="approval-chat-message__text">' +
                     escapeHtml(message.text) +
                     '</p>' +
+                    geometryBadge +
                     renderAttachments(message) +
                     '</article>'
                 );
             })
             .join('');
+        bindMessageGeometryClicks();
         thread.scrollTop = thread.scrollHeight;
     }
 
@@ -130,6 +234,7 @@
         const sendBtn = el('approval-chat-send-btn');
         const approveBtn = el('approval-chat-approve-btn');
         const attachBtn = el('approval-chat-attach-btn');
+        const geometryBtn = el('approval-chat-geometry-btn');
         const filesInput = el('approval-chat-files');
         const closedBanner = el('approval-closed-banner');
         const progress = el('approval-approval-progress');
@@ -142,6 +247,9 @@
         }
         if (attachBtn) {
             attachBtn.disabled = closed;
+        }
+        if (geometryBtn) {
+            geometryBtn.disabled = closed;
         }
         if (filesInput) {
             filesInput.disabled = closed;
@@ -167,10 +275,17 @@
             renderChatMessages([]);
             updateComposerState(null);
             mapApi().highlightCase(null);
+            mapApi().renderGeometries(null);
+            clearPendingMessageGeometry();
             return;
         }
 
+        const previousCaseId = state.activeCaseId;
         state.activeCaseId = caseItem.id;
+        if (previousCaseId && previousCaseId !== caseItem.id) {
+            clearPendingMessageGeometry();
+        }
+        state.activeMessageGeometryId = null;
         el('approval-active-title').textContent = caseItem.title;
         const statusEl = el('approval-active-status');
         statusEl.textContent = caseItem.status;
@@ -178,6 +293,7 @@
             'approval-events__status approval-events__status--' + (caseItem.status_class || 'active');
 
         mapApi().highlightCase(caseItem.id);
+        mapApi().renderGeometries(caseItem);
         const fitMap = !options || options.fitMap !== false;
         if (fitMap) {
             mapApi().fitCaseGeometry(caseItem.id);
@@ -315,13 +431,6 @@
         renderEventNav(split);
     }
 
-    function updateCreateButtonState() {
-        const createBtn = el('approval-create-event-btn');
-        if (createBtn) {
-            createBtn.disabled = !state.selectedApproveId;
-        }
-    }
-
     async function loadBootstrap(approveId) {
         let url = state.config.apiUrls.bootstrap;
         if (approveId) {
@@ -330,8 +439,6 @@
         const data = await fetchJson(url);
         state.cases = data.cases || [];
         state.selectedApproveId = data.selected_approve_id;
-        updateCreateButtonState();
-        mapApi().renderEventGeometries(state.cases);
 
         const split = splitCases(state.cases);
         renderEventNav(split);
@@ -345,61 +452,6 @@
         }
     }
 
-    async function createCase(title, geometry) {
-        const payload = {
-            approve_id: state.selectedApproveId,
-            title: title,
-            geometry: geometry,
-        };
-        const data = await fetchJson(state.config.apiUrls.createCase, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        const created = data.case;
-        state.cases.push(
-            Object.assign({}, created, {
-                messages_count: (created.messages || []).length,
-                preview: created.messages && created.messages.length ? created.messages[0].text : '',
-            })
-        );
-        mapApi().renderEventGeometries(state.cases);
-        const split = splitCases(state.cases);
-        renderEventNav(split);
-        await openCase(created.id, { fitMap: false });
-    }
-
-    function showTitleDialog(geometry) {
-        state.pendingGeometry = geometry;
-        const dialog = el('approval-event-title-dialog');
-        const input = el('approval-event-title-input');
-        if (!dialog || !input) {
-            return;
-        }
-        input.value = '';
-        dialog.showModal();
-        input.focus();
-    }
-
-    async function submitTitleDialog(event) {
-        event.preventDefault();
-        const input = el('approval-event-title-input');
-        const dialog = el('approval-event-title-dialog');
-        const title = (input && input.value || '').trim();
-        if (!title || !state.pendingGeometry) {
-            return;
-        }
-        try {
-            await createCase(title, state.pendingGeometry);
-            state.pendingGeometry = null;
-            if (dialog) {
-                dialog.close();
-            }
-        } catch (error) {
-            window.alert(error.message || 'Не удалось создать событие.');
-        }
-    }
-
     async function sendMessage() {
         const caseItem = findCase(state.activeCaseId);
         if (!caseItem || caseItem.approved) {
@@ -409,7 +461,7 @@
         const filesInput = el('approval-chat-files');
         const body = (input && input.value || '').trim();
         const files = filesInput && filesInput.files ? Array.from(filesInput.files) : [];
-        if (!body && !files.length) {
+        if (!body && !files.length && !state.pendingMessageGeometry) {
             return;
         }
 
@@ -418,6 +470,9 @@
         files.forEach(function (file) {
             formData.append('files', file);
         });
+        if (state.pendingMessageGeometry) {
+            formData.append('geometry', JSON.stringify(state.pendingMessageGeometry));
+        }
 
         const data = await fetchJson(
             mapApi().apiUrl(state.config.apiUrls.postMessage, { caseId: state.activeCaseId }),
@@ -431,6 +486,7 @@
             filesInput.value = '';
         }
         el('approval-chat-file-names').textContent = '';
+        clearPendingMessageGeometry();
 
         const index = state.cases.findIndex(function (item) {
             return item.id === state.activeCaseId;
@@ -460,26 +516,24 @@
     }
 
     function bindUi() {
-        const createBtn = el('approval-create-event-btn');
         const sendBtn = el('approval-chat-send-btn');
         const approveBtn = el('approval-chat-approve-btn');
         const attachBtn = el('approval-chat-attach-btn');
+        const geometryBtn = el('approval-chat-geometry-btn');
         const filesInput = el('approval-chat-files');
-        const titleForm = el('approval-event-title-form');
-        const titleCancel = el('approval-event-title-cancel');
 
-        if (createBtn) {
-            createBtn.addEventListener('click', function () {
-                if (!state.selectedApproveId) {
-                    return;
-                }
-                drawApi().startCreateMode(function (geometry) {
-                    showTitleDialog(geometry);
-                });
-            });
-        }
         if (sendBtn) {
             sendBtn.addEventListener('click', function () {
+                sendMessage().catch(showError);
+            });
+        }
+        const chatInput = el('approval-chat-input');
+        if (chatInput) {
+            chatInput.addEventListener('keydown', function (event) {
+                if (event.key !== 'Enter' || event.shiftKey) {
+                    return;
+                }
+                event.preventDefault();
                 sendMessage().catch(showError);
             });
         }
@@ -501,17 +555,9 @@
                 el('approval-chat-file-names').textContent = names;
             });
         }
-        if (titleForm) {
-            titleForm.addEventListener('submit', submitTitleDialog);
-        }
-        if (titleCancel) {
-            titleCancel.addEventListener('click', function () {
-                state.pendingGeometry = null;
-                const dialog = el('approval-event-title-dialog');
-                if (dialog) {
-                    dialog.close();
-                }
-                drawApi().stopCreateMode();
+        if (geometryBtn) {
+            geometryBtn.addEventListener('click', function () {
+                startGeometryDrawMode();
             });
         }
     }
@@ -527,7 +573,6 @@
         }
         bindUi();
         state.selectedApproveId = state.config.selectedApproveId || null;
-        updateCreateButtonState();
         loadBootstrap(state.config.selectedApproveId).catch(showError);
     });
 })();

@@ -10,20 +10,26 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from .access import get_accessible_approve, get_accessible_approves, get_owner_id_for_username, user_can_access_case
+from .access import get_accessible_approve, get_accessible_approves, get_accessible_cases_queryset, get_owner_id_for_username, user_can_access_case
 from .events_service import (
+    ApproveAlreadyApprovedError,
+    attach_geometry_to_message,
     create_case_with_geometry,
     get_cases_queryset,
+    parse_geometry_payload,
     record_case_approval,
     serialize_approve_option,
     serialize_case_detail,
     serialize_case_summary,
     serialize_message,
+    upsert_approve_from_qgis,
     validate_attachment_file,
 )
 from .models import Case, CaseMessage, CaseMessageAttachment
+from .qgis_access import qgis_api_host_allowed
 
 
 def _json_error(message, *, status=400):
@@ -45,6 +51,31 @@ def _parse_json_body(request):
     except (UnicodeDecodeError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+@csrf_exempt
+@require_POST
+def api_qgis_upsert_approve(request):
+    if not qgis_api_host_allowed(request):
+        return _json_error(
+            "QGIS API доступен только по внутреннему адресу сервера (172.21.197.77).",
+            status=403,
+        )
+
+    payload = _parse_json_body(request)
+    if payload is None:
+        return _json_error("Некорректный JSON.")
+
+    try:
+        result = upsert_approve_from_qgis(payload)
+    except ApproveAlreadyApprovedError as exc:
+        return _json_error(str(exc), status=409)
+    except ValueError as exc:
+        return _json_error(str(exc))
+    except Exception:
+        return _json_error("Не удалось сохранить согласование.", status=500)
+
+    return JsonResponse({"ok": True, **result})
 
 
 def _case_or_error(case_id, owner_id):
@@ -74,7 +105,12 @@ def api_bootstrap(request):
     cases_payload = []
     primary_case_id = None
     if selected is not None:
+        accessible_case_ids = set(
+            get_accessible_cases_queryset(owner_id, selected.id).values_list("id", flat=True)
+        )
         for case in get_cases_queryset(selected.id):
+            if case.id not in accessible_case_ids:
+                continue
             cases_payload.append(
                 serialize_case_summary(
                     case,
@@ -179,24 +215,46 @@ def api_post_message(request, case_id):
 
     body = ""
     uploads = []
+    geometry_payload = None
     if request.content_type and "multipart/form-data" in request.content_type:
         body = (request.POST.get("body") or "").strip()
         uploads = list(request.FILES.getlist("files"))
+        geometry_raw = (request.POST.get("geometry") or "").strip()
+        if geometry_raw:
+            try:
+                geometry_payload = json.loads(geometry_raw)
+            except json.JSONDecodeError:
+                return _json_error("Некорректный JSON в поле geometry.")
     else:
         payload = _parse_json_body(request)
         if payload is None:
             return _json_error("Некорректный JSON.")
         body = (payload.get("body") or "").strip()
+        geometry_payload = payload.get("geometry")
 
-    if not body and not uploads:
-        return _json_error("Введите текст сообщения или прикрепите файл.")
+    if geometry_payload is not None:
+        try:
+            parse_geometry_payload(geometry_payload)
+        except ValueError as exc:
+            return _json_error(str(exc))
+
+    if not body and not uploads and geometry_payload is None:
+        return _json_error("Введите текст сообщения, прикрепите файл или добавьте геометрию.")
 
     message = CaseMessage.objects.create(
         case=case,
         author_login=request.user.username,
         author_role="",
-        body=body or "(вложение)",
+        body=body or ("(геометрия)" if geometry_payload is not None else "(вложение)"),
     )
+
+    if geometry_payload is not None:
+        attach_geometry_to_message(
+            case=case,
+            message=message,
+            geometry_payload=geometry_payload,
+            owner_id=owner_id,
+        )
 
     storage_dir = Path(settings.MEDIA_ROOT) / "approval" / "attachments" / str(case.id)
     storage_dir.mkdir(parents=True, exist_ok=True)

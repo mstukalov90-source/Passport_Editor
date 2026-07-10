@@ -37,19 +37,24 @@ def test_approval_landing_loads_for_authenticated_user(client, e2e_credentials):
     content = response.content.decode('utf-8')
     assert 'approval-map' in content
     assert 'Согласование' in content
-    assert 'События' in content
     assert 'Чат события' in content
-    assert 'Чаты дополнительных событий' in content
+    assert 'Чаты событий' in content
     assert 'Управление слоями' in content
     assert 'approval-map-geojson' in content
-    assert 'approval-create-event-btn' in content
+    assert 'approval-create-event-btn' not in content
+    assert 'approval-chat-geometry-btn' in content
 
 
 @pytest.mark.django_db
 def test_home_shows_notifications_badge_and_approvals_tab(client):
     owner_id = 'HOME_APPROVAL_OWNER'
     ExternalUser.objects.create(login='home_owner', password='pass', owner_legal_person_id=owner_id)
-    Approve.objects.create(incoming_guid=uuid.uuid4(), owners=[owner_id], approved=False)
+    Approve.objects.create(
+        incoming_guid=uuid.uuid4(),
+        owners=[owner_id],
+        approved=False,
+        name='Тестовое согласование',
+    )
     owned_stub = [{'rootid': 'abc', 'name': 'Объект', 'source_label': 'ДТ', 'request_id': ''}]
     with patch('pass_viewer.views._get_owned_objects', return_value=owned_stub):
         with patch('pass_viewer.views._merge_owned_ods_requests', side_effect=lambda items, _oid: items):
@@ -75,6 +80,10 @@ def test_home_shows_notifications_badge_and_approvals_tab(client):
     assert 'approval-notifications-badge' in content
     assert 'data-owned-list-tab="approvals"' in content
     assert 'owned-approval-row' in content
+    assert 'Тестовое согласование' in content
+    assert 'data-approval-status="В работе"' in content
+    assert '<option value="В работе">В работе</option>' in content
+    assert '<option value="Согласовано">Согласовано</option>' in content
 
 
 @pytest.mark.django_db

@@ -119,12 +119,17 @@ def build_layer_groups(feature_counts_by_table: dict[str, int]) -> list[dict]:
         count = feature_counts_by_table[table_name]
         if count <= 0:
             continue
-        swatch_style = default_swatch_style(table_name, manifest)
+        table_def = manifest.get("tables", {}).get(table_name, {})
+        geometry = table_def.get("geometry", "polygon")
+        show_swatch = geometry == "polygon"
+        swatch_style = default_swatch_style(table_name, manifest) if show_swatch else {}
         layers.append(
             {
                 "key": table_name,
                 "name": work_layer_label(table_name),
                 "count": count,
+                "geometry": geometry,
+                "show_swatch": show_swatch,
                 "swatch": "work",
                 "swatch_style": swatch_style,
                 "checked": table_name not in _DEFAULT_HIDDEN_LAYERS,
@@ -137,7 +142,53 @@ def build_layer_groups(feature_counts_by_table: dict[str, int]) -> list[dict]:
     return [
         {
             "key": "work",
-            "title": "Объекты съёмки (work)",
+            "title": "Объект согласования",
+            "checked": True,
+            "layers": layers,
+        }
+    ]
+
+
+_ADJACENT_SWATCH_STYLES = {
+    "adjacent_approval": {"borderColor": "#c2410c", "background": "#fdba74"},
+    "adjacent_objects": {"borderColor": "#1d4ed8", "background": "#93c5fd"},
+}
+
+
+def build_adjacent_layer_groups(n_count: int, v_count: int) -> list[dict]:
+    layers = []
+    if n_count > 0:
+        layers.append(
+            {
+                "key": "adjacent_approval",
+                "name": "Смежный объект для согласования",
+                "count": n_count,
+                "geometry": "polygon",
+                "show_swatch": True,
+                "swatch": "adjacent",
+                "swatch_style": _ADJACENT_SWATCH_STYLES["adjacent_approval"],
+                "checked": True,
+            }
+        )
+    if v_count > 0:
+        layers.append(
+            {
+                "key": "adjacent_objects",
+                "name": "Смежные объекты",
+                "count": v_count,
+                "geometry": "polygon",
+                "show_swatch": True,
+                "swatch": "adjacent",
+                "swatch_style": _ADJACENT_SWATCH_STYLES["adjacent_objects"],
+                "checked": True,
+            }
+        )
+    if not layers:
+        return []
+    return [
+        {
+            "key": "adjacent",
+            "title": "Смежные паспорта",
             "checked": True,
             "layers": layers,
         }

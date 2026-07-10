@@ -475,6 +475,25 @@ def load_manifest() -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _hex_to_rgba(hex_color: str, opacity: float = 1.0) -> str:
+    text = (hex_color or "").strip()
+    if not text.startswith("#"):
+        return hex_color
+    raw = text[1:]
+    if len(raw) == 3:
+        raw = "".join(ch * 2 for ch in raw)
+    if len(raw) != 6:
+        return hex_color
+    try:
+        r = int(raw[0:2], 16)
+        g = int(raw[2:4], 16)
+        b = int(raw[4:6], 16)
+    except ValueError:
+        return hex_color
+    alpha = max(0.0, min(1.0, float(opacity)))
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+
 def default_swatch_style(table_name: str, manifest: dict[str, Any] | None = None) -> dict[str, str]:
     data = manifest or load_manifest()
     table = data.get("tables", {}).get(table_name, {})
@@ -491,5 +510,12 @@ def default_swatch_style(table_name: str, manifest: dict[str, Any] | None = None
         color = style.get("color") or style.get("fillColor") or "#64748b"
         return {"borderColor": color, "background": color}
     fill = style.get("fillColor") or "#94a3b8"
+    fill_opacity = style.get("fillOpacity", 0.55)
     stroke = style.get("color") or fill
-    return {"borderColor": stroke, "background": fill}
+    swatch: dict[str, str] = {
+        "borderColor": stroke,
+        "background": _hex_to_rgba(fill, fill_opacity),
+    }
+    if style.get("dashArray"):
+        swatch["borderStyle"] = "dashed"
+    return swatch

@@ -13,6 +13,7 @@ from approval.models import (
     CaseApproval,
     CaseMessage,
 )
+from approval.events_service import serialize_approve_option
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from pass_viewer.models import ExternalUser
@@ -42,6 +43,32 @@ def _login(client, username):
 
 def _primary_case(approve):
     return approve.cases.filter(is_primary=True).first()
+
+
+@pytest.mark.django_db
+def test_serialize_approve_option_uses_name_when_present():
+    incoming_guid = uuid.uuid4()
+    approve = Approve.objects.create(
+        incoming_guid=incoming_guid,
+        owners=["OWNER_A"],
+        name="Согласование границ паспорта ДТ-10482",
+    )
+    payload = serialize_approve_option(approve)
+    assert payload["label"] == "Согласование границ паспорта ДТ-10482"
+    assert payload["name"] == "Согласование границ паспорта ДТ-10482"
+    assert payload["status_label"] == "В работе"
+
+
+@pytest.mark.django_db
+def test_serialize_approve_option_falls_back_to_guid_without_name():
+    incoming_guid = uuid.UUID("2e333940-831b-48f5-9751-acd0c2880974")
+    approve = Approve.objects.create(
+        incoming_guid=incoming_guid,
+        owners=["OWNER_A"],
+    )
+    payload = serialize_approve_option(approve)
+    assert payload["label"] == "Согласование 2e333940…"
+    assert payload["name"] == ""
 
 
 @pytest.mark.django_db
@@ -148,6 +175,37 @@ def test_closed_case_rejects_new_message(client, owner_a, approve_two_owners):
 
 
 @pytest.mark.django_db
+def test_post_message_with_geometry(client, owner_a, approve_two_owners):
+    _login(client, "owner_a")
+    primary = _primary_case(approve_two_owners)
+    geometry = {
+        "type": "Polygon",
+        "coordinates": [[[37.6, 55.75], [37.61, 55.75], [37.61, 55.76], [37.6, 55.76], [37.6, 55.75]]],
+    }
+    response = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data=json.dumps({"body": "Зона замечания", "geometry": geometry}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["message"]["geometry"]["type"] == "Polygon"
+    assert ApprovalGeometry.objects.filter(case=primary, message__isnull=False).exists()
+
+
+@pytest.mark.django_db
+def test_owner_in_approve_but_not_case_cannot_access(client, owner_a, approve_two_owners):
+    primary = _primary_case(approve_two_owners)
+    primary.owners = ["OWNER_B"]
+    primary.save(update_fields=["owners"])
+
+    _login(client, "owner_a")
+    response = client.get(reverse("approval:api_case_detail", kwargs={"case_id": primary.id}))
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
 def test_foreign_owner_cannot_access_case(client, owner_a, approve_two_owners):
     ExternalUser.objects.create(login="outsider", password="pass", owner_legal_person_id="OWNER_X")
     _login(client, "outsider")
@@ -168,7 +226,8 @@ def test_landing_page_has_events_shell(client, owner_a, approve_two_owners):
     assert response.status_code == 200
     content = response.content.decode("utf-8")
     assert "approval-approve-select" not in content
-    assert "approval-create-event-btn" in content
+    assert "approval-create-event-btn" not in content
+    assert "approval-chat-geometry-btn" in content
     assert "approval-chat-approve-btn" in content
     assert "Прикрепить файл" in content
     assert "Досъём участка №142" not in content

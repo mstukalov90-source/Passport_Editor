@@ -835,7 +835,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             const activeTab = getActiveOwnedListTab();
             const selectedSources = getSelectedSourceSet();
             const selectedStatuses = getSelectedRequestStatusSet();
-            const selectedApproveId = (approvalSelectEl?.value || '').trim();
+            const selectedApprovalStatus = (approvalSelectEl?.value || '').trim();
             ownedItems.forEach((item) => {
                 const rootidValue = item.dataset.rootid || '';
                 const nameValue = item.dataset.name || '';
@@ -851,11 +851,11 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     !rowStatus ||
                     selectedStatuses === null ||
                     selectedStatuses.has(rowStatus);
-                const approveId = (item.dataset.approveId || '').trim();
+                const rowApprovalStatus = (item.dataset.approvalStatus || '').trim();
                 const approvalMatch =
                     activeTab !== 'approvals' ||
-                    !selectedApproveId ||
-                    approveId === selectedApproveId;
+                    !selectedApprovalStatus ||
+                    rowApprovalStatus === selectedApprovalStatus;
                 item.style.display =
                     rootidMatch && nameMatch && sourceMatch && tabMatch && statusMatch && approvalMatch
                         ? ''

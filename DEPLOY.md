@@ -50,6 +50,7 @@ GIS_ADJACENT_NEARBY_METERS=25
 
 - **`DJANGO_ENABLE_ADMIN=0`** — маршрут `/admin/` не монтируется.
 - **`DJANGO_CSRF_TRUSTED_ORIGINS`** и **`DJANGO_USE_X_FORWARDED_HOST`** — обязательны для работы через `https://border-ogh.mggt.ru` (proxy headers обрабатываются в `settings.py` на ветке `deploy/mggt-docker`).
+- **`APPROVAL_QGIS_ALLOWED_HOSTS`** (опционально) — через какие `Host` принимается `POST /approval/api/qgis/approves/`. По умолчанию `172.21.197.77,127.0.0.1,localhost,testserver`. Публичный домен `border-ogh.mggt.ru` в список **не** добавлять — QGIS вызывает API напрямую по `http://172.21.197.77/...`.
 - После изменения `.env` переменные в контейнер подхватываются через **`docker compose ... up -d --force-recreate web`**, а не только `docker restart`.
 
 ### RED OS: Docker Hub недоступен

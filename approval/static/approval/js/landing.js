@@ -31,8 +31,11 @@
     let map = null;
     let managedLayers = {};
     let eventGeometriesGroup = null;
-    let eventLayerByCaseId = {};
+    let geometryLayerByKey = {};
     let activeCaseId = null;
+    let activeMessageGeometryId = null;
+    let pendingGeometryGeoJson = null;
+    const PENDING_LAYER_KEY = 'pending:draft';
     let layerStylesManifest = null;
     let layerStyleIconsBase = '/static/approval/icons/svg/';
     let svgIndex = null;
@@ -236,42 +239,60 @@
         return pathStyle;
     }
 
-    function eventStyle(caseId, isActive) {
-        const colors = hashColor(caseId);
-        return {
-            color: isActive ? '#dc2626' : colors.stroke,
-            weight: isActive ? 4 : 2,
-            fillColor: colors.fill,
-            fillOpacity: isActive ? 0.45 : 0.3,
-        };
+    function styleTableKey(props) {
+        return props.sourceTable || props.layerKey || 'work';
+    }
+
+    function adjacentLayerLabel(layerKey) {
+        if (layerKey === 'adjacent_approval') {
+            return 'Смежный объект для согласования';
+        }
+        if (layerKey === 'adjacent_objects') {
+            return 'Смежные объекты';
+        }
+        return null;
     }
 
     function styleFeature(feature) {
         const props = feature.properties || {};
-        const layerKey = props.layerKey || props.sourceTable || 'work';
+        const styleKey = styleTableKey(props);
+        const displayKey = props.layerKey || props.sourceTable || 'work';
         const geometry = feature.geometry || {};
         const type = geometry.type || '';
-        const tableDef = getTableStyleDef(layerKey);
+        const tableDef = getTableStyleDef(styleKey);
         const geometryType = tableDef ? tableDef.geometry : null;
 
         if (type === 'Point' || type === 'MultiPoint') {
             return {};
         }
         if (type === 'LineString' || type === 'MultiLineString') {
-            return leafletPathStyle(resolveRuleStyle(layerKey, props), layerKey, geometryType || 'line');
+            return leafletPathStyle(resolveRuleStyle(styleKey, props), displayKey, geometryType || 'line');
         }
-        return leafletPathStyle(resolveRuleStyle(layerKey, props), layerKey, geometryType || 'polygon');
+        return leafletPathStyle(resolveRuleStyle(styleKey, props), displayKey, geometryType || 'polygon');
     }
 
     function featureTooltip(feature) {
         const props = feature.properties || {};
         const parts = [];
-        const layerKey = props.sourceTable || props.layerKey;
-        const tableDef = layerKey ? getTableStyleDef(layerKey) : null;
-        if (tableDef && tableDef.label) {
-            parts.push(tableDef.label);
-        } else if (props.sourceTable) {
-            parts.push(props.sourceTable);
+        const panelLayerKey = props.layerKey;
+        const adjacentLabel = adjacentLayerLabel(panelLayerKey);
+        if (adjacentLabel) {
+            parts.push(adjacentLabel);
+        }
+        const styleKey = styleTableKey(props);
+        const tableDef = styleKey ? getTableStyleDef(styleKey) : null;
+        if (!adjacentLabel) {
+            if (tableDef && tableDef.label) {
+                parts.push(tableDef.label);
+            } else if (props.sourceTable) {
+                parts.push(props.sourceTable);
+            }
+        }
+        if (props.Name) {
+            parts.push(props.Name);
+        }
+        if (props.RootId) {
+            parts.push('RootId: ' + props.RootId);
         }
         if (props.caseTitle) {
             parts.push(props.caseTitle);
@@ -284,8 +305,9 @@
 
     function pointToLayer(feature, latlng) {
         const props = feature.properties || {};
-        const layerKey = props.layerKey || props.sourceTable || 'work';
-        const ruleStyle = resolveRuleStyle(layerKey, props);
+        const styleKey = styleTableKey(props);
+        const displayKey = props.layerKey || props.sourceTable || 'work';
+        const ruleStyle = resolveRuleStyle(styleKey, props);
         const iconUrl = svgIconUrl(ruleStyle, props);
         if (iconUrl) {
             const baseSize = ruleStyle && ruleStyle.iconSize ? ruleStyle.iconSize : 18;
@@ -299,7 +321,7 @@
             }).bindTooltip(featureTooltip(feature), { sticky: true });
         }
 
-        const colors = hashColor(layerKey);
+        const colors = hashColor(displayKey);
         const baseRadius = (ruleStyle && ruleStyle.radius) || 5;
         const radius = Math.round(baseRadius * CIRCLE_MARKER_SIZE_SCALE);
         const stroke = (ruleStyle && ruleStyle.color) || colors.stroke;
@@ -365,7 +387,6 @@
         layerCheckboxes.forEach(function (checkbox) {
             checkbox.addEventListener('change', function () {
                 setLayerVisible(checkbox.dataset.layerKey, checkbox.checked);
-                fitVisibleBounds();
             });
         });
 
@@ -381,81 +402,259 @@
                         layerCheckbox.checked = groupCheckbox.checked;
                     }
                 });
-                fitVisibleBounds();
             });
         });
     }
 
+    function geometryStyle(layerKey, isActive) {
+        const colors = hashColor(layerKey);
+        return {
+            color: isActive ? '#dc2626' : colors.stroke,
+            weight: isActive ? 4 : 2,
+            fillColor: colors.fill,
+            fillOpacity: isActive ? 0.45 : 0.3,
+        };
+    }
+
+    function eventStyle(caseId, isActive) {
+        return geometryStyle(caseId, isActive);
+    }
+
+    function geometryLayerKey(kind, id) {
+        return kind + ':' + id;
+    }
+
+    function pendingGeometryStyle() {
+        return {
+            color: '#7c3aed',
+            weight: 3,
+            dashArray: '8 6',
+            fillColor: '#7c3aed',
+            fillOpacity: 0.15,
+        };
+    }
+
+    function applyStyleToGeometryLayer(layer, layerKey, isActive) {
+        const style =
+            layerKey === PENDING_LAYER_KEY
+                ? pendingGeometryStyle()
+                : geometryStyle(layerKey, isActive);
+        layer.eachLayer(function (child) {
+            if (typeof child.setRadius === 'function') {
+                child.setStyle(style);
+                child.setRadius(
+                    layerKey === PENDING_LAYER_KEY ? 7 : isActive ? 8 : 6
+                );
+            } else if (typeof child.setStyle === 'function') {
+                child.setStyle(style);
+            }
+        });
+    }
+
+    function removePendingGeometryLayer() {
+        const layer = geometryLayerByKey[PENDING_LAYER_KEY];
+        if (layer && eventGeometriesGroup) {
+            eventGeometriesGroup.removeLayer(layer);
+        }
+        delete geometryLayerByKey[PENDING_LAYER_KEY];
+        pendingGeometryGeoJson = null;
+    }
+
+    function setPendingMessageGeometry(geometry) {
+        if (!map || !eventGeometriesGroup || !geometry) {
+            return;
+        }
+        removePendingGeometryLayer();
+        pendingGeometryGeoJson = geometry;
+        const feature = {
+            type: 'Feature',
+            geometry: geometry,
+            properties: {
+                layerKey: PENDING_LAYER_KEY,
+            },
+        };
+        const layer = L.geoJSON(feature, {
+            style: function () {
+                return pendingGeometryStyle();
+            },
+            pointToLayer: function (_feat, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: 7,
+                    color: '#7c3aed',
+                    weight: 3,
+                    dashArray: '8 6',
+                    fillColor: 'rgba(124, 58, 237, 0.35)',
+                    fillOpacity: 0.9,
+                }).bindTooltip('Черновик геометрии', { sticky: true });
+            },
+            onEachFeature: function (_feat, lyr) {
+                lyr.bindTooltip('Черновик геометрии', { sticky: true });
+            },
+        });
+        geometryLayerByKey[PENDING_LAYER_KEY] = layer;
+        layer.addTo(eventGeometriesGroup);
+    }
+
+    function clearPendingMessageGeometry() {
+        removePendingGeometryLayer();
+    }
+
+    function getPendingMessageGeometry() {
+        return pendingGeometryGeoJson;
+    }
+
+    function addGeometryLayer(layerKey, geometry, tooltip, isActive) {
+        if (!map || !eventGeometriesGroup || !geometry) {
+            return;
+        }
+        const feature = {
+            type: 'Feature',
+            geometry: geometry,
+            properties: {
+                layerKey: layerKey,
+            },
+        };
+        const layer = L.geoJSON(feature, {
+            style: function () {
+                return geometryStyle(layerKey, isActive);
+            },
+            pointToLayer: function (_feat, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: isActive ? 8 : 6,
+                    color: isActive ? '#dc2626' : '#7c3aed',
+                    weight: 2,
+                    fillColor: 'rgba(124, 58, 237, 0.5)',
+                    fillOpacity: 0.9,
+                }).bindTooltip(tooltip || 'геометрия', { sticky: true });
+            },
+            onEachFeature: function (_feat, lyr) {
+                if (tooltip) {
+                    lyr.bindTooltip(tooltip, { sticky: true });
+                }
+            },
+        });
+        geometryLayerByKey[layerKey] = layer;
+        layer.addTo(eventGeometriesGroup);
+    }
+
+    function clearSavedGeometries() {
+        const pendingLayer = geometryLayerByKey[PENDING_LAYER_KEY];
+        const savedKeys = Object.keys(geometryLayerByKey).filter(function (key) {
+            return key !== PENDING_LAYER_KEY;
+        });
+        savedKeys.forEach(function (key) {
+            delete geometryLayerByKey[key];
+        });
+        if (eventGeometriesGroup) {
+            eventGeometriesGroup.clearLayers();
+            Object.keys(geometryLayerByKey).forEach(function (key) {
+                const layer = geometryLayerByKey[key];
+                if (layer) {
+                    layer.addTo(eventGeometriesGroup);
+                }
+            });
+        }
+        if (pendingLayer && !geometryLayerByKey[PENDING_LAYER_KEY]) {
+            geometryLayerByKey[PENDING_LAYER_KEY] = pendingLayer;
+            pendingLayer.addTo(eventGeometriesGroup);
+        }
+    }
+
     function clearEventGeometries() {
-        eventLayerByCaseId = {};
+        geometryLayerByKey = {};
+        pendingGeometryGeoJson = null;
         if (eventGeometriesGroup) {
             eventGeometriesGroup.clearLayers();
         }
     }
 
-    function renderEventGeometries(cases) {
+    function renderGeometries(caseItem) {
         if (!map || !eventGeometriesGroup) {
             return;
         }
-        clearEventGeometries();
-        (cases || []).forEach(function (caseItem) {
-            if (!caseItem.geometry) {
+        clearSavedGeometries();
+        activeMessageGeometryId = null;
+        if (!caseItem) {
+            return;
+        }
+
+        if (caseItem.geometry) {
+            const caseKey = geometryLayerKey('case', caseItem.id);
+            addGeometryLayer(caseKey, caseItem.geometry, caseItem.title || 'событие', false);
+        }
+
+        (caseItem.messages || []).forEach(function (message) {
+            if (!message.geometry) {
                 return;
             }
-            const caseId = caseItem.id;
-            const feature = {
-                type: 'Feature',
-                geometry: caseItem.geometry,
-                properties: {
-                    caseId: caseId,
-                    caseTitle: caseItem.title,
-                },
-            };
-            const layer = L.geoJSON(feature, {
-                style: function () {
-                    return eventStyle(caseId, caseId === activeCaseId);
-                },
-                pointToLayer: function (feat, latlng) {
-                    const active = caseId === activeCaseId;
-                    return L.circleMarker(latlng, {
-                        radius: active ? 8 : 6,
-                        color: active ? '#dc2626' : '#7c3aed',
-                        weight: 2,
-                        fillColor: 'rgba(124, 58, 237, 0.5)',
-                        fillOpacity: 0.9,
-                    }).bindTooltip(caseItem.title || 'событие', { sticky: true });
-                },
-                onEachFeature: function (feat, lyr) {
-                    if (caseItem.title) {
-                        lyr.bindTooltip(caseItem.title, { sticky: true });
-                    }
-                },
-            });
-            eventLayerByCaseId[caseId] = layer;
-            layer.addTo(eventGeometriesGroup);
+            const messageKey = geometryLayerKey('message', message.id);
+            addGeometryLayer(
+                messageKey,
+                message.geometry,
+                'Геометрия сообщения',
+                false
+            );
+        });
+    }
+
+    function renderEventGeometries(cases) {
+        const activeCase = (cases || []).find(function (caseItem) {
+            return caseItem.id === activeCaseId;
+        });
+        if (activeCase) {
+            renderGeometries(activeCase);
+        } else {
+            clearEventGeometries();
+        }
+    }
+
+    function refreshGeometryStyles() {
+        Object.keys(geometryLayerByKey).forEach(function (layerKey) {
+            const layer = geometryLayerByKey[layerKey];
+            if (!layer) {
+                return;
+            }
+            const isActive =
+                layerKey === geometryLayerKey('case', activeCaseId) ||
+                layerKey === geometryLayerKey('message', activeMessageGeometryId);
+            applyStyleToGeometryLayer(layer, layerKey, isActive);
         });
     }
 
     function highlightCase(caseId) {
         activeCaseId = caseId || null;
-        Object.keys(eventLayerByCaseId).forEach(function (id) {
-            const layer = eventLayerByCaseId[id];
-            if (!layer) {
-                return;
-            }
-            layer.setStyle(eventStyle(id, id === activeCaseId));
-        });
+        refreshGeometryStyles();
     }
 
-    function fitCaseGeometry(caseId) {
-        const layer = eventLayerByCaseId[caseId];
+    function highlightMessageGeometry(messageId) {
+        activeMessageGeometryId = messageId || null;
+        refreshGeometryStyles();
+    }
+
+    function fitGeometryLayer(layerKey) {
+        const layer = geometryLayerByKey[layerKey];
         if (!layer || !map) {
             return;
         }
         const bounds = layer.getBounds();
-        if (bounds.isValid()) {
-            map.fitBounds(bounds.pad(0.2));
+        if (!bounds.isValid()) {
+            return;
         }
+        const northEast = bounds.getNorthEast();
+        const southWest = bounds.getSouthWest();
+        if (northEast.lat === southWest.lat && northEast.lng === southWest.lng) {
+            map.setView(bounds.getCenter(), Math.max(map.getZoom(), 17));
+            return;
+        }
+        map.fitBounds(bounds.pad(0.2));
+    }
+
+    function fitCaseGeometry(caseId) {
+        fitGeometryLayer(geometryLayerKey('case', caseId));
+    }
+
+    function fitMessageGeometry(messageId) {
+        fitGeometryLayer(geometryLayerKey('message', messageId));
     }
 
     function initMap() {
@@ -558,8 +757,14 @@
             return eventGeometriesGroup;
         },
         renderEventGeometries: renderEventGeometries,
+        renderGeometries: renderGeometries,
         highlightCase: highlightCase,
+        highlightMessageGeometry: highlightMessageGeometry,
         fitCaseGeometry: fitCaseGeometry,
+        fitMessageGeometry: fitMessageGeometry,
+        setPendingMessageGeometry: setPendingMessageGeometry,
+        clearPendingMessageGeometry: clearPendingMessageGeometry,
+        getPendingMessageGeometry: getPendingMessageGeometry,
         invalidateMapSize: invalidateMapSize,
         getConfig: function () {
             return readJsonScript('page-config') || {};

@@ -7,7 +7,7 @@ from django.contrib.postgres.fields import ArrayField
 class Approve(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     incoming_guid = models.UUIDField(unique=True)
-    n_root = models.TextField(blank=True, null=True)
+    n_root = ArrayField(models.TextField(), blank=True, null=True)
     v_root = ArrayField(models.TextField(), blank=True, null=True)
     name = models.TextField(blank=True, null=True)
     owners = ArrayField(models.TextField(), default=list)
@@ -38,6 +38,8 @@ class Case(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     closed_at = models.DateTimeField(blank=True, null=True)
+    n_root = ArrayField(models.TextField(), blank=True, null=True)
+    owners = ArrayField(models.TextField(), default=list)
 
     class Meta:
         db_table = '"approval"."cases"'
@@ -127,6 +129,14 @@ class ApprovalGeometry(models.Model):
     geom = models.GeometryField(srid=4326)
     label = models.TextField(blank=True, null=True)
     owner_legal_person_id = models.TextField(blank=True, null=True)
+    message = models.ForeignKey(
+        CaseMessage,
+        on_delete=models.CASCADE,
+        related_name="geometries",
+        db_column="message_id",
+        blank=True,
+        null=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -35,10 +35,12 @@
                 />
                 <span class="approval-layer-row__name" title="{{ layer.key }}">{{ layer.name }}</span>
                 <span class="approval-layer-row__count">({{ layer.count }})</span>
+                {% if layer.show_swatch %}
                 <span
-                    class="approval-layer-swatch approval-layer-swatch--{{ layer.swatch }}"
-                    style="border-color: {{ layer.swatch_style.borderColor }}; background: {{ layer.swatch_style.background }};"
+                    class="approval-layer-swatch"
+                    style="border-color: {{ layer.swatch_style.borderColor }}; background: {{ layer.swatch_style.background }};{% if layer.swatch_style.borderStyle %} border-style: {{ layer.swatch_style.borderStyle }};{% endif %}"
                 ></span>
+                {% endif %}
             </label>
             {% endfor %}
         </div>

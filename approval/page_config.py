@@ -2,6 +2,8 @@
 
 from django.urls import reverse
 
+from .events_service import serialize_approve_option
+
 
 def landing_page_config(
     *,
@@ -17,16 +19,7 @@ def landing_page_config(
         for group in groups
         if group.get("key")
     }
-    approve_options = []
-    for approve in approves or []:
-        label = str(approve.incoming_guid)
-        approve_options.append(
-            {
-                "id": str(approve.id),
-                "incoming_guid": label,
-                "label": f"Согласование {label[:8]}…",
-            }
-        )
+    approve_options = [serialize_approve_option(approve) for approve in approves or []]
 
     return {
         "page": "approval_landing",
@@ -39,7 +32,6 @@ def landing_page_config(
         "approves": approve_options,
         "apiUrls": {
             "bootstrap": reverse("approval:api_bootstrap"),
-            "createCase": reverse("approval:api_create_case"),
             "caseDetail": "/approval/api/cases/{caseId}/",
             "postMessage": "/approval/api/cases/{caseId}/messages/",
             "approveCase": "/approval/api/cases/{caseId}/approve/",
