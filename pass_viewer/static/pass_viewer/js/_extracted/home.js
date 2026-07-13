@@ -1995,22 +1995,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (!normalizedApproveId) {
                 return;
             }
-            setOwnedListTab('approvals');
-            if (approvalSelectEl) {
-                approvalSelectEl.value = 'В работе';
-            }
-            applyOwnedFilters();
-            document.querySelectorAll('.owned-approval-row.is-notification-focused').forEach((row) => {
-                row.classList.remove('is-notification-focused');
-            });
-            const row = document.querySelector(
-                `.owned-approval-row[data-approve-id="${normalizedApproveId}"]`
-            );
-            if (row) {
-                row.classList.add('is-notification-focused');
-                row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-            }
             setApprovalNotificationsOpen(false);
+            window.location.href = '/approval/?approve=' + encodeURIComponent(normalizedApproveId);
         }
 
         if (approvalNotificationsBtn && approvalNotificationsPanel) {

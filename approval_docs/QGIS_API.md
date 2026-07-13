@@ -96,7 +96,7 @@ sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --f
 
 **Event case** (`is_primary = false`):
 
-- `owners` = владелец объекта съёмки + стороны из `events[].owners` (после дедупликации ровно 2 различных `OwnerLegalPersonId`)
+- `owners` = владелец объекта съёмки + стороны из `events[].owners` (после дедупликации 1 или 2 уникальных `OwnerLegalPersonId`; совпадение владельцев допустимо)
 
 **Primary case** (`is_primary = true`):
 

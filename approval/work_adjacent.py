@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.db import connections
@@ -13,8 +14,10 @@ from .work_geojson import _column_exists, _max_features, _style_fields_for_table
 from .work_layers import (
     _quote_ident,
     work_geom_column,
-    work_schema_name,
 )
+
+if TYPE_CHECKING:
+    from .models import Approve
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,10 @@ def adjacent_poly_tables() -> list[str]:
 
 def work_rootid_column() -> str:
     return getattr(settings, "APPROVAL_WORK_ROOTID_COLUMN", "RootId")
+
+
+def adjacent_schema_name() -> str:
+    return getattr(settings, "APPROVAL_ADJACENT_SCHEMA", "master")
 
 
 def adjacent_root_ids(
@@ -58,6 +65,60 @@ def adjacent_root_ids(
             v_values.append(text)
 
     return n_values, v_values
+
+
+def collect_adjacent_roots(approve: Approve) -> tuple[list[str], list[str]]:
+    """Merge n_root from approve and event cases; derive v_roots excluding n_roots."""
+    from .models import Case
+
+    n_values: list[str] = []
+    for item in approve.n_root or []:
+        text = str(item).strip()
+        if text and text not in n_values:
+            n_values.append(text)
+
+    case_roots = (
+        Case.objects.filter(approve=approve, is_primary=False)
+        .exclude(n_root__isnull=True)
+        .exclude(n_root="")
+        .values_list("n_root", flat=True)
+    )
+    for item in case_roots:
+        text = str(item).strip()
+        if text and text not in n_values:
+            n_values.append(text)
+
+    return adjacent_root_ids(n_values, approve.v_root)
+
+
+def _adjacent_layer_for_root(
+    root_id: str,
+    *,
+    kind: str,
+    active_n_root: str | None = None,
+) -> str:
+    active = (active_n_root or "").strip()
+    if not active:
+        if kind == "n":
+            return LAYER_KEY_APPROVAL
+        return LAYER_KEY_OBJECTS
+    if root_id == active:
+        return LAYER_KEY_APPROVAL
+    return LAYER_KEY_OBJECTS
+
+
+def _finalize_adjacent_feature(
+    feature: dict,
+    n_set: set[str],
+    *,
+    active_n_root: str | None = None,
+) -> dict:
+    props = feature.setdefault("properties", {})
+    root_id = str(props.get("RootId", "")).strip()
+    kind = "n" if root_id in n_set else "v"
+    props["adjacentRootKind"] = kind
+    props["layerKey"] = _adjacent_layer_for_root(root_id, kind=kind, active_n_root=active_n_root)
+    return feature
 
 
 def _resolve_rootid_column(cursor, schema: str, table_name: str) -> str | None:
@@ -103,7 +164,7 @@ def _adjacent_select_sql(
     *,
     single_root: bool,
 ) -> str | None:
-    schema = work_schema_name()
+    schema = adjacent_schema_name()
     geom_col = work_geom_column()
     rootid_col = _resolve_rootid_column(cursor, schema, table_name)
     if not rootid_col:
@@ -147,7 +208,7 @@ def _count_adjacent_in_table(
     if not root_ids:
         return 0
 
-    schema = work_schema_name()
+    schema = adjacent_schema_name()
     geom_col = work_geom_column()
     rootid_col = _resolve_rootid_column(cursor, schema, table_name)
     if not rootid_col:
@@ -212,6 +273,8 @@ def _append_features(
     single_root: bool,
     manifest: dict,
     max_features: int,
+    n_set: set[str] | None = None,
+    active_n_root: str | None = None,
 ) -> None:
     if not root_ids or len(features) >= max_features:
         return
@@ -236,55 +299,65 @@ def _append_features(
         if isinstance(payload, str):
             payload = json.loads(payload)
         if isinstance(payload, dict):
+            if n_set is not None:
+                _finalize_adjacent_feature(payload, n_set, active_n_root=active_n_root)
             features.append(payload)
         if len(features) >= max_features:
             break
 
 
+def format_adjacent_roots_message(n_roots: list[str], v_roots: list[str]) -> str:
+    roots: list[str] = []
+    for root_id in [*n_roots, *v_roots]:
+        if root_id not in roots:
+            roots.append(root_id)
+    roots_text = ", ".join(roots) if roots else "—"
+    return (
+        "Смежные паспорта не найдены в master (YardPoly/OznPoly/OdhPoly) "
+        f"для RootId: {roots_text}."
+    )
+
+
 def build_adjacent_features(
     n_root: list[str] | str | None,
     v_root: list[str] | None,
-) -> list[dict]:
+    *,
+    active_n_root: str | None = None,
+) -> tuple[list[dict], str | None]:
     n_values, v_values = adjacent_root_ids(n_root, v_root)
     if not n_values and not v_values:
-        return []
+        return [], None
+
+    all_roots: list[str] = []
+    for root_id in [*n_values, *v_values]:
+        if root_id not in all_roots:
+            all_roots.append(root_id)
 
     max_features = _max_features()
     features: list[dict] = []
     manifest = load_manifest()
     tables = adjacent_poly_tables()
+    n_set = set(n_values)
 
     try:
         with connections["qgis"].cursor() as cursor:
             for table_name in tables:
                 if len(features) >= max_features:
                     break
-                if n_values:
-                    _append_features(
-                        cursor,
-                        features,
-                        table_name,
-                        LAYER_KEY_APPROVAL,
-                        n_values,
-                        single_root=False,
-                        manifest=manifest,
-                        max_features=max_features,
-                    )
-                if len(features) >= max_features:
-                    break
-                if v_values:
-                    _append_features(
-                        cursor,
-                        features,
-                        table_name,
-                        LAYER_KEY_OBJECTS,
-                        v_values,
-                        single_root=False,
-                        manifest=manifest,
-                        max_features=max_features,
-                    )
+                _append_features(
+                    cursor,
+                    features,
+                    table_name,
+                    LAYER_KEY_OBJECTS,
+                    all_roots,
+                    single_root=False,
+                    manifest=manifest,
+                    max_features=max_features,
+                    n_set=n_set,
+                    active_n_root=active_n_root,
+                )
     except Exception:
         logger.exception("build_adjacent_features: qgis query failed")
-        return []
+        return [], "Не удалось загрузить смежные паспорта из mggt_asu."
 
-    return features[:max_features]
+    return features[:max_features], None
