@@ -4573,9 +4573,9 @@ def home(request):
                     hood_work_area_geojson = get_hood_allowed_districts_geojson(hood_cur, owner_id)
             except Exception:
                 hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
-            accessible_approves = get_accessible_approves(owner_id)
-            approval_items = [serialize_approve_option(item) for item in accessible_approves]
-            pending_approval_count = accessible_approves.filter(approved=False).count()
+        accessible_approves = get_accessible_approves(owner_id, username=request.user.username)
+        approval_items = [serialize_approve_option(item) for item in accessible_approves]
+        pending_approval_count = accessible_approves.filter(approved=False).count()
     except Exception:
         owned_objects_error = (
             "Не удалось получить список объектов пользователя. Проверьте поле OwnerLegalPersonId в таблице users."

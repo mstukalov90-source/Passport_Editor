@@ -55,6 +55,9 @@ def test_home_shows_notifications_badge_and_approvals_tab(client):
         approved=False,
         name='Тестовое согласование',
     )
+    primary = Approve.objects.latest('created_at').cases.get(is_primary=True)
+    primary.owners = [owner_id]
+    primary.save(update_fields=['owners', 'updated_at'])
     owned_stub = [{'rootid': 'abc', 'name': 'Объект', 'source_label': 'ДТ', 'request_id': ''}]
     with patch('pass_viewer.views._get_owned_objects', return_value=owned_stub):
         with patch('pass_viewer.views._merge_owned_ods_requests', side_effect=lambda items, _oid: items):
@@ -78,6 +81,10 @@ def test_home_shows_notifications_badge_and_approvals_tab(client):
     content = response.content.decode('utf-8')
     assert 'Уведомления' in content
     assert 'approval-notifications-badge' in content
+    assert 'id="approval-notifications-btn"' in content
+    assert 'approval-notifications-panel' in content
+    assert 'approval-notifications-item' in content
+    assert 'data-approve-id=' in content
     assert 'data-owned-list-tab="approvals"' in content
     assert 'owned-approval-row' in content
     assert 'Тестовое согласование' in content
@@ -87,7 +94,29 @@ def test_home_shows_notifications_badge_and_approvals_tab(client):
 
 
 @pytest.mark.django_db
-def test_home_contains_notifications_link(client, e2e_credentials):
+def test_home_shows_approvals_for_inspector(client):
+    ExternalUser.objects.create(login='inspector_home', password='pass', owner_legal_person_id=None)
+    Approve.objects.create(
+        incoming_guid=uuid.uuid4(),
+        owners=['OWNER_A'],
+        user='inspector_home',
+        approved=False,
+        name='Согласование инспектора',
+    )
+    client.post(reverse('login'), {'username': 'inspector_home', 'password': 'pass'})
+    response = client.get(reverse('home'))
+    assert response.status_code == 200
+    content = response.content.decode('utf-8')
+    assert 'data-owned-list-tab="approvals"' in content
+    assert 'owned-approval-row' in content
+    assert 'Согласование инспектора' in content
+    assert 'approval-notifications-badge' in content
+    assert 'id="approval-notifications-btn"' in content
+    assert 'approval-notifications-panel' in content
+
+
+@pytest.mark.django_db
+def test_home_contains_notifications_dropdown(client, e2e_credentials):
     client.post(
         reverse('login'),
         {
@@ -98,5 +127,7 @@ def test_home_contains_notifications_link(client, e2e_credentials):
     response = client.get(reverse('home'))
     assert response.status_code == 200
     content = response.content.decode('utf-8')
-    assert reverse('approval:landing') in content
+    assert 'id="approval-notifications-btn"' in content
+    assert 'approval-notifications-panel' in content
     assert 'Уведомления' in content
+    assert 'approval-notifications-empty' in content

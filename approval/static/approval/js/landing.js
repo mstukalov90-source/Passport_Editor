@@ -580,7 +580,11 @@
 
         if (caseItem.geometry) {
             const caseKey = geometryLayerKey('case', caseItem.id);
-            addGeometryLayer(caseKey, caseItem.geometry, caseItem.title || 'событие', false);
+            let label = caseItem.title || 'событие';
+            if (caseItem.n_root) {
+                label = 'Паспорт ' + caseItem.n_root + ': ' + label;
+            }
+            addGeometryLayer(caseKey, caseItem.geometry, label, false);
         }
 
         (caseItem.messages || []).forEach(function (message) {

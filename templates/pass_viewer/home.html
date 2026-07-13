@@ -25,9 +25,49 @@
             <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>{% endif %}
         </h2>
         <div class="owned-home-header-actions">
-            <a href="{% url 'approval:landing' %}" class="user-guide-open-btn approval-home-link">
-                Уведомления{% if pending_approval_count %}<span class="approval-notifications-badge">{{ pending_approval_count }}</span>{% endif %}
-            </a>
+            <div class="approval-notifications-dropdown">
+                <button
+                    type="button"
+                    id="approval-notifications-btn"
+                    class="user-guide-open-btn approval-home-link"
+                    aria-haspopup="listbox"
+                    aria-expanded="false"
+                    aria-controls="approval-notifications-panel"
+                >
+                    Уведомления{% if pending_approval_count %}<span class="approval-notifications-badge">{{ pending_approval_count }}</span>{% endif %}
+                    <span class="approval-notifications-chevron" aria-hidden="true">▾</span>
+                </button>
+                <div
+                    id="approval-notifications-panel"
+                    class="approval-notifications-panel"
+                    role="listbox"
+                    aria-label="Согласования в работе"
+                    hidden
+                >
+                    <div class="approval-notifications-panel__header">Согласования в работе</div>
+                    {% if pending_approval_count %}
+                        <ul class="approval-notifications-list">
+                            {% for item in approval_items %}
+                                {% if not item.approved %}
+                                    <li>
+                                        <button
+                                            type="button"
+                                            class="approval-notifications-item"
+                                            data-approve-id="{{ item.id }}"
+                                            role="option"
+                                        >
+                                            <span class="approval-notifications-item__title">{{ item.label }}</span>
+                                            <span class="approval-notifications-item__status">В работе</span>
+                                        </button>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="approval-notifications-empty">Нет согласований в работе</p>
+                    {% endif %}
+                </div>
+            </div>
             <button type="button" id="user-guide-open-btn" class="user-guide-open-btn">Инструкция пользования</button>
             <form method="post" action="{% url 'logout' %}" style="margin: 0;">
                 {% csrf_token %}
@@ -39,7 +79,7 @@
     <div class="owned-home-main">
     {% if owned_objects_error %}
         <p class="note" style="color: #b42318;">{{ owned_objects_error }}</p>
-    {% elif owned_objects %}
+    {% elif owned_objects or approval_items %}
         <div class="owned-home-workspace">
             <div class="owned-home-lists-stack">
                 <div class="owned-filter-toolbar">

@@ -1995,7 +1995,60 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const userGuideModal = document.getElementById('user-guide-modal');
         const userGuideOpenBtn = document.getElementById('user-guide-open-btn');
         const userGuideCloseBtn = document.getElementById('user-guide-close-btn');
+        const approvalNotificationsBtn = document.getElementById('approval-notifications-btn');
+        const approvalNotificationsPanel = document.getElementById('approval-notifications-panel');
         let userGuidePreviousOverflow = '';
+
+        function setApprovalNotificationsOpen(isOpen) {
+            if (!approvalNotificationsBtn || !approvalNotificationsPanel) {
+                return;
+            }
+            approvalNotificationsBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            approvalNotificationsPanel.hidden = !isOpen;
+            approvalNotificationsBtn.classList.toggle('is-open', isOpen);
+        }
+
+        function openApprovalFromNotifications(approveId) {
+            const normalizedApproveId = String(approveId || '').trim();
+            if (!normalizedApproveId) {
+                return;
+            }
+            setOwnedListTab('approvals');
+            if (approvalSelectEl) {
+                approvalSelectEl.value = 'В работе';
+            }
+            applyOwnedFilters();
+            document.querySelectorAll('.owned-approval-row.is-notification-focused').forEach((row) => {
+                row.classList.remove('is-notification-focused');
+            });
+            const row = document.querySelector(
+                `.owned-approval-row[data-approve-id="${normalizedApproveId}"]`
+            );
+            if (row) {
+                row.classList.add('is-notification-focused');
+                row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+            setApprovalNotificationsOpen(false);
+        }
+
+        if (approvalNotificationsBtn && approvalNotificationsPanel) {
+            approvalNotificationsBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const isOpen = approvalNotificationsBtn.getAttribute('aria-expanded') === 'true';
+                setApprovalNotificationsOpen(!isOpen);
+            });
+            approvalNotificationsPanel.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+            approvalNotificationsPanel.querySelectorAll('.approval-notifications-item').forEach((item) => {
+                item.addEventListener('click', () => {
+                    openApprovalFromNotifications(item.dataset.approveId);
+                });
+            });
+            document.addEventListener('click', () => {
+                setApprovalNotificationsOpen(false);
+            });
+        }
 
         function openUserGuideModal() {
             if (!userGuideModal) {
@@ -2035,6 +2088,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && userGuideModal && userGuideModal.classList.contains('is-open')) {
                 closeUserGuideModal();
+            }
+            if (event.key === 'Escape' && approvalNotificationsBtn?.getAttribute('aria-expanded') === 'true') {
+                setApprovalNotificationsOpen(false);
             }
         });
 

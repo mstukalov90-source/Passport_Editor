@@ -11,6 +11,7 @@ class Approve(models.Model):
     v_root = ArrayField(models.TextField(), blank=True, null=True)
     name = models.TextField(blank=True, null=True)
     owners = ArrayField(models.TextField(), default=list)
+    user = models.TextField(blank=True, db_column="user", null=True)
     approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -38,7 +39,7 @@ class Case(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     closed_at = models.DateTimeField(blank=True, null=True)
-    n_root = ArrayField(models.TextField(), blank=True, null=True)
+    n_root = models.TextField(blank=True, null=True)
     owners = ArrayField(models.TextField(), default=list)
 
     class Meta:
@@ -75,7 +76,8 @@ class CaseApproval(models.Model):
         related_name="approvals",
         db_column="case_id",
     )
-    owner_legal_person_id = models.TextField()
+    owner_legal_person_id = models.TextField(blank=True, null=True)
+    approver_login = models.TextField(blank=True, null=True)
     approved_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -85,9 +87,16 @@ class CaseApproval(models.Model):
                 fields=["case", "owner_legal_person_id"],
                 name="case_approvals_case_owner_uniq",
             ),
+            models.UniqueConstraint(
+                fields=["case", "approver_login"],
+                condition=models.Q(approver_login__isnull=False),
+                name="case_approvals_case_inspector_uniq",
+            ),
         ]
 
     def __str__(self):
+        if self.approver_login:
+            return f"{self.case_id}:inspector:{self.approver_login}"
         return f"{self.case_id}:{self.owner_legal_person_id}"
 
 

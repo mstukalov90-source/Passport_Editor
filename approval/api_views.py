@@ -17,7 +17,6 @@ from .access import get_accessible_approve, get_accessible_approves, get_accessi
 from .events_service import (
     ApproveAlreadyApprovedError,
     attach_geometry_to_message,
-    create_case_with_geometry,
     get_cases_queryset,
     parse_geometry_payload,
     record_case_approval,
@@ -36,11 +35,12 @@ def _json_error(message, *, status=400):
     return JsonResponse({"ok": False, "error": message}, status=status)
 
 
-def _owner_or_error(request):
-    owner_id = get_owner_id_for_username(request.user.username)
-    if not owner_id:
+def _actor_context(request):
+    username = (request.user.username or "").strip()
+    owner_id = get_owner_id_for_username(username)
+    if not owner_id and not username:
         return None, _json_error("Не найден OwnerLegalPersonId для пользователя.", status=403)
-    return owner_id, None
+    return {"owner_id": owner_id, "username": username}, None
 
 
 def _parse_json_body(request):
@@ -78,27 +78,47 @@ def api_qgis_upsert_approve(request):
     return JsonResponse({"ok": True, **result})
 
 
-def _case_or_error(case_id, owner_id):
+def _case_or_error(case_id, *, owner_id=None, username=None):
     case = get_object_or_404(Case.objects.select_related("approve"), pk=case_id)
-    if not user_can_access_case(case, owner_id):
+    if not user_can_access_case(case, owner_id, username=username):
         return None, _json_error("Событие не найдено или недоступно.", status=404)
     return case, None
+
+
+def _serialize_case(case, *, request, actor):
+    return serialize_case_summary(
+        case,
+        current_login=actor["username"],
+        owner_id=actor["owner_id"],
+    )
+
+
+def _serialize_case_detail(case, *, request, actor):
+    return serialize_case_detail(
+        case,
+        current_login=actor["username"],
+        owner_id=actor["owner_id"],
+        request=request,
+    )
 
 
 @login_required
 @require_GET
 def api_bootstrap(request):
-    owner_id, error = _owner_or_error(request)
+    actor, error = _actor_context(request)
     if error:
         return error
 
-    approves = list(get_accessible_approves(owner_id))
+    owner_id = actor["owner_id"]
+    username = actor["username"]
+
+    approves = list(get_accessible_approves(owner_id, username=username))
     approve_options = [serialize_approve_option(item) for item in approves]
 
     selected_approve_id = request.GET.get("approve_id") or request.GET.get("approve")
     selected = None
     if selected_approve_id:
-        selected = get_accessible_approve(selected_approve_id, owner_id)
+        selected = get_accessible_approve(selected_approve_id, owner_id, username=username)
     if selected is None and approves:
         selected = approves[0]
 
@@ -106,7 +126,7 @@ def api_bootstrap(request):
     primary_case_id = None
     if selected is not None:
         accessible_case_ids = set(
-            get_accessible_cases_queryset(owner_id, selected.id).values_list("id", flat=True)
+            get_accessible_cases_queryset(owner_id, selected.id, username=username).values_list("id", flat=True)
         )
         for case in get_cases_queryset(selected.id):
             if case.id not in accessible_case_ids:
@@ -114,7 +134,7 @@ def api_bootstrap(request):
             cases_payload.append(
                 serialize_case_summary(
                     case,
-                    current_login=request.user.username,
+                    current_login=username,
                     owner_id=owner_id,
                 )
             )
@@ -128,7 +148,7 @@ def api_bootstrap(request):
             "selected_approve_id": str(selected.id) if selected else None,
             "primary_case_id": primary_case_id,
             "cases": cases_payload,
-            "current_user": request.user.username,
+            "current_user": username,
         }
     )
 
@@ -136,65 +156,27 @@ def api_bootstrap(request):
 @login_required
 @require_POST
 def api_create_case(request):
-    owner_id, error = _owner_or_error(request)
-    if error:
-        return error
-
-    payload = _parse_json_body(request)
-    if payload is None:
-        return _json_error("Некорректный JSON.")
-
-    approve_id = payload.get("approve_id")
-    approve = get_accessible_approve(approve_id, owner_id)
-    if approve is None:
-        return _json_error("Согласование не найдено или недоступно.", status=404)
-
-    try:
-        case = create_case_with_geometry(
-            approve=approve,
-            title=payload.get("title") or "",
-            geometry_payload=payload.get("geometry"),
-            created_by_login=request.user.username,
-            owner_id=owner_id,
-        )
-    except ValueError as exc:
-        return _json_error(str(exc))
-    except Exception:
-        return _json_error("Не удалось сохранить событие.", status=500)
-
-    return JsonResponse(
-        {
-            "ok": True,
-            "case": serialize_case_detail(
-                case,
-                current_login=request.user.username,
-                owner_id=owner_id,
-                request=request,
-            ),
-        }
+    return _json_error(
+        "Создание событий через веб-интерфейс отключено. События передаются из QGIS.",
+        status=410,
     )
 
 
 @login_required
 @require_GET
 def api_case_detail(request, case_id):
-    owner_id, error = _owner_or_error(request)
+    actor, error = _actor_context(request)
     if error:
         return error
 
-    case, error = _case_or_error(case_id, owner_id)
+    case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
     if error:
         return error
 
     return JsonResponse(
         {
             "ok": True,
-            "case": serialize_case_detail(
-                case,
-                current_login=request.user.username,
-                owner_id=owner_id,
-                request=request,
-            ),
+            "case": _serialize_case_detail(case, request=request, actor=actor),
         }
     )
 
@@ -202,11 +184,11 @@ def api_case_detail(request, case_id):
 @login_required
 @require_POST
 def api_post_message(request, case_id):
-    owner_id, error = _owner_or_error(request)
+    actor, error = _actor_context(request)
     if error:
         return error
 
-    case, error = _case_or_error(case_id, owner_id)
+    case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
     if error:
         return error
 
@@ -243,7 +225,7 @@ def api_post_message(request, case_id):
 
     message = CaseMessage.objects.create(
         case=case,
-        author_login=request.user.username,
+        author_login=actor["username"],
         author_role="",
         body=body or ("(геометрия)" if geometry_payload is not None else "(вложение)"),
     )
@@ -253,7 +235,7 @@ def api_post_message(request, case_id):
             case=case,
             message=message,
             geometry_payload=geometry_payload,
-            owner_id=owner_id,
+            owner_id=actor["owner_id"],
         )
 
     storage_dir = Path(settings.MEDIA_ROOT) / "approval" / "attachments" / str(case.id)
@@ -282,12 +264,8 @@ def api_post_message(request, case_id):
     return JsonResponse(
         {
             "ok": True,
-            "message": serialize_message(message, current_login=request.user.username, request=request),
-            "case": serialize_case_summary(
-                case,
-                current_login=request.user.username,
-                owner_id=owner_id,
-            ),
+            "message": serialize_message(message, current_login=actor["username"], request=request),
+            "case": _serialize_case(case, request=request, actor=actor),
         }
     )
 
@@ -295,11 +273,11 @@ def api_post_message(request, case_id):
 @login_required
 @require_POST
 def api_approve_case(request, case_id):
-    owner_id, error = _owner_or_error(request)
+    actor, error = _actor_context(request)
     if error:
         return error
 
-    case, error = _case_or_error(case_id, owner_id)
+    case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
     if error:
         return error
 
@@ -307,27 +285,23 @@ def api_approve_case(request, case_id):
         return JsonResponse(
             {
                 "ok": True,
-                "case": serialize_case_summary(
-                    case,
-                    current_login=request.user.username,
-                    owner_id=owner_id,
-                ),
+                "case": _serialize_case(case, request=request, actor=actor),
             }
         )
 
     try:
-        case = record_case_approval(case=case, owner_id=owner_id)
+        case = record_case_approval(
+            case=case,
+            owner_id=actor["owner_id"],
+            username=actor["username"],
+        )
     except ValueError as exc:
         return _json_error(str(exc))
 
     return JsonResponse(
         {
             "ok": True,
-            "case": serialize_case_summary(
-                case,
-                current_login=request.user.username,
-                owner_id=owner_id,
-            ),
+            "case": _serialize_case(case, request=request, actor=actor),
         }
     )
 
@@ -335,7 +309,7 @@ def api_approve_case(request, case_id):
 @login_required
 @require_GET
 def api_download_attachment(request, attachment_id):
-    owner_id, error = _owner_or_error(request)
+    actor, error = _actor_context(request)
     if error:
         return error
 
@@ -344,7 +318,7 @@ def api_download_attachment(request, attachment_id):
         pk=attachment_id,
     )
     case = attachment.message.case
-    if not user_can_access_case(case, owner_id):
+    if not user_can_access_case(case, actor["owner_id"], username=actor["username"]):
         return _json_error("Вложение не найдено или недоступно.", status=404)
 
     file_path = Path(settings.MEDIA_ROOT) / "approval" / "attachments" / str(case.id) / attachment.stored_name

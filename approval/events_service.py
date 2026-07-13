@@ -18,6 +18,7 @@ from .models import (
     CaseApproval,
     CaseMessage,
 )
+from .work_layers import resolve_task_owner_legal_person_id
 
 
 class ApproveAlreadyApprovedError(ValueError):
@@ -73,6 +74,63 @@ def _case_preview(case: Case) -> str:
     return body
 
 
+def _normalized_case_owners(case: Case) -> list[str]:
+    return [str(item).strip() for item in (case.owners or []) if str(item).strip()]
+
+
+def _inspector_login_for_case(case: Case) -> str:
+    return (case.approve.user or "").strip()
+
+
+def _inspector_approved(case: Case) -> bool:
+    inspector_login = _inspector_login_for_case(case)
+    if not inspector_login:
+        return True
+    return case.approvals.filter(approver_login=inspector_login).exists()
+
+
+def _owners_approved(case: Case) -> bool:
+    required_owners = _normalized_case_owners(case)
+    if not required_owners:
+        return False
+    done = case.approvals.filter(owner_legal_person_id__in=required_owners).count()
+    return done >= len(required_owners)
+
+
+def _case_is_fully_approved(case: Case) -> bool:
+    return _owners_approved(case) and _inspector_approved(case)
+
+
+def _approvals_progress(case: Case) -> tuple[int, int]:
+    required_owners = _normalized_case_owners(case)
+    owners_done = case.approvals.filter(owner_legal_person_id__in=required_owners).count()
+    inspector_login = _inspector_login_for_case(case)
+    inspector_required = bool(inspector_login)
+    inspector_done = _inspector_approved(case)
+    done = owners_done + (1 if inspector_done and inspector_required else 0)
+    total = len(required_owners) + (1 if inspector_required else 0)
+    return done, total
+
+
+def validate_case_owners(*, is_primary: bool, owners: list[str]) -> list[str]:
+    normalized = [str(item).strip() for item in owners if str(item).strip()]
+    if is_primary:
+        if len(normalized) != 1:
+            raise ValueError("Основное событие должно иметь ровно одного владельца.")
+    elif len(normalized) != 2:
+        raise ValueError("Событие должно иметь ровно двух владельцев.")
+    return normalized
+
+
+def _case_participants(case: Case, *, inspector_login: str) -> list[dict]:
+    participants: list[dict] = []
+    for owner_id in _normalized_case_owners(case):
+        participants.append({"kind": "owner", "id": owner_id})
+    if inspector_login:
+        participants.append({"kind": "inspector", "login": inspector_login})
+    return participants
+
+
 def serialize_case_summary(
     case: Case,
     *,
@@ -81,16 +139,25 @@ def serialize_case_summary(
     approvals_done: int | None = None,
     approvals_total: int | None = None,
 ) -> dict:
-    required_owners = [str(item).strip() for item in (case.owners or []) if str(item).strip()]
-    if approvals_total is None:
-        approvals_total = len(required_owners)
-    if approvals_done is None:
-        approvals_done = case.approvals.filter(owner_legal_person_id__in=required_owners).count()
+    required_owners = _normalized_case_owners(case)
+    if approvals_total is None or approvals_done is None:
+        computed_done, computed_total = _approvals_progress(case)
+        if approvals_total is None:
+            approvals_total = computed_total
+        if approvals_done is None:
+            approvals_done = computed_done
 
     geometry_row = case.geometries.filter(message__isnull=True).order_by("id").first()
     current_owner_approved = False
     if owner_id:
         current_owner_approved = case.approvals.filter(owner_legal_person_id=str(owner_id)).exists()
+
+    inspector_login = _inspector_login_for_case(case)
+    inspector_required = bool(inspector_login)
+    inspector_approved = _inspector_approved(case)
+    current_user_is_inspector = bool(inspector_login) and current_login == inspector_login
+    current_inspector_approved = current_user_is_inspector and inspector_approved
+    current_user_approved = current_inspector_approved or current_owner_approved
 
     return {
         "id": str(case.id),
@@ -104,8 +171,14 @@ def serialize_case_summary(
         "approvals_done": approvals_done,
         "approvals_total": approvals_total,
         "current_owner_approved": current_owner_approved,
+        "current_user_approved": current_user_approved,
+        "current_user_is_inspector": current_user_is_inspector,
+        "inspector_login": inspector_login,
+        "inspector_required": inspector_required,
+        "inspector_approved": inspector_approved,
+        "participants": _case_participants(case, inspector_login=inspector_login),
         "geometry": _geometry_to_geojson(geometry_row),
-        "n_root": list(case.n_root or []),
+        "n_root": case.n_root or "",
         "owners": list(case.owners or []),
         "created_by_login": case.created_by_login or "",
     }
@@ -174,6 +247,52 @@ def parse_geometry_payload(payload) -> GEOSGeometry:
     return geom
 
 
+def _normalize_string_list(raw, *, field_name: str) -> list[str]:
+    if not isinstance(raw, list) or not raw:
+        raise ValueError(f"Укажите непустой список {field_name}.")
+    values = [str(item).strip() for item in raw if str(item).strip()]
+    if not values:
+        raise ValueError(f"Укажите непустой список {field_name}.")
+    return values
+
+
+def _normalize_optional_string_list(raw, *, field_name: str) -> tuple[list[str], bool]:
+    if raw is None:
+        return [], False
+    if not isinstance(raw, list):
+        raise ValueError(f"{field_name} должен быть массивом строк.")
+    values = [str(item).strip() for item in raw if str(item).strip()]
+    return values, True
+
+
+def _validate_qgis_event(raw, *, index: int) -> dict:
+    if not isinstance(raw, dict):
+        raise ValueError(f"events[{index}] должен быть объектом.")
+
+    n_root_raw = raw.get("n_root")
+    if n_root_raw is None or str(n_root_raw).strip() == "":
+        raise ValueError(f"Укажите n_root в events[{index}].")
+    n_root = str(n_root_raw).strip()
+
+    owners = _normalize_string_list(raw.get("owners"), field_name=f"owners в events[{index}]")
+
+    title = (raw.get("name") or "").strip()
+    if not title:
+        raise ValueError(f"Укажите name в events[{index}].")
+
+    geometry_payload = raw.get("geometry")
+    if geometry_payload is None:
+        raise ValueError(f"Укажите geometry в events[{index}].")
+    geom = parse_geometry_payload(geometry_payload)
+
+    return {
+        "n_root": n_root,
+        "owners": owners,
+        "title": title,
+        "geom": geom,
+    }
+
+
 def validate_qgis_approve_payload(payload) -> dict:
     if not isinstance(payload, dict):
         raise ValueError("Тело запроса должно быть JSON-объектом.")
@@ -186,50 +305,60 @@ def validate_qgis_approve_payload(payload) -> dict:
     except (ValueError, AttributeError, TypeError):
         raise ValueError("Некорректный incoming_guid.") from None
 
-    n_root_raw = payload.get("n_root")
-    if isinstance(n_root_raw, str):
-        n_root_raw = [n_root_raw]
-    if not isinstance(n_root_raw, list) or not n_root_raw:
-        raise ValueError("Укажите непустой список n_root.")
-    n_root = [str(item).strip() for item in n_root_raw if str(item).strip()]
-    if not n_root:
-        raise ValueError("Укажите непустой список n_root.")
+    if "v_root" in payload:
+        v_root, v_root_provided = _normalize_optional_string_list(
+            payload.get("v_root"),
+            field_name="v_root",
+        )
+    else:
+        v_root, v_root_provided = [], False
 
-    v_root_raw = payload.get("v_root")
-    if not isinstance(v_root_raw, list) or len(v_root_raw) != 2:
-        raise ValueError("v_root должен содержать ровно 2 элемента.")
-    v_root = [str(item).strip() for item in v_root_raw]
-    if not all(v_root):
-        raise ValueError("Элементы v_root не могут быть пустыми.")
+    user = (payload.get("user") or "").strip()
+    if not user:
+        raise ValueError("Укажите user.")
 
     name = (payload.get("name") or "").strip()
     if not name:
         raise ValueError("Укажите name.")
 
-    owners_raw = payload.get("owners")
-    if not isinstance(owners_raw, list) or not owners_raw:
-        raise ValueError("Укажите непустой список owners.")
-    owners = [str(item).strip() for item in owners_raw if str(item).strip()]
-    if not owners:
-        raise ValueError("Укажите непустой список owners.")
+    events_raw = payload.get("events")
+    if not isinstance(events_raw, list) or not events_raw:
+        raise ValueError("Укажите непустой список events.")
 
-    geometry_payload = payload.get("geometry")
-    if geometry_payload is None:
-        raise ValueError("Укажите geometry.")
-    geom = parse_geometry_payload(geometry_payload)
+    events: list[dict] = []
+    seen_n_roots: set[str] = set()
+    for index, event_raw in enumerate(events_raw):
+        event = _validate_qgis_event(event_raw, index=index)
+        if event["n_root"] in seen_n_roots:
+            raise ValueError(f"Дублирующийся n_root в events: {event['n_root']}.")
+        seen_n_roots.add(event["n_root"])
+        events.append(event)
+
+    n_root: list[str] = []
+    owners: list[str] = []
+    owners_seen: set[str] = set()
+    for event in events:
+        if event["n_root"] not in n_root:
+            n_root.append(event["n_root"])
+        for owner in event["owners"]:
+            if owner not in owners_seen:
+                owners_seen.add(owner)
+                owners.append(owner)
 
     return {
         "incoming_guid": incoming_guid,
-        "n_root": n_root,
         "v_root": v_root,
+        "v_root_provided": v_root_provided,
+        "user": user,
         "name": name,
+        "n_root": n_root,
         "owners": owners,
-        "geom": geom,
+        "events": events,
     }
 
 
-def _upsert_primary_geometry(*, approve: Approve, primary_case: Case, geom: GEOSGeometry, label: str) -> ApprovalGeometry:
-    geometry = primary_case.geometries.filter(message__isnull=True).order_by("id").first()
+def _upsert_case_geometry(*, approve: Approve, case: Case, geom: GEOSGeometry, label: str) -> ApprovalGeometry:
+    geometry = case.geometries.filter(message__isnull=True).order_by("id").first()
     if geometry:
         geometry.geom = geom
         geometry.label = label
@@ -237,23 +366,98 @@ def _upsert_primary_geometry(*, approve: Approve, primary_case: Case, geom: GEOS
         return geometry
     return ApprovalGeometry.objects.create(
         approve=approve,
-        case=primary_case,
+        case=case,
         geom=geom,
         label=label,
     )
 
 
-def _sync_primary_case_fields(*, primary_case: Case, n_root: list[str], owners: list[str], title: str) -> None:
+def _sync_primary_case_fields(*, primary_case: Case, owners: list[str], title: str) -> None:
+    validate_case_owners(is_primary=True, owners=owners)
     primary_case.title = title
-    primary_case.n_root = n_root
+    primary_case.n_root = None
     primary_case.owners = owners
     primary_case.save(update_fields=["title", "n_root", "owners", "updated_at"])
+
+
+def _upsert_qgis_event_cases(
+    *,
+    approve: Approve,
+    events: list[dict],
+    user: str,
+) -> list[dict]:
+    results: list[dict] = []
+    for event in events:
+        n_root = event["n_root"]
+        case = Case.objects.filter(
+            approve=approve,
+            is_primary=False,
+            n_root=n_root,
+        ).first()
+
+        if case is not None and case.approved:
+            geometry = case.geometries.filter(message__isnull=True).order_by("id").first()
+            results.append(
+                {
+                    "n_root": n_root,
+                    "case_id": str(case.id),
+                    "geometry_id": geometry.id if geometry else None,
+                    "created": False,
+                    "skipped": True,
+                }
+            )
+            continue
+
+        event_owners = validate_case_owners(is_primary=False, owners=event["owners"])
+
+        if case is None:
+            case = Case.objects.create(
+                approve=approve,
+                is_primary=False,
+                title=event["title"],
+                status="в работе",
+                created_by_login=user,
+                n_root=n_root,
+                owners=event_owners,
+            )
+            CaseMessage.objects.create(
+                case=case,
+                author_login=user,
+                author_role="",
+                body="Событие создано.",
+            )
+            event_created = True
+        else:
+            case.title = event["title"]
+            case.owners = event_owners
+            case.created_by_login = user
+            case.save(update_fields=["title", "owners", "created_by_login", "updated_at"])
+            event_created = False
+
+        geometry = _upsert_case_geometry(
+            approve=approve,
+            case=case,
+            geom=event["geom"],
+            label=event["title"],
+        )
+        results.append(
+            {
+                "n_root": n_root,
+                "case_id": str(case.id),
+                "geometry_id": geometry.id,
+                "created": event_created,
+                "skipped": False,
+            }
+        )
+    return results
 
 
 @transaction.atomic
 def upsert_approve_from_qgis(payload) -> dict:
     data = validate_qgis_approve_payload(payload)
     incoming_guid = data["incoming_guid"]
+    primary_owner_id = resolve_task_owner_legal_person_id(str(incoming_guid))
+    primary_owners = validate_case_owners(is_primary=True, owners=[primary_owner_id])
 
     approve = Approve.objects.filter(incoming_guid=incoming_guid).first()
     if approve is None:
@@ -263,50 +467,42 @@ def upsert_approve_from_qgis(payload) -> dict:
             v_root=data["v_root"],
             name=data["name"],
             owners=data["owners"],
+            user=data["user"],
         )
         created = True
-        primary_case = approve.cases.get(is_primary=True)
-        _sync_primary_case_fields(
-            primary_case=primary_case,
-            n_root=data["n_root"],
-            owners=data["owners"],
-            title=data["name"],
-        )
-        geometry = ApprovalGeometry.objects.create(
-            approve=approve,
-            case=primary_case,
-            geom=data["geom"],
-            label=data["name"],
-        )
     else:
         if approve.approved:
             raise ApproveAlreadyApprovedError("Согласование уже согласовано. Изменение запрещено.")
         created = False
         approve.n_root = data["n_root"]
-        approve.v_root = data["v_root"]
         approve.name = data["name"]
         approve.owners = data["owners"]
-        approve.save(update_fields=["n_root", "v_root", "name", "owners", "updated_at"])
-        primary_case = approve.cases.get(is_primary=True)
-        _sync_primary_case_fields(
-            primary_case=primary_case,
-            n_root=data["n_root"],
-            owners=data["owners"],
-            title=data["name"],
-        )
-        geometry = _upsert_primary_geometry(
-            approve=approve,
-            primary_case=primary_case,
-            geom=data["geom"],
-            label=data["name"],
-        )
+        approve.user = data["user"]
+        update_fields = ["n_root", "name", "owners", "user", "updated_at"]
+        if data["v_root_provided"]:
+            approve.v_root = data["v_root"]
+            update_fields.insert(1, "v_root")
+        approve.save(update_fields=update_fields)
+
+    primary_case = approve.cases.get(is_primary=True)
+    _sync_primary_case_fields(
+        primary_case=primary_case,
+        owners=primary_owners,
+        title=data["name"],
+    )
+
+    event_results = _upsert_qgis_event_cases(
+        approve=approve,
+        events=data["events"],
+        user=data["user"],
+    )
 
     return {
         "created": created,
         "approve_id": str(approve.id),
         "incoming_guid": str(incoming_guid),
         "primary_case_id": str(primary_case.id),
-        "geometry_id": geometry.id,
+        "events": event_results,
     }
 
 
@@ -325,13 +521,16 @@ def create_case_with_geometry(
 
     geom = parse_geometry_payload(geometry_payload)
 
+    approve_roots = [str(item).strip() for item in (approve.n_root or []) if str(item).strip()]
+    case_n_root = approve_roots[0] if approve_roots else None
+
     case = Case.objects.create(
         approve=approve,
         is_primary=False,
         title=title_text,
         status="в работе",
         created_by_login=created_by_login,
-        n_root=list(approve.n_root or []),
+        n_root=case_n_root,
         owners=list(approve.owners or []),
     )
     ApprovalGeometry.objects.create(
@@ -350,29 +549,51 @@ def create_case_with_geometry(
     return case
 
 
+def _sync_approve_status_after_case_approval(approve: Approve, case: Case) -> None:
+    if not case.is_primary or not case.approved or approve.approved:
+        return
+    approve.approved = True
+    approve.save(update_fields=["approved", "updated_at"])
+
+
 @transaction.atomic
-def record_case_approval(*, case: Case, owner_id: str) -> Case:
-    owner_text = str(owner_id).strip()
-    if not owner_text:
-        raise ValueError("Не найден OwnerLegalPersonId для пользователя.")
-
-    required_owners = [str(item).strip() for item in (case.owners or []) if str(item).strip()]
-    if owner_text not in required_owners:
-        raise ValueError("У вас нет права согласовывать это событие.")
-
+def record_case_approval(*, case: Case, owner_id: str | None = None, username: str | None = None) -> Case:
     if case.approved:
         return case
 
-    CaseApproval.objects.get_or_create(
-        case=case,
-        owner_legal_person_id=owner_text,
-    )
-    done = case.approvals.filter(owner_legal_person_id__in=required_owners).count()
-    if done >= len(required_owners):
+    approve = case.approve
+    inspector_login = (approve.user or "").strip()
+    username_text = (username or "").strip()
+
+    if username_text and inspector_login and username_text == inspector_login:
+        CaseApproval.objects.get_or_create(
+            case=case,
+            approver_login=inspector_login,
+            defaults={"owner_legal_person_id": None},
+        )
+    elif owner_id:
+        owner_text = str(owner_id).strip()
+        if not owner_text:
+            raise ValueError("Не найден OwnerLegalPersonId для пользователя.")
+
+        required_owners = _normalized_case_owners(case)
+        if owner_text not in required_owners:
+            raise ValueError("У вас нет права согласовывать это событие.")
+
+        CaseApproval.objects.get_or_create(
+            case=case,
+            owner_legal_person_id=owner_text,
+            defaults={"approver_login": None},
+        )
+    else:
+        raise ValueError("Не найден OwnerLegalPersonId для пользователя.")
+
+    if _case_is_fully_approved(case):
         case.approved = True
         case.status = "согласовано"
         case.closed_at = timezone.now()
         case.save(update_fields=["approved", "status", "closed_at", "updated_at"])
+        _sync_approve_status_after_case_approval(approve, case)
     return case
 
 

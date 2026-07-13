@@ -20,8 +20,8 @@ class ApprovalConfig(AppConfig):
                 is_primary=True,
                 title="Основное событие",
                 status="в работе",
-                n_root=list(instance.n_root or []),
-                owners=list(instance.owners or []),
+                n_root=None,
+                owners=[],
             )
 
         post_save.connect(create_primary_case, sender=Approve)

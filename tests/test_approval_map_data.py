@@ -26,7 +26,10 @@ def test_get_owner_id_for_username():
 @pytest.mark.django_db
 def test_get_accessible_approves_filters_by_owner():
     guid = uuid.UUID("2e333940-831b-48f5-9751-acd0c2880974")
-    Approve.objects.create(incoming_guid=guid, owners=["10233594"])
+    approve = Approve.objects.create(incoming_guid=guid, owners=["10233594"])
+    primary = approve.cases.get(is_primary=True)
+    primary.owners = ["10233594"]
+    primary.save(update_fields=["owners", "updated_at"])
     Approve.objects.create(incoming_guid=uuid.uuid4(), owners=["99999999"])
 
     qs = get_accessible_approves("10233594")
@@ -41,23 +44,18 @@ def test_build_layer_groups_skips_zero_counts():
     assert [layer["key"] for layer in groups[0]["layers"]] == ["DtsPoly"]
 
 
-def test_build_layer_groups_uses_russian_labels_and_swatch():
+def test_build_layer_groups_uses_russian_labels_and_geometry():
     groups = build_layer_groups({"DtsPoly": 3})
     layer = groups[0]["layers"][0]
     assert layer["name"] == "Дорожно-тропиночная сеть"
     assert layer["geometry"] == "polygon"
-    assert layer["show_swatch"] is True
-    assert "borderColor" in layer["swatch_style"]
-    assert "background" in layer["swatch_style"]
     assert groups[0]["title"] == "Объект согласования"
 
 
-def test_build_layer_groups_hides_swatch_for_non_polygon_layers():
+def test_build_layer_groups_tracks_geometry_for_line_layers():
     groups = build_layer_groups({"AbutmentLine": 2})
     layer = groups[0]["layers"][0]
     assert layer["geometry"] == "line"
-    assert layer["show_swatch"] is False
-    assert layer["swatch_style"] == {}
 
 
 def test_build_layer_groups_hides_task_and_yardpoly_by_default():
@@ -106,8 +104,35 @@ def test_landing_without_owner_shows_message():
 
     assert response.status_code == 200
     context = mock_render.call_args[0][2]
-    assert "Не найден OwnerLegalPersonId" in context["map_message"]
+    assert "Нет доступных согласований" in context["map_message"]
     assert context["map_geojson"]["type"] == "FeatureCollection"
+
+
+@pytest.mark.django_db
+def test_landing_inspector_without_owner_id_loads_approves():
+    ExternalUser.objects.create(login="inspector_only", password="x", owner_legal_person_id=None)
+    Approve.objects.create(
+        incoming_guid=uuid.uuid4(),
+        owners=["10233594"],
+        user="inspector_only",
+    )
+    request = RequestFactory().get("/approval/")
+    request.user = MagicMock(is_authenticated=True, username="inspector_only")
+
+    with patch("approval.views.count_features_by_table", return_value={}):
+        with patch(
+            "approval.views.build_work_feature_collection",
+            return_value=({"type": "FeatureCollection", "features": []}, None),
+        ):
+            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+                with patch("approval.views.build_adjacent_features", return_value=[]):
+                    with patch("approval.views.landing_page_config", return_value={}):
+                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                            response = landing(request)
+
+    assert response.status_code == 200
+    context = mock_render.call_args[0][2]
+    assert context["map_message"] is None or "OwnerLegalPersonId" not in context["map_message"]
 
 
 @pytest.mark.django_db
@@ -115,7 +140,10 @@ def test_landing_with_approve_and_mock_qgis_layers():
     owner_id = "10233594"
     incoming_guid = uuid.UUID("2e333940-831b-48f5-9751-acd0c2880974")
     ExternalUser.objects.create(login="approval_map_user", password="pass", owner_legal_person_id=owner_id)
-    Approve.objects.create(incoming_guid=incoming_guid, owners=[owner_id])
+    approve = Approve.objects.create(incoming_guid=incoming_guid, owners=[owner_id])
+    primary = approve.cases.get(is_primary=True)
+    primary.owners = [owner_id]
+    primary.save(update_fields=["owners", "updated_at"])
 
     feature = {
         "type": "Feature",

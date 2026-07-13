@@ -7,7 +7,7 @@ import logging
 from django.conf import settings
 from django.db import connections
 
-from .qml_style_builder import default_swatch_style, load_manifest
+from .qml_style_builder import load_manifest
 from .work_layer_labels import work_layer_label
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,83 @@ def work_taskguid_column() -> str:
 
 def work_source_srid() -> int:
     return int(getattr(settings, "APPROVAL_WORK_SOURCE_SRID", 980077))
+
+
+def work_owner_column() -> str:
+    return getattr(settings, "GIS_OBJECT_OWNER_FIELD", "OwnerLegalPersonId")
+
+
+_OWNER_LOOKUP_PRIORITY_TABLES = ("YardPoly", "OznPoly", "OdhPoly")
+
+
+def _column_exists(cursor, schema: str, table_name: str, column_name: str) -> bool:
+    cursor.execute(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = %s
+          AND table_name = %s
+          AND column_name = %s
+        LIMIT 1
+        """,
+        [schema, table_name, column_name],
+    )
+    return cursor.fetchone() is not None
+
+
+def _owner_lookup_table_order() -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for table in _OWNER_LOOKUP_PRIORITY_TABLES:
+        if table not in seen:
+            seen.add(table)
+            ordered.append(table)
+    for table in list_work_layer_tables():
+        if table not in seen:
+            seen.add(table)
+            ordered.append(table)
+    return ordered
+
+
+def resolve_task_owner_legal_person_id(task_guid: str) -> str:
+    """Return OwnerLegalPersonId for a work-layer object with the given TaskGUID."""
+    task_guid_text = str(task_guid).strip()
+    if not task_guid_text:
+        raise ValueError("Некорректный TaskGUID для поиска балансодержателя.")
+
+    schema = work_schema_name()
+    task_col = work_taskguid_column()
+    owner_col = work_owner_column()
+
+    try:
+        with connections["qgis"].cursor() as cursor:
+            for table in _owner_lookup_table_order():
+                if not _column_exists(cursor, schema, table, task_col):
+                    continue
+                if not _column_exists(cursor, schema, table, owner_col):
+                    continue
+                cursor.execute(
+                    f"""
+                    SELECT DISTINCT t.{_quote_ident(owner_col)}::text
+                    FROM {_quote_ident(schema)}.{_quote_ident(table)} t
+                    WHERE t.{_quote_ident(task_col)} = %s::uuid
+                      AND t.{_quote_ident(owner_col)} IS NOT NULL
+                    LIMIT 1
+                    """,
+                    [task_guid_text],
+                )
+                row = cursor.fetchone()
+                if row and row[0]:
+                    return str(row[0]).strip()
+    except ValueError:
+        raise
+    except Exception as exc:
+        logger.exception("resolve_task_owner_legal_person_id: qgis query failed")
+        raise ValueError("Не удалось определить балансодержателя по TaskGUID.") from exc
+
+    raise ValueError(
+        f"Не найден OwnerLegalPersonId для TaskGUID {task_guid_text} в mggt_asu (схема {schema})."
+    )
 
 
 def list_work_layer_tables(*, force_refresh: bool = False) -> list[str]:
@@ -121,17 +198,12 @@ def build_layer_groups(feature_counts_by_table: dict[str, int]) -> list[dict]:
             continue
         table_def = manifest.get("tables", {}).get(table_name, {})
         geometry = table_def.get("geometry", "polygon")
-        show_swatch = geometry == "polygon"
-        swatch_style = default_swatch_style(table_name, manifest) if show_swatch else {}
         layers.append(
             {
                 "key": table_name,
                 "name": work_layer_label(table_name),
                 "count": count,
                 "geometry": geometry,
-                "show_swatch": show_swatch,
-                "swatch": "work",
-                "swatch_style": swatch_style,
                 "checked": table_name not in _DEFAULT_HIDDEN_LAYERS,
             }
         )
@@ -149,12 +221,6 @@ def build_layer_groups(feature_counts_by_table: dict[str, int]) -> list[dict]:
     ]
 
 
-_ADJACENT_SWATCH_STYLES = {
-    "adjacent_approval": {"borderColor": "#c2410c", "background": "#fdba74"},
-    "adjacent_objects": {"borderColor": "#1d4ed8", "background": "#93c5fd"},
-}
-
-
 def build_adjacent_layer_groups(n_count: int, v_count: int) -> list[dict]:
     layers = []
     if n_count > 0:
@@ -163,10 +229,6 @@ def build_adjacent_layer_groups(n_count: int, v_count: int) -> list[dict]:
                 "key": "adjacent_approval",
                 "name": "Смежный объект для согласования",
                 "count": n_count,
-                "geometry": "polygon",
-                "show_swatch": True,
-                "swatch": "adjacent",
-                "swatch_style": _ADJACENT_SWATCH_STYLES["adjacent_approval"],
                 "checked": True,
             }
         )
@@ -176,10 +238,6 @@ def build_adjacent_layer_groups(n_count: int, v_count: int) -> list[dict]:
                 "key": "adjacent_objects",
                 "name": "Смежные объекты",
                 "count": v_count,
-                "geometry": "polygon",
-                "show_swatch": True,
-                "swatch": "adjacent",
-                "swatch_style": _ADJACENT_SWATCH_STYLES["adjacent_objects"],
                 "checked": True,
             }
         )

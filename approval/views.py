@@ -11,17 +11,19 @@ from .work_layers import build_adjacent_layer_groups, build_layer_groups, count_
 
 @login_required
 def landing(request):
-    owner_id = get_owner_id_for_username(request.user.username)
-    approves = list(get_accessible_approves(owner_id))
+    username = request.user.username
+    owner_id = get_owner_id_for_username(username)
+    approves = list(get_accessible_approves(owner_id, username=username))
     task_guids = [str(approve.incoming_guid) for approve in approves]
 
     map_message = None
     map_error = None
 
-    if not owner_id:
-        map_message = "Не найден OwnerLegalPersonId для пользователя."
-    elif not approves:
-        map_message = "Нет доступных согласований для вашей организации."
+    if not approves:
+        if not owner_id:
+            map_message = "Нет доступных согласований для вашего пользователя."
+        else:
+            map_message = "Нет доступных согласований для вашей организации."
 
     selected_approve_id = request.GET.get("approve")
     selected_approve = None

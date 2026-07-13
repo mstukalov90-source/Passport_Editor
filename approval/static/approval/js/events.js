@@ -228,6 +228,45 @@
         thread.scrollTop = thread.scrollHeight;
     }
 
+    function formatParticipants(caseItem) {
+        if (!caseItem || !caseItem.participants || !caseItem.participants.length) {
+            return '';
+        }
+        return caseItem.participants
+            .map(function (participant) {
+                if (participant.kind === 'inspector') {
+                    return 'инспектор: ' + participant.login;
+                }
+                return 'владелец: ' + participant.id;
+            })
+            .join(', ');
+    }
+
+    function renderParticipants(caseItem) {
+        const container = el('approval-active-participants');
+        if (!container) {
+            return;
+        }
+        const text = formatParticipants(caseItem);
+        if (!text) {
+            container.hidden = true;
+            container.innerHTML = '';
+            return;
+        }
+        container.hidden = false;
+        container.innerHTML =
+            '<span class="approval-events__participants-label">Участники:</span> ' + escapeHtml(text);
+    }
+
+    function userHasApproved(caseItem) {
+        if (!caseItem) {
+            return false;
+        }
+        if (typeof caseItem.current_user_approved === 'boolean') {
+            return caseItem.current_user_approved;
+        }
+        return !!caseItem.current_owner_approved;
+    }
     function updateComposerState(caseItem) {
         const closed = !!(caseItem && caseItem.approved);
         const input = el('approval-chat-input');
@@ -238,6 +277,7 @@
         const filesInput = el('approval-chat-files');
         const closedBanner = el('approval-closed-banner');
         const progress = el('approval-approval-progress');
+        const approvedByUser = userHasApproved(caseItem);
 
         if (input) {
             input.disabled = closed;
@@ -255,22 +295,32 @@
             filesInput.disabled = closed;
         }
         if (approveBtn) {
-            approveBtn.disabled = closed || !!(caseItem && caseItem.current_owner_approved);
-            approveBtn.textContent = caseItem && caseItem.current_owner_approved ? 'Вы согласовали' : 'Согласовать';
+            approveBtn.disabled = closed || approvedByUser;
+            approveBtn.textContent = approvedByUser ? 'Вы согласовали' : 'Согласовать';
         }
         if (closedBanner) {
             closedBanner.hidden = !closed;
         }
         if (progress && caseItem) {
             progress.hidden = false;
-            progress.textContent =
+            let progressText =
                 'Согласование: ' + caseItem.approvals_done + ' / ' + caseItem.approvals_total;
+            if (caseItem.inspector_required && !caseItem.inspector_approved) {
+                progressText += ' (ожидается подпись инспектора)';
+            }
+            progress.textContent = progressText;
         }
     }
 
     function renderActiveCase(caseItem, options) {
         if (!caseItem) {
             el('approval-active-title').textContent = '';
+            const subtitle = el('approval-active-subtitle');
+            if (subtitle) {
+                subtitle.hidden = true;
+                subtitle.textContent = '';
+            }
+            renderParticipants(null);
             el('approval-active-status').textContent = '';
             renderChatMessages([]);
             updateComposerState(null);
@@ -287,6 +337,20 @@
         }
         state.activeMessageGeometryId = null;
         el('approval-active-title').textContent = caseItem.title;
+        const subtitleEl = el('approval-active-subtitle');
+        if (subtitleEl) {
+            if (caseItem.n_root) {
+                subtitleEl.hidden = false;
+                subtitleEl.textContent = 'Паспорт ' + caseItem.n_root;
+            } else if (caseItem.is_primary) {
+                subtitleEl.hidden = false;
+                subtitleEl.textContent = 'Основной чат по объекту съёмки';
+            } else {
+                subtitleEl.hidden = true;
+                subtitleEl.textContent = '';
+            }
+        }
+        renderParticipants(caseItem);
         const statusEl = el('approval-active-status');
         statusEl.textContent = caseItem.status;
         statusEl.className =
@@ -306,6 +370,9 @@
         const title = opts.titleOverride || caseItem.title;
         const extraClass = opts.extraClass || '';
         const active = caseItem.id === state.activeCaseId ? ' is-active' : '';
+        const nRootHtml = caseItem.n_root
+            ? '<p class="approval-event-card__n-root">Паспорт ' + escapeHtml(caseItem.n_root) + '</p>'
+            : '';
         return (
             '<div class="approval-event-card' +
             extraClass +
@@ -321,6 +388,7 @@
             escapeHtml(caseItem.status) +
             '</span>' +
             '</div>' +
+            nRootHtml +
             '<p class="approval-event-card__preview">' +
             escapeHtml(caseItem.preview || '') +
             '</p>' +
@@ -328,6 +396,11 @@
             '<span class="approval-event-card__count">' +
             caseItem.messages_count +
             ' сообщ.</span>' +
+            '<span class="approval-event-card__progress">' +
+            caseItem.approvals_done +
+            ' / ' +
+            caseItem.approvals_total +
+            '</span>' +
             '<button type="button" class="approval-event-card__open" data-case-id="' +
             caseItem.id +
             '">Открыть чат</button>' +
