@@ -122,6 +122,37 @@ def validate_case_owners(*, is_primary: bool, owners: list[str]) -> list[str]:
     return normalized
 
 
+def resolve_event_case_owners(*, task_owner_id: str, event_owners: list[str]) -> list[str]:
+    task_owner = str(task_owner_id).strip()
+    if not task_owner:
+        raise ValueError("Не найден OwnerLegalPersonId для объекта съёмки.")
+
+    normalized_event = [str(item).strip() for item in (event_owners or []) if str(item).strip()]
+    if not normalized_event:
+        raise ValueError("Укажите owners в events.")
+
+    merged: list[str] = []
+    for owner in [task_owner, *normalized_event]:
+        if owner not in merged:
+            merged.append(owner)
+
+    if len(merged) < 2:
+        raise ValueError(
+            "Владелец объекта съёмки и сторона смежного паспорта должны быть разными участниками события."
+        )
+    if len(merged) > 2:
+        raise ValueError("Событие должно иметь ровно двух владельцев.")
+    return merged
+
+
+def aggregate_approve_owners(*, task_owner_id: str, event_owners: list[str]) -> list[str]:
+    merged: list[str] = []
+    for owner in [str(task_owner_id).strip(), *(event_owners or [])]:
+        if owner and owner not in merged:
+            merged.append(owner)
+    return merged
+
+
 def _case_participants(case: Case, *, inspector_login: str) -> list[dict]:
     participants: list[dict] = []
     for owner_id in _normalized_case_owners(case):
@@ -385,6 +416,7 @@ def _upsert_qgis_event_cases(
     approve: Approve,
     events: list[dict],
     user: str,
+    task_owner_id: str,
 ) -> list[dict]:
     results: list[dict] = []
     for event in events:
@@ -408,7 +440,10 @@ def _upsert_qgis_event_cases(
             )
             continue
 
-        event_owners = validate_case_owners(is_primary=False, owners=event["owners"])
+        event_owners = resolve_event_case_owners(
+            task_owner_id=task_owner_id,
+            event_owners=event["owners"],
+        )
 
         if case is None:
             case = Case.objects.create(
@@ -458,6 +493,10 @@ def upsert_approve_from_qgis(payload) -> dict:
     incoming_guid = data["incoming_guid"]
     primary_owner_id = resolve_task_owner_legal_person_id(str(incoming_guid))
     primary_owners = validate_case_owners(is_primary=True, owners=[primary_owner_id])
+    approve_owners = aggregate_approve_owners(
+        task_owner_id=primary_owner_id,
+        event_owners=data["owners"],
+    )
 
     approve = Approve.objects.filter(incoming_guid=incoming_guid).first()
     if approve is None:
@@ -466,7 +505,7 @@ def upsert_approve_from_qgis(payload) -> dict:
             n_root=data["n_root"],
             v_root=data["v_root"],
             name=data["name"],
-            owners=data["owners"],
+            owners=approve_owners,
             user=data["user"],
         )
         created = True
@@ -476,7 +515,7 @@ def upsert_approve_from_qgis(payload) -> dict:
         created = False
         approve.n_root = data["n_root"]
         approve.name = data["name"]
-        approve.owners = data["owners"]
+        approve.owners = approve_owners
         approve.user = data["user"]
         update_fields = ["n_root", "name", "owners", "user", "updated_at"]
         if data["v_root_provided"]:
@@ -495,6 +534,7 @@ def upsert_approve_from_qgis(payload) -> dict:
         approve=approve,
         events=data["events"],
         user=data["user"],
+        task_owner_id=primary_owner_id,
     )
 
     return {
