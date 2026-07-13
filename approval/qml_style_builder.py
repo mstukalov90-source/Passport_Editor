@@ -211,6 +211,20 @@ def _extract_svg_field(layer_el: ET.Element) -> str | None:
     return None
 
 
+def _svg_from_expression(expr: str | None, qml_dir: Path) -> str | None:
+    if not expr:
+        return None
+    for match in re.finditer(r"'/([^']+\.svg)'", expr):
+        normalized = _normalize_svg_path(match.group(1), qml_dir)
+        if normalized:
+            return normalized
+    for match in re.finditer(r"/([^/']+\.svg)", expr):
+        basename = match.group(1)
+        if (_svg_source_dir() / basename).is_file():
+            return basename
+    return None
+
+
 def _normalize_svg_path(raw: str | None, qml_dir: Path) -> str | None:
     if not raw:
         return None
@@ -244,6 +258,11 @@ def _parse_svg_marker(layer_el: ET.Element, qml_dir: Path) -> dict[str, Any]:
     if svg_field:
         style["svgField"] = svg_field
     svg_path = _normalize_svg_path(_option_value(layer_el, "name"), qml_dir)
+    if not svg_path:
+        for opt in layer_el.findall(".//Option[@name='expression']"):
+            svg_path = _svg_from_expression(opt.get("value"), qml_dir)
+            if svg_path:
+                break
     if svg_path:
         style["svg"] = svg_path
     return style
@@ -332,6 +351,14 @@ def parse_qml_file(path: Path) -> dict[str, Any]:
             lower_label = label.lower()
             if default_rule_index is None and ("нет данных" in lower_label or filt and filt.get("type") == "null"):
                 default_rule_index = len(rules) - 1
+
+    elif renderer.get("type") == "singleSymbol":
+        symbol_id = renderer.get("symbol") or "0"
+        style = symbols.get(symbol_id, {})
+        if style:
+            label = path.stem.replace("WorkLayers_", "").replace("MasterLayers_", "")
+            rules.append({"label": label, "style": style})
+            default_rule_index = 0
 
     if default_rule_index is None and rules:
         default_rule_index = len(rules) - 1

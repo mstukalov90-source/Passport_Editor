@@ -123,9 +123,10 @@ def test_resolve_event_case_owners_merges_task_owner():
 
 
 @pytest.mark.django_db
-def test_resolve_event_case_owners_rejects_duplicate_task_owner():
-    with pytest.raises(ValueError, match="разными"):
-        resolve_event_case_owners(task_owner_id="OWNER_TASK", event_owners=["OWNER_TASK"])
+def test_resolve_event_case_owners_accepts_duplicate_task_owner():
+    assert resolve_event_case_owners(task_owner_id="OWNER_TASK", event_owners=["OWNER_TASK"]) == [
+        "OWNER_TASK",
+    ]
 
 
 @pytest.mark.django_db

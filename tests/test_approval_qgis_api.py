@@ -296,6 +296,30 @@ def test_upsert_rejected_when_approved(client):
 
 
 @pytest.mark.django_db
+def test_create_approve_when_task_owner_matches_n_root_owner(client):
+    response = _post_qgis_approve(
+        client,
+        _valid_payload(
+            events=[
+                {
+                    "n_root": "10001260",
+                    "owners": [TASK_OWNER],
+                    "name": "Согласование с одним владельцем",
+                    "geometry": EVENT_GEOMETRY_A,
+                },
+            ]
+        ),
+    )
+    assert response.status_code == 200
+
+    approve = Approve.objects.get(incoming_guid=INCOMING_GUID)
+    assert approve.owners == [TASK_OWNER]
+
+    event_case = approve.cases.get(is_primary=False, n_root="10001260")
+    assert event_case.owners == [TASK_OWNER]
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     "payload_overrides,expected_error",
     [
@@ -315,19 +339,6 @@ def test_upsert_rejected_when_approved(client):
                 ]
             },
             "owners",
-        ),
-        (
-            {
-                "events": [
-                    {
-                        "n_root": "10001260",
-                        "owners": ["OWNER_TASK"],
-                        "name": "Event",
-                        "geometry": EVENT_GEOMETRY_A,
-                    }
-                ]
-            },
-            "разными",
         ),
         (
             {

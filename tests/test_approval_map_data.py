@@ -9,7 +9,8 @@ import pytest
 from approval.access import get_accessible_approves, get_owner_id_for_username
 from approval.models import Approve
 from approval.views import landing
-from approval.work_layers import build_layer_groups, count_features_by_table
+from approval.page_config import landing_page_config
+from approval.work_layers import build_layer_groups, count_features_by_table, layer_stack_order
 from django.http import HttpResponse
 from django.test import RequestFactory
 from django.urls import reverse
@@ -70,6 +71,48 @@ def test_build_layer_groups_empty():
     assert build_layer_groups({}) == []
 
 
+def test_build_layer_groups_orders_by_geometry():
+    groups = build_layer_groups(
+        {
+            "DtsPoly": 1,
+            "AbutmentLine": 2,
+            "PhotoFixPoint": 3,
+            "OdhPoly": 4,
+            "YardPoly": 5,
+            "OznPoly": 6,
+        }
+    )
+    keys = [layer["key"] for layer in groups[0]["layers"]]
+    assert keys.index("PhotoFixPoint") < keys.index("AbutmentLine")
+    assert keys.index("AbutmentLine") < keys.index("DtsPoly")
+    assert keys.index("DtsPoly") < keys.index("OdhPoly")
+    assert keys.index("DtsPoly") < keys.index("OznPoly")
+    assert keys.index("DtsPoly") < keys.index("YardPoly")
+
+
+def test_layer_stack_order_places_points_on_top():
+    groups = build_layer_groups(
+        {
+            "DtsPoly": 1,
+            "AbutmentLine": 2,
+            "PhotoFixPoint": 3,
+            "OdhPoly": 4,
+        }
+    )
+    stack = layer_stack_order(groups)
+    assert stack.index("OdhPoly") < stack.index("DtsPoly")
+    assert stack.index("DtsPoly") < stack.index("AbutmentLine")
+    assert stack.index("AbutmentLine") < stack.index("PhotoFixPoint")
+
+
+def test_landing_page_config_includes_focus_task_guid():
+    guid = uuid.UUID("2e333940-831b-48f5-9751-acd0c2880974")
+    groups = build_layer_groups({"DtsPoly": 1})
+    config = landing_page_config(layer_groups=groups, focus_task_guid=guid)
+    assert config["focusTaskGuid"] == str(guid)
+    assert config["layerStackOrder"] == ["DtsPoly"]
+
+
 @patch("approval.work_layers.connections")
 def test_count_features_by_table(mock_connections):
     cursor = MagicMock()
@@ -97,7 +140,7 @@ def test_landing_without_owner_shows_message():
             return_value=({"type": "FeatureCollection", "features": []}, None),
         ):
             with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
-                with patch("approval.views.build_adjacent_features", return_value=[]):
+                with patch("approval.views.build_adjacent_features", return_value=([], None)):
                     with patch("approval.views.landing_page_config", return_value={}):
                         with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
                             response = landing(request)
@@ -125,7 +168,7 @@ def test_landing_inspector_without_owner_id_loads_approves():
             return_value=({"type": "FeatureCollection", "features": []}, None),
         ):
             with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
-                with patch("approval.views.build_adjacent_features", return_value=[]):
+                with patch("approval.views.build_adjacent_features", return_value=([], None)):
                     with patch("approval.views.landing_page_config", return_value={}):
                         with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
                             response = landing(request)
@@ -161,7 +204,7 @@ def test_landing_with_approve_and_mock_qgis_layers():
             return_value=({"type": "FeatureCollection", "features": [feature]}, None),
         ):
             with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
-                with patch("approval.views.build_adjacent_features", return_value=[]):
+                with patch("approval.views.build_adjacent_features", return_value=([], None)):
                     with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
                         with patch("approval.views.load_svg_index", return_value={"marker.svg": "marker.svg"}):
                             with patch("approval.views.landing_page_config", return_value={}):
@@ -191,7 +234,7 @@ def test_landing_without_matching_approve_shows_empty_message():
             return_value=({"type": "FeatureCollection", "features": []}, None),
         ):
             with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
-                with patch("approval.views.build_adjacent_features", return_value=[]):
+                with patch("approval.views.build_adjacent_features", return_value=([], None)):
                     with patch("approval.views.landing_page_config", return_value={}):
                         with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
                             request = RequestFactory().get("/approval/")

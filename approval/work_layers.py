@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 _WORK_TABLES_CACHE: list[str] | None = None
 _DEFAULT_HIDDEN_LAYERS = frozenset({"task", "YardPoly"})
+_GEOMETRY_TIER = {"point": 0, "line": 1, "polygon": 2}
+_BOTTOM_POLYGON_TABLES = frozenset({"OdhPoly", "OznPoly", "YardPoly"})
 
 
 def _quote_ident(identifier: str) -> str:
@@ -189,6 +191,34 @@ def count_features_by_table(task_guids: list[str]) -> dict[str, int]:
     return counts
 
 
+def _layer_panel_sort_key(layer: dict) -> tuple:
+    geometry = layer.get("geometry", "polygon")
+    tier = _GEOMETRY_TIER.get(geometry, 2)
+    bottom = 1 if layer.get("key") in _BOTTOM_POLYGON_TABLES else 0
+    return (tier, bottom, layer.get("name", ""))
+
+
+def _layer_stack_sort_key(layer: dict) -> tuple:
+    """Sort key for map draw order (bottom → top)."""
+    geometry = layer.get("geometry", "polygon")
+    if geometry == "polygon":
+        bottom = 0 if layer.get("key") in _BOTTOM_POLYGON_TABLES else 1
+        return (0, bottom, layer.get("name", ""))
+    if geometry == "line":
+        return (1, 0, layer.get("name", ""))
+    if geometry == "point":
+        return (2, 0, layer.get("name", ""))
+    return (0, 1, layer.get("name", ""))
+
+
+def layer_stack_order(layer_groups: list[dict]) -> list[str]:
+    layers: list[dict] = []
+    for group in layer_groups:
+        layers.extend(group.get("layers", []))
+    layers.sort(key=_layer_stack_sort_key)
+    return [layer["key"] for layer in layers]
+
+
 def build_layer_groups(feature_counts_by_table: dict[str, int]) -> list[dict]:
     manifest = load_manifest()
     layers = []
@@ -211,6 +241,8 @@ def build_layer_groups(feature_counts_by_table: dict[str, int]) -> list[dict]:
     if not layers:
         return []
 
+    layers.sort(key=_layer_panel_sort_key)
+
     return [
         {
             "key": "work",
@@ -229,6 +261,7 @@ def build_adjacent_layer_groups(n_count: int, v_count: int) -> list[dict]:
                 "key": "adjacent_approval",
                 "name": "Смежный объект для согласования",
                 "count": n_count,
+                "geometry": "polygon",
                 "checked": True,
             }
         )
@@ -238,6 +271,7 @@ def build_adjacent_layer_groups(n_count: int, v_count: int) -> list[dict]:
                 "key": "adjacent_objects",
                 "name": "Смежные объекты",
                 "count": v_count,
+                "geometry": "polygon",
                 "checked": True,
             }
         )

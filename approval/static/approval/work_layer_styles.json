@@ -701,6 +701,7 @@
             "kind": "point",
             "fillColor": "#804000",
             "iconSize": 56.0,
+            "svg": "Емкости и павильоны для сбора твердых коммунальных отходов_Площадка для выкатных контейнеров.svg",
             "svgField": "Svg"
           },
           "filter": {
@@ -715,6 +716,7 @@
             "kind": "point",
             "fillColor": "#804000",
             "iconSize": 56.0,
+            "svg": "Емкости и павильоны для сбора твердых коммунальных отходов_Площадка для выкатных контейнеров.svg",
             "svgField": "Svg"
           },
           "filter": {
@@ -1589,6 +1591,7 @@
             "kind": "point",
             "fillColor": "#e5b636",
             "iconSize": 72.0,
+            "svg": "Боллард.svg",
             "svgField": "Svg"
           }
         },
@@ -1598,6 +1601,7 @@
             "kind": "point",
             "fillColor": "#e5b636",
             "iconSize": 72.0,
+            "svg": "Буфер безопасности 1.svg",
             "svgField": "Svg"
           }
         },
@@ -1728,6 +1732,7 @@
             "kind": "point",
             "fillColor": "#e5b636",
             "iconSize": 72.0,
+            "svg": "Антипарковочный столбик.svg",
             "svgField": "Svg"
           }
         },
@@ -2084,6 +2089,7 @@
             "kind": "point",
             "fillColor": "#ffffff",
             "iconSize": 56.0,
+            "svg": "Неизвестный.svg",
             "fillOpacity": 1.0,
             "color": "#0000ff",
             "radius": 0.5,
@@ -2272,9 +2278,21 @@
     },
     "LamppostsPoint": {
       "geometry": "point",
-      "rules": [],
+      "rules": [
+        {
+          "label": "LamppostsPoint",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e77148",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        }
+      ],
       "fields": [],
-      "defaultRule": null,
+      "defaultRule": 0,
       "qmlFile": "MasterLayers_LamppostsPoint.qml",
       "label": "Опоры освещения и контактных сетей"
     },
@@ -2713,6 +2731,7 @@
             "kind": "point",
             "fillColor": "#ffffff",
             "iconSize": 56.0,
+            "svg": "Неизвестный.svg",
             "fillOpacity": 1.0,
             "color": "#0000ff",
             "radius": 0.5,
@@ -2757,6 +2776,7 @@
             "kind": "point",
             "fillColor": "#e8718d",
             "iconSize": 72.0,
+            "svg": "Информационный стенд.svg",
             "svgField": "Svg"
           }
         },
@@ -2766,6 +2786,7 @@
             "kind": "point",
             "fillColor": "#e8718d",
             "iconSize": 72.0,
+            "svg": "Скамья.svg",
             "svgField": "Svg"
           }
         },
@@ -2775,6 +2796,7 @@
             "kind": "point",
             "fillColor": "#e8718d",
             "iconSize": 72.0,
+            "svg": "Скульптура.svg",
             "svgField": "Svg"
           }
         },
@@ -2784,6 +2806,7 @@
             "kind": "point",
             "fillColor": "#e8718d",
             "iconSize": 72.0,
+            "svg": "Урна.svg",
             "svgField": "Svg"
           }
         },
@@ -2793,6 +2816,7 @@
             "kind": "point",
             "fillColor": "#e8718d",
             "iconSize": 72.0,
+            "svg": "Флагшток.svg",
             "svgField": "Svg"
           }
         },
@@ -2802,6 +2826,7 @@
             "kind": "point",
             "fillColor": "#e8718d",
             "iconSize": 72.0,
+            "svg": "Стойка для велопарковки.svg",
             "svgField": "Svg"
           }
         },
@@ -2811,6 +2836,7 @@
             "kind": "point",
             "fillColor": "#e8718d",
             "iconSize": 72.0,
+            "svg": "Рекламная конструкция.svg",
             "svgField": "Svg"
           }
         },
@@ -2820,6 +2846,7 @@
             "kind": "point",
             "fillColor": "#e8718d",
             "iconSize": 72.0,
+            "svg": "Полусфера антипарковочная.svg",
             "svgField": "Svg"
           }
         },
@@ -2829,6 +2856,7 @@
             "kind": "point",
             "fillColor": "#e8718d",
             "iconSize": 72.0,
+            "svg": "Дорожное зеркало.svg",
             "svgField": "Svg"
           }
         },
@@ -2838,6 +2866,7 @@
             "kind": "point",
             "fillColor": "#e8718d",
             "iconSize": 72.0,
+            "svg": "Вышка связи многофункциональная.svg",
             "svgField": "Svg"
           }
         },
@@ -2847,6 +2876,7 @@
             "kind": "point",
             "fillColor": "#e8718d",
             "iconSize": 72.0,
+            "svg": "Шлагбаум.svg",
             "svgField": "Svg"
           }
         },
@@ -3229,9 +3259,21 @@
     },
     "OtherEnginConstructPoint": {
       "geometry": "point",
-      "rules": [],
+      "rules": [
+        {
+          "label": "OtherEnginConstructPoint",
+          "style": {
+            "kind": "point",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        }
+      ],
       "fields": [],
-      "defaultRule": null,
+      "defaultRule": 0,
       "qmlFile": "MasterLayers_OtherEnginConstructPoint.qml",
       "label": "Инженерные сооружения (Точка)"
     },
@@ -3620,9 +3662,26 @@
     },
     "PhotoFixPoint": {
       "geometry": "point",
-      "rules": [],
-      "fields": [],
-      "defaultRule": null,
+      "rules": [
+        {
+          "label": "PhotoFixPoint",
+          "style": {
+            "kind": "point",
+            "fillColor": "#000000",
+            "iconSize": 48.0,
+            "svg": "Фотофиксация.svg",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 0.5,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          }
+        }
+      ],
+      "fields": [
+        "Svg"
+      ],
+      "defaultRule": 0,
       "qmlFile": "WorkLayers_PhotoFixPoint.qml",
       "label": "Точки фотофиксации"
     },
@@ -4746,9 +4805,21 @@
     },
     "SpaPoly": {
       "geometry": "polygon",
-      "rules": [],
+      "rules": [
+        {
+          "label": "SpaPoly",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ff9e17",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
       "fields": [],
-      "defaultRule": null,
+      "defaultRule": 0,
       "qmlFile": "MasterLayers_SpaPoly.qml",
       "label": "Особо охраняемые природные территории"
     },
@@ -4922,9 +4993,21 @@
     },
     "TrafficLightPoint": {
       "geometry": "point",
-      "rules": [],
+      "rules": [
+        {
+          "label": "TrafficLightPoint",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e77148",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        }
+      ],
       "fields": [],
-      "defaultRule": null,
+      "defaultRule": 0,
       "qmlFile": "MasterLayers_TrafficLightPoint.qml",
       "label": "Светофорные объекты"
     },
@@ -5048,9 +5131,19 @@
     },
     "TreeMergeLines": {
       "geometry": "line",
-      "rules": [],
+      "rules": [
+        {
+          "label": "TreeMergeLines",
+          "style": {
+            "kind": "line",
+            "color": "#ff0000",
+            "opacity": 1.0,
+            "weight": 4.91
+          }
+        }
+      ],
       "fields": [],
-      "defaultRule": null,
+      "defaultRule": 0,
       "qmlFile": "WorkLayers_TreeMergeLines.qml",
       "label": "Вспомогательные линии"
     },
@@ -5111,6 +5204,7 @@
             "kind": "point",
             "fillColor": "#49b700",
             "iconSize": 4.0,
+            "svg": "Дерево_Дерево одиночное.svg",
             "svgField": "Svg"
           },
           "filter": {
@@ -5125,6 +5219,7 @@
             "kind": "point",
             "fillColor": "#49b700",
             "iconSize": 4.0,
+            "svg": "Кустарник_Одиночный.svg",
             "svgField": "Svg"
           },
           "filter": {
@@ -5155,9 +5250,22 @@
     },
     "TreesShrubsPoly": {
       "geometry": "polygon",
-      "rules": [],
+      "rules": [
+        {
+          "label": "TreesShrubsPoly",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#33a02c",
+            "fillOpacity": 1.0,
+            "color": "#33a02c",
+            "opacity": 1.0,
+            "weight": 2.49,
+            "fillPattern": "no"
+          }
+        }
+      ],
       "fields": [],
-      "defaultRule": null,
+      "defaultRule": 0,
       "qmlFile": "WorkLayers_TreesShrubsPoly.qml",
       "label": "Деревья и кустарники (Полигон)"
     },
@@ -5263,6 +5371,7 @@
             "kind": "point",
             "fillColor": "#ffffff",
             "iconSize": 72.0,
+            "svg": "Неизвестный.svg",
             "fillOpacity": 1.0,
             "color": "#0000ff",
             "radius": 0.5,

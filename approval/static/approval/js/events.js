@@ -326,6 +326,7 @@
             updateComposerState(null);
             mapApi().highlightCase(null);
             mapApi().renderGeometries(null);
+            mapApi().updateAdjacentLayers('');
             clearPendingMessageGeometry();
             return;
         }
@@ -357,6 +358,7 @@
             'approval-events__status approval-events__status--' + (caseItem.status_class || 'active');
 
         mapApi().highlightCase(caseItem.id);
+        mapApi().updateAdjacentLayers(caseItem.is_primary ? '' : (caseItem.n_root || ''));
         mapApi().renderGeometries(caseItem);
         const fitMap = !options || options.fitMap !== false;
         if (fitMap) {

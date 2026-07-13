@@ -39,6 +39,8 @@
     let layerStylesManifest = null;
     let layerStyleIconsBase = '/static/approval/icons/svg/';
     let svgIndex = null;
+    let layerStackOrder = [];
+    const adjacentFeatureRegistry = {};
     const SVG_MARKER_SIZE_SCALE = 2;
     const CIRCLE_MARKER_SIZE_SCALE = 1.5;
 
@@ -178,6 +180,32 @@
         return tableDef.rules[tableDef.rules.length - 1].style || null;
     }
 
+    function isUnknownSvgPath(resolvedPath) {
+        if (!resolvedPath) {
+            return false;
+        }
+        const basename = resolvedPath.split('/').pop() || '';
+        return basename.indexOf('Неизвестн') === 0;
+    }
+
+    function photoFixIconUrl() {
+        const resolved = resolveSvgRelativePath('Фотофиксация.svg');
+        if (!resolved) {
+            return null;
+        }
+        return layerStyleIconsBase + encodeSvgPath(resolved);
+    }
+
+    function createSvgMarker(latlng, iconUrl, size, feature) {
+        return L.marker(latlng, {
+            icon: L.icon({
+                iconUrl: iconUrl,
+                iconSize: [size, size],
+                iconAnchor: [size / 2, size / 2],
+            }),
+        }).bindTooltip(featureTooltip(feature), { sticky: true });
+    }
+
     function svgIconUrl(style, props) {
         if (!style) {
             return null;
@@ -194,7 +222,7 @@
             return null;
         }
         const resolved = resolveSvgRelativePath(raw);
-        if (!resolved) {
+        if (!resolved || isUnknownSvgPath(resolved)) {
             return null;
         }
         return layerStyleIconsBase + encodeSvgPath(resolved);
@@ -253,6 +281,89 @@
         return null;
     }
 
+    function isAdjacentFeature(props) {
+        if (!props) {
+            return false;
+        }
+        if (props.adjacentRootKind) {
+            return true;
+        }
+        return props.layerKey === 'adjacent_approval' || props.layerKey === 'adjacent_objects';
+    }
+
+    function adjacentFeatureKey(props) {
+        return (
+            String(props.sourceTable || '') +
+            ':' +
+            String(props.fid ?? '') +
+            ':' +
+            String(props.RootId || '')
+        );
+    }
+
+    function adjacentLayerForRoot(rootId, kind, activeNRoot) {
+        const active = String(activeNRoot || '').trim();
+        const normalizedRoot = String(rootId || '').trim();
+        if (!active) {
+            return kind === 'n' ? 'adjacent_approval' : 'adjacent_objects';
+        }
+        if (normalizedRoot === active) {
+            return 'adjacent_approval';
+        }
+        return 'adjacent_objects';
+    }
+
+    function findManagedGroupContaining(leafletLayer) {
+        const groups = Object.keys(managedLayers);
+        for (let i = 0; i < groups.length; i += 1) {
+            const group = managedLayers[groups[i]];
+            if (group && group.hasLayer(leafletLayer)) {
+                return group;
+            }
+        }
+        return null;
+    }
+
+    function moveLeafletLayerToGroup(leafletLayer, targetKey) {
+        const targetGroup = ensureLayerGroup(targetKey);
+        const currentGroup = findManagedGroupContaining(leafletLayer);
+        if (currentGroup && currentGroup !== targetGroup) {
+            currentGroup.removeLayer(leafletLayer);
+        }
+        if (!targetGroup.hasLayer(leafletLayer)) {
+            targetGroup.addLayer(leafletLayer);
+        }
+        const checkbox = document.querySelector('input[data-layer-key="' + targetKey + '"]');
+        const isVisible = !checkbox || checkbox.checked;
+        setLayerVisible(targetKey, isVisible);
+    }
+
+    function registerAdjacentLeafletLayer(props, leafletLayer) {
+        const key = adjacentFeatureKey(props);
+        const kind = props.adjacentRootKind || (props.layerKey === 'adjacent_approval' ? 'n' : 'v');
+        adjacentFeatureRegistry[key] = {
+            leafletLayer: leafletLayer,
+            rootId: props.RootId || '',
+            kind: kind,
+        };
+        leafletLayer._adjacentFeatureKey = key;
+    }
+
+    function updateAdjacentLayers(activeNRoot) {
+        if (!map) {
+            return;
+        }
+        Object.keys(adjacentFeatureRegistry).forEach(function (key) {
+            const entry = adjacentFeatureRegistry[key];
+            if (!entry || !entry.leafletLayer) {
+                return;
+            }
+            const targetKey = adjacentLayerForRoot(entry.rootId, entry.kind, activeNRoot);
+            moveLeafletLayerToGroup(entry.leafletLayer, targetKey);
+        });
+        reorderMapLayers();
+    }
+
     function styleFeature(feature) {
         const props = feature.properties || {};
         const styleKey = styleTableKey(props);
@@ -308,17 +419,21 @@
         const styleKey = styleTableKey(props);
         const displayKey = props.layerKey || props.sourceTable || 'work';
         const ruleStyle = resolveRuleStyle(styleKey, props);
+
+        if (styleKey === 'PhotoFixPoint') {
+            const photoUrl = photoFixIconUrl();
+            if (photoUrl) {
+                const baseSize = (ruleStyle && ruleStyle.iconSize) || 12;
+                const size = Math.round(baseSize * SVG_MARKER_SIZE_SCALE);
+                return createSvgMarker(latlng, photoUrl, size, feature);
+            }
+        }
+
         const iconUrl = svgIconUrl(ruleStyle, props);
         if (iconUrl) {
             const baseSize = ruleStyle && ruleStyle.iconSize ? ruleStyle.iconSize : 18;
             const size = Math.round(baseSize * SVG_MARKER_SIZE_SCALE);
-            return L.marker(latlng, {
-                icon: L.icon({
-                    iconUrl: iconUrl,
-                    iconSize: [size, size],
-                    iconAnchor: [size / 2, size / 2],
-                }),
-            }).bindTooltip(featureTooltip(feature), { sticky: true });
+            return createSvgMarker(latlng, iconUrl, size, feature);
         }
 
         const colors = hashColor(displayKey);
@@ -358,6 +473,25 @@
         } else if (map.hasLayer(group)) {
             map.removeLayer(group);
         }
+        reorderMapLayers();
+    }
+
+    function reorderMapLayers() {
+        if (!map) {
+            return;
+        }
+        const order = layerStackOrder.length
+            ? layerStackOrder
+            : Object.keys(managedLayers).sort();
+        order.forEach(function (layerKey) {
+            const group = managedLayers[layerKey];
+            if (group && map.hasLayer(group)) {
+                group.bringToFront();
+            }
+        });
+        if (eventGeometriesGroup && map.hasLayer(eventGeometriesGroup)) {
+            eventGeometriesGroup.bringToFront();
+        }
     }
 
     function fitVisibleBounds() {
@@ -377,6 +511,40 @@
         if (bounds.isValid()) {
             map.fitBounds(bounds.pad(0.12));
         }
+    }
+
+    function fitTaskGuidBounds(taskGuid) {
+        if (!map || !taskGuid) {
+            return false;
+        }
+        const normalized = String(taskGuid).toLowerCase();
+        const boundsGroup = L.featureGroup();
+        Object.keys(managedLayers).forEach(function (layerKey) {
+            const group = managedLayers[layerKey];
+            if (!group) {
+                return;
+            }
+            group.eachLayer(function (leafletLayer) {
+                const feature = leafletLayer.feature;
+                const props = feature && feature.properties;
+                const guid = props && props.taskGuid;
+                if (guid && String(guid).toLowerCase() === normalized) {
+                    boundsGroup.addLayer(leafletLayer);
+                }
+            });
+        });
+        const bounds = boundsGroup.getBounds();
+        if (!bounds.isValid()) {
+            return false;
+        }
+        const northEast = bounds.getNorthEast();
+        const southWest = bounds.getSouthWest();
+        if (northEast.lat === southWest.lat && northEast.lng === southWest.lng) {
+            map.setView(bounds.getCenter(), Math.max(map.getZoom(), 17));
+        } else {
+            map.fitBounds(bounds.pad(0.12));
+        }
+        return true;
     }
 
     function initLayerPanelControls(config) {
@@ -673,6 +841,9 @@
         if (config.layerStyleIconsBase) {
             layerStyleIconsBase = config.layerStyleIconsBase;
         }
+        if (Array.isArray(config.layerStackOrder)) {
+            layerStackOrder = config.layerStackOrder;
+        }
         getLayerStylesManifest();
 
         const center = Array.isArray(config.center) ? config.center : [55.75, 37.61];
@@ -710,6 +881,9 @@
                     onEachFeature: onEachFeature,
                     pointToLayer: pointToLayer,
                 }).eachLayer(function (layer) {
+                    if (isAdjacentFeature(props)) {
+                        registerAdjacentLeafletLayer(props, layer);
+                    }
                     targetGroup.addLayer(layer);
                 });
 
@@ -720,7 +894,11 @@
         }
 
         initLayerPanelControls(config);
-        fitVisibleBounds();
+        updateAdjacentLayers('');
+        reorderMapLayers();
+        if (!fitTaskGuidBounds(config.focusTaskGuid)) {
+            fitVisibleBounds();
+        }
     }
 
     function initLayerPanelToggle() {
@@ -764,6 +942,7 @@
         renderGeometries: renderGeometries,
         highlightCase: highlightCase,
         highlightMessageGeometry: highlightMessageGeometry,
+        updateAdjacentLayers: updateAdjacentLayers,
         fitCaseGeometry: fitCaseGeometry,
         fitMessageGeometry: fitMessageGeometry,
         setPendingMessageGeometry: setPendingMessageGeometry,

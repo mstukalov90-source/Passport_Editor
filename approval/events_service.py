@@ -136,10 +136,6 @@ def resolve_event_case_owners(*, task_owner_id: str, event_owners: list[str]) ->
         if owner not in merged:
             merged.append(owner)
 
-    if len(merged) < 2:
-        raise ValueError(
-            "Владелец объекта съёмки и сторона смежного паспорта должны быть разными участниками события."
-        )
     if len(merged) > 2:
         raise ValueError("Событие должно иметь ровно двух владельцев.")
     return merged

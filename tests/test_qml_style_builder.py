@@ -65,6 +65,15 @@ def test_build_manifest_includes_labels():
     assert manifest["tables"]["LawnPoly"]["label"] == "Газоны"
 
 
+def test_parse_photo_fix_point_single_symbol():
+    qml_dir = Path(settings.APPROVAL_LAYER_STYLES_QML_DIR)
+    path = qml_dir / "WorkLayers_PhotoFixPoint.qml"
+    parsed = parse_qml_file(path)
+    assert parsed["geometry"] == "point"
+    assert len(parsed["rules"]) == 1
+    assert parsed["rules"][0]["style"]["svg"] == "Фотофиксация.svg"
+
+
 def test_sync_svg_static_tree_preserves_subfolders(tmp_path, settings):
     source = tmp_path / "svg"
     nested = source / "Дорожные знаки ОДХ" / "1. Предупреждающие знаки"
