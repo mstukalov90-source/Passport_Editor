@@ -112,12 +112,15 @@ def test_landing_with_adjacent_layers():
     owner_id = "10233594"
     incoming_guid = uuid.UUID("2e333940-831b-48f5-9751-acd0c2880974")
     ExternalUser.objects.create(login="adjacent_map_user", password="pass", owner_legal_person_id=owner_id)
-    Approve.objects.create(
+    approve = Approve.objects.create(
         incoming_guid=incoming_guid,
         owners=[owner_id],
         n_root=["09811"],
         v_root=["10482", "09811"],
     )
+    primary = approve.cases.get(is_primary=True)
+    primary.owners = [owner_id]
+    primary.save(update_fields=["owners", "updated_at"])
 
     adjacent_feature = {
         "type": "Feature",
@@ -183,4 +186,4 @@ def test_landing_without_owner_shows_message_unchanged():
                             response = landing(request)
 
     assert response.status_code == 200
-    assert "Не найден OwnerLegalPersonId" in mock_render.call_args[0][2]["map_message"]
+    assert "Нет доступных согласований" in mock_render.call_args[0][2]["map_message"]

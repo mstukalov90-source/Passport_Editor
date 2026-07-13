@@ -6,6 +6,8 @@ import zipfile
 from datetime import timedelta
 from pathlib import Path
 
+from approval.access import get_accessible_approves
+from approval.events_service import serialize_approve_option
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import connection
@@ -34,9 +36,6 @@ from .page_config import (
     split_object_page_config,
 )
 from .user_guide import load_user_guide_html
-
-from approval.access import get_accessible_approves
-from approval.events_service import serialize_approve_option
 
 logger = logging.getLogger(__name__)
 

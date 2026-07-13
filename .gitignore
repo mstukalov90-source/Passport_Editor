@@ -18,6 +18,7 @@ dumps/
 *.sql
 *.sql.gz
 *.dump
+!approval/layer_styles/create_work.sql
 
 # =====================
 # DJANGO СТАНДАРТНОЕ
@@ -142,6 +143,7 @@ docs/
 *.docx
 .codegraph/
 *.json
+!approval/static/approval/work_layer_styles.json
 *.geojson
 *.xlsx
 SECURITY.md
