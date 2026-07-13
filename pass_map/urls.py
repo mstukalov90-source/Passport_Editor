@@ -31,6 +31,7 @@ urlpatterns = [
         name="login",
     ),
     path("accounts/", include("django.contrib.auth.urls")),
+    path("approval/", include("approval.urls")),
     path("", include("pass_viewer.urls")),
     path("media/<path:path>", serve, {"document_root": settings.MEDIA_ROOT}),
     path("static/<path:path>", serve, {"document_root": settings.STATIC_ROOT}),

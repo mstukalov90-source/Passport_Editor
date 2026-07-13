@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 26.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 85.0393677 85.0393677" style="enable-background:new 0 0 85.0393677 85.0393677;" xml:space="preserve">
+<style type="text/css">
+	
+		.st0{fill-rule:evenodd;clip-rule:evenodd;fill:#FFFFFF;stroke:#0000FF;stroke-width:0.2834646;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+	.st1{fill:none;stroke:#0000FF;stroke-width:0.2834646;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+	
+		.st2{fill-rule:evenodd;clip-rule:evenodd;fill:none;stroke:#0000FF;stroke-width:0.2834646;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+</style>
+<g>
+	<g id="HATCH_00000114756839104287383530000011445124224993945006_">
+		<polygon class="st0" points="47.1890945,36.8503914 55.275589,42.5196838 47.1890945,48.1889763 29.7637787,48.1889763 
+			29.7637787,45.3543282 29.7637787,39.6850395 29.7637787,36.8503914 47.1890945,36.8503914 		"/>
+	</g>
+	<g id="LWPOLYLINE_00000171697216275190461360000001417381292606162827_">
+		<polyline class="st1" points="46.2579575,41.0208282 45.3799553,41.0208282 45.3799553,43.8997574 46.2579575,43.8997574 
+			46.2579575,41.0208282 		"/>
+	</g>
+	<g id="LWPOLYLINE_00000064333101123248842890000009312332319518844580_">
+		<polyline class="st1" points="45.3799553,45.4008179 46.2579575,45.4008179 46.2579575,39.5197678 45.3799553,39.5197678 		"/>
+	</g>
+	<g id="LWPOLYLINE_00000080894670086437593500000017660209731203171504_">
+		<path class="st1" d="M29.7637787,45.3543282"/>
+	</g>
+	<g id="LWPOLYLINE_00000061429283594559046500000005929044920017331604_">
+		<path class="st1" d="M29.7637787,39.6850395"/>
+	</g>
+	<rect x="30.618063" y="37.610405" class="st1" width="8.1004639" height="9.8185587"/>
+	<polyline class="st1" points="38.7185287,37.610405 46.649231,37.610405 53.7525826,42.4767189 46.649231,47.4289627 
+		38.7185287,47.4289627 	"/>
+	<line class="st2" x1="30.618063" y1="37.610405" x2="38.7185287" y2="47.4289627"/>
+	<line class="st2" x1="30.618063" y1="47.4289627" x2="38.7185287" y2="37.610405"/>
+</g>
+</svg>

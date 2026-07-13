@@ -635,6 +635,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const ownedItems = Array.from(document.querySelectorAll('.owned-item'));
         const passportForms = Array.from(document.querySelectorAll('.owned-passport-row form.owned-open-form'));
         const requestStatusFilterEl = document.getElementById('owned-request-status-filter');
+        const approvalSelectWrapEl = document.getElementById('owned-approval-select-wrap');
+        const approvalSelectEl = document.getElementById('owned-approval-select');
+        const sourceFiltersEl = document.querySelector('.owned-source-filters');
         let statusFilterCheckboxes = [];
         let statusDropdownTrigger = null;
         let statusDropdownPanel = null;
@@ -691,6 +694,34 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (!show) {
                 setStatusDropdownOpen(false);
             }
+        }
+
+        function syncApprovalSelectVisibility() {
+            if (!approvalSelectWrapEl) {
+                return;
+            }
+            const approvalRows = document.querySelectorAll('.owned-approval-row');
+            const show =
+                getActiveOwnedListTab() === 'approvals' && approvalRows.length > 0;
+            approvalSelectWrapEl.hidden = !show;
+        }
+
+        function syncSourceFiltersVisibility() {
+            if (!sourceFiltersEl) {
+                return;
+            }
+            const activeTab = getActiveOwnedListTab();
+            sourceFiltersEl.hidden = activeTab === 'approvals';
+        }
+
+        function getOwnedItemTabName(item) {
+            if (item.classList.contains('owned-request-row')) {
+                return 'requests';
+            }
+            if (item.classList.contains('owned-approval-row')) {
+                return 'approvals';
+            }
+            return 'passports';
         }
 
         function initRequestStatusFilter() {
@@ -804,14 +835,15 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             const activeTab = getActiveOwnedListTab();
             const selectedSources = getSelectedSourceSet();
             const selectedStatuses = getSelectedRequestStatusSet();
+            const selectedApprovalStatus = (approvalSelectEl?.value || '').trim();
             ownedItems.forEach((item) => {
                 const rootidValue = item.dataset.rootid || '';
                 const nameValue = item.dataset.name || '';
                 const sourceLabel = normalizeOwnedSourceLabel(item.dataset.sourceLabel || 'ДТ');
-                const tabName = item.classList.contains('owned-request-row') ? 'requests' : 'passports';
+                const tabName = getOwnedItemTabName(item);
                 const rootidMatch = !rootidNeedle || rootidValue.includes(rootidNeedle);
                 const nameMatch = !nameNeedle || nameValue.includes(nameNeedle);
-                const sourceMatch = selectedSources.has(sourceLabel);
+                const sourceMatch = activeTab === 'approvals' || selectedSources.has(sourceLabel);
                 const tabMatch = tabName === activeTab;
                 const rowStatus = (item.dataset.requestStatus || '').trim();
                 const statusMatch =
@@ -819,10 +851,19 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     !rowStatus ||
                     selectedStatuses === null ||
                     selectedStatuses.has(rowStatus);
+                const rowApprovalStatus = (item.dataset.approvalStatus || '').trim();
+                const approvalMatch =
+                    activeTab !== 'approvals' ||
+                    !selectedApprovalStatus ||
+                    rowApprovalStatus === selectedApprovalStatus;
                 item.style.display =
-                    rootidMatch && nameMatch && sourceMatch && tabMatch && statusMatch ? '' : 'none';
+                    rootidMatch && nameMatch && sourceMatch && tabMatch && statusMatch && approvalMatch
+                        ? ''
+                        : 'none';
             });
             syncRequestStatusFilterVisibility();
+            syncApprovalSelectVisibility();
+            syncSourceFiltersVisibility();
             if (typeof applyOwnedMapSourceFilters === 'function') {
                 applyOwnedMapSourceFilters();
             }
@@ -874,8 +915,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     filterNameEl.value = '';
                 }
                 resetRequestStatusFilter();
+                if (approvalSelectEl) {
+                    approvalSelectEl.value = '';
+                }
                 applyOwnedFilters();
             });
+        }
+        if (approvalSelectEl) {
+            approvalSelectEl.addEventListener('change', applyOwnedFilters);
         }
         initRequestStatusFilter();
         listTabButtons.forEach((btn) => {
@@ -1948,7 +1995,60 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const userGuideModal = document.getElementById('user-guide-modal');
         const userGuideOpenBtn = document.getElementById('user-guide-open-btn');
         const userGuideCloseBtn = document.getElementById('user-guide-close-btn');
+        const approvalNotificationsBtn = document.getElementById('approval-notifications-btn');
+        const approvalNotificationsPanel = document.getElementById('approval-notifications-panel');
         let userGuidePreviousOverflow = '';
+
+        function setApprovalNotificationsOpen(isOpen) {
+            if (!approvalNotificationsBtn || !approvalNotificationsPanel) {
+                return;
+            }
+            approvalNotificationsBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            approvalNotificationsPanel.hidden = !isOpen;
+            approvalNotificationsBtn.classList.toggle('is-open', isOpen);
+        }
+
+        function openApprovalFromNotifications(approveId) {
+            const normalizedApproveId = String(approveId || '').trim();
+            if (!normalizedApproveId) {
+                return;
+            }
+            setOwnedListTab('approvals');
+            if (approvalSelectEl) {
+                approvalSelectEl.value = 'В работе';
+            }
+            applyOwnedFilters();
+            document.querySelectorAll('.owned-approval-row.is-notification-focused').forEach((row) => {
+                row.classList.remove('is-notification-focused');
+            });
+            const row = document.querySelector(
+                `.owned-approval-row[data-approve-id="${normalizedApproveId}"]`
+            );
+            if (row) {
+                row.classList.add('is-notification-focused');
+                row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+            setApprovalNotificationsOpen(false);
+        }
+
+        if (approvalNotificationsBtn && approvalNotificationsPanel) {
+            approvalNotificationsBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const isOpen = approvalNotificationsBtn.getAttribute('aria-expanded') === 'true';
+                setApprovalNotificationsOpen(!isOpen);
+            });
+            approvalNotificationsPanel.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+            approvalNotificationsPanel.querySelectorAll('.approval-notifications-item').forEach((item) => {
+                item.addEventListener('click', () => {
+                    openApprovalFromNotifications(item.dataset.approveId);
+                });
+            });
+            document.addEventListener('click', () => {
+                setApprovalNotificationsOpen(false);
+            });
+        }
 
         function openUserGuideModal() {
             if (!userGuideModal) {
@@ -1988,6 +2088,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && userGuideModal && userGuideModal.classList.contains('is-open')) {
                 closeUserGuideModal();
+            }
+            if (event.key === 'Escape' && approvalNotificationsBtn?.getAttribute('aria-expanded') === 'true') {
+                setApprovalNotificationsOpen(false);
             }
         });
 

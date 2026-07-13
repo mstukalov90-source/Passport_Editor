@@ -25,6 +25,49 @@
             <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>{% endif %}
         </h2>
         <div class="owned-home-header-actions">
+            <div class="approval-notifications-dropdown">
+                <button
+                    type="button"
+                    id="approval-notifications-btn"
+                    class="user-guide-open-btn approval-home-link"
+                    aria-haspopup="listbox"
+                    aria-expanded="false"
+                    aria-controls="approval-notifications-panel"
+                >
+                    Уведомления{% if pending_approval_count %}<span class="approval-notifications-badge">{{ pending_approval_count }}</span>{% endif %}
+                    <span class="approval-notifications-chevron" aria-hidden="true">▾</span>
+                </button>
+                <div
+                    id="approval-notifications-panel"
+                    class="approval-notifications-panel"
+                    role="listbox"
+                    aria-label="Согласования в работе"
+                    hidden
+                >
+                    <div class="approval-notifications-panel__header">Согласования в работе</div>
+                    {% if pending_approval_count %}
+                        <ul class="approval-notifications-list">
+                            {% for item in approval_items %}
+                                {% if not item.approved %}
+                                    <li>
+                                        <button
+                                            type="button"
+                                            class="approval-notifications-item"
+                                            data-approve-id="{{ item.id }}"
+                                            role="option"
+                                        >
+                                            <span class="approval-notifications-item__title">{{ item.label }}</span>
+                                            <span class="approval-notifications-item__status">В работе</span>
+                                        </button>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="approval-notifications-empty">Нет согласований в работе</p>
+                    {% endif %}
+                </div>
+            </div>
             <button type="button" id="user-guide-open-btn" class="user-guide-open-btn">Инструкция пользования</button>
             <form method="post" action="{% url 'logout' %}" style="margin: 0;">
                 {% csrf_token %}
@@ -36,7 +79,7 @@
     <div class="owned-home-main">
     {% if owned_objects_error %}
         <p class="note" style="color: #b42318;">{{ owned_objects_error }}</p>
-    {% elif owned_objects %}
+    {% elif owned_objects or approval_items %}
         <div class="owned-home-workspace">
             <div class="owned-home-lists-stack">
                 <div class="owned-filter-toolbar">
@@ -48,7 +91,15 @@
                     <div class="owned-list-tabs">
                         <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="passports">Актуальные паспорта</button>
                         <button type="button" class="owned-list-tab-btn" data-owned-list-tab="requests">Заявки</button>
+                        <button type="button" class="owned-list-tab-btn" data-owned-list-tab="approvals">Согласования</button>
                         <div id="owned-request-status-filter" class="owned-request-status-filter" hidden aria-label="Фильтр по статусу заявки"></div>
+                        <div id="owned-approval-select-wrap" class="owned-approval-select-wrap" hidden aria-label="Фильтр по статусу согласования">
+                            <select id="owned-approval-select" class="owned-approval-select">
+                                <option value="">Все согласования</option>
+                                <option value="В работе">В работе</option>
+                                <option value="Согласовано">Согласовано</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="owned-source-filters">
                         <button type="button" class="source-badge source-badge--dt owned-source-filter-btn is-active" data-source-filter="ДТ">ДТ</button>
@@ -301,6 +352,29 @@
                                 {% endif %}
                             </div>
                         {% endif %}
+                    {% endfor %}
+                </div>
+                <div class="owned-list-wrap owned-list-panel" data-list-panel="approvals">
+                    {% for item in approval_items %}
+                        <div
+                            class="owned-list-item owned-item owned-approval-row"
+                            data-approve-id="{{ item.id }}"
+                            data-approval-status="{{ item.status_label }}"
+                            data-rootid="{{ item.incoming_guid|lower }}"
+                            data-name="{{ item.name|default:item.label|lower }}"
+                        >
+                            <a
+                                href="{% url 'approval:landing' %}?approve={{ item.id }}"
+                                class="owned-list-open-btn owned-approval-open-link"
+                            >
+                                <strong>{{ item.label }}</strong><br>
+                                <span class="owned-approval-status{% if item.approved %} owned-approval-status--done{% endif %}">
+                                    {{ item.status_label }}
+                                </span>
+                            </a>
+                        </div>
+                    {% empty %}
+                        <p class="owned-approval-empty note">Нет доступных согласований.</p>
                     {% endfor %}
                 </div>
                 </div>

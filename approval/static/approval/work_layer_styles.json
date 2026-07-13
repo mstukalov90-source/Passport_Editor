@@ -1,0 +1,5459 @@
+{
+  "version": 1,
+  "tables": {
+    "AbutmentLine": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "Бортовой камень из бетона",
+          "style": {
+            "kind": "line",
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "AbutmentType",
+            "value": "fence_beton_stone"
+          }
+        },
+        {
+          "label": "Бортовой камень из гранита",
+          "style": {
+            "kind": "line",
+            "color": "#afa6a1",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "AbutmentType",
+            "value": "fence_granite_stone"
+          }
+        },
+        {
+          "label": "Декоративный бортовой камень",
+          "style": {
+            "kind": "line",
+            "color": "#54b04a",
+            "opacity": 1.0,
+            "weight": 2.49,
+            "dashArray": "0.66, 2"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "AbutmentType",
+            "value": "fence_decor_stone"
+          }
+        },
+        {
+          "label": "Дорожный бортовой камень",
+          "style": {
+            "kind": "line",
+            "color": "#189e17",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "AbutmentType",
+            "value": "fence_road_stone"
+          }
+        },
+        {
+          "label": "Садовый бортовой камень",
+          "style": {
+            "kind": "line",
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "AbutmentType",
+            "value": "fence_garden_stone"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "line",
+            "color": "#ff0004",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "null",
+            "field": "AbutmentType"
+          }
+        }
+      ],
+      "fields": [
+        "AbutmentType"
+      ],
+      "defaultRule": 5,
+      "qmlFile": "WorkLayers_AbutmentLine.qml",
+      "label": "Элементы сопряжения поверхностей"
+    },
+    "AuxilaryLines": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "Замыкание",
+          "style": {
+            "kind": "line",
+            "color": "#cbcbcb",
+            "opacity": 1.0,
+            "weight": 2.49
+          }
+        },
+        {
+          "label": "Механизированная уборка",
+          "style": {
+            "kind": "line",
+            "color": "#00cb4e",
+            "opacity": 1.0,
+            "weight": 8.0
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "line",
+            "color": "#b70000",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 2,
+      "qmlFile": "WorkLayers_AuxilaryLines.qml",
+      "label": "Вспомогательные линии"
+    },
+    "AxialLines": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "Осевая линия проезжей части",
+          "style": {
+            "kind": "line",
+            "color": "#cb0003",
+            "opacity": 1.0,
+            "weight": 0.94
+          }
+        },
+        {
+          "label": "Осевая разделительная линия",
+          "style": {
+            "kind": "line",
+            "color": "#ededed",
+            "opacity": 1.0,
+            "weight": 1.2
+          }
+        },
+        {
+          "label": "",
+          "style": {
+            "kind": "line",
+            "color": "#cbcbcb",
+            "opacity": 1.0,
+            "weight": 2.49
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 2,
+      "qmlFile": "WorkLayers_AxialLines.qml",
+      "label": "Осевые линии ОДХ"
+    },
+    "BasePoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "ДТ и ОО",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e8718d",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98,
+            "fillPattern": "no"
+          }
+        },
+        {
+          "label": "ОДХ",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#d5b43c",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98,
+            "fillPattern": "no"
+          }
+        },
+        {
+          "label": "Газон на откосе",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#008080",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Газон",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#94d180",
+            "fillOpacity": 1.0,
+            "color": "#8fb583",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "здание",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ca00bf",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "гидрография",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#1f78b4",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Обочина",
+          "style": {
+            "kind": "line",
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 1.36
+          }
+        },
+        {
+          "label": "Тротуар - Без типа",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e9ddbf",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Подземный пешеходный переход",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#008080",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "не классифицировано",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ca0054",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "не классифицировано",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#fb9a99",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 10,
+      "qmlFile": "WorkLayers_BasePoly.qml",
+      "label": "Базовые полигоны для атрибутации"
+    },
+    "BoardStoneLine": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "Бортовые камни",
+          "style": {
+            "kind": "line",
+            "color": "#189e17",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_BoardStoneLine.qml",
+      "label": "Бортовые камни"
+    },
+    "BuildingPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Жилое",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff80",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "BuildingsType",
+            "value": "residential"
+          }
+        },
+        {
+          "label": "Нежилое",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffd2d2",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "BuildingsType",
+            "value": "non_residential"
+          }
+        },
+        {
+          "label": "Отмостка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#dcdcdc",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "BuildingsTypeSpec",
+            "value": "blind_area_oks"
+          }
+        },
+        {
+          "label": "Объект монументального искусства",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#000caf",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "BuildingsType",
+            "value": "monument"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e41a1c",
+            "fillOpacity": 1.0,
+            "color": "#800e10",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "null",
+            "field": "BuildingsType"
+          }
+        }
+      ],
+      "fields": [
+        "BuildingsType",
+        "BuildingsTypeSpec"
+      ],
+      "defaultRule": 4,
+      "qmlFile": "WorkLayers_BuildingPoly.qml",
+      "label": "Объект капитального строительства"
+    },
+    "CarriagewayPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Основная",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Въезд",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e2e2e2",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Примыкание",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Боковой проезд",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Парковка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#dadada",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "ПСП",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Уширение типа кармана",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Поперечный проезд",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Эстакада",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Мост",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Путепровод",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Тоннель",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Велодорожка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#000000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98,
+            "fillPattern": "no"
+          }
+        },
+        {
+          "label": "ОРП",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Трамвайные пути",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Вдоль рампы тоннеля",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Уширение типа кармана (не для ООТ)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Парковка внутри ТТК",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#f30004",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Механизированная уборка",
+          "style": {
+            "kind": "fill"
+          }
+        },
+        {
+          "label": "Ручная уборка",
+          "style": {
+            "kind": "fill"
+          }
+        },
+        {
+          "label": "Без уборки",
+          "style": {
+            "kind": "fill"
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 18,
+      "qmlFile": "WorkLayers_CarriagewayPoly.qml",
+      "label": "Проезжие части"
+    },
+    "ContainerPoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "Бункерная площадка",
+          "style": {
+            "kind": "point",
+            "fillColor": "#804000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "square"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ContainerType",
+            "value": "bunker_area"
+          }
+        },
+        {
+          "label": "Контейнерная площадка",
+          "style": {
+            "kind": "point",
+            "fillColor": "#804000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "square"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ContainerType",
+            "value": "container_area"
+          }
+        },
+        {
+          "label": "Стационарный павильон для РСО",
+          "style": {
+            "kind": "point",
+            "fillColor": "#804000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "square"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ContainerType",
+            "value": "pavilion_rso"
+          }
+        },
+        {
+          "label": "Площадка для выкатных контейнеров",
+          "style": {
+            "kind": "point",
+            "fillColor": "#804000",
+            "iconSize": 56.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ContainerType",
+            "value": "roll_container_area"
+          }
+        },
+        {
+          "label": "Площадка для выкатных контейнеров (для полезных компонентов)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#804000",
+            "iconSize": 56.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ContainerType",
+            "value": "roll_container_useful_components_area"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ff0138",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 11.34,
+            "markerShape": "circle"
+          }
+        }
+      ],
+      "fields": [
+        "ContainerType",
+        "Svg"
+      ],
+      "defaultRule": 5,
+      "qmlFile": "WorkLayers_ContainerPoint.qml",
+      "label": "Места накопления отходов (Точка)"
+    },
+    "ContainerPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Бункерная площадка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#804000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ContainerType",
+            "value": "bunker_area"
+          }
+        },
+        {
+          "label": "Контейнерная площадка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#804000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ContainerType",
+            "value": "container_area"
+          }
+        },
+        {
+          "label": "Стационарный павильон для РСО",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#804000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ContainerType",
+            "value": "pavilion_rso"
+          }
+        },
+        {
+          "label": "Контейнер для РСО",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#804000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ContainerType",
+            "value": "roll_container_area"
+          }
+        },
+        {
+          "label": "Контейнер для компонентов РСО",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#804000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ContainerType",
+            "value": "roll_container_useful_components_area"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e41a1c",
+            "fillOpacity": 1.0,
+            "color": "#800e10",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "ContainerType"
+      ],
+      "defaultRule": 5,
+      "qmlFile": "WorkLayers_ContainerPoly.qml",
+      "label": "Места накопления отходов (Полигон)"
+    },
+    "CorrectionsPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Полигоны для правок",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#85b66f",
+            "fillOpacity": 1.0,
+            "color": "#001c2c",
+            "opacity": 1.0,
+            "weight": 0.98,
+            "fillPattern": "no"
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_CorrectionsPoly.qml",
+      "label": "Полигоны для правок"
+    },
+    "DtsPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Велосипедная дорожка",
+          "style": {
+            "kind": "line",
+            "color": "#ff8000",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "DtsType",
+            "value": "bicycle_lane"
+          }
+        },
+        {
+          "label": "Искусственная дорожная неровность",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ff8000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "DtsType",
+            "value": "artificial_road_roughness"
+          }
+        },
+        {
+          "label": "Пешеходная дорожка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c1c1c1",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "DtsType",
+            "value": "footpath"
+          }
+        },
+        {
+          "label": "Проезд",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c0c0c0",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "DtsType",
+            "value": "passage"
+          }
+        },
+        {
+          "label": "Технический (технологический) тротуар",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#787878",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "DtsType",
+            "value": "technical_sidewalk"
+          }
+        },
+        {
+          "label": "Тротуар",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "DtsType",
+            "value": "sidewalk"
+          }
+        },
+        {
+          "label": "Беговая дорожка ОО",
+          "style": {
+            "kind": "fill"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "DtsType",
+            "value": "running_road"
+          }
+        },
+        {
+          "label": "Рельефный пешеходный переход",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c1c1c1",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "DtsType",
+            "value": "relief_crosswalk"
+          }
+        },
+        {
+          "label": "Пандус",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#cc00cc",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "DtsType",
+            "value": "ramp"
+          }
+        },
+        {
+          "label": "Лестница",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#808000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "DtsType",
+            "value": "stairs"
+          }
+        },
+        {
+          "label": "Беговая дорожка ДТ",
+          "style": {
+            "kind": "fill"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "DtsType",
+            "value": "track"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e41a1c",
+            "fillOpacity": 1.0,
+            "color": "#800e10",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "DtsType"
+      ],
+      "defaultRule": 11,
+      "qmlFile": "WorkLayers_DtsPoly.qml",
+      "label": "Дорожно-тропиночная сеть"
+    },
+    "EngineerBuildingPoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "Бассейн",
+          "style": {
+            "kind": "point",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "pool"
+          }
+        },
+        {
+          "label": "Иные объекты",
+          "style": {
+            "kind": "point",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "another_objects"
+          }
+        },
+        {
+          "label": "Фонтан (ОО)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "fountain_oo"
+          }
+        },
+        {
+          "label": "Пешеходный мост",
+          "style": {
+            "kind": "point",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "pedestrian_bridge"
+          }
+        },
+        {
+          "label": "Пирс",
+          "style": {
+            "kind": "point",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "pier"
+          }
+        },
+        {
+          "label": "Пирс (причал)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "berth"
+          }
+        },
+        {
+          "label": "Променад",
+          "style": {
+            "kind": "point",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "promenade"
+          }
+        },
+        {
+          "label": "Сухой фонтан (ДТ)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "dry_fountain_dt"
+          }
+        },
+        {
+          "label": "Фонтан (ДТ)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "fountain_dt"
+          }
+        },
+        {
+          "label": "Сухой фонтан (ОО)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "dry_fountain_oo"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e20105",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        }
+      ],
+      "fields": [
+        "EngineerBuildingType"
+      ],
+      "defaultRule": 10,
+      "qmlFile": "WorkLayers_EngineerBuildingPoint.qml",
+      "label": "Инженерные сооружения (Точка)"
+    },
+    "EngineerBuildingPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Бассейн",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "pool"
+          }
+        },
+        {
+          "label": "Иные объекты",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "another_objects"
+          }
+        },
+        {
+          "label": "Фонтан (ОО)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "fountain_oo"
+          }
+        },
+        {
+          "label": "Пешеходный мост",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "pedestrian_bridge"
+          }
+        },
+        {
+          "label": "Пирс",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "pier"
+          }
+        },
+        {
+          "label": "Пирс (причал)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "berth"
+          }
+        },
+        {
+          "label": "Променад",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "promenade"
+          }
+        },
+        {
+          "label": "Сухой фонтан (ДТ)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "dry_fountain_dt"
+          }
+        },
+        {
+          "label": "Фонтан (ДТ)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "fountain_dt"
+          }
+        },
+        {
+          "label": "Сухой фонтан (ОО)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a47158",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "EngineerBuildingType",
+            "value": "dry_fountain_ool"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a40000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "EngineerBuildingType"
+      ],
+      "defaultRule": 10,
+      "qmlFile": "WorkLayers_EngineerBuildingPoly.qml",
+      "label": "Инженерные сооружения (Полигон)"
+    },
+    "FencingLine": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "Бетонный парапет",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Боллард автоматический",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Буфер безопасности",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Защитный экран",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Иное ограждение (не на содержании по ТС)",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "МБО. Волна",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "МБО. Трансбарьер",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "МБО. Труба",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "МБО. Фракассо",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Металлическое перильное ограждение",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Мостовое ограждение типа стенки 'Нью-Джерси'",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Пешеходные ограждения ОРУД до 1 м",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Пешеходное ограждение декоративное",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Стенка 'Нью-Джерси'",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Тротуарные столбики",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "line",
+            "color": "#d00a00",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 15,
+      "qmlFile": "WorkLayers_FencingLine.qml",
+      "label": "Ограждения (Линия)"
+    },
+    "FencingPoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "Бетонный парапет",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        },
+        {
+          "label": "Боллард автоматический",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Буфер безопасности",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Защитный экран",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        },
+        {
+          "label": "Иное ограждение (не на содержании по ТС)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        },
+        {
+          "label": "МБО. Волна",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        },
+        {
+          "label": "МБО. Трансбарьер",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        },
+        {
+          "label": "МБО. Труба",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        },
+        {
+          "label": "МБО. Фракассо",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        },
+        {
+          "label": "Металлическое перильное ограждение",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        },
+        {
+          "label": "Мостовое ограждение типа стенки 'Нью-Джерси'",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        },
+        {
+          "label": "Пешеходные ограждения ОРУД до 1 м",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        },
+        {
+          "label": "Пешеходное ограждение декоративное",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        },
+        {
+          "label": "Стенка 'Нью-Джерси'",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        },
+        {
+          "label": "Тротуарные столбики",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e5b636",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        }
+      ],
+      "fields": [
+        "Svg"
+      ],
+      "defaultRule": 15,
+      "qmlFile": "WorkLayers_FencingPoint.qml",
+      "label": "Ограждения (Точка)"
+    },
+    "FencingPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Бетонный парапет",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Боллард автоматический",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Буфер безопасности",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Защитный экран",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Иное ограждение (не на содержании по ТС)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "МБО. Волна",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "МБО. Трансбарьер",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "МБО. Труба",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "МБО. Фракассо",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Металлическое перильное ограждение",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Мостовое ограждение типа стенки 'Нью-Джерси'",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Пешеходные ограждения ОРУД до 1 м",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Пешеходное ограждение декоративное",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Стенка 'Нью-Джерси'",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Тротуарные столбики",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "line",
+            "color": "#ff0000",
+            "opacity": 1.0,
+            "weight": 1.74
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 15,
+      "qmlFile": "WorkLayers_FencingPoly.qml",
+      "label": "Ограждения (Точка)"
+    },
+    "FlowersGardenPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Цветники",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ff0080",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_FlowersGardenPoly.qml",
+      "label": "Цветники"
+    },
+    "FunctionalityLine": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "Лоток водосточный",
+          "style": {
+            "kind": "line",
+            "color": "#00b0b9",
+            "opacity": 1.0,
+            "weight": 2.49
+          }
+        },
+        {
+          "label": "Дорожная разметка продольная",
+          "style": {
+            "kind": "line",
+            "color": "#ffffff",
+            "opacity": 1.0,
+            "weight": 2.49
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "road_marking_longitudinal"
+          }
+        },
+        {
+          "label": "ИДН",
+          "style": {
+            "kind": "line",
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 2.0
+          }
+        },
+        {
+          "label": "ИДН с отр. элементами",
+          "style": {
+            "kind": "line",
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 2.0
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "road_bumps"
+          }
+        },
+        {
+          "label": "нет данных",
+          "style": {
+            "kind": "line",
+            "color": "#ac0003",
+            "opacity": 1.0,
+            "weight": 2.49
+          },
+          "filter": {
+            "type": "null",
+            "field": "ArrangeElementType"
+          }
+        }
+      ],
+      "fields": [
+        "ArrangeElementType"
+      ],
+      "defaultRule": 4,
+      "qmlFile": "WorkLayers_FunctionalityLine.qml",
+      "label": "Системы функционального обеспечения (Линия)"
+    },
+    "FunctionalityPoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "СФО",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 56.0,
+            "fillOpacity": 1.0,
+            "color": "#0000ff",
+            "radius": 0.5,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Люк",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 56.0,
+            "fillOpacity": 1.0,
+            "color": "#0000ff",
+            "radius": 0.5,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Шлагбаум",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 56.0,
+            "fillOpacity": 1.0,
+            "color": "#0000ff",
+            "radius": 0.5,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "ИДН",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 28.0,
+            "fillOpacity": 1.0,
+            "color": "#0000ff",
+            "radius": 0.5,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "СФО без типа",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 56.0,
+            "fillOpacity": 1.0,
+            "color": "#0000ff",
+            "radius": 0.5,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          }
+        }
+      ],
+      "fields": [
+        "Svg"
+      ],
+      "defaultRule": 4,
+      "qmlFile": "WorkLayers_FunctionalityPoint.qml",
+      "label": "Системы функционального обеспечения (Точка)"
+    },
+    "FunctionalityPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Шахта вентиляционной камеры",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#beb297",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "ventilation_chamber_shaft"
+          }
+        },
+        {
+          "label": "Лоток водосточный",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#59d4d4",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Лоток водосточный без решетки",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#59d4d4",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "gutter_tray_wo"
+          }
+        },
+        {
+          "label": "Желоб ливневой",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#59d4d4",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "gutter"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#da0004",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "ArrangeElementType"
+      ],
+      "defaultRule": 4,
+      "qmlFile": "WorkLayers_FunctionalityPoly.qml",
+      "label": "Системы функционального обеспечения (Полигон)"
+    },
+    "IceRinkPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Открытый с искусственным льдом на твёрдой поверхности массового типа",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#898989",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "IceRinkType",
+            "value": "outdoor_artificial_solid"
+          }
+        },
+        {
+          "label": "Крытый с воздухоопорной конструкцией с искусственным льдом",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffffc4",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "IceRinkType",
+            "value": "indoor_artificial_air"
+          }
+        },
+        {
+          "label": "Крытый под металлоконструкцией с искусственным льдом",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "IceRinkType",
+            "value": "indoor_artificial_metal"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e41a1c",
+            "fillOpacity": 1.0,
+            "color": "#800e10",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "IceRinkType"
+      ],
+      "defaultRule": 3,
+      "qmlFile": "WorkLayers_IceRinkPoly.qml",
+      "label": "Плоскостные сооружения"
+    },
+    "ImprovementObjectPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Иной объект благоустройства",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#85b66f",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_ImprovementObjectPoly.qml",
+      "label": "Территории общего пользования"
+    },
+    "LamppostsPoint": {
+      "geometry": "point",
+      "rules": [],
+      "fields": [],
+      "defaultRule": null,
+      "qmlFile": "MasterLayers_LamppostsPoint.qml",
+      "label": "Опоры освещения и контактных сетей"
+    },
+    "LawnPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Иного типа",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#008040",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "LawnType",
+            "value": "other_type"
+          }
+        },
+        {
+          "label": "Луговой, разнотравный",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#80ff80",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "LawnType",
+            "value": "meadow_grass"
+          }
+        },
+        {
+          "label": "На откосе",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#008080",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "LawnType",
+            "value": "on_slope"
+          }
+        },
+        {
+          "label": "Обыкновенный",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#80ff80",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "LawnType",
+            "value": "ordinary"
+          }
+        },
+        {
+          "label": "Партерный",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#d7ffbe",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "LawnType",
+            "value": "ground_floor"
+          }
+        },
+        {
+          "label": "Экопарковка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#008040",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98,
+            "fillPattern": "diagonal_x"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "LawnType",
+            "value": "cellular_parking_ecoparking"
+          }
+        },
+        {
+          "label": "Незапечатанная поверхность без дернового покрытия (древесная кора (щепа))",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a25f00",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "LawnType",
+            "value": "cover_without_dern"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e41a1c",
+            "fillOpacity": 1.0,
+            "color": "#800e10",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "null",
+            "field": "SectionNum"
+          }
+        }
+      ],
+      "fields": [
+        "LawnType",
+        "SectionNum"
+      ],
+      "defaultRule": 7,
+      "qmlFile": "WorkLayers_LawnPoly.qml",
+      "label": "Газоны"
+    },
+    "LittleFormLine": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "",
+          "style": {
+            "kind": "line",
+            "color": "#ff0000",
+            "opacity": 1.0,
+            "weight": 0.57
+          }
+        },
+        {
+          "label": "Ограждение простого рисунка ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "simple_pctr"
+          }
+        },
+        {
+          "label": "Ограждение художественного литья из чугуна ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "artistic_iron_fence"
+          }
+        },
+        {
+          "label": "Балюстрада ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "balustrade"
+          }
+        },
+        {
+          "label": "Ограждение 3D ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "fenc_3d"
+          }
+        },
+        {
+          "label": "Ограждение из профильной трубы ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "rope_fenc"
+          }
+        },
+        {
+          "label": "Борта спортивных площадок из металла ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "wall_fenc"
+          }
+        },
+        {
+          "label": "Стеклопластиковые панели хоккейной коробки ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "hock_fenc"
+          }
+        },
+        {
+          "label": "Цепное ограждение ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "chain_fenc"
+          }
+        },
+        {
+          "label": "Сетка ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "net_fenc"
+          }
+        },
+        {
+          "label": "Ограждение из металлического профильного листа ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "metal_fenc"
+          }
+        },
+        {
+          "label": "Ограждение бетонное ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#2323ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "concr_fenc"
+          }
+        },
+        {
+          "label": "Калитка ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#2323ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel1",
+            "value": "door"
+          }
+        },
+        {
+          "label": "Ворота ДТ",
+          "style": {
+            "kind": "line",
+            "color": "#2323ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel1",
+            "value": "gates"
+          }
+        },
+        {
+          "label": "Ограждение простого рисунка ОО",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "simple_drawing_2lvl"
+          }
+        },
+        {
+          "label": "Ограждение декоративное ОО",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "decorative"
+          }
+        },
+        {
+          "label": "Цельностеклянное ограждение ОО",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "whole_glass_fence"
+          }
+        },
+        {
+          "label": "Ограждение газонное ОО",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "lawn"
+          }
+        },
+        {
+          "label": "Ограждение художественного литья из чугуна ОО",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MafTypeLevel2",
+            "value": "art_casting_2lvl"
+          }
+        }
+      ],
+      "fields": [
+        "MafTypeLevel1",
+        "MafTypeLevel2"
+      ],
+      "defaultRule": 18,
+      "qmlFile": "WorkLayers_LittleFormLine.qml",
+      "label": "Малые архитектурные формы и элементы благоустройства (Линия)"
+    },
+    "LittleFormPoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "МАФ",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 56.0,
+            "fillOpacity": 1.0,
+            "color": "#0000ff",
+            "radius": 0.5,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "МАФ без типа",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 56.0,
+            "fillOpacity": 1.0,
+            "color": "#0000ff",
+            "radius": 0.5,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          }
+        }
+      ],
+      "fields": [
+        "Svg"
+      ],
+      "defaultRule": 1,
+      "qmlFile": "WorkLayers_LittleFormPoint.qml",
+      "label": "Малые архитектурные формы и элементы благоустройства (Точка)"
+    },
+    "LittleFormPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "МАФ и элементы благоустройства",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#8d5a99",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_LittleFormPoly.qml",
+      "label": "Малые архитектурные формы и элементы благоустройства (Полигон)"
+    },
+    "MafPoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "Информационный стенд",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Скамья",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Скульптура",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Урна",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Флагшток",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Велопарковка",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Рекламная конструкция",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Бетонная полусфера (и др. формы)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Дорожное зеркало",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Устройство связи",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Шлагбаум",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "МАФ ОДХ",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        }
+      ],
+      "fields": [
+        "Svg"
+      ],
+      "defaultRule": 11,
+      "qmlFile": "WorkLayers_MafPoint.qml",
+      "label": "Малые архитектурные формы (Точка)"
+    },
+    "MafPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Малые архитектурные формы",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffff00",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "line",
+            "color": "#ff0000",
+            "opacity": 1.0,
+            "weight": 1.74
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 1,
+      "qmlFile": "WorkLayers_MafPoly.qml",
+      "label": "Малые архитектурные формы (Полигон)"
+    },
+    "ManholesPoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "Люк подземных коммуникаций",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "Accessory",
+            "value": "v"
+          }
+        },
+        {
+          "label": "Люк подземных коммуникаций",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "Accessory",
+            "value": "vd"
+          }
+        },
+        {
+          "label": "Люк подземных коммуникаций",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "Accessory",
+            "value": "vk"
+          }
+        },
+        {
+          "label": "Люк подземных коммуникаций",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          }
+        },
+        {
+          "label": "Люк подземных коммуникаций",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "Accessory",
+            "value": "vodostok"
+          }
+        },
+        {
+          "label": "Люк подземных коммуникаций",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "Accessory",
+            "value": "gv"
+          }
+        },
+        {
+          "label": "Люк подземных коммуникаций",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "Accessory",
+            "value": "gk"
+          }
+        },
+        {
+          "label": "Люк подземных коммуникаций",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "Accessory",
+            "value": "gts"
+          }
+        },
+        {
+          "label": "Люк подземных коммуникаций",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "Accessory",
+            "value": "d"
+          }
+        },
+        {
+          "label": "Люк подземных коммуникаций",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "Accessory",
+            "value": "l"
+          }
+        },
+        {
+          "label": "Люк подземных коммуникаций",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "Accessory",
+            "value": "mg"
+          }
+        },
+        {
+          "label": "Люк подземных коммуникаций",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e8718d",
+            "iconSize": 72.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "Accessory",
+            "value": "tsod"
+          }
+        }
+      ],
+      "fields": [
+        "Accessory",
+        "Svg"
+      ],
+      "defaultRule": 11,
+      "qmlFile": "WorkLayers_ManholesPoint.qml",
+      "label": "Люки смотровых колодцев и решетки водоприемных колодцев"
+    },
+    "MarginPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Укрепленное засевом трав",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a0b624",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MarginStrengType",
+            "value": "1"
+          }
+        },
+        {
+          "label": "Неукрепленное",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#8e8252",
+            "fillOpacity": 1.0,
+            "color": "#000000",
+            "opacity": 1.0,
+            "weight": 1.36
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MarginStrengType",
+            "value": "2"
+          }
+        },
+        {
+          "label": "Цементобетон",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#808080",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MarginStrengType",
+            "value": "3"
+          }
+        },
+        {
+          "label": "Укрепленное гравием/щебнем",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#d2a862",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MarginStrengType",
+            "value": "5"
+          }
+        },
+        {
+          "label": "Асфальтобетон, асфальтобетонная крошка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#808080",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MarginStrengType",
+            "value": "7"
+          }
+        },
+        {
+          "label": "Укрепленное песчано-гравийной смесью",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e1ce5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "MarginStrengType",
+            "value": "8"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#de0000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Механизированная уборка",
+          "style": {
+            "kind": "fill"
+          }
+        },
+        {
+          "label": "Ручная уборка",
+          "style": {
+            "kind": "fill"
+          }
+        },
+        {
+          "label": "Без уборки",
+          "style": {
+            "kind": "fill"
+          }
+        }
+      ],
+      "fields": [
+        "MarginStrengType"
+      ],
+      "defaultRule": 6,
+      "qmlFile": "WorkLayers_MarginPoly.qml",
+      "label": "Обочины"
+    },
+    "OdhPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Объект дорожного хозяйства",
+          "style": {
+            "kind": "line",
+            "color": "#45d7e7",
+            "opacity": 1.0,
+            "weight": 3.59
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_OdhPoly.qml",
+      "label": "Объект дорожного хозяйства (паспорт)"
+    },
+    "OtherEnginConstructPoint": {
+      "geometry": "point",
+      "rules": [],
+      "fields": [],
+      "defaultRule": null,
+      "qmlFile": "MasterLayers_OtherEnginConstructPoint.qml",
+      "label": "Инженерные сооружения (Точка)"
+    },
+    "OtherEnginConstructPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Инженерные сооружения",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffaa8c",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        },
+        {
+          "label": "Мост",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ce8475",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Путепровод",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ce8475",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Тоннель",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ce8475",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Эстакада",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ce8475",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e41a1c",
+            "fillOpacity": 1.0,
+            "color": "#800e10",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 5,
+      "qmlFile": "WorkLayers_OtherEnginConstructPoly.qml",
+      "label": "Инженерные сооружения (Полигон)"
+    },
+    "OtherFlatBuildingPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Разделительная полоса в одном уровне с ПЧ",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Разделительная полоса в разных уровнях с ПЧ",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Технический тротуар",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Территория АЗС",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Техническая площадка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Островок безопасности",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Разделительный островок",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Место сбора отходов",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Отстойно-разворотная площадка (кроме ГПТ)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Парковка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Подэстакадное пространство",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Рефюж",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Строительная площадка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Парковка внутри ТТК",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e41a1c",
+            "fillOpacity": 1.0,
+            "color": "#800e10",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Механизированная уборка",
+          "style": {
+            "kind": "fill"
+          }
+        },
+        {
+          "label": "Ручная уборка",
+          "style": {
+            "kind": "fill"
+          }
+        },
+        {
+          "label": "Без уборки",
+          "style": {
+            "kind": "fill"
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 14,
+      "qmlFile": "WorkLayers_OtherFlatBuildingPoly.qml",
+      "label": "Прочие территории"
+    },
+    "OtherOksPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Иной объект капитального строительства",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ff8080",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Отмостка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#dcdcdc",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "BuildingsTypeSpec",
+            "value": "blind_area"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e41a1c",
+            "fillOpacity": 1.0,
+            "color": "#800e10",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "BuildingsTypeSpec"
+      ],
+      "defaultRule": 2,
+      "qmlFile": "WorkLayers_OtherOksPoly.qml",
+      "label": "Иной объект капитального строительства"
+    },
+    "OtherTechPlacePoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Иные некапитальные объекты",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffbe9f",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e41a1c",
+            "fillOpacity": 1.0,
+            "color": "#800e10",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 1,
+      "qmlFile": "WorkLayers_OtherTechPlacePoly.qml",
+      "label": "Иные некапитальные объекты"
+    },
+    "OznPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Объект озеленения",
+          "style": {
+            "kind": "line",
+            "color": "#0f9c6f",
+            "opacity": 1.0,
+            "weight": 2.83
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_OznPoly.qml",
+      "label": "Объект озеленения"
+    },
+    "PhotoFixLine": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "Трек",
+          "style": {
+            "kind": "line",
+            "color": "#e29d23",
+            "opacity": 1.0,
+            "weight": 0.5
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_PhotoFixLine.qml",
+      "label": "Линии фотофиксации"
+    },
+    "PhotoFixPoint": {
+      "geometry": "point",
+      "rules": [],
+      "fields": [],
+      "defaultRule": null,
+      "qmlFile": "WorkLayers_PhotoFixPoint.qml",
+      "label": "Точки фотофиксации"
+    },
+    "PlanarStructurePoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Автопарковка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#898989",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "autoparking"
+          }
+        },
+        {
+          "label": "Детская площадка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffffc4",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "kids_playground"
+          }
+        },
+        {
+          "label": "Каток",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "rink"
+          }
+        },
+        {
+          "label": "Площадка для выгула домашних животных",
+          "style": {
+            "kind": "line",
+            "color": "#c99494",
+            "opacity": 1.0,
+            "weight": 1.74
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "playground_for_pets"
+          }
+        },
+        {
+          "label": "Площадка для отдыха",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#d9ffff",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "recreation_area"
+          }
+        },
+        {
+          "label": "Площадка для пожарной техники",
+          "style": {
+            "kind": "line",
+            "fillColor": "#ffffff",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "opacity": 1.0,
+            "weight": 1.74
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "site_for_fire_equipment"
+          }
+        },
+        {
+          "label": "Площадка для аварийно-спасательной техники",
+          "style": {
+            "kind": "line",
+            "fillColor": "#ffffff",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "opacity": 1.0,
+            "weight": 1.74
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "area_emergency_rescue_equipment"
+          }
+        },
+        {
+          "label": "Площадка иного типа",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#000000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98,
+            "fillPattern": "cross"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "other_type_of_site"
+          }
+        },
+        {
+          "label": "Площадка с искусственным льдом (каток)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "playground_artificial_ice"
+          }
+        },
+        {
+          "label": "Смотровая площадка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "viewing_platform"
+          }
+        },
+        {
+          "label": "Спортивная площадка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffa940",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "sport_playground"
+          }
+        },
+        {
+          "label": "Техническая площадка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "technical_site"
+          }
+        },
+        {
+          "label": "Хозяйственная площадка (для сушки белья)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#9d9dce",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "household_platform_drying_clothes"
+          }
+        },
+        {
+          "label": "Экопарковка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#00ff00",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98,
+            "fillPattern": "diagonal_x"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "ecoparking"
+          }
+        },
+        {
+          "label": "Уличный вольер",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "street_aviary"
+          }
+        },
+        {
+          "label": "Скейтпарк",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffa940",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "skate_park"
+          }
+        },
+        {
+          "label": "Роллердром",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffa940",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "rollerdrome"
+          }
+        },
+        {
+          "label": "Амфитеатр",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "amphitheater"
+          }
+        },
+        {
+          "label": "Велопарковка открытого типа",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "bicycle_open_park"
+          }
+        },
+        {
+          "label": "Велопарковка открытого типа для кратковременного хранения велосипедов",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "open_bicycle_parking_shorttime"
+          }
+        },
+        {
+          "label": "Площадка для экстремальных видов спорта",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "extreme_place"
+          }
+        },
+        {
+          "label": "Площадка с искусственным льдом (каток)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "playground_artificial_ice"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e41a1c",
+            "fillOpacity": 1.0,
+            "color": "#800e10",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "PlanarStructureType"
+      ],
+      "defaultRule": 22,
+      "qmlFile": "WorkLayers_PlanarStructure.qml",
+      "label": "Плоскостные сооружения"
+    },
+    "PpiLine": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "Пандус",
+          "style": {
+            "kind": "line",
+            "color": "#089801",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "ramp"
+          }
+        },
+        {
+          "label": "Перила (поручни)",
+          "style": {
+            "kind": "line",
+            "color": "#0000ff",
+            "opacity": 1.0,
+            "weight": 0.5
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "railing_handrails"
+          }
+        },
+        {
+          "label": "Подъемное устройство",
+          "style": {
+            "kind": "line",
+            "color": "#089801",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "lifting_device"
+          }
+        },
+        {
+          "label": "Съезд с тротуара на проезжую часть с понижением высоты бортового камня",
+          "style": {
+            "kind": "line",
+            "color": "#089801",
+            "opacity": 1.0,
+            "weight": 0.64
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "exit_from_the_sidewalk_to_the_roadway"
+          }
+        },
+        {
+          "label": "",
+          "style": {
+            "kind": "line",
+            "color": "#ff0000",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "null",
+            "field": "ArrangeElementType"
+          }
+        }
+      ],
+      "fields": [
+        "ArrangeElementType"
+      ],
+      "defaultRule": 4,
+      "qmlFile": "WorkLayers_PpiLine.qml",
+      "label": "Элементы благоустройства для маломобильных групп населения (Линия)"
+    },
+    "PpiPoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "Пандус",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ff9e17",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 0.6,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "ramp"
+          }
+        },
+        {
+          "label": "Перила (поручни)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ff9e17",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "railing_handrails"
+          }
+        },
+        {
+          "label": "Подъемное устройство",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ff9e17",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "lifting_device"
+          }
+        },
+        {
+          "label": "Съезд с тротуара на проезжую часть с понижением высоты бортового камня",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ff9e17",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "exit_from_the_sidewalk_to_the_roadway"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ff0004",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        }
+      ],
+      "fields": [
+        "ArrangeElementType"
+      ],
+      "defaultRule": 4,
+      "qmlFile": "WorkLayers_PpiPoint.qml",
+      "label": "Элементы благоустройства для маломобильных групп населения (Точка)"
+    },
+    "PpiPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Пандус",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#beb297",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "ramp"
+          }
+        },
+        {
+          "label": "Перила (поручни)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#beb297",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "railing_handrails"
+          }
+        },
+        {
+          "label": "Подъемное устройство",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#beb297",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "lifting_device"
+          }
+        },
+        {
+          "label": "Съезд с тротуара на проезжую часть с понижением высоты бортового камня",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#beb297",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "exit_from_the_sidewalk_to_the_roadway"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#f80004",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "null",
+            "field": "ArrangeElementType"
+          }
+        }
+      ],
+      "fields": [
+        "ArrangeElementType"
+      ],
+      "defaultRule": 4,
+      "qmlFile": "WorkLayers_PpiPoly.qml",
+      "label": "Элементы благоустройства для маломобильных групп населения (Полигон)"
+    },
+    "RedBookPlantPoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "",
+          "style": {
+            "kind": "point",
+            "fillColor": "#079100",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 11.34,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "not_null",
+            "field": "RedBookPlant"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ff0138",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 11.34,
+            "markerShape": "circle"
+          }
+        }
+      ],
+      "fields": [
+        "RedBookPlant"
+      ],
+      "defaultRule": 1,
+      "qmlFile": "WorkLayers_RedBookPlantPoint.qml",
+      "label": "Растения Красной книги"
+    },
+    "ReliefLine": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "Габион",
+          "style": {
+            "kind": "line",
+            "color": "#089801",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "gabion"
+          }
+        },
+        {
+          "label": "Лестница",
+          "style": {
+            "kind": "line",
+            "color": "#089801",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "pedestrian_stairs"
+          }
+        },
+        {
+          "label": "Подпорные стены",
+          "style": {
+            "kind": "line",
+            "color": "#089801",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "retaining_walls"
+          }
+        },
+        {
+          "label": "Системы укрепления откосов",
+          "style": {
+            "kind": "line",
+            "color": "#089801",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "slope_reinforcement_systems"
+          }
+        },
+        {
+          "label": "",
+          "style": {
+            "kind": "line",
+            "color": "#ff0000",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "null",
+            "field": "ArrangeElementType"
+          }
+        }
+      ],
+      "fields": [
+        "ArrangeElementType"
+      ],
+      "defaultRule": 4,
+      "qmlFile": "WorkLayers_ReliefLine.qml",
+      "label": "Элементы организации рельефа (Линия)"
+    },
+    "ReliefPoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "Габион",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ff9e17",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "gabion"
+          }
+        },
+        {
+          "label": "Лестница",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ff9e17",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "pedestrian_stairs"
+          }
+        },
+        {
+          "label": "Подпорные стены",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ff9e17",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "retaining_walls"
+          }
+        },
+        {
+          "label": "Системы укрепления откосов",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ff9e17",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "slope_reinforcement_systems"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ff0004",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        }
+      ],
+      "fields": [
+        "ArrangeElementType"
+      ],
+      "defaultRule": 4,
+      "qmlFile": "WorkLayers_ReliefPoint.qml",
+      "label": "Элементы организации рельефа (Точка)"
+    },
+    "ReliefPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Габион",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#803c00",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "gabion"
+          }
+        },
+        {
+          "label": "Лестница",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#808000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "pedestrian_stairs"
+          }
+        },
+        {
+          "label": "Подпорные стены",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#6c3600",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "retaining_walls"
+          }
+        },
+        {
+          "label": "Системы укрепления откосов",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#beb297",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "slope_reinforcement_systems"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#f80004",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "ArrangeElementType"
+      ],
+      "defaultRule": 4,
+      "qmlFile": "WorkLayers_ReliefPoly.qml",
+      "label": "Элементы организации рельефа (Полигон)"
+    },
+    "RoadSignsLine": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "Знаки, указатели и информационные щиты",
+          "style": {
+            "kind": "line",
+            "color": "#989898",
+            "opacity": 0.6,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Знаки, указатели и информационные щиты с изменяемым значением",
+          "style": {
+            "kind": "line",
+            "color": "#989898",
+            "opacity": 0.8,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 1,
+      "qmlFile": "WorkLayers_RoadSignsLine.qml",
+      "label": "Знаки, указатели и информационные щиты"
+    },
+    "SidewalksPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Технический тротуар",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Примыкающий к ПЧ",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Не примыкающий к ПЧ",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Эстакада",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Мост",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Путепровод",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Тоннель",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Вдоль рампы тоннеля",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Примыкающий к ПЧ.Велодорожка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#000000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98,
+            "fillPattern": "no"
+          }
+        },
+        {
+          "label": "Не примыкающий к ПЧ.Велодорожка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#000000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98,
+            "fillPattern": "no"
+          }
+        },
+        {
+          "label": "Парковка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Парковка внутри ТТК",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ea0000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Механизированная уборка",
+          "style": {
+            "kind": "fill"
+          }
+        },
+        {
+          "label": "Ручная уборка",
+          "style": {
+            "kind": "fill"
+          }
+        },
+        {
+          "label": "Без уборки",
+          "style": {
+            "kind": "fill"
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 12,
+      "qmlFile": "WorkLayers_SidewalksPoly.qml",
+      "label": "Тротуары"
+    },
+    "SpaPoly": {
+      "geometry": "polygon",
+      "rules": [],
+      "fields": [],
+      "defaultRule": null,
+      "qmlFile": "MasterLayers_SpaPoly.qml",
+      "label": "Особо охраняемые природные территории"
+    },
+    "StopsPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Остановка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ConvElementType",
+            "value": "15"
+          }
+        },
+        {
+          "label": "Остановка.ТПУ",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#c3c3c3",
+            "fillOpacity": 1.0,
+            "color": "#555555",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ConvElementType",
+            "value": "271"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#f30004",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        },
+        {
+          "label": "Ручная уборка",
+          "style": {
+            "kind": "fill"
+          }
+        }
+      ],
+      "fields": [
+        "ConvElementType"
+      ],
+      "defaultRule": 2,
+      "qmlFile": "WorkLayers_StopsPoly.qml",
+      "label": "Остановки общественного транспорта"
+    },
+    "StoragePlacePoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Открытого типа",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#71b8a7",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "BikeRefType",
+            "value": "opened"
+          }
+        },
+        {
+          "label": "Закрытого типа",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#00b800",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "BikeRefType",
+            "value": "closed"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e50004",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "BikeRefType"
+      ],
+      "defaultRule": 2,
+      "qmlFile": "WorkLayers_StoragePlacePoly.qml",
+      "label": "Велопарковки"
+    },
+    "TechPlacePoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Открытого типа",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#71b8a7",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "BikeRefType",
+            "value": "opened"
+          }
+        },
+        {
+          "label": "Закрытого типа",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#00b800",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "BikeRefType",
+            "value": "closed"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e50004",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "BikeRefType"
+      ],
+      "defaultRule": 2,
+      "qmlFile": "WorkLayers_TechPlacePoly.qml",
+      "label": "Некапитальные объекты для обеспечения производственной деятельности по содержанию и ремонту территорий"
+    },
+    "TrafficLightPoint": {
+      "geometry": "point",
+      "rules": [],
+      "fields": [],
+      "defaultRule": null,
+      "qmlFile": "MasterLayers_TrafficLightPoint.qml",
+      "label": "Светофорные объекты"
+    },
+    "TramRailsPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Трамвайные пути",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "NetElementType",
+            "value": "1"
+          }
+        },
+        {
+          "label": "Троллейбусные контактные сети",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "NetElementType",
+            "value": "3"
+          }
+        },
+        {
+          "label": "Трамвайные контактные сети",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "NetElementType",
+            "value": "9"
+          }
+        },
+        {
+          "label": "Трамвайные пути ТПУ",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "NetElementType",
+            "value": "4"
+          }
+        },
+        {
+          "label": "Троллейбусные контактные сети ТПУ",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "NetElementType",
+            "value": "6"
+          }
+        },
+        {
+          "label": "Трамвайные контактные сети ТПУ",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#eaeaea",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "NetElementType",
+            "value": "10"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ea0000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "NetElementType"
+      ],
+      "defaultRule": 6,
+      "qmlFile": "WorkLayers_TramRailsPoly.qml",
+      "label": "Трамвайные пути"
+    },
+    "TreeMergeLines": {
+      "geometry": "line",
+      "rules": [],
+      "fields": [],
+      "defaultRule": null,
+      "qmlFile": "WorkLayers_TreeMergeLines.qml",
+      "label": "Вспомогательные линии"
+    },
+    "TreesShrubsLine": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "Дерево",
+          "style": {
+            "kind": "line",
+            "color": "#33a02c",
+            "opacity": 1.0,
+            "weight": 2.49
+          },
+          "filter": {
+            "type": "eq",
+            "field": "LifeFormType",
+            "value": "tree"
+          }
+        },
+        {
+          "label": "Кустарник",
+          "style": {
+            "kind": "line",
+            "color": "#33a02c",
+            "opacity": 1.0,
+            "weight": 2.49
+          },
+          "filter": {
+            "type": "eq",
+            "field": "LifeFormType",
+            "value": "bush"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "line",
+            "color": "#a03d00",
+            "opacity": 1.0,
+            "weight": 2.49
+          }
+        }
+      ],
+      "fields": [
+        "LifeFormType"
+      ],
+      "defaultRule": 2,
+      "qmlFile": "WorkLayers_TreesShrubsLine.qml",
+      "label": "Деревья и кустарники (Линия)"
+    },
+    "TreesShrubsPoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "Дерево",
+          "style": {
+            "kind": "point",
+            "fillColor": "#49b700",
+            "iconSize": 4.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "LifeFormType",
+            "value": "tree"
+          }
+        },
+        {
+          "label": "Кустарник",
+          "style": {
+            "kind": "point",
+            "fillColor": "#49b700",
+            "iconSize": 4.0,
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "LifeFormType",
+            "value": "bush"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "point",
+            "fillColor": "#e50004",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 7.56,
+            "markerShape": "circle"
+          }
+        }
+      ],
+      "fields": [
+        "LifeFormType",
+        "Svg"
+      ],
+      "defaultRule": 2,
+      "qmlFile": "WorkLayers_TreesShrubsPoint.qml",
+      "label": "Деревья и кустарники (Точка)"
+    },
+    "TreesShrubsPoly": {
+      "geometry": "polygon",
+      "rules": [],
+      "fields": [],
+      "defaultRule": null,
+      "qmlFile": "WorkLayers_TreesShrubsPoly.qml",
+      "label": "Деревья и кустарники (Полигон)"
+    },
+    "TrolleybusContactNetworkLine": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "Троллейбусные контактные сети",
+          "style": {
+            "kind": "line",
+            "color": "#85b66f",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "NetElementType",
+            "value": "3"
+          }
+        },
+        {
+          "label": "Троллейбусные контактные сети.ТПУ",
+          "style": {
+            "kind": "line",
+            "color": "#85b66f",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "NetElementType",
+            "value": "6"
+          }
+        },
+        {
+          "label": "Трамвайные контактные сети",
+          "style": {
+            "kind": "line",
+            "color": "#85b66f",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "NetElementType",
+            "value": "9"
+          }
+        },
+        {
+          "label": "Трамвайные контактные сети.ТПУ",
+          "style": {
+            "kind": "line",
+            "color": "#85b66f",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "NetElementType",
+            "value": "10"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "line",
+            "color": "#b60000",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "NetElementType"
+      ],
+      "defaultRule": 4,
+      "qmlFile": "WorkLayers_TrolleybusContactNetworkLine.qml",
+      "label": "Трамвайные и троллейбусные контактные сети"
+    },
+    "VerticalLandscapingPoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "Вертикальное озеленение",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 40.0,
+            "fillOpacity": 1.0,
+            "color": "#0000ff",
+            "radius": 0.5,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "not_null",
+            "field": "VerticalLandscapingRefType"
+          }
+        },
+        {
+          "label": "Вертикальное озеленение без типа",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 72.0,
+            "fillOpacity": 1.0,
+            "color": "#0000ff",
+            "radius": 0.5,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          }
+        }
+      ],
+      "fields": [
+        "Svg",
+        "VerticalLandscapingRefType"
+      ],
+      "defaultRule": 1,
+      "qmlFile": "WorkLayers_VerticalLandscapingPoint.qml",
+      "label": "Элементы вертикального озеленения"
+    },
+    "WaterBuildingPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Пруд",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a5bfdd",
+            "fillOpacity": 1.0,
+            "color": "#6498d2",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "WaterType",
+            "value": "Pond"
+          }
+        },
+        {
+          "label": "Болото",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a3cdb9",
+            "fillOpacity": 1.0,
+            "color": "#728584",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "WaterType",
+            "value": "Swamp"
+          }
+        },
+        {
+          "label": "Озеро",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a5bfdd",
+            "fillOpacity": 1.0,
+            "color": "#6498d2",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "WaterType",
+            "value": "Lake"
+          }
+        },
+        {
+          "label": "Река",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a5bfdd",
+            "fillOpacity": 1.0,
+            "color": "#6498d2",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "WaterType",
+            "value": "River"
+          }
+        },
+        {
+          "label": "Ручей",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a5bfdd",
+            "fillOpacity": 1.0,
+            "color": "#6498d2",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "WaterType",
+            "value": "Stream"
+          }
+        },
+        {
+          "label": "Фонтан",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#a5bfdd",
+            "fillOpacity": 1.0,
+            "color": "#6498d2",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "WaterType",
+            "value": "Fountain"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#cf0029",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [
+        "WaterType"
+      ],
+      "defaultRule": 6,
+      "qmlFile": "WorkLayers_WaterBuildingPoly.qml",
+      "label": "Водные сооружения"
+    },
+    "WorkArea": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Границы работы",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#1f78b4",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_WorkArea.qml",
+      "label": "Слой для работы по частям, а не по всей границе задачи"
+    },
+    "YardPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Дворовая территория",
+          "style": {
+            "kind": "line",
+            "color": "#e41a1c",
+            "opacity": 1.0,
+            "weight": 1.89
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_YardPoly.qml",
+      "label": "Дворовая территория"
+    },
+    "task": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Граница задачи",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#1f78b4",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_task.qml",
+      "label": "Таблица для редактирования геометрии задач"
+    }
+  }
+}

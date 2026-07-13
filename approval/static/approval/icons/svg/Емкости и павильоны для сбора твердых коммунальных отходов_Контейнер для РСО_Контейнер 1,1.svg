@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 26.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 7.6 8.7" style="enable-background:new 0 0 7.6 8.7;" xml:space="preserve">
+<style type="text/css">
+	
+		.st0{fill-rule:evenodd;clip-rule:evenodd;fill:#FFFFFF;stroke:#326432;stroke-width:0.3402;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+	.st1{fill:#326432;}
+	.st2{font-family:'ISOCPEUR';}
+	.st3{font-size:3.1165px;}
+	.st4{fill:#FFFFFF;stroke:#326432;stroke-width:0.3402;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+</style>
+<g id="HATCH_00000095329316515141201300000014963021073814537646_">
+	<polygon class="st0" points="7.4,0.9 0.2,0.9 1.2,8.5 6.4,8.5 7.4,0.9 	"/>
+</g>
+<g id="MTEXT_00000065795509817333123410000014141025185057851045_">
+	<g>
+		<text transform="matrix(1.0522 0 0 1 2.372 5.5857)" class="st1 st2 st3">1,1</text>
+	</g>
+</g>
+<g id="HATCH_00000005949911465887739390000008355741332268497079_">
+	<polygon class="st0" points="7,0.2 0.7,0.2 0.2,0.9 7.4,0.9 7,0.2 	"/>
+</g>
+<g id="LWPOLYLINE_00000040574006068828511760000005144816214256562613_">
+	<polyline class="st4" points="7.4,0.9 0.2,0.9 0.7,0.2 7,0.2 7.4,0.9 	"/>
+</g>
+</svg>
