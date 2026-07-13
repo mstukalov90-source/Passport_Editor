@@ -11,7 +11,13 @@ from approval.access import (
     is_inspector_for_approve,
     user_can_access_case,
 )
-from approval.events_service import record_case_approval, serialize_case_summary, validate_case_owners
+from approval.events_service import (
+    aggregate_approve_owners,
+    record_case_approval,
+    resolve_event_case_owners,
+    serialize_case_summary,
+    validate_case_owners,
+)
 from approval.models import Approve, Case
 
 
@@ -106,6 +112,35 @@ def test_validate_case_owners_secondary():
     assert validate_case_owners(is_primary=False, owners=["OWNER_A", "OWNER_B"]) == ["OWNER_A", "OWNER_B"]
     with pytest.raises(ValueError, match="ровно двух"):
         validate_case_owners(is_primary=False, owners=["OWNER_A"])
+
+
+@pytest.mark.django_db
+def test_resolve_event_case_owners_merges_task_owner():
+    assert resolve_event_case_owners(task_owner_id="OWNER_TASK", event_owners=["9000022"]) == [
+        "OWNER_TASK",
+        "9000022",
+    ]
+
+
+@pytest.mark.django_db
+def test_resolve_event_case_owners_rejects_duplicate_task_owner():
+    with pytest.raises(ValueError, match="разными"):
+        resolve_event_case_owners(task_owner_id="OWNER_TASK", event_owners=["OWNER_TASK"])
+
+
+@pytest.mark.django_db
+def test_resolve_event_case_owners_rejects_more_than_two_after_merge():
+    with pytest.raises(ValueError, match="ровно двух"):
+        resolve_event_case_owners(task_owner_id="OWNER_TASK", event_owners=["9000022", "9000033"])
+
+
+@pytest.mark.django_db
+def test_aggregate_approve_owners_includes_task_owner():
+    assert aggregate_approve_owners(task_owner_id="OWNER_TASK", event_owners=["9000022", "9000033"]) == [
+        "OWNER_TASK",
+        "9000022",
+        "9000033",
+    ]
 
 
 @pytest.mark.django_db

@@ -85,14 +85,18 @@ sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --f
 | Поле | Тип | Обязательно | Описание |
 |------|-----|-------------|----------|
 | `n_root` | string | да | RootId смежного паспорта; ключ upsert события внутри согласования |
-| `owners` | array[string] | да | Список `OwnerLegalPersonId` сторон события |
+| `owners` | array[string] | да | `OwnerLegalPersonId` стороны смежного паспорта (минимум 1). Владелец объекта съёмки добавляется автоматически по `incoming_guid` |
 | `name` | string | да | Заголовок события (`approval.cases.title`) |
 | `geometry` | GeoJSON object | да | Геометрия события. SRID **4326** (WGS84) |
 
 **Агрегация в `approval.approves`:**
 
 - `n_root` = уникальные `events[].n_root` в порядке появления
-- `owners` = объединение всех `events[].owners` (уникальные, порядок сохраняется)
+- `owners` = владелец объекта съёмки (`TaskGUID = incoming_guid`) + объединение всех `events[].owners` (уникальные, порядок сохраняется)
+
+**Event case** (`is_primary = false`):
+
+- `owners` = владелец объекта съёмки + стороны из `events[].owners` (после дедупликации ровно 2 различных `OwnerLegalPersonId`)
 
 **Primary case** (`is_primary = true`):
 

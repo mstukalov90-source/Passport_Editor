@@ -7,7 +7,7 @@ import uuid
 from unittest.mock import patch
 
 import pytest
-from approval.events_service import parse_geometry_payload
+from approval.events_service import parse_geometry_payload, upsert_approve_from_qgis
 from approval.models import ApprovalGeometry, Approve, Case
 from django.urls import reverse
 
@@ -61,13 +61,13 @@ def _valid_payload(**overrides):
         "events": [
             {
                 "n_root": "10001260",
-                "owners": ["9000022", "9000033"],
+                "owners": ["9000022"],
                 "name": "Согласование заявок по паспортизации 46998 и паспорта 10001260",
                 "geometry": EVENT_GEOMETRY_A,
             },
             {
                 "n_root": "12345148",
-                "owners": ["9000022", "9000044"],
+                "owners": ["9000022"],
                 "name": "Согласование заявок по паспортизации 46998 и паспорта 12345148",
                 "geometry": EVENT_GEOMETRY_B,
             },
@@ -101,7 +101,7 @@ def test_create_approve_with_events(client):
     assert approve.user == "asidorov"
     assert approve.name == "Согласование заявки из графика паспортизации 46998"
     assert approve.n_root == ["10001260", "12345148"]
-    assert approve.owners == ["9000022", "9000033", "9000044"]
+    assert approve.owners == [TASK_OWNER, "9000022"]
 
     primary = approve.cases.get(is_primary=True)
     assert primary.title == approve.name
@@ -113,6 +113,8 @@ def test_create_approve_with_events(client):
     event_cases = Case.objects.filter(approve=approve, is_primary=False).order_by("n_root")
     assert event_cases.count() == 2
     assert list(event_cases.values_list("n_root", flat=True)) == ["10001260", "12345148"]
+    for case in event_cases:
+        assert case.owners == [TASK_OWNER, "9000022"]
 
     for event_payload, case in zip(payload["events"], event_cases, strict=True):
         assert event_payload["case_id"] == str(case.id)
@@ -124,6 +126,16 @@ def test_create_approve_with_events(client):
 
 
 @pytest.mark.django_db
+def test_upsert_via_service_merges_task_owner_with_event_owner():
+    result = upsert_approve_from_qgis(_valid_payload())
+    assert result["created"] is True
+
+    approve = Approve.objects.get(incoming_guid=INCOMING_GUID)
+    event_case = approve.cases.get(is_primary=False, n_root="10001260")
+    assert event_case.owners == [TASK_OWNER, "9000022"]
+
+
+@pytest.mark.django_db
 def test_aggregates_n_root_and_owners_on_approve(client):
     response = _post_qgis_approve(
         client,
@@ -131,13 +143,13 @@ def test_aggregates_n_root_and_owners_on_approve(client):
             events=[
                 {
                     "n_root": "10001260",
-                    "owners": ["9000022", "9000033"],
+                    "owners": ["9000022"],
                     "name": "Event A",
                     "geometry": EVENT_GEOMETRY_A,
                 },
                 {
                     "n_root": "12345148",
-                    "owners": ["9000033", "9000044"],
+                    "owners": ["9000033"],
                     "name": "Event B",
                     "geometry": EVENT_GEOMETRY_B,
                 },
@@ -148,7 +160,7 @@ def test_aggregates_n_root_and_owners_on_approve(client):
 
     approve = Approve.objects.get(incoming_guid=INCOMING_GUID)
     assert approve.n_root == ["10001260", "12345148"]
-    assert approve.owners == ["9000022", "9000033", "9000044"]
+    assert approve.owners == [TASK_OWNER, "9000022", "9000033"]
 
 
 @pytest.mark.django_db
@@ -166,13 +178,13 @@ def test_upsert_updates_event_by_n_root(client):
             events=[
                 {
                     "n_root": "10001260",
-                    "owners": ["9000099", "9000033"],
+                    "owners": ["9000099"],
                     "name": "Обновлённое событие",
                     "geometry": UPDATED_GEOMETRY_A,
                 },
                 {
                     "n_root": "12345148",
-                    "owners": ["9000022", "9000044"],
+                    "owners": ["9000022"],
                     "name": "Согласование заявок по паспортизации 46998 и паспорта 12345148",
                     "geometry": EVENT_GEOMETRY_B,
                 },
@@ -190,11 +202,11 @@ def test_upsert_updates_event_by_n_root(client):
 
     approve = Approve.objects.get(incoming_guid=INCOMING_GUID)
     assert approve.name == "Обновлённое согласование"
-    assert approve.owners == ["9000099", "9000033", "9000022", "9000044"]
+    assert approve.owners == [TASK_OWNER, "9000099", "9000022"]
 
     updated_case = Case.objects.get(pk=first_event_case_id)
     assert updated_case.title == "Обновлённое событие"
-    assert updated_case.owners == ["9000099", "9000033"]
+    assert updated_case.owners == [TASK_OWNER, "9000099"]
 
     geometry = ApprovalGeometry.objects.get(pk=first_geometry_id)
     expected_geom = parse_geometry_payload(UPDATED_GEOMETRY_A)
@@ -212,7 +224,7 @@ def test_upsert_does_not_delete_missing_events(client):
             events=[
                 {
                     "n_root": "99999999",
-                    "owners": ["9000022", "9000033"],
+                    "owners": ["9000033"],
                     "name": "Новое событие",
                     "geometry": EVENT_GEOMETRY_A,
                 }
@@ -244,13 +256,13 @@ def test_upsert_skips_approved_event_case(client):
             events=[
                 {
                     "n_root": "10001260",
-                    "owners": ["9000099", "9000033"],
+                    "owners": ["9000099"],
                     "name": "Попытка обновить согласованное событие",
                     "geometry": UPDATED_GEOMETRY_A,
                 },
                 {
                     "n_root": "12345148",
-                    "owners": ["9000022", "9000044"],
+                    "owners": ["9000022"],
                     "name": "Согласование заявок по паспортизации 46998 и паспорта 12345148",
                     "geometry": EVENT_GEOMETRY_B,
                 },
@@ -263,7 +275,7 @@ def test_upsert_skips_approved_event_case(client):
 
     case.refresh_from_db()
     assert case.title != "Попытка обновить согласованное событие"
-    assert case.owners == ["9000022", "9000033"]
+    assert case.owners == [TASK_OWNER, "9000022"]
 
 
 @pytest.mark.django_db
@@ -309,7 +321,20 @@ def test_upsert_rejected_when_approved(client):
                 "events": [
                     {
                         "n_root": "10001260",
-                        "owners": ["9000022"],
+                        "owners": ["OWNER_TASK"],
+                        "name": "Event",
+                        "geometry": EVENT_GEOMETRY_A,
+                    }
+                ]
+            },
+            "разными",
+        ),
+        (
+            {
+                "events": [
+                    {
+                        "n_root": "10001260",
+                        "owners": ["9000022", "9000033"],
                         "name": "Event",
                         "geometry": EVENT_GEOMETRY_A,
                     }
