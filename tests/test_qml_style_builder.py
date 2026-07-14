@@ -74,6 +74,39 @@ def test_parse_photo_fix_point_single_symbol():
     assert parsed["rules"][0]["style"]["svg"] == "Фотофиксация.svg"
 
 
+def test_parse_functionality_point_mapunit_icon_size():
+    qml_dir = Path(settings.APPROVAL_LAYER_STYLES_QML_DIR)
+    path = qml_dir / "WorkLayers_FunctionalityPoint.qml"
+    parsed = parse_qml_file(path)
+    assert parsed["geometry"] == "point"
+    assert parsed["rules"]
+    svg_styles = [
+        rule["style"]
+        for rule in parsed["rules"]
+        if rule.get("style", {}).get("svgField") or rule.get("style", {}).get("svg")
+    ]
+    assert svg_styles
+    for style in svg_styles:
+        if style.get("iconSize") and style.get("iconSize") >= 7:
+            assert style["sizeUnit"] == "MapUnit"
+            assert style["iconSize"] in {7.0, 14.0}
+            assert style["iconSize"] < 50  # not the old *4 pixel conversion
+
+
+def test_parse_little_form_point_mapunit_icon_size():
+    qml_dir = Path(settings.APPROVAL_LAYER_STYLES_QML_DIR)
+    path = qml_dir / "WorkLayers_LittleFormPoint.qml"
+    parsed = parse_qml_file(path)
+    assert parsed["geometry"] == "point"
+    assert parsed["rules"]
+    style = parsed["rules"][0]["style"]
+    assert style["sizeUnit"] == "MapUnit"
+    assert style.get("iconSizeUnit") == "MapUnit"
+    assert style["iconSize"] == 14.0
+    assert style.get("iconAnchorX") == "center"
+    assert style.get("iconAnchorY") == "bottom"
+
+
 def test_sync_svg_static_tree_preserves_subfolders(tmp_path, settings):
     source = tmp_path / "svg"
     nested = source / "Дорожные знаки ОДХ" / "1. Предупреждающие знаки"

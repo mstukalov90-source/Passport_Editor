@@ -13,6 +13,7 @@ from approval.models import (
     Case,
     CaseApproval,
     CaseMessage,
+    CaseMessageAttachment,
     CaseMessageReaction,
 )
 from approval.events_service import serialize_approve_option
@@ -79,6 +80,7 @@ def test_serialize_approve_option_uses_name_when_present():
     assert payload["label"] == "Согласование границ паспорта ДТ-10482"
     assert payload["name"] == "Согласование границ паспорта ДТ-10482"
     assert payload["status_label"] == "В работе"
+    assert payload["can_delete"] is False
 
 
 @pytest.mark.django_db
@@ -91,6 +93,21 @@ def test_serialize_approve_option_falls_back_to_guid_without_name():
     payload = serialize_approve_option(approve)
     assert payload["label"] == "Согласование 2e333940…"
     assert payload["name"] == ""
+    assert payload["can_delete"] is False
+
+
+@pytest.mark.django_db
+def test_serialize_approve_option_can_delete_for_inspector():
+    approve = Approve.objects.create(
+        incoming_guid=uuid.uuid4(),
+        owners=["OWNER_A"],
+        user="inspector_user",
+        name="Согласование инспектора",
+    )
+    as_inspector = serialize_approve_option(approve, username="inspector_user")
+    as_owner = serialize_approve_option(approve, username="owner_a")
+    assert as_inspector["can_delete"] is True
+    assert as_owner["can_delete"] is False
 
 
 @pytest.mark.django_db
@@ -148,6 +165,53 @@ def test_post_message_with_png_attachment(client, owner_a, approve_with_primary_
     assert payload["ok"] is True
     message = CaseMessage.objects.filter(case=primary).order_by("-created_at").first()
     assert message.attachments.count() == 1
+
+
+@pytest.mark.django_db
+def test_download_attachment_inline_for_images_attachment_for_download(
+    client, owner_a, approve_with_primary_owner, settings, tmp_path
+):
+    settings.MEDIA_ROOT = tmp_path
+    _login(client, "owner_a")
+    primary = _primary_case(approve_with_primary_owner)
+    png_bytes = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+        b"\x00\x00\x05\x00\x01\r\n-\xdb\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    upload = SimpleUploadedFile("test.png", png_bytes, content_type="image/png")
+    post_response = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data={"body": "Фото", "files": upload},
+    )
+    assert post_response.status_code == 200
+    attachment = CaseMessageAttachment.objects.get(message__case=primary)
+
+    inline_response = client.get(
+        reverse("approval:api_download_attachment", kwargs={"attachment_id": attachment.id})
+    )
+    assert inline_response.status_code == 200
+    assert "attachment" not in (inline_response.get("Content-Disposition") or "").lower()
+
+    download_response = client.get(
+        reverse("approval:api_download_attachment", kwargs={"attachment_id": attachment.id}),
+        {"download": "1"},
+    )
+    assert download_response.status_code == 200
+    assert "attachment" in (download_response.get("Content-Disposition") or "").lower()
+
+    pdf_upload = SimpleUploadedFile("doc.pdf", b"%PDF-1.4 minimal", content_type="application/pdf")
+    pdf_post = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data={"body": "PDF", "files": pdf_upload},
+    )
+    assert pdf_post.status_code == 200
+    pdf_attachment = CaseMessageAttachment.objects.get(original_name="doc.pdf")
+    pdf_response = client.get(
+        reverse("approval:api_download_attachment", kwargs={"attachment_id": pdf_attachment.id})
+    )
+    assert pdf_response.status_code == 200
+    assert "attachment" in (pdf_response.get("Content-Disposition") or "").lower()
 
 
 @pytest.mark.django_db

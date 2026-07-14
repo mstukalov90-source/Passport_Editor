@@ -9,14 +9,18 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import FileResponse, JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from .access import get_accessible_approve, get_accessible_approves, get_accessible_cases_queryset, get_owner_id_for_username, user_can_access_case
 from .events_service import (
     ApproveAlreadyApprovedError,
+    ApproveUserConflictError,
+    add_case_participant,
     attach_geometry_to_message,
+    change_case_owner,
+    delete_approve_for_inspector,
     get_cases_queryset,
     parse_geometry_payload,
     record_case_approval,
@@ -70,7 +74,7 @@ def api_qgis_upsert_approve(request):
 
     try:
         result = upsert_approve_from_qgis(payload)
-    except ApproveAlreadyApprovedError as exc:
+    except (ApproveAlreadyApprovedError, ApproveUserConflictError) as exc:
         return _json_error(str(exc), status=409)
     except ValueError as exc:
         return _json_error(str(exc))
@@ -115,7 +119,7 @@ def api_bootstrap(request):
     username = actor["username"]
 
     approves = list(get_accessible_approves(owner_id, username=username))
-    approve_options = [serialize_approve_option(item) for item in approves]
+    approve_options = [serialize_approve_option(item, username=username) for item in approves]
 
     selected_approve_id = request.GET.get("approve_id") or request.GET.get("approve")
     selected = None
@@ -437,6 +441,96 @@ def api_download_attachment(request, attachment_id):
     if not file_path.is_file():
         return _json_error("Файл не найден на сервере.", status=404)
 
-    response = FileResponse(file_path.open("rb"), as_attachment=True, filename=attachment.original_name)
-    response["Content-Type"] = attachment.content_type or "application/octet-stream"
+    content_type = attachment.content_type or "application/octet-stream"
+    force_download = request.GET.get("download") in ("1", "true", "yes")
+    is_image = content_type.startswith("image/")
+    as_attachment = force_download or not is_image
+
+    response = FileResponse(
+        file_path.open("rb"),
+        as_attachment=as_attachment,
+        filename=attachment.original_name,
+    )
+    response["Content-Type"] = content_type
     return response
+
+
+@login_required
+@require_POST
+def api_change_case_owner(request, case_id):
+    actor, error = _actor_context(request)
+    if error:
+        return error
+
+    case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
+    if error:
+        return error
+
+    payload = _parse_json_body(request)
+    if payload is None:
+        return _json_error("Некорректный JSON.")
+
+    try:
+        case = change_case_owner(
+            case=case,
+            old_owner=payload.get("old_owner") or "",
+            new_owner=payload.get("new_owner") or "",
+            username=actor["username"],
+        )
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "case": _serialize_case(case, request=request, actor=actor),
+        }
+    )
+
+
+@login_required
+@require_POST
+def api_add_case_participant(request, case_id):
+    actor, error = _actor_context(request)
+    if error:
+        return error
+
+    case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
+    if error:
+        return error
+
+    payload = _parse_json_body(request)
+    if payload is None:
+        return _json_error("Некорректный JSON.")
+
+    try:
+        case = add_case_participant(
+            case=case,
+            kind=payload.get("kind") or "",
+            value=payload.get("value") or "",
+            username=actor["username"],
+        )
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "case": _serialize_case(case, request=request, actor=actor),
+        }
+    )
+
+
+@login_required
+@require_POST
+def delete_approve(request):
+    approve_id = (request.POST.get("approve_id") or "").strip()
+    if not approve_id:
+        return redirect("home")
+
+    try:
+        delete_approve_for_inspector(approve_id=approve_id, username=request.user.username)
+    except ValueError:
+        pass
+
+    return redirect("home")

@@ -144,3 +144,164 @@ def test_owner_a_sees_primary_and_shared_event(client, owner_a_user, approve_bun
 
     event_payload = next(item for item in payload["cases"] if item["id"] == str(event.id))
     assert event_payload["n_root"] == "10001260"
+
+
+@pytest.mark.django_db
+def test_inspector_can_delete_approve(client, inspector_user, approve_bundle):
+    approve, primary, event = approve_bundle
+    approve_id = approve.id
+    primary_id = primary.id
+    event_id = event.id
+    _login(client, "inspector_user")
+
+    response = client.post(reverse("approval:delete_approve"), {"approve_id": str(approve_id)})
+    assert response.status_code == 302
+    assert response.url == reverse("home")
+    assert not Approve.objects.filter(pk=approve_id).exists()
+    assert not Case.objects.filter(pk__in=[primary_id, event_id]).exists()
+
+
+@pytest.mark.django_db
+def test_owner_cannot_delete_approve(client, owner_a_user, approve_bundle):
+    approve, primary, event = approve_bundle
+    approve_id = approve.id
+    _login(client, "owner_a")
+
+    response = client.post(reverse("approval:delete_approve"), {"approve_id": str(approve_id)})
+    assert response.status_code == 302
+    assert response.url == reverse("home")
+    assert Approve.objects.filter(pk=approve_id).exists()
+    assert Case.objects.filter(pk=primary.id).exists()
+    assert Case.objects.filter(pk=event.id).exists()
+
+
+@pytest.mark.django_db
+def test_bootstrap_marks_can_delete_for_inspector(client, inspector_user, approve_bundle):
+    approve, _, _ = approve_bundle
+    _login(client, "inspector_user")
+
+    response = client.get(reverse("approval:api_bootstrap"), {"approve_id": str(approve.id)})
+    assert response.status_code == 200
+    payload = response.json()
+    option = next(item for item in payload["approves"] if item["id"] == str(approve.id))
+    assert option["can_delete"] is True
+
+
+@pytest.mark.django_db
+def test_bootstrap_hides_can_delete_for_owner(client, owner_a_user, approve_bundle):
+    approve, _, _ = approve_bundle
+    _login(client, "owner_a")
+
+    response = client.get(reverse("approval:api_bootstrap"), {"approve_id": str(approve.id)})
+    assert response.status_code == 200
+    payload = response.json()
+    option = next(item for item in payload["approves"] if item["id"] == str(approve.id))
+    assert option["can_delete"] is False
+
+
+@pytest.mark.django_db
+def test_inspector_can_change_secondary_case_owner(client, inspector_user, approve_bundle):
+    _, primary, event = approve_bundle
+    _login(client, "inspector_user")
+
+    response = client.post(
+        reverse("approval:api_change_case_owner", kwargs={"case_id": event.id}),
+        data=json.dumps({"old_owner": "OWNER_B", "new_owner": "OWNER_C"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert set(payload["case"]["owners"]) == {"OWNER_A", "OWNER_C"}
+    event.refresh_from_db()
+    assert set(event.owners) == {"OWNER_A", "OWNER_C"}
+
+    primary_response = client.post(
+        reverse("approval:api_change_case_owner", kwargs={"case_id": primary.id}),
+        data=json.dumps({"old_owner": "OWNER_A", "new_owner": "OWNER_C"}),
+        content_type="application/json",
+    )
+    assert primary_response.status_code == 400
+    assert "основного события" in primary_response.json()["error"].lower()
+
+
+@pytest.mark.django_db
+def test_owner_cannot_change_case_owner(client, owner_a_user, approve_bundle):
+    _, _, event = approve_bundle
+    _login(client, "owner_a")
+
+    response = client.post(
+        reverse("approval:api_change_case_owner", kwargs={"case_id": event.id}),
+        data=json.dumps({"old_owner": "OWNER_B", "new_owner": "OWNER_C"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert "инспектору" in response.json()["error"].lower()
+    event.refresh_from_db()
+    assert set(event.owners) == {"OWNER_A", "OWNER_B"}
+
+
+@pytest.mark.django_db
+def test_inspector_can_add_owner_and_login_participants(client, inspector_user, approve_bundle):
+    ExternalUser.objects.create(login="extra_login", password="pass", owner_legal_person_id=None)
+    _, _, event = approve_bundle
+    _login(client, "inspector_user")
+
+    owner_response = client.post(
+        reverse("approval:api_add_case_participant", kwargs={"case_id": event.id}),
+        data=json.dumps({"kind": "owner", "value": "OWNER_EXTRA"}),
+        content_type="application/json",
+    )
+    assert owner_response.status_code == 200
+    assert "OWNER_EXTRA" in owner_response.json()["case"]["owners"]
+    assert owner_response.json()["case"]["can_manage_participants"] is True
+
+    login_response = client.post(
+        reverse("approval:api_add_case_participant", kwargs={"case_id": event.id}),
+        data=json.dumps({"kind": "login", "value": "extra_login"}),
+        content_type="application/json",
+    )
+    assert login_response.status_code == 200
+    payload = login_response.json()["case"]
+    assert "extra_login" in payload["participant_logins"]
+    assert any(item["kind"] == "login" and item["login"] == "extra_login" for item in payload["participants"])
+
+    missing_response = client.post(
+        reverse("approval:api_add_case_participant", kwargs={"case_id": event.id}),
+        data=json.dumps({"kind": "login", "value": "no_such_user"}),
+        content_type="application/json",
+    )
+    assert missing_response.status_code == 400
+    assert "не найден" in missing_response.json()["error"].lower()
+
+
+@pytest.mark.django_db
+def test_login_participant_can_access_case(client, inspector_user, approve_bundle):
+    ExternalUser.objects.create(login="guest_login", password="pass", owner_legal_person_id=None)
+    _, primary, event = approve_bundle
+    event.participant_logins = ["guest_login"]
+    event.save(update_fields=["participant_logins", "updated_at"])
+
+    _login(client, "guest_login")
+    bootstrap = client.get(reverse("approval:api_bootstrap"), {"approve_id": str(event.approve_id)})
+    assert bootstrap.status_code == 200
+    case_ids = {item["id"] for item in bootstrap.json()["cases"]}
+    assert str(event.id) in case_ids
+    assert str(primary.id) not in case_ids
+
+    detail = client.get(reverse("approval:api_case_detail", kwargs={"case_id": event.id}))
+    assert detail.status_code == 200
+
+
+@pytest.mark.django_db
+def test_owner_cannot_add_case_participant(client, owner_a_user, approve_bundle):
+    _, _, event = approve_bundle
+    _login(client, "owner_a")
+
+    response = client.post(
+        reverse("approval:api_add_case_participant", kwargs={"case_id": event.id}),
+        data=json.dumps({"kind": "owner", "value": "OWNER_EXTRA"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert "инспектору" in response.json()["error"].lower()

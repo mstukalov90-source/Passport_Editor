@@ -706,6 +706,18 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             approvalSelectWrapEl.hidden = !show;
         }
 
+        document.querySelectorAll('form.owned-approval-delete-form').forEach((form) => {
+            form.addEventListener('submit', (event) => {
+                const btn = form.querySelector('.owned-approval-delete-btn');
+                const message =
+                    (btn && btn.getAttribute('data-confirm-message')) ||
+                    'Удалить согласование?';
+                if (!window.confirm(message)) {
+                    event.preventDefault();
+                }
+            });
+        });
+
         function syncSourceFiltersVisibility() {
             if (!sourceFiltersEl) {
                 return;

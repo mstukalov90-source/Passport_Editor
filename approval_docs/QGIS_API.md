@@ -215,13 +215,14 @@ sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --f
 | **200** | Согласование создано или обновлено |
 | **400** | Невалидный JSON, отсутствуют обязательные поля, неверный UUID, пустой `events`/`user`, дублирующийся `n_root`, не найден `OwnerLegalPersonId` по `TaskGUID` |
 | **403** | Запрос не через внутренний IP (`Host` не в `APPROVAL_QGIS_ALLOWED_HOSTS`) |
-| **409** | Согласование уже полностью согласовано (`approved = true`) — upsert запрещён |
+| **409** | Согласование уже полностью согласовано (`approved = true`), либо `incoming_guid` уже занят другим `user` — upsert запрещён |
 | **500** | Неожиданная ошибка сервера или БД |
 
 ### Поведение upsert
 
 Повторный `POST` с тем же `incoming_guid`:
 
+- разрешён **только тому же** `user`, что уже записан в `approval.approves.user`; чужой `user` получает HTTP 409
 - обновляет `user`, `name`, агрегированные `n_root` и `owners` в `approval.approves`
 - обновляет `v_root`, только если поле передано в запросе
 - обновляет заголовок и `owners` основного чата (owner из `mggt_asu`)
@@ -229,7 +230,7 @@ sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --f
 - **не удаляет** события, отсутствующие в новом payload
 - **не изменяет** события, у которых `approved = true` (`skipped: true` в ответе)
 
-Upsert **запрещён**, если согласование уже имеет `approved = true`.
+Upsert **запрещён**, если согласование уже имеет `approved = true`, либо если `user` в запросе отличается от уже сохранённого.
 
 ---
 
@@ -342,6 +343,7 @@ WHERE a.incoming_guid = '956c45bb-dc44-46a7-9944-9d1996fec147'::uuid;
 |---------|---------|---------|
 | HTTP 403 | Запрос через `border-ogh.mggt.ru` | Использовать `http://172.21.197.77/...` |
 | HTTP 409 | Согласование уже согласовано | Не повторять upsert; создать новое с другим `incoming_guid` |
+| HTTP 409, другим пользователем | `incoming_guid` уже создан другим `user` | Повторять upsert только тем же `user`, либо взять другой `incoming_guid` |
 | HTTP 400, `events` | Пустой или отсутствующий массив | Передать хотя бы одно событие |
 | HTTP 400, OwnerLegalPersonId | Нет объекта с `TaskGUID = incoming_guid` в `mggt_asu` | Убедиться, что съёмка записана в `work.*` до отправки |
 | Согласование не видно в веб-UI | Неверный `owners` в events или owner primary | Проверить `OwnerLegalPersonId` в payload и в `mggt_asu` |

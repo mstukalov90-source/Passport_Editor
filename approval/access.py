@@ -23,6 +23,10 @@ def is_inspector_for_approve(username, approve) -> bool:
     return bool(inspector_login) and inspector_login == str(username).strip()
 
 
+def _normalized_participant_logins(case) -> list[str]:
+    return [str(item).strip() for item in (case.participant_logins or []) if str(item).strip()]
+
+
 def user_can_access_case(case, owner_id=None, *, username=None) -> bool:
     if not case:
         return False
@@ -31,6 +35,10 @@ def user_can_access_case(case, owner_id=None, *, username=None) -> bool:
     if approve is None:
         approve = Approve.objects.filter(pk=case.approve_id).first()
     if approve and is_inspector_for_approve(username, approve):
+        return True
+
+    login = str(username or "").strip()
+    if login and login in _normalized_participant_logins(case):
         return True
 
     if not owner_id:
@@ -54,6 +62,7 @@ def get_accessible_approves(owner_id=None, *, username=None):
         login = str(username).strip()
         if login:
             filters |= Q(user=login)
+            filters |= Q(cases__participant_logins__contains=[login])
 
     if not filters:
         return Approve.objects.none()
@@ -76,20 +85,20 @@ def get_accessible_cases_queryset(owner_id=None, approve_id=None, *, username=No
     if approve_id:
         queryset = queryset.filter(approve_id=approve_id)
 
-    if username and not owner_id:
-        login = str(username).strip()
-        if login:
-            return queryset.filter(approve__user=login)
+    login = str(username).strip() if username else ""
+
+    if login and not owner_id:
+        return queryset.filter(Q(approve__user=login) | Q(participant_logins__contains=[login]))
 
     if owner_id:
         owner_text = str(owner_id).strip()
         if owner_text:
             owner_cases = queryset.filter(owners__contains=[owner_text])
-            if username:
-                login = str(username).strip()
-                if login:
-                    inspector_cases = queryset.filter(approve__user=login)
-                    return (owner_cases | inspector_cases).distinct()
+            if login:
+                login_cases = queryset.filter(
+                    Q(approve__user=login) | Q(participant_logins__contains=[login])
+                )
+                return (owner_cases | login_cases).distinct()
             return owner_cases
 
     return Case.objects.none()

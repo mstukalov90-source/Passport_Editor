@@ -15,9 +15,20 @@ urlpatterns = [
     path("api/cases/<uuid:case_id>/approve/", api_views.api_approve_case, name="api_approve_case"),
     path("api/cases/<uuid:case_id>/revoke/", api_views.api_revoke_case, name="api_revoke_case"),
     path(
+        "api/cases/<uuid:case_id>/change-owner/",
+        api_views.api_change_case_owner,
+        name="api_change_case_owner",
+    ),
+    path(
+        "api/cases/<uuid:case_id>/participants/",
+        api_views.api_add_case_participant,
+        name="api_add_case_participant",
+    ),
+    path(
         "api/messages/<int:message_id>/reactions/",
         api_views.api_message_reaction,
         name="api_message_reaction",
     ),
     path("api/attachments/<int:attachment_id>/", api_views.api_download_attachment, name="api_download_attachment"),
+    path("approves/delete/", api_views.delete_approve, name="delete_approve"),
 ]

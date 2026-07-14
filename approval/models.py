@@ -41,6 +41,7 @@ class Case(models.Model):
     closed_at = models.DateTimeField(blank=True, null=True)
     n_root = models.TextField(blank=True, null=True)
     owners = ArrayField(models.TextField(), default=list)
+    participant_logins = ArrayField(models.TextField(), default=list, blank=True)
 
     class Meta:
         db_table = '"approval"."cases"'

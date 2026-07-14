@@ -59,6 +59,38 @@
         return { primary: primary, secondary: secondary };
     }
 
+    function attachmentDownloadUrl(url) {
+        if (!url) {
+            return '';
+        }
+        return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'download=1';
+    }
+
+    function openImageLightbox(src, alt) {
+        const dialog = el('approval-chat-image-lightbox');
+        const img = el('approval-chat-lightbox-img');
+        if (!dialog || !img || !src) {
+            return;
+        }
+        img.src = src;
+        img.alt = alt || '';
+        if (typeof dialog.showModal === 'function') {
+            dialog.showModal();
+        }
+    }
+
+    function closeImageLightbox() {
+        const dialog = el('approval-chat-image-lightbox');
+        const img = el('approval-chat-lightbox-img');
+        if (dialog && typeof dialog.close === 'function' && dialog.open) {
+            dialog.close();
+        }
+        if (img) {
+            img.removeAttribute('src');
+            img.alt = '';
+        }
+    }
+
     function renderAttachments(message) {
         if (!message.attachments || !message.attachments.length) {
             return '';
@@ -66,24 +98,30 @@
         return message.attachments
             .map(function (attachment) {
                 const isImage = (attachment.content_type || '').indexOf('image/') === 0;
+                const name = escapeHtml(attachment.original_name);
                 if (isImage) {
                     return (
-                        '<a class="approval-chat-attachment approval-chat-attachment--image" href="' +
-                        attachment.url +
-                        '" target="_blank" rel="noopener">' +
+                        '<button type="button" class="approval-chat-attachment approval-chat-attachment--image" ' +
+                        'data-image-src="' +
+                        escapeHtml(attachment.url) +
+                        '" data-image-alt="' +
+                        name +
+                        '" title="Открыть изображение">' +
                         '<img src="' +
-                        attachment.url +
+                        escapeHtml(attachment.url) +
                         '" alt="' +
-                        escapeHtml(attachment.original_name) +
+                        name +
                         '">' +
-                        '</a>'
+                        '</button>'
                     );
                 }
                 return (
-                    '<a class="approval-chat-attachment" href="' +
-                    attachment.url +
-                    '" target="_blank" rel="noopener">' +
-                    escapeHtml(attachment.original_name) +
+                    '<a class="approval-chat-attachment approval-chat-attachment--file" href="' +
+                    escapeHtml(attachmentDownloadUrl(attachment.url)) +
+                    '" download="' +
+                    name +
+                    '" title="Скачать файл">' +
+                    name +
                     '</a>'
                 );
             })
@@ -229,7 +267,8 @@
             article.addEventListener('click', function (event) {
                 if (
                     event.target.closest('.approval-chat-message__reaction-btn') ||
-                    event.target.closest('.approval-chat-message__reply-btn')
+                    event.target.closest('.approval-chat-message__reply-btn') ||
+                    event.target.closest('.approval-chat-attachment')
                 ) {
                     return;
                 }
@@ -316,6 +355,20 @@
                     return;
                 }
                 setMessageReaction(messageId, kind).catch(showError);
+            });
+        });
+    }
+
+    function bindAttachmentClicks() {
+        const thread = el('approval-chat-thread');
+        if (!thread) {
+            return;
+        }
+        thread.querySelectorAll('.approval-chat-attachment--image').forEach(function (button) {
+            button.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                openImageLightbox(button.dataset.imageSrc, button.dataset.imageAlt || '');
             });
         });
     }
@@ -537,6 +590,7 @@
         bindMessageGeometryClicks();
         bindMessageReactionClicks();
         bindMessageReplyClicks();
+        bindAttachmentClicks();
         thread.scrollTop = thread.scrollHeight;
     }
 
@@ -548,6 +602,9 @@
             .map(function (participant) {
                 if (participant.kind === 'inspector') {
                     return 'инспектор: ' + participant.login;
+                }
+                if (participant.kind === 'login') {
+                    return 'участник: ' + participant.login;
                 }
                 return 'владелец: ' + participant.id;
             })
@@ -742,6 +799,11 @@
         const nRootHtml = caseItem.n_root
             ? '<p class="approval-event-card__n-root">Паспорт ' + escapeHtml(caseItem.n_root) + '</p>'
             : '';
+        const addParticipantHtml = caseItem.can_manage_participants
+            ? '<button type="button" class="approval-event-card__add-participant" data-case-id="' +
+              caseItem.id +
+              '">Добавить участника</button>'
+            : '';
         return (
             '<div class="approval-event-card' +
             extraClass +
@@ -770,6 +832,7 @@
             ' / ' +
             caseItem.approvals_total +
             '</span>' +
+            addParticipantHtml +
             '<button type="button" class="approval-event-card__open" data-case-id="' +
             caseItem.id +
             '">Открыть чат</button>' +
@@ -788,9 +851,18 @@
                 openCase(button.dataset.caseId, { fitMap: false });
             });
         });
+        root.querySelectorAll('.approval-event-card__add-participant').forEach(function (button) {
+            button.addEventListener('click', function (event) {
+                event.stopPropagation();
+                openAddParticipantDialog(button.dataset.caseId);
+            });
+        });
         root.querySelectorAll('.approval-event-card').forEach(function (card) {
             card.addEventListener('click', function (event) {
-                if (event.target.closest('.approval-event-card__open')) {
+                if (
+                    event.target.closest('.approval-event-card__open') ||
+                    event.target.closest('.approval-event-card__add-participant')
+                ) {
                     return;
                 }
                 const openBtn = card.querySelector('.approval-event-card__open');
@@ -1023,6 +1095,255 @@
         });
     }
 
+    function currentUserIsInspectorForSelected() {
+        const config = state.config || {};
+        const currentUser = (config.currentUser || '').trim();
+        if (!currentUser) {
+            return false;
+        }
+        const selectedId = state.selectedApproveId || config.selectedApproveId;
+        const approves = config.approves || [];
+        for (let i = 0; i < approves.length; i += 1) {
+            const item = approves[i];
+            if (String(item.id) === String(selectedId) && item.can_delete) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function secondaryCasesForSelected() {
+        return state.cases.filter(function (item) {
+            return !item.is_primary && !item.approved && item.can_manage_participants;
+        });
+    }
+
+    function setDialogError(errorEl, message) {
+        if (!errorEl) {
+            return;
+        }
+        if (!message) {
+            errorEl.hidden = true;
+            errorEl.textContent = '';
+            return;
+        }
+        errorEl.hidden = false;
+        errorEl.textContent = message;
+    }
+
+    function fillChangeOwnerOldSelect(caseItem) {
+        const oldSelect = el('approval-change-owner-old');
+        if (!oldSelect) {
+            return;
+        }
+        const owners = (caseItem && caseItem.owners) || [];
+        oldSelect.innerHTML = owners
+            .map(function (ownerId) {
+                return '<option value="' + escapeHtml(ownerId) + '">' + escapeHtml(ownerId) + '</option>';
+            })
+            .join('');
+    }
+
+    function openChangeOwnerDialog(options) {
+        const opts = options || {};
+        const dialog = el('approval-change-owner-dialog');
+        const caseSelect = el('approval-change-owner-case');
+        const newInput = el('approval-change-owner-new');
+        const errorEl = el('approval-change-owner-error');
+        if (!dialog || !caseSelect || !newInput) {
+            return;
+        }
+        if (!currentUserIsInspectorForSelected()) {
+            return;
+        }
+        const secondary = secondaryCasesForSelected();
+        if (!secondary.length) {
+            window.alert('Нет доступных событий для смены владельца.');
+            return;
+        }
+        const preferredId = opts.caseId || state.activeCaseId;
+        caseSelect.innerHTML = secondary
+            .map(function (caseItem) {
+                const label = caseItem.n_root
+                    ? caseItem.title + ' (Паспорт ' + caseItem.n_root + ')'
+                    : caseItem.title;
+                return (
+                    '<option value="' +
+                    escapeHtml(caseItem.id) +
+                    '">' +
+                    escapeHtml(label) +
+                    '</option>'
+                );
+            })
+            .join('');
+        if (preferredId && secondary.some(function (item) { return item.id === preferredId; })) {
+            caseSelect.value = preferredId;
+        }
+        const selectedCase = findCase(caseSelect.value) || secondary[0];
+        fillChangeOwnerOldSelect(selectedCase);
+        newInput.value = '';
+        setDialogError(errorEl, '');
+        if (typeof dialog.showModal === 'function') {
+            dialog.showModal();
+        }
+    }
+
+    function openChangeOwnerForTaskGuid(taskGuid) {
+        const config = state.config || {};
+        const focusGuid = String(config.focusTaskGuid || '').trim();
+        const clickedGuid = String(taskGuid || '').trim();
+        if (!clickedGuid || (focusGuid && clickedGuid !== focusGuid)) {
+            return;
+        }
+        openChangeOwnerDialog();
+    }
+
+    async function submitChangeOwner() {
+        const caseSelect = el('approval-change-owner-case');
+        const oldSelect = el('approval-change-owner-old');
+        const newInput = el('approval-change-owner-new');
+        const errorEl = el('approval-change-owner-error');
+        const dialog = el('approval-change-owner-dialog');
+        const caseId = caseSelect && caseSelect.value;
+        const oldOwner = oldSelect && oldSelect.value;
+        const newOwner = newInput && newInput.value.trim();
+        if (!caseId || !oldOwner || !newOwner) {
+            setDialogError(errorEl, 'Заполните все поля.');
+            return;
+        }
+        try {
+            const data = await fetchJson(
+                mapApi().apiUrl(state.config.apiUrls.changeCaseOwner, { caseId: caseId }),
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ old_owner: oldOwner, new_owner: newOwner }),
+                }
+            );
+            const index = state.cases.findIndex(function (item) {
+                return item.id === caseId;
+            });
+            if (index >= 0) {
+                state.cases[index] = Object.assign({}, state.cases[index], data.case);
+            }
+            if (dialog && typeof dialog.close === 'function') {
+                dialog.close();
+            }
+            await openCase(state.activeCaseId || caseId, { fitMap: false });
+        } catch (error) {
+            setDialogError(errorEl, (error && error.message) || 'Не удалось сменить владельца.');
+        }
+    }
+
+    let addParticipantCaseId = null;
+
+    function syncAddParticipantValueLabel() {
+        const kindSelect = el('approval-add-participant-kind');
+        const label = el('approval-add-participant-value-label');
+        if (!kindSelect || !label) {
+            return;
+        }
+        label.textContent = kindSelect.value === 'login' ? 'Login' : 'OwnerLegalPersonId';
+    }
+
+    function openAddParticipantDialog(caseId) {
+        const dialog = el('approval-add-participant-dialog');
+        const kindSelect = el('approval-add-participant-kind');
+        const valueInput = el('approval-add-participant-value');
+        const errorEl = el('approval-add-participant-error');
+        const caseItem = findCase(caseId);
+        if (!dialog || !caseItem || !caseItem.can_manage_participants) {
+            return;
+        }
+        addParticipantCaseId = caseId;
+        if (kindSelect) {
+            kindSelect.value = 'owner';
+        }
+        if (valueInput) {
+            valueInput.value = '';
+        }
+        syncAddParticipantValueLabel();
+        setDialogError(errorEl, '');
+        if (typeof dialog.showModal === 'function') {
+            dialog.showModal();
+        }
+    }
+
+    async function submitAddParticipant() {
+        const kindSelect = el('approval-add-participant-kind');
+        const valueInput = el('approval-add-participant-value');
+        const errorEl = el('approval-add-participant-error');
+        const dialog = el('approval-add-participant-dialog');
+        const caseId = addParticipantCaseId;
+        const kind = kindSelect && kindSelect.value;
+        const value = valueInput && valueInput.value.trim();
+        if (!caseId || !kind || !value) {
+            setDialogError(errorEl, 'Заполните все поля.');
+            return;
+        }
+        try {
+            const data = await fetchJson(
+                mapApi().apiUrl(state.config.apiUrls.addCaseParticipant, { caseId: caseId }),
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kind: kind, value: value }),
+                }
+            );
+            const index = state.cases.findIndex(function (item) {
+                return item.id === caseId;
+            });
+            if (index >= 0) {
+                state.cases[index] = Object.assign({}, state.cases[index], data.case);
+            }
+            addParticipantCaseId = null;
+            if (dialog && typeof dialog.close === 'function') {
+                dialog.close();
+            }
+            await openCase(state.activeCaseId || caseId, { fitMap: false });
+        } catch (error) {
+            setDialogError(errorEl, (error && error.message) || 'Не удалось добавить участника.');
+        }
+    }
+
+    function bindParticipantDialogs() {
+        const changeCaseSelect = el('approval-change-owner-case');
+        if (changeCaseSelect) {
+            changeCaseSelect.addEventListener('change', function () {
+                fillChangeOwnerOldSelect(findCase(changeCaseSelect.value));
+            });
+        }
+        const changeForm = el('approval-change-owner-form');
+        if (changeForm) {
+            changeForm.addEventListener('submit', function (event) {
+                const submitter = event.submitter;
+                const value = submitter && submitter.value ? submitter.value : 'cancel';
+                if (value !== 'confirm') {
+                    return;
+                }
+                event.preventDefault();
+                submitChangeOwner();
+            });
+        }
+        const kindSelect = el('approval-add-participant-kind');
+        if (kindSelect) {
+            kindSelect.addEventListener('change', syncAddParticipantValueLabel);
+        }
+        const addForm = el('approval-add-participant-form');
+        if (addForm) {
+            addForm.addEventListener('submit', function (event) {
+                const submitter = event.submitter;
+                const value = submitter && submitter.value ? submitter.value : 'cancel';
+                if (value !== 'confirm') {
+                    addParticipantCaseId = null;
+                    return;
+                }
+                event.preventDefault();
+                submitAddParticipant();
+            });
+        }
+    }
+
     function bindUi() {
         const sendBtn = el('approval-chat-send-btn');
         const approveBtn = el('approval-chat-approve-btn');
@@ -1050,6 +1371,7 @@
             resizeChatInput();
         }
         initEventsListToggle();
+        bindParticipantDialogs();
         if (approveBtn) {
             approveBtn.addEventListener('click', function () {
                 const caseItem = findCase(state.activeCaseId);
@@ -1087,6 +1409,20 @@
                 setApproveConfirmMode(null);
             });
         }
+        const lightbox = el('approval-chat-image-lightbox');
+        const lightboxClose = el('approval-chat-lightbox-close');
+        if (lightboxClose) {
+            lightboxClose.addEventListener('click', function () {
+                closeImageLightbox();
+            });
+        }
+        if (lightbox) {
+            lightbox.addEventListener('click', function (event) {
+                if (event.target === lightbox) {
+                    closeImageLightbox();
+                }
+            });
+        }
         if (attachBtn && filesInput) {
             attachBtn.addEventListener('click', function () {
                 filesInput.click();
@@ -1110,6 +1446,12 @@
     function showError(error) {
         window.alert((error && error.message) || 'Произошла ошибка.');
     }
+
+    window.ApprovalEvents = {
+        openChangeOwnerForTaskGuid: openChangeOwnerForTaskGuid,
+        openAddParticipantDialog: openAddParticipantDialog,
+        openChangeOwnerDialog: openChangeOwnerDialog,
+    };
 
     window.addEventListener('load', function () {
         state.config = mapApi().getConfig();

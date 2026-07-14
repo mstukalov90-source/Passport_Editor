@@ -79,3 +79,63 @@
         </div>
     </form>
 </dialog>
+
+<dialog id="approval-chat-image-lightbox" class="approval-chat-lightbox" aria-label="Просмотр изображения">
+    <button type="button" class="approval-chat-lightbox__close" id="approval-chat-lightbox-close" aria-label="Закрыть">
+        &times;
+    </button>
+    <img class="approval-chat-lightbox__img" id="approval-chat-lightbox-img" alt="" />
+</dialog>
+
+<dialog id="approval-change-owner-dialog" class="approval-event-dialog" aria-labelledby="approval-change-owner-title">
+    <form method="dialog" class="approval-event-dialog__form" id="approval-change-owner-form">
+        <h3 class="approval-event-dialog__title" id="approval-change-owner-title">Сменить владельца</h3>
+        <label class="approval-event-dialog__label" for="approval-change-owner-case">Событие</label>
+        <select id="approval-change-owner-case" class="approval-event-dialog__input" required></select>
+        <label class="approval-event-dialog__label" for="approval-change-owner-old">Текущий владелец</label>
+        <select id="approval-change-owner-old" class="approval-event-dialog__input" required></select>
+        <label class="approval-event-dialog__label" for="approval-change-owner-new">Новый OwnerLegalPersonId</label>
+        <input
+            type="text"
+            id="approval-change-owner-new"
+            class="approval-event-dialog__input"
+            autocomplete="off"
+            required
+        />
+        <p class="approval-event-dialog__error" id="approval-change-owner-error" hidden></p>
+        <div class="approval-event-dialog__actions">
+            <button type="submit" value="cancel" class="approval-event-dialog__cancel">Отменить</button>
+            <button type="submit" value="confirm" class="approval-event-dialog__submit" id="approval-change-owner-submit">
+                Сохранить
+            </button>
+        </div>
+    </form>
+</dialog>
+
+<dialog id="approval-add-participant-dialog" class="approval-event-dialog" aria-labelledby="approval-add-participant-title">
+    <form method="dialog" class="approval-event-dialog__form" id="approval-add-participant-form">
+        <h3 class="approval-event-dialog__title" id="approval-add-participant-title">Добавить участника</h3>
+        <label class="approval-event-dialog__label" for="approval-add-participant-kind">Тип</label>
+        <select id="approval-add-participant-kind" class="approval-event-dialog__input">
+            <option value="owner">По owner (OwnerLegalPersonId)</option>
+            <option value="login">По login</option>
+        </select>
+        <label class="approval-event-dialog__label" for="approval-add-participant-value" id="approval-add-participant-value-label">
+            OwnerLegalPersonId
+        </label>
+        <input
+            type="text"
+            id="approval-add-participant-value"
+            class="approval-event-dialog__input"
+            autocomplete="off"
+            required
+        />
+        <p class="approval-event-dialog__error" id="approval-add-participant-error" hidden></p>
+        <div class="approval-event-dialog__actions">
+            <button type="submit" value="cancel" class="approval-event-dialog__cancel">Отменить</button>
+            <button type="submit" value="confirm" class="approval-event-dialog__submit" id="approval-add-participant-submit">
+                Добавить
+            </button>
+        </div>
+    </form>
+</dialog>
