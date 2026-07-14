@@ -133,6 +133,7 @@ def _mm_to_px(value: str | None, default: float = 2.0) -> float:
 
 
 def _map_unit_to_px(value: str | None, default: float = 2.0) -> float:
+    """Legacy fixed conversion; prefer keeping MapUnit sizes as meters for the map."""
     if not value:
         return default
     try:
@@ -145,6 +146,28 @@ def _width_to_px(value: str | None, unit: str | None, default: float = 2.0) -> f
     if unit == "MM":
         return _mm_to_px(value, default)
     return _map_unit_to_px(value, default)
+
+
+def _parse_raw_size(value: str | None, default: float) -> float:
+    if not value:
+        return default
+    try:
+        return max(0.01, round(float(value), 4))
+    except (TypeError, ValueError):
+        return default
+
+
+def _point_size_from_qml(
+    value: str | None, unit: str | None, default: float
+) -> tuple[float, str]:
+    """Return (size, sizeUnit). MapUnit keeps meters; MM converts to screen px."""
+    size_unit = unit or "MM"
+    if size_unit == "MapUnit":
+        return _parse_raw_size(value, default), "MapUnit"
+    if size_unit == "MM":
+        return _mm_to_px(value, default), "MM"
+    # Pixel / unknown: treat value as screen pixels
+    return _parse_raw_size(value, default), size_unit
 
 
 def _parse_simple_line(layer_el: ET.Element) -> dict[str, Any]:
@@ -190,7 +213,9 @@ def _parse_simple_marker(layer_el: ET.Element) -> dict[str, Any]:
     if outline:
         style["color"] = outline["color"]
     unit = _option_value(layer_el, "size_unit")
-    style["radius"] = _width_to_px(_option_value(layer_el, "size"), unit, 5.0)
+    radius, size_unit = _point_size_from_qml(_option_value(layer_el, "size"), unit, 5.0)
+    style["radius"] = radius
+    style["sizeUnit"] = size_unit
     marker_name = _option_value(layer_el, "name")
     if marker_name:
         style["markerShape"] = marker_name
@@ -247,13 +272,27 @@ def _normalize_svg_path(raw: str | None, qml_dir: Path) -> str | None:
     return None
 
 
+def _qgis_anchor_name(axis: str, value: str | None) -> str:
+    """Map QGIS SvgMarker anchor enums to left|center|right or top|center|bottom."""
+    raw = (value or "").strip()
+    if axis == "horizontal":
+        return {"0": "left", "1": "center", "2": "right"}.get(raw, "center")
+    return {"0": "top", "1": "center", "2": "bottom"}.get(raw, "bottom")
+
+
 def _parse_svg_marker(layer_el: ET.Element, qml_dir: Path) -> dict[str, Any]:
     style: dict[str, Any] = {"kind": "point"}
     fill = parse_qgis_color(_option_value(layer_el, "color"))
     if fill:
         style["fillColor"] = fill["color"]
     unit = _option_value(layer_el, "size_unit")
-    style["iconSize"] = _width_to_px(_option_value(layer_el, "size"), unit, 18.0)
+    icon_size, size_unit = _point_size_from_qml(_option_value(layer_el, "size"), unit, 18.0)
+    style["iconSize"] = icon_size
+    style["iconSizeUnit"] = size_unit
+    style["sizeUnit"] = size_unit
+    style["iconAnchorX"] = _qgis_anchor_name("horizontal", _option_value(layer_el, "horizontal_anchor_point"))
+    # QGIS SvgMarkers in this project mostly pin bottom of the SVG to the point.
+    style["iconAnchorY"] = _qgis_anchor_name("vertical", _option_value(layer_el, "vertical_anchor_point"))
     svg_field = _extract_svg_field(layer_el)
     if svg_field:
         style["svgField"] = svg_field
@@ -285,6 +324,9 @@ def _parse_symbol(symbol_el: ET.Element, qml_dir: Path) -> dict[str, Any]:
             merged.update(_parse_svg_marker(layer, qml_dir))
     if uses_svg_marker:
         merged.setdefault("svgField", "Svg")
+        # SimpleMarker halo after SvgMarker must not clobber SVG size unit.
+        if "iconSizeUnit" in merged:
+            merged["sizeUnit"] = merged["iconSizeUnit"]
     return merged
 
 

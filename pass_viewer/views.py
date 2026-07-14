@@ -4573,7 +4573,10 @@ def home(request):
             except Exception:
                 hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
         accessible_approves = get_accessible_approves(owner_id, username=request.user.username)
-        approval_items = [serialize_approve_option(item) for item in accessible_approves]
+        approval_items = [
+            serialize_approve_option(item, username=request.user.username)
+            for item in accessible_approves
+        ]
         pending_approval_count = accessible_approves.filter(approved=False).count()
     except Exception:
         owned_objects_error = (

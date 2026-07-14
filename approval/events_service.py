@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import shutil
 import uuid
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib.gis.geos import GEOSGeometry
@@ -11,6 +13,7 @@ from django.db import transaction
 from django.db.models import Count, Prefetch
 from django.utils import timezone
 
+from .access import is_inspector_for_approve
 from .models import (
     ApprovalGeometry,
     Approve,
@@ -26,6 +29,10 @@ class ApproveAlreadyApprovedError(ValueError):
     """Raised when upsert is attempted on a fully approved approve."""
 
 
+class ApproveUserConflictError(ValueError):
+    """Raised when upsert is attempted by a different user for the same incoming_guid."""
+
+
 def _format_dt(value):
     if not value:
         return ""
@@ -33,7 +40,7 @@ def _format_dt(value):
     return local.strftime("%d.%m.%Y %H:%M")
 
 
-def serialize_approve_option(approve: Approve) -> dict:
+def serialize_approve_option(approve: Approve, *, username: str | None = None) -> dict:
     incoming_guid = str(approve.incoming_guid)
     name = (approve.name or "").strip()
     if name:
@@ -47,7 +54,32 @@ def serialize_approve_option(approve: Approve) -> dict:
         "label": label,
         "approved": approve.approved,
         "status_label": "Согласовано" if approve.approved else "В работе",
+        "can_delete": is_inspector_for_approve(username, approve),
     }
+
+
+@transaction.atomic
+def delete_approve_for_inspector(*, approve_id, username: str | None) -> Approve:
+    username_text = (username or "").strip()
+    if not username_text:
+        raise ValueError("Не указан пользователь.")
+
+    approve = Approve.objects.filter(pk=approve_id).first()
+    if approve is None:
+        raise ValueError("Согласование не найдено.")
+    if not is_inspector_for_approve(username_text, approve):
+        raise ValueError("Удаление доступно только инспектору этого согласования.")
+
+    case_ids = list(approve.cases.values_list("id", flat=True))
+    approve.delete()
+
+    attachments_root = Path(settings.MEDIA_ROOT) / "approval" / "attachments"
+    for case_id in case_ids:
+        storage_dir = attachments_root / str(case_id)
+        if storage_dir.is_dir():
+            shutil.rmtree(storage_dir, ignore_errors=True)
+
+    return approve
 
 
 def _geometry_to_geojson(geometry_row: ApprovalGeometry | None) -> dict | None:
@@ -150,13 +182,102 @@ def aggregate_approve_owners(*, task_owner_id: str, event_owners: list[str]) -> 
     return merged
 
 
+def _normalized_participant_logins(case: Case) -> list[str]:
+    return [str(item).strip() for item in (case.participant_logins or []) if str(item).strip()]
+
+
 def _case_participants(case: Case, *, inspector_login: str) -> list[dict]:
     participants: list[dict] = []
     for owner_id in _normalized_case_owners(case):
         participants.append({"kind": "owner", "id": owner_id})
+    for login in _normalized_participant_logins(case):
+        participants.append({"kind": "login", "login": login})
     if inspector_login:
         participants.append({"kind": "inspector", "login": inspector_login})
     return participants
+
+
+def _merge_case_owners_preserving_extras(previous: list[str], qgis_owners: list[str]) -> list[str]:
+    """Keep inspector-added owners that are not part of the QGIS owner set."""
+    merged: list[str] = []
+    seen: set[str] = set()
+    for owner in [*(qgis_owners or []), *(previous or [])]:
+        text = str(owner).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        merged.append(text)
+    return merged
+
+
+@transaction.atomic
+def change_case_owner(*, case: Case, old_owner: str, new_owner: str, username: str | None) -> Case:
+    username_text = (username or "").strip()
+    if not username_text:
+        raise ValueError("Не указан пользователь.")
+    if case.is_primary:
+        raise ValueError("Смена владельца основного события недоступна.")
+    if case.approved:
+        raise ValueError("Событие уже согласовано. Изменение владельцев недоступно.")
+    if not is_inspector_for_approve(username_text, case.approve):
+        raise ValueError("Смена владельца доступна только инспектору этого согласования.")
+
+    old_text = str(old_owner or "").strip()
+    new_text = str(new_owner or "").strip()
+    if not old_text or not new_text:
+        raise ValueError("Укажите текущего и нового владельца.")
+    if old_text == new_text:
+        raise ValueError("Новый владелец совпадает с текущим.")
+
+    owners = _normalized_case_owners(case)
+    if old_text not in owners:
+        raise ValueError("Указанный владелец не найден в событии.")
+    if new_text in owners:
+        raise ValueError("Новый владелец уже участвует в событии.")
+
+    case.owners = [new_text if item == old_text else item for item in owners]
+    case.save(update_fields=["owners", "updated_at"])
+    return case
+
+
+@transaction.atomic
+def add_case_participant(*, case: Case, kind: str, value: str, username: str | None) -> Case:
+    from pass_viewer.models import ExternalUser
+
+    username_text = (username or "").strip()
+    if not username_text:
+        raise ValueError("Не указан пользователь.")
+    if case.approved:
+        raise ValueError("Событие уже согласовано. Добавление участников недоступно.")
+    if not is_inspector_for_approve(username_text, case.approve):
+        raise ValueError("Добавление участников доступно только инспектору этого согласования.")
+
+    kind_text = str(kind or "").strip().lower()
+    value_text = str(value or "").strip()
+    if kind_text not in ("owner", "login"):
+        raise ValueError("Укажите kind: owner или login.")
+    if not value_text:
+        raise ValueError("Укажите значение участника.")
+
+    if kind_text == "owner":
+        owners = _normalized_case_owners(case)
+        if value_text in owners:
+            raise ValueError("Владелец уже участвует в событии.")
+        case.owners = [*owners, value_text]
+        case.save(update_fields=["owners", "updated_at"])
+        return case
+
+    if not ExternalUser.objects.filter(login=value_text).exists():
+        raise ValueError("Пользователь с таким login не найден.")
+    logins = _normalized_participant_logins(case)
+    if value_text in logins:
+        raise ValueError("Пользователь уже добавлен в событие.")
+    inspector_login = _inspector_login_for_case(case)
+    if inspector_login and value_text == inspector_login:
+        raise ValueError("Инспектор уже участвует в событии.")
+    case.participant_logins = [*logins, value_text]
+    case.save(update_fields=["participant_logins", "updated_at"])
+    return case
 
 
 def serialize_case_summary(
@@ -201,6 +322,7 @@ def serialize_case_summary(
         "current_owner_approved": current_owner_approved,
         "current_user_approved": current_user_approved,
         "current_user_is_inspector": current_user_is_inspector,
+        "can_manage_participants": current_user_is_inspector and not case.approved,
         "inspector_login": inspector_login,
         "inspector_required": inspector_required,
         "inspector_approved": inspector_approved,
@@ -208,6 +330,7 @@ def serialize_case_summary(
         "geometry": _geometry_to_geojson(geometry_row),
         "n_root": case.n_root or "",
         "owners": list(case.owners or []),
+        "participant_logins": _normalized_participant_logins(case),
         "created_by_login": case.created_by_login or "",
     }
 
@@ -533,8 +656,9 @@ def _upsert_qgis_event_cases(
             )
             event_created = True
         else:
+            previous_owners = _normalized_case_owners(case)
             case.title = event["title"]
-            case.owners = event_owners
+            case.owners = _merge_case_owners_preserving_extras(previous_owners, event_owners)
             case.created_by_login = user
             case.save(update_fields=["title", "owners", "created_by_login", "updated_at"])
             event_created = False
@@ -580,6 +704,11 @@ def upsert_approve_from_qgis(payload) -> dict:
         )
         created = True
     else:
+        existing_user = (approve.user or "").strip()
+        if existing_user and existing_user != data["user"]:
+            raise ApproveUserConflictError(
+                "Согласование с этим incoming_guid уже создано другим пользователем."
+            )
         if approve.approved:
             raise ApproveAlreadyApprovedError("Согласование уже согласовано. Изменение запрещено.")
         created = False

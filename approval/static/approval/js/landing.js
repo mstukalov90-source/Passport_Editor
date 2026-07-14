@@ -39,10 +39,23 @@
     let layerStylesManifest = null;
     let layerStyleIconsBase = '/static/approval/icons/svg/';
     let svgIndex = null;
+    let svgHotspots = null;
     let layerStackOrder = [];
     const adjacentFeatureRegistry = {};
-    const SVG_MARKER_SIZE_SCALE = 2;
+    let activeAdjacentNRoot = '';
+    const ADJACENT_ACTIVE_STROKE_SOFT = '#fde68a';
+    const ADJACENT_ACTIVE_STROKE_STRONG = '#ca8a04';
+    const ADJACENT_ACTIVE_WEIGHT = 4;
+    const ADJACENT_PULSE_PERIOD_MS = 2800;
+    let adjacentPulseRaf = null;
+    let adjacentPulseStart = 0;
+    const MM_MARKER_SIZE_SCALE = 1;
     const CIRCLE_MARKER_SIZE_SCALE = 1.5;
+    /** Visual multiplier for MapUnit markers (zoom scaling preserved). */
+    const MAP_UNIT_VISUAL_SCALE = 2;
+    const MAP_UNIT_MARKER_MIN_PX = 20;
+    const MAP_UNIT_MARKER_MAX_PX = 128;
+    let mapUnitMarkers = [];
 
     function getSvgIndex() {
         if (svgIndex) {
@@ -50,6 +63,14 @@
         }
         svgIndex = readJsonScript('approval-svg-index') || {};
         return svgIndex;
+    }
+
+    function getSvgHotspots() {
+        if (svgHotspots) {
+            return svgHotspots;
+        }
+        svgHotspots = readJsonScript('approval-svg-hotspots') || {};
+        return svgHotspots;
     }
 
     function normalizeSvgLookupKey(raw) {
@@ -196,14 +217,258 @@
         return layerStyleIconsBase + encodeSvgPath(resolved);
     }
 
-    function createSvgMarker(latlng, iconUrl, size, feature) {
-        return L.marker(latlng, {
-            icon: L.icon({
-                iconUrl: iconUrl,
-                iconSize: [size, size],
-                iconAnchor: [size / 2, size / 2],
-            }),
+    function clampNumber(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function estimateMetersToPixels(meters, lat, zoom) {
+        if (!map || !Number.isFinite(Number(meters))) {
+            return MAP_UNIT_MARKER_MIN_PX;
+        }
+        const latitude = Number.isFinite(Number(lat)) ? Number(lat) : map.getCenter().lat;
+        const z = Number.isFinite(Number(zoom)) ? Number(zoom) : map.getZoom();
+        const metersPerPixel =
+            (156543.03392 * Math.cos((latitude * Math.PI) / 180)) / Math.pow(2, z);
+        if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) {
+            return MAP_UNIT_MARKER_MIN_PX;
+        }
+        const px = Number(meters) / metersPerPixel;
+        return Number.isFinite(px) ? px : MAP_UNIT_MARKER_MIN_PX;
+    }
+
+    function resolveMarkerPixelSize(latlng, sizeValue, sizeUnit, zoom) {
+        const raw = Number(sizeValue);
+        if (sizeUnit === 'MapUnit') {
+            const meters = Number.isFinite(raw) && raw > 0 ? raw : 14;
+            // Mercator zoom formula at every zoom level — avoids mid-animation layer
+            // projection drift that made markers look off-center.
+            const scaled =
+                estimateMetersToPixels(meters, latlng && latlng.lat, zoom) * MAP_UNIT_VISUAL_SCALE;
+            return Math.round(clampNumber(scaled, MAP_UNIT_MARKER_MIN_PX, MAP_UNIT_MARKER_MAX_PX));
+        }
+        const screenPx = (Number.isFinite(raw) && raw > 0 ? raw : 18) * MM_MARKER_SIZE_SCALE;
+        return Math.round(clampNumber(screenPx, 10, 64));
+    }
+
+    function clampFraction(value, fallback) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) {
+            return fallback;
+        }
+        return Math.min(1, Math.max(0, n));
+    }
+
+    function enumAnchorToFraction(axis, name) {
+        const raw = String(name || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[_-]+/g, ' ');
+        if (axis === 'x') {
+            if (raw === 'left' || raw === '0') {
+                return 0;
+            }
+            if (raw === 'right' || raw === '2') {
+                return 1;
+            }
+            if (
+                raw === 'center' ||
+                raw === 'hcenter' ||
+                raw === 'h center' ||
+                raw === 'horizontal center' ||
+                raw === '1'
+            ) {
+                return 0.5;
+            }
+            return null;
+        }
+        if (raw === 'top' || raw === '0') {
+            return 0;
+        }
+        if (raw === 'bottom' || raw === '2') {
+            return 1;
+        }
+        if (
+            raw === 'center' ||
+            raw === 'vcenter' ||
+            raw === 'v center' ||
+            raw === 'vertical center' ||
+            raw === '1'
+        ) {
+            return 0.5;
+        }
+        return null;
+    }
+
+    function hotspotBasenameFromIconUrl(iconUrl) {
+        if (!iconUrl) {
+            return null;
+        }
+        let path = String(iconUrl);
+        try {
+            path = decodeURIComponent(path);
+        } catch (e) {
+            /* keep raw */
+        }
+        const marker = '/svg/';
+        const svgPos = path.lastIndexOf(marker);
+        let rel = svgPos >= 0 ? path.slice(svgPos + marker.length) : path;
+        rel = rel.split('?')[0].split('#')[0];
+        const basename = rel.split('/').pop();
+        return basename || null;
+    }
+
+    function lookupSvgHotspot(iconUrl) {
+        const basename = hotspotBasenameFromIconUrl(iconUrl);
+        if (!basename) {
+            return null;
+        }
+        const hotspots = getSvgHotspots();
+        const keys = [basename];
+        if (typeof basename.normalize === 'function') {
+            keys.push(basename.normalize('NFC'));
+            keys.push(basename.normalize('NFD'));
+        }
+        for (let i = 0; i < keys.length; i += 1) {
+            const hit = hotspots[keys[i]];
+            if (
+                hit &&
+                hit.length >= 2 &&
+                Number.isFinite(Number(hit[0])) &&
+                Number.isFinite(Number(hit[1]))
+            ) {
+                return [clampFraction(hit[0], 0.5), clampFraction(hit[1], 0.5)];
+            }
+        }
+        return null;
+    }
+
+    function resolveIconAnchorFractions(iconUrl, props, ruleStyle, defaultX, defaultY) {
+        const hotspot = lookupSvgHotspot(iconUrl);
+        if (hotspot) {
+            return hotspot;
+        }
+        const ha = enumAnchorToFraction('x', propertyValue(props, 'Svg_HAPoint'));
+        const va = enumAnchorToFraction('y', propertyValue(props, 'Svg_VAPoint'));
+        const ruleX = enumAnchorToFraction(
+            'x',
+            (ruleStyle && ruleStyle.iconAnchorX) || defaultX || 'center'
+        );
+        const ruleY = enumAnchorToFraction(
+            'y',
+            (ruleStyle && ruleStyle.iconAnchorY) || defaultY || 'bottom'
+        );
+        return [
+            ha != null ? ha : ruleX != null ? ruleX : 0.5,
+            va != null ? va : ruleY != null ? ruleY : 1,
+        ];
+    }
+
+    function anchorPixelsFromFractions(size, fx, fy) {
+        const safeSize = Math.max(
+            MAP_UNIT_MARKER_MIN_PX,
+            Math.round(Number.isFinite(size) && size > 0 ? size : MAP_UNIT_MARKER_MIN_PX)
+        );
+        return {
+            size: safeSize,
+            ax: Math.round(clampFraction(fx, 0.5) * safeSize),
+            ay: Math.round(clampFraction(fy, 1) * safeSize),
+        };
+    }
+
+    function buildSvgIcon(iconUrl, size, anchorFx, anchorFy) {
+        const anchored = anchorPixelsFromFractions(size, anchorFx, anchorFy);
+        return L.icon({
+            iconUrl: iconUrl,
+            iconSize: [anchored.size, anchored.size],
+            iconAnchor: [anchored.ax, anchored.ay],
+        });
+    }
+
+    function applySvgMarkerSize(entry, size) {
+        if (!entry || !entry.marker || entry.lastSize === size) {
+            return;
+        }
+        entry.lastSize = size;
+        const fx = entry.anchorFx != null ? entry.anchorFx : 0.5;
+        const fy = entry.anchorFy != null ? entry.anchorFy : 1;
+        const anchored = anchorPixelsFromFractions(size, fx, fy);
+        const ax = anchored.ax;
+        const ay = anchored.ay;
+        const icon = entry.marker.options && entry.marker.options.icon;
+        if (icon && icon.options) {
+            icon.options.iconSize = [size, size];
+            icon.options.iconAnchor = [ax, ay];
+        }
+        const el = entry.marker._icon;
+        if (el) {
+            el.style.width = size + 'px';
+            el.style.height = size + 'px';
+            el.style.marginLeft = -ax + 'px';
+            el.style.marginTop = -ay + 'px';
+            if (typeof entry.marker.update === 'function' && entry.marker._map) {
+                entry.marker.update();
+            }
+        } else {
+            entry.marker.setIcon(buildSvgIcon(entry.iconUrl, size, fx, fy));
+        }
+    }
+
+    function createSvgMarker(latlng, iconUrl, size, feature, mapUnitMeters, anchorFx, anchorFy) {
+        const fx = clampFraction(anchorFx, 0.5);
+        const fy = clampFraction(anchorFy, 1);
+        const marker = L.marker(latlng, {
+            icon: buildSvgIcon(iconUrl, size, fx, fy),
+            zIndexOffset: 600,
         }).bindTooltip(featureTooltip(feature), { sticky: true });
+        if (mapUnitMeters != null && Number.isFinite(Number(mapUnitMeters))) {
+            mapUnitMarkers.push({
+                kind: 'svg',
+                marker: marker,
+                iconUrl: iconUrl,
+                meters: Number(mapUnitMeters),
+                lastSize: size,
+                anchorFx: fx,
+                anchorFy: fy,
+            });
+        }
+        return marker;
+    }
+
+    let mapUnitRefreshRaf = null;
+
+    function refreshMapUnitMarkers(zoomOverride) {
+        if (!map || !mapUnitMarkers.length) {
+            return;
+        }
+        const zoom = Number.isFinite(Number(zoomOverride)) ? Number(zoomOverride) : map.getZoom();
+        mapUnitMarkers.forEach(function (entry) {
+            if (!entry || !entry.marker) {
+                return;
+            }
+            const latlng = entry.marker.getLatLng();
+            if (entry.kind === 'svg') {
+                applySvgMarkerSize(entry, resolveMarkerPixelSize(latlng, entry.meters, 'MapUnit', zoom));
+                return;
+            }
+            if (entry.kind === 'circle' && typeof entry.marker.setRadius === 'function') {
+                const diameterPx = resolveMarkerPixelSize(latlng, entry.meters, 'MapUnit', zoom);
+                const radius = Math.max(2, Math.round(diameterPx / 2));
+                if (entry.lastSize !== radius) {
+                    entry.lastSize = radius;
+                    entry.marker.setRadius(radius);
+                }
+            }
+        });
+    }
+
+    function scheduleMapUnitMarkersRefresh(zoomOverride) {
+        if (mapUnitRefreshRaf !== null) {
+            window.cancelAnimationFrame(mapUnitRefreshRaf);
+        }
+        mapUnitRefreshRaf = window.requestAnimationFrame(function () {
+            mapUnitRefreshRaf = null;
+            refreshMapUnitMarkers(zoomOverride);
+        });
     }
 
     function svgIconUrl(style, props) {
@@ -313,6 +578,152 @@
         return 'adjacent_objects';
     }
 
+    function isAdjacentRootHighlighted(rootId, kind, activeNRoot) {
+        const active = String(activeNRoot || '').trim();
+        const normalizedRoot = String(rootId || '').trim();
+        if (!active) {
+            return kind === 'n';
+        }
+        return normalizedRoot === active;
+    }
+
+    function adjacentBaseStyle(leafletLayer, props) {
+        if (leafletLayer && leafletLayer.feature) {
+            return styleFeature(leafletLayer.feature);
+        }
+        return styleFeature({
+            type: 'Feature',
+            properties: props || {},
+            geometry: { type: 'Polygon' },
+        });
+    }
+
+    function parseHexColor(hex) {
+        const raw = String(hex || '').replace('#', '');
+        if (raw.length !== 6) {
+            return null;
+        }
+        const r = parseInt(raw.slice(0, 2), 16);
+        const g = parseInt(raw.slice(2, 4), 16);
+        const b = parseInt(raw.slice(4, 6), 16);
+        if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
+            return null;
+        }
+        return { r: r, g: g, b: b };
+    }
+
+    function lerpHexColor(a, b, t) {
+        const from = parseHexColor(a);
+        const to = parseHexColor(b);
+        if (!from || !to) {
+            return a;
+        }
+        const clamped = Math.max(0, Math.min(1, t));
+        const mix = function (x, y) {
+            return Math.round(x + (y - x) * clamped);
+        };
+        const toHex = function (n) {
+            const s = n.toString(16);
+            return s.length === 1 ? '0' + s : s;
+        };
+        return (
+            '#' +
+            toHex(mix(from.r, to.r)) +
+            toHex(mix(from.g, to.g)) +
+            toHex(mix(from.b, to.b))
+        );
+    }
+
+    function adjacentPulsePhase(nowMs) {
+        const elapsed = Math.max(0, nowMs - adjacentPulseStart);
+        const t = (elapsed % ADJACENT_PULSE_PERIOD_MS) / ADJACENT_PULSE_PERIOD_MS;
+        return 0.5 - 0.5 * Math.cos(2 * Math.PI * t);
+    }
+
+    function setAdjacentHighlightStroke(entry, color) {
+        const layer = entry && entry.leafletLayer;
+        if (!layer || typeof layer.setStyle !== 'function') {
+            return;
+        }
+        const base = entry.baseStyle || {};
+        layer.setStyle(
+            Object.assign({}, base, {
+                color: color,
+                weight: ADJACENT_ACTIVE_WEIGHT,
+            })
+        );
+    }
+
+    function hasAdjacentHighlightedEntries() {
+        return Object.keys(adjacentFeatureRegistry).some(function (key) {
+            const entry = adjacentFeatureRegistry[key];
+            return entry && entry._adjacentHighlighted;
+        });
+    }
+
+    function stopAdjacentHighlightPulse() {
+        if (adjacentPulseRaf != null) {
+            window.cancelAnimationFrame(adjacentPulseRaf);
+            adjacentPulseRaf = null;
+        }
+        adjacentPulseStart = 0;
+    }
+
+    function tickAdjacentHighlightPulse(nowMs) {
+        adjacentPulseRaf = null;
+        if (!hasAdjacentHighlightedEntries()) {
+            stopAdjacentHighlightPulse();
+            return;
+        }
+        const color = lerpHexColor(
+            ADJACENT_ACTIVE_STROKE_SOFT,
+            ADJACENT_ACTIVE_STROKE_STRONG,
+            adjacentPulsePhase(nowMs)
+        );
+        Object.keys(adjacentFeatureRegistry).forEach(function (key) {
+            const entry = adjacentFeatureRegistry[key];
+            if (!entry || !entry._adjacentHighlighted) {
+                return;
+            }
+            setAdjacentHighlightStroke(entry, color);
+        });
+        adjacentPulseRaf = window.requestAnimationFrame(tickAdjacentHighlightPulse);
+    }
+
+    function startAdjacentHighlightPulse() {
+        if (adjacentPulseRaf != null) {
+            return;
+        }
+        if (!hasAdjacentHighlightedEntries()) {
+            return;
+        }
+        adjacentPulseStart = window.performance.now();
+        adjacentPulseRaf = window.requestAnimationFrame(tickAdjacentHighlightPulse);
+    }
+
+    function syncAdjacentHighlightPulse() {
+        if (hasAdjacentHighlightedEntries()) {
+            startAdjacentHighlightPulse();
+            return;
+        }
+        stopAdjacentHighlightPulse();
+    }
+
+    function applyAdjacentFeatureStyle(entry, isActive) {
+        const layer = entry && entry.leafletLayer;
+        if (!layer || typeof layer.setStyle !== 'function') {
+            return;
+        }
+        const base = entry.baseStyle || {};
+        if (isActive) {
+            entry._adjacentHighlighted = true;
+            setAdjacentHighlightStroke(entry, ADJACENT_ACTIVE_STROKE_SOFT);
+            return;
+        }
+        entry._adjacentHighlighted = false;
+        layer.setStyle(base);
+    }
+
     function findManagedGroupContaining(leafletLayer) {
         const groups = Object.keys(managedLayers);
         for (let i = 0; i < groups.length; i += 1) {
@@ -345,6 +756,7 @@
             leafletLayer: leafletLayer,
             rootId: props.RootId || '',
             kind: kind,
+            baseStyle: adjacentBaseStyle(leafletLayer, props),
         };
         leafletLayer._adjacentFeatureKey = key;
     }
@@ -353,14 +765,24 @@
         if (!map) {
             return;
         }
+        activeAdjacentNRoot = activeNRoot == null ? '' : String(activeNRoot);
         Object.keys(adjacentFeatureRegistry).forEach(function (key) {
             const entry = adjacentFeatureRegistry[key];
             if (!entry || !entry.leafletLayer) {
                 return;
             }
-            const targetKey = adjacentLayerForRoot(entry.rootId, entry.kind, activeNRoot);
+            const targetKey = adjacentLayerForRoot(
+                entry.rootId,
+                entry.kind,
+                activeAdjacentNRoot
+            );
             moveLeafletLayerToGroup(entry.leafletLayer, targetKey);
+            applyAdjacentFeatureStyle(
+                entry,
+                isAdjacentRootHighlighted(entry.rootId, entry.kind, activeAdjacentNRoot)
+            );
         });
+        syncAdjacentHighlightPulse();
         reorderMapLayers();
     }
 
@@ -419,36 +841,93 @@
         const styleKey = styleTableKey(props);
         const displayKey = props.layerKey || props.sourceTable || 'work';
         const ruleStyle = resolveRuleStyle(styleKey, props);
+        const sizeUnit =
+            (ruleStyle && (ruleStyle.iconSizeUnit || ruleStyle.sizeUnit)) || 'MM';
 
         if (styleKey === 'PhotoFixPoint') {
             const photoUrl = photoFixIconUrl();
             if (photoUrl) {
                 const baseSize = (ruleStyle && ruleStyle.iconSize) || 12;
-                const size = Math.round(baseSize * SVG_MARKER_SIZE_SCALE);
-                return createSvgMarker(latlng, photoUrl, size, feature);
+                const size = resolveMarkerPixelSize(latlng, baseSize, sizeUnit);
+                const mapMeters = sizeUnit === 'MapUnit' ? baseSize : null;
+                const fractions = resolveIconAnchorFractions(
+                    photoUrl,
+                    props,
+                    ruleStyle,
+                    'center',
+                    'center'
+                );
+                return createSvgMarker(
+                    latlng,
+                    photoUrl,
+                    size,
+                    feature,
+                    mapMeters,
+                    fractions[0],
+                    fractions[1]
+                );
             }
         }
 
         const iconUrl = svgIconUrl(ruleStyle, props);
         if (iconUrl) {
             const baseSize = ruleStyle && ruleStyle.iconSize ? ruleStyle.iconSize : 18;
-            const size = Math.round(baseSize * SVG_MARKER_SIZE_SCALE);
-            return createSvgMarker(latlng, iconUrl, size, feature);
+            const size = resolveMarkerPixelSize(latlng, baseSize, sizeUnit);
+            const mapMeters = sizeUnit === 'MapUnit' ? baseSize : null;
+            // Prefer SVG hotspots / feature Svg_*APoint; else QML enum (often bottom).
+            const fractions = resolveIconAnchorFractions(
+                iconUrl,
+                props,
+                ruleStyle,
+                'center',
+                'bottom'
+            );
+            return createSvgMarker(
+                latlng,
+                iconUrl,
+                size,
+                feature,
+                mapMeters,
+                fractions[0],
+                fractions[1]
+            );
         }
 
         const colors = hashColor(displayKey);
         const baseRadius = (ruleStyle && ruleStyle.radius) || 5;
-        const radius = Math.round(baseRadius * CIRCLE_MARKER_SIZE_SCALE);
         const stroke = (ruleStyle && ruleStyle.color) || colors.stroke;
         const fill = (ruleStyle && ruleStyle.fillColor) || colors.fill;
         const fillOpacity = (ruleStyle && ruleStyle.fillOpacity) || 0.85;
-        return L.circleMarker(latlng, {
+        let radius;
+        if (sizeUnit === 'MapUnit') {
+            // QGIS SimpleMarker size is diameter; prefer iconSize when radius is a tiny halo.
+            const mapMeters =
+                Number(baseRadius) > 0.5
+                    ? Number(baseRadius)
+                    : Number(ruleStyle && ruleStyle.iconSize) > 0.5
+                      ? Number(ruleStyle.iconSize)
+                      : 14;
+            const diameterPx = resolveMarkerPixelSize(latlng, mapMeters, 'MapUnit');
+            radius = Math.max(2, Math.round(diameterPx / 2));
+        } else {
+            radius = Math.round(baseRadius * CIRCLE_MARKER_SIZE_SCALE);
+        }
+        const circle = L.circleMarker(latlng, {
             radius: radius,
             color: stroke,
             weight: 2,
             fillColor: fill,
             fillOpacity: fillOpacity,
+            pane: 'markerPane',
         }).bindTooltip(featureTooltip(feature), { sticky: true });
+        if (sizeUnit === 'MapUnit') {
+            mapUnitMarkers.push({
+                kind: 'circle',
+                marker: circle,
+                meters: Number(baseRadius) > 0.5 ? Number(baseRadius) : (ruleStyle && ruleStyle.iconSize) || 14,
+            });
+        }
+        return circle;
     }
 
     function ensureLayerGroup(layerKey) {
@@ -932,6 +1411,13 @@
         map = L.map(mapElementId, {
             zoomControl: true,
             attributionControl: true,
+            // Own MapUnit sizing must drive marker scale; Leaflet CSS zoom-anim
+            // on markers would double-scale and look like drift.
+            markerZoomAnimation: false,
+            // Finer zoom steps → size updates more often (smoother).
+            zoomSnap: 0.25,
+            zoomDelta: 0.5,
+            wheelPxPerZoomLevel: 80,
         }).setView(center, defaultZoom);
 
         map.attributionControl.setPrefix(
@@ -939,36 +1425,98 @@
         );
 
         managedLayers = {};
+        mapUnitMarkers = [];
         eventGeometriesGroup = L.featureGroup().addTo(map);
+        map.invalidateSize();
+
+        function liveMapZoom(eventZoom) {
+            if (Number.isFinite(Number(eventZoom))) {
+                return Number(eventZoom);
+            }
+            if (map._animatingZoom && Number.isFinite(map._animateToZoom)) {
+                return map._animateToZoom;
+            }
+            return map.getZoom();
+        }
+
+        map.on('zoomanim', function (event) {
+            scheduleMapUnitMarkersRefresh(liveMapZoom(event && event.zoom));
+        });
+        map.on('zoom', function () {
+            scheduleMapUnitMarkersRefresh(liveMapZoom());
+        });
+        map.on('zoomend', function () {
+            refreshMapUnitMarkers(map.getZoom());
+        });
+        map.on('moveend', function () {
+            refreshMapUnitMarkers(map.getZoom());
+        });
+
+        function isInspectorForSelectedApprove() {
+            const pageConfig = readJsonScript('page-config') || {};
+            const currentUser = (pageConfig.currentUser || '').trim();
+            if (!currentUser) {
+                return false;
+            }
+            const selectedId = pageConfig.selectedApproveId;
+            const approves = pageConfig.approves || [];
+            for (let i = 0; i < approves.length; i += 1) {
+                const item = approves[i];
+                if (String(item.id) === String(selectedId) && item.can_delete) {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         function onEachFeature(feature, layer) {
             layer.bindTooltip(featureTooltip(feature), { sticky: true });
+            const props = feature.properties || {};
+            if (isAdjacentFeature(props)) {
+                return;
+            }
+            if (!isInspectorForSelectedApprove()) {
+                return;
+            }
+            layer.on('click', function () {
+                const taskGuid = props.taskGuid || props.TaskGUID;
+                if (
+                    window.ApprovalEvents &&
+                    typeof window.ApprovalEvents.openChangeOwnerForTaskGuid === 'function'
+                ) {
+                    window.ApprovalEvents.openChangeOwnerForTaskGuid(taskGuid);
+                }
+            });
         }
 
         if (mapGeojson && Array.isArray(mapGeojson.features)) {
             mapGeojson.features.forEach(function (feature) {
-                const props = feature.properties || {};
-                const layerKey = props.layerKey || props.sourceTable;
-                if (!layerKey) {
-                    return;
-                }
-                const targetGroup = ensureLayerGroup(layerKey);
-                const checkbox = document.querySelector('input[data-layer-key="' + layerKey + '"]');
-                const isVisible = !checkbox || checkbox.checked;
-
-                L.geoJSON(feature, {
-                    style: styleFeature,
-                    onEachFeature: onEachFeature,
-                    pointToLayer: pointToLayer,
-                }).eachLayer(function (layer) {
-                    if (isAdjacentFeature(props)) {
-                        registerAdjacentLeafletLayer(props, layer);
+                try {
+                    const props = feature.properties || {};
+                    const layerKey = props.layerKey || props.sourceTable;
+                    if (!layerKey) {
+                        return;
                     }
-                    targetGroup.addLayer(layer);
-                });
+                    const targetGroup = ensureLayerGroup(layerKey);
+                    const checkbox = document.querySelector('input[data-layer-key="' + layerKey + '"]');
+                    const isVisible = !checkbox || checkbox.checked;
 
-                if (!isVisible) {
-                    setLayerVisible(layerKey, false);
+                    L.geoJSON(feature, {
+                        style: styleFeature,
+                        onEachFeature: onEachFeature,
+                        pointToLayer: pointToLayer,
+                    }).eachLayer(function (layer) {
+                        if (isAdjacentFeature(props)) {
+                            registerAdjacentLeafletLayer(props, layer);
+                        }
+                        targetGroup.addLayer(layer);
+                    });
+
+                    if (!isVisible) {
+                        setLayerVisible(layerKey, false);
+                    }
+                } catch (err) {
+                    console.warn('approval map: failed to add feature', err);
                 }
             });
         }
@@ -979,6 +1527,15 @@
         if (!fitTaskGuidBounds(config.focusTaskGuid)) {
             fitVisibleBounds();
         }
+        map.invalidateSize();
+        refreshMapUnitMarkers();
+        window.setTimeout(function () {
+            if (!map) {
+                return;
+            }
+            map.invalidateSize();
+            refreshMapUnitMarkers();
+        }, 0);
     }
 
     function initLayerPanelToggle() {

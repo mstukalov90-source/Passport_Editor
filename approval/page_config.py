@@ -22,7 +22,10 @@ def landing_page_config(
         for group in groups
         if group.get("key")
     }
-    approve_options = [serialize_approve_option(approve) for approve in approves or []]
+    approve_options = [
+        serialize_approve_option(approve, username=current_user_login)
+        for approve in approves or []
+    ]
 
     return {
         "page": "approval_landing",
@@ -42,6 +45,8 @@ def landing_page_config(
             "postMessage": "/approval/api/cases/{caseId}/messages/",
             "approveCase": "/approval/api/cases/{caseId}/approve/",
             "revokeCase": "/approval/api/cases/{caseId}/revoke/",
+            "changeCaseOwner": "/approval/api/cases/{caseId}/change-owner/",
+            "addCaseParticipant": "/approval/api/cases/{caseId}/participants/",
             "messageReaction": "/approval/api/messages/{messageId}/reactions/",
             "attachment": "/approval/api/attachments/{attachmentId}/",
         },

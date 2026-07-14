@@ -655,6 +655,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "square"
           },
           "filter": {
@@ -671,6 +672,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "square"
           },
           "filter": {
@@ -687,6 +689,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "square"
           },
           "filter": {
@@ -700,7 +703,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#804000",
-            "iconSize": 56.0,
+            "iconSize": 14.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
             "svg": "Емкости и павильоны для сбора твердых коммунальных отходов_Площадка для выкатных контейнеров.svg",
             "svgField": "Svg"
           },
@@ -715,7 +722,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#804000",
-            "iconSize": 56.0,
+            "iconSize": 14.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
             "svg": "Емкости и павильоны для сбора твердых коммунальных отходов_Площадка для выкатных контейнеров.svg",
             "svgField": "Svg"
           },
@@ -733,6 +744,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 11.34,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         }
@@ -1065,6 +1077,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -1081,6 +1094,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -1097,6 +1111,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -1113,6 +1128,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -1129,6 +1145,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -1145,6 +1162,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -1161,6 +1179,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -1177,6 +1196,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -1193,6 +1213,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -1209,6 +1230,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -1225,6 +1247,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         }
@@ -1582,6 +1605,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         },
@@ -1590,7 +1614,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e5b636",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Боллард.svg",
             "svgField": "Svg"
           }
@@ -1600,7 +1628,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e5b636",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Буфер безопасности 1.svg",
             "svgField": "Svg"
           }
@@ -1613,6 +1645,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         },
@@ -1624,6 +1657,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         },
@@ -1635,6 +1669,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         },
@@ -1646,6 +1681,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         },
@@ -1657,6 +1693,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         },
@@ -1668,6 +1705,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         },
@@ -1679,6 +1717,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         },
@@ -1690,6 +1729,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         },
@@ -1701,6 +1741,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         },
@@ -1712,6 +1753,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         },
@@ -1723,6 +1765,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         },
@@ -1731,7 +1774,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e5b636",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
             "svg": "Антипарковочный столбик.svg",
             "svgField": "Svg"
           }
@@ -1744,6 +1791,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         }
@@ -2036,10 +2084,14 @@
           "style": {
             "kind": "point",
             "fillColor": "#ffffff",
-            "iconSize": 56.0,
+            "iconSize": 14.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "fillOpacity": 1.0,
             "color": "#0000ff",
-            "radius": 0.5,
+            "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
           }
@@ -2049,10 +2101,14 @@
           "style": {
             "kind": "point",
             "fillColor": "#ffffff",
-            "iconSize": 56.0,
+            "iconSize": 14.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "fillOpacity": 1.0,
             "color": "#0000ff",
-            "radius": 0.5,
+            "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
           }
@@ -2062,10 +2118,14 @@
           "style": {
             "kind": "point",
             "fillColor": "#ffffff",
-            "iconSize": 56.0,
+            "iconSize": 14.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "fillOpacity": 1.0,
             "color": "#0000ff",
-            "radius": 0.5,
+            "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
           }
@@ -2075,10 +2135,14 @@
           "style": {
             "kind": "point",
             "fillColor": "#ffffff",
-            "iconSize": 28.0,
+            "iconSize": 7.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "fillOpacity": 1.0,
             "color": "#0000ff",
-            "radius": 0.5,
+            "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
           }
@@ -2088,11 +2152,15 @@
           "style": {
             "kind": "point",
             "fillColor": "#ffffff",
-            "iconSize": 56.0,
+            "iconSize": 14.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Неизвестный.svg",
             "fillOpacity": 1.0,
             "color": "#0000ff",
-            "radius": 0.5,
+            "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
           }
@@ -2287,6 +2355,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         }
@@ -2717,10 +2786,14 @@
           "style": {
             "kind": "point",
             "fillColor": "#ffffff",
-            "iconSize": 56.0,
+            "iconSize": 14.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "fillOpacity": 1.0,
             "color": "#0000ff",
-            "radius": 0.5,
+            "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
           }
@@ -2730,11 +2803,15 @@
           "style": {
             "kind": "point",
             "fillColor": "#ffffff",
-            "iconSize": 56.0,
+            "iconSize": 14.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Неизвестный.svg",
             "fillOpacity": 1.0,
             "color": "#0000ff",
-            "radius": 0.5,
+            "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
           }
@@ -2775,7 +2852,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Информационный стенд.svg",
             "svgField": "Svg"
           }
@@ -2785,7 +2866,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Скамья.svg",
             "svgField": "Svg"
           }
@@ -2795,7 +2880,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Скульптура.svg",
             "svgField": "Svg"
           }
@@ -2805,7 +2894,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Урна.svg",
             "svgField": "Svg"
           }
@@ -2815,7 +2908,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Флагшток.svg",
             "svgField": "Svg"
           }
@@ -2825,7 +2922,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Стойка для велопарковки.svg",
             "svgField": "Svg"
           }
@@ -2835,7 +2936,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Рекламная конструкция.svg",
             "svgField": "Svg"
           }
@@ -2845,7 +2950,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Полусфера антипарковочная.svg",
             "svgField": "Svg"
           }
@@ -2855,7 +2964,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Дорожное зеркало.svg",
             "svgField": "Svg"
           }
@@ -2865,7 +2978,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Вышка связи многофункциональная.svg",
             "svgField": "Svg"
           }
@@ -2875,7 +2992,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Шлагбаум.svg",
             "svgField": "Svg"
           }
@@ -2888,6 +3009,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         }
@@ -2936,7 +3058,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
             "svgField": "Svg"
           },
           "filter": {
@@ -2950,7 +3076,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svgField": "Svg"
           },
           "filter": {
@@ -2964,7 +3094,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svgField": "Svg"
           },
           "filter": {
@@ -2978,7 +3112,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svgField": "Svg"
           }
         },
@@ -2987,7 +3125,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svgField": "Svg"
           },
           "filter": {
@@ -3001,7 +3143,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svgField": "Svg"
           },
           "filter": {
@@ -3015,7 +3161,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svgField": "Svg"
           },
           "filter": {
@@ -3029,7 +3179,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svgField": "Svg"
           },
           "filter": {
@@ -3043,7 +3197,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svgField": "Svg"
           },
           "filter": {
@@ -3057,7 +3215,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svgField": "Svg"
           },
           "filter": {
@@ -3071,7 +3233,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svgField": "Svg"
           },
           "filter": {
@@ -3085,7 +3251,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#e8718d",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svgField": "Svg"
           },
           "filter": {
@@ -3268,6 +3438,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         }
@@ -3668,11 +3839,15 @@
           "style": {
             "kind": "point",
             "fillColor": "#000000",
-            "iconSize": 48.0,
+            "iconSize": 12.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
             "svg": "Фотофиксация.svg",
             "fillOpacity": 1.0,
             "color": "#232323",
-            "radius": 0.5,
+            "radius": 0.01,
             "markerShape": "circle",
             "svgField": "Svg"
           }
@@ -4149,7 +4324,8 @@
             "fillColor": "#ff9e17",
             "fillOpacity": 1.0,
             "color": "#232323",
-            "radius": 0.6,
+            "radius": 0.15,
+            "sizeUnit": "MapUnit",
             "markerShape": "circle"
           },
           "filter": {
@@ -4166,6 +4342,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -4182,6 +4359,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -4198,6 +4376,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -4214,6 +4393,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         }
@@ -4326,6 +4506,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 11.34,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -4341,6 +4522,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 11.34,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         }
@@ -4443,6 +4625,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -4459,6 +4642,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -4475,6 +4659,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -4491,6 +4676,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           },
           "filter": {
@@ -4507,6 +4693,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         }
@@ -5002,6 +5189,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         }
@@ -5203,7 +5391,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#49b700",
-            "iconSize": 4.0,
+            "iconSize": 1.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
             "svg": "Дерево_Дерево одиночное.svg",
             "svgField": "Svg"
           },
@@ -5218,7 +5410,11 @@
           "style": {
             "kind": "point",
             "fillColor": "#49b700",
-            "iconSize": 4.0,
+            "iconSize": 1.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
             "svg": "Кустарник_Одиночный.svg",
             "svgField": "Svg"
           },
@@ -5236,6 +5432,7 @@
             "fillOpacity": 1.0,
             "color": "#232323",
             "radius": 7.56,
+            "sizeUnit": "MM",
             "markerShape": "circle"
           }
         }
@@ -5353,10 +5550,14 @@
           "style": {
             "kind": "point",
             "fillColor": "#ffffff",
-            "iconSize": 40.0,
+            "iconSize": 10.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "fillOpacity": 1.0,
             "color": "#0000ff",
-            "radius": 0.5,
+            "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
           },
@@ -5370,11 +5571,15 @@
           "style": {
             "kind": "point",
             "fillColor": "#ffffff",
-            "iconSize": 72.0,
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
             "svg": "Неизвестный.svg",
             "fillOpacity": 1.0,
             "color": "#0000ff",
-            "radius": 0.5,
+            "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
           }

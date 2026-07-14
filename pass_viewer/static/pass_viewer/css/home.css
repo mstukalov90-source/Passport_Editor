@@ -442,8 +442,29 @@ button.user-guide-open-btn.approval-home-link.is-open {
 }
 .owned-approval-open-link {
     display: block;
+    flex: 1;
+    min-width: 0;
+    width: auto;
     text-decoration: none;
     color: inherit;
+}
+.owned-approval-delete-form {
+    margin: 0;
+    align-self: center;
+    flex-shrink: 0;
+}
+.owned-approval-delete-btn {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+.owned-approval-delete-btn:hover {
+    background: #fecaca;
 }
 .owned-approval-status {
     font-size: 13px;

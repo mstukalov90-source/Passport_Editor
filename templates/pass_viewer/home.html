@@ -372,6 +372,19 @@
                                     {{ item.status_label }}
                                 </span>
                             </a>
+                            {% if item.can_delete %}
+                            <form method="post" action="{% url 'approval:delete_approve' %}" class="owned-approval-delete-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="approve_id" value="{{ item.id }}">
+                                <button
+                                    type="submit"
+                                    class="owned-delete-btn owned-approval-delete-btn"
+                                    data-confirm-message="Удалить согласование «{{ item.label }}»?"
+                                >
+                                    Удалить
+                                </button>
+                            </form>
+                            {% endif %}
                         </div>
                     {% empty %}
                         <p class="owned-approval-empty note">Нет доступных согласований.</p>

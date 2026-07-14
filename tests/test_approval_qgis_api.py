@@ -296,6 +296,25 @@ def test_upsert_rejected_when_approved(client):
 
 
 @pytest.mark.django_db
+def test_upsert_rejected_when_different_user(client):
+    create_response = _post_qgis_approve(client, _valid_payload())
+    assert create_response.status_code == 200
+
+    response = _post_qgis_approve(
+        client,
+        _valid_payload(user="other_user", name="Попытка чужого upsert"),
+    )
+    assert response.status_code == 409
+    payload = response.json()
+    assert payload["ok"] is False
+    assert "другим пользователем" in payload["error"].lower()
+
+    approve = Approve.objects.get(incoming_guid=INCOMING_GUID)
+    assert approve.user == "asidorov"
+    assert approve.name == "Согласование заявки из графика паспортизации 46998"
+
+
+@pytest.mark.django_db
 def test_create_approve_when_task_owner_matches_n_root_owner(client):
     response = _post_qgis_approve(
         client,
@@ -429,3 +448,22 @@ def test_primary_case_created_by_trigger(client):
     approve = Approve.objects.get(incoming_guid=INCOMING_GUID)
     primary_cases = Case.objects.filter(approve=approve, is_primary=True)
     assert primary_cases.count() == 1
+
+
+@pytest.mark.django_db
+def test_upsert_preserves_inspector_extra_owners_and_participant_logins(client):
+    create_response = _post_qgis_approve(client, _valid_payload())
+    assert create_response.status_code == 200
+
+    approve = Approve.objects.get(incoming_guid=INCOMING_GUID)
+    event_case = approve.cases.get(is_primary=False, n_root="10001260")
+    event_case.owners = [TASK_OWNER, "9000022", "OWNER_EXTRA"]
+    event_case.participant_logins = ["guest_login"]
+    event_case.save(update_fields=["owners", "participant_logins", "updated_at"])
+
+    update_response = _post_qgis_approve(client, _valid_payload())
+    assert update_response.status_code == 200
+
+    event_case.refresh_from_db()
+    assert event_case.owners == [TASK_OWNER, "9000022", "OWNER_EXTRA"]
+    assert event_case.participant_logins == ["guest_login"]
