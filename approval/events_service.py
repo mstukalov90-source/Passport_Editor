@@ -17,6 +17,7 @@ from .models import (
     Case,
     CaseApproval,
     CaseMessage,
+    CaseMessageReaction,
 )
 from .work_layers import resolve_task_owner_legal_person_id
 
@@ -226,8 +227,34 @@ def serialize_message(message: CaseMessage, *, current_login: str, request=None)
                 "url": url,
             }
         )
-    geometry_row = message.geometries.order_by("id").first()
-    geometry_payload = _geometry_to_geojson(geometry_row)
+    geometry_rows = list(message.geometries.order_by("id"))
+    geometries_payload = []
+    for geometry_row in geometry_rows:
+        geojson = _geometry_to_geojson(geometry_row)
+        if geojson is None:
+            continue
+        geometries_payload.append({"id": geometry_row.id, "geometry": geojson})
+    first_geometry = geometry_rows[0] if geometry_rows else None
+    geometry_payload = _geometry_to_geojson(first_geometry) if first_geometry else None
+
+    reactions = []
+    my_reaction = None
+    for reaction in message.reactions.all():
+        is_own = reaction.reactor_login == current_login
+        if is_own:
+            my_reaction = reaction.kind
+        reactions.append(
+            {
+                "kind": reaction.kind,
+                "author": reaction.reactor_login,
+                "is_own": is_own,
+            }
+        )
+
+    parent = message.parent
+    parent_id = parent.id if parent is not None else message.parent_id
+    reply_to_author = parent.author_login if parent is not None else ""
+
     return {
         "id": message.id,
         "author": message.author_login,
@@ -235,9 +262,14 @@ def serialize_message(message: CaseMessage, *, current_login: str, request=None)
         "time": _format_dt(message.created_at),
         "text": message.body,
         "is_own": message.author_login == current_login,
+        "parent_id": parent_id,
+        "reply_to_author": reply_to_author,
         "attachments": attachments,
         "geometry": geometry_payload,
-        "geometry_id": geometry_row.id if geometry_row else None,
+        "geometry_id": first_geometry.id if first_geometry else None,
+        "geometries": geometries_payload,
+        "reactions": reactions,
+        "my_reaction": my_reaction,
     }
 
 
@@ -245,9 +277,51 @@ def serialize_case_detail(case: Case, *, current_login: str, owner_id: str | Non
     data = serialize_case_summary(case, current_login=current_login, owner_id=owner_id)
     data["messages"] = [
         serialize_message(message, current_login=current_login, request=request)
-        for message in case.messages.prefetch_related("attachments", "geometries").all()
+        for message in case.messages.select_related("parent").prefetch_related(
+            "attachments",
+            "geometries",
+            "reactions",
+        ).all()
     ]
     return data
+
+
+REACTION_KINDS = {
+    CaseMessageReaction.KIND_IN_PROGRESS,
+    CaseMessageReaction.KIND_DONE,
+}
+
+
+@transaction.atomic
+def upsert_message_reaction(
+    *,
+    message: CaseMessage,
+    username: str,
+    kind: str,
+) -> CaseMessage:
+    login = (username or "").strip()
+    if not login:
+        raise ValueError("Не найден пользователь.")
+    if message.author_login == login:
+        raise ValueError("Нельзя поставить реакцию на своё сообщение.")
+    if message.case.approved:
+        raise ValueError("Событие уже согласовано. Реакции недоступны.")
+    if kind not in REACTION_KINDS:
+        raise ValueError("Некорректный тип реакции.")
+
+    existing = CaseMessageReaction.objects.filter(message=message, reactor_login=login).first()
+    if existing and existing.kind == kind:
+        existing.delete()
+    elif existing:
+        existing.kind = kind
+        existing.save(update_fields=["kind"])
+    else:
+        CaseMessageReaction.objects.create(
+            message=message,
+            reactor_login=login,
+            kind=kind,
+        )
+    return message
 
 
 def get_cases_queryset(approve_id):
@@ -630,6 +704,45 @@ def record_case_approval(*, case: Case, owner_id: str | None = None, username: s
         case.closed_at = timezone.now()
         case.save(update_fields=["approved", "status", "closed_at", "updated_at"])
         _sync_approve_status_after_case_approval(approve, case)
+    return case
+
+
+def _sync_approve_status_after_case_revoke(approve: Approve, case: Case) -> None:
+    if not case.is_primary or not approve.approved:
+        return
+    approve.approved = False
+    approve.save(update_fields=["approved", "updated_at"])
+
+
+@transaction.atomic
+def revoke_case_approval(*, case: Case, owner_id: str | None = None, username: str | None = None) -> Case:
+    approve = case.approve
+    inspector_login = (approve.user or "").strip()
+    username_text = (username or "").strip()
+    deleted = 0
+
+    if username_text and inspector_login and username_text == inspector_login:
+        deleted, _ = CaseApproval.objects.filter(case=case, approver_login=inspector_login).delete()
+    elif owner_id:
+        owner_text = str(owner_id).strip()
+        if not owner_text:
+            raise ValueError("Не найден OwnerLegalPersonId для пользователя.")
+        required_owners = _normalized_case_owners(case)
+        if owner_text not in required_owners:
+            raise ValueError("У вас нет права отзывать согласование этого события.")
+        deleted, _ = CaseApproval.objects.filter(case=case, owner_legal_person_id=owner_text).delete()
+    else:
+        raise ValueError("Не найден OwnerLegalPersonId для пользователя.")
+
+    if not deleted:
+        raise ValueError("У вас нет активного согласования для отзыва.")
+
+    if case.approved and not _case_is_fully_approved(case):
+        case.approved = False
+        case.status = "в работе"
+        case.closed_at = None
+        case.save(update_fields=["approved", "status", "closed_at", "updated_at"])
+        _sync_approve_status_after_case_revoke(approve, case)
     return case
 
 

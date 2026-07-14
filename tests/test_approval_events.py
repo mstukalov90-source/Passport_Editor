@@ -13,6 +13,7 @@ from approval.models import (
     Case,
     CaseApproval,
     CaseMessage,
+    CaseMessageReaction,
 )
 from approval.events_service import serialize_approve_option
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -260,7 +261,93 @@ def test_post_message_with_geometry(client, owner_a, approve_with_primary_owner)
     payload = response.json()
     assert payload["ok"] is True
     assert payload["message"]["geometry"]["type"] == "Polygon"
+    assert len(payload["message"]["geometries"]) == 1
     assert ApprovalGeometry.objects.filter(case=primary, message__isnull=False).exists()
+
+
+@pytest.mark.django_db
+def test_post_message_with_multiple_geometries(client, owner_a, approve_with_primary_owner):
+    _login(client, "owner_a")
+    primary = _primary_case(approve_with_primary_owner)
+    geometries = [
+        {
+            "type": "Polygon",
+            "coordinates": [[[37.6, 55.75], [37.61, 55.75], [37.61, 55.76], [37.6, 55.76], [37.6, 55.75]]],
+        },
+        {
+            "type": "Point",
+            "coordinates": [37.62, 55.77],
+        },
+    ]
+    response = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data=json.dumps({"body": "Несколько зон", "geometries": geometries}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert len(payload["message"]["geometries"]) == 2
+    assert payload["message"]["geometry"]["type"] == "Polygon"
+    assert ApprovalGeometry.objects.filter(message_id=payload["message"]["id"]).count() == 2
+
+
+@pytest.mark.django_db
+def test_post_message_reply_and_nested_reply(client, owner_a, owner_b_user, approve_with_primary_owner):
+    primary = _primary_case(approve_with_primary_owner)
+    primary.owners = ["OWNER_A", "OWNER_B"]
+    primary.save(update_fields=["owners", "updated_at"])
+
+    _login(client, "owner_a")
+    root_response = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data=json.dumps({"body": "Корневое"}),
+        content_type="application/json",
+    )
+    assert root_response.status_code == 200
+    root = root_response.json()["message"]
+    assert root["parent_id"] is None
+
+    _login(client, "owner_b")
+    reply_response = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data=json.dumps({"body": "Ответ", "parent_id": root["id"]}),
+        content_type="application/json",
+    )
+    assert reply_response.status_code == 200
+    reply = reply_response.json()["message"]
+    assert reply["parent_id"] == root["id"]
+    assert reply["reply_to_author"] == "owner_a"
+
+    nested_response = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data=json.dumps({"body": "Ответ на ответ", "parent_id": reply["id"]}),
+        content_type="application/json",
+    )
+    assert nested_response.status_code == 200
+    nested = nested_response.json()["message"]
+    assert nested["parent_id"] == reply["id"]
+    assert nested["reply_to_author"] == "owner_b"
+
+
+@pytest.mark.django_db
+def test_post_message_rejects_parent_from_other_case(client, owner_a, approve_with_primary_owner):
+    primary = _primary_case(approve_with_primary_owner)
+    other = _event_case(approve=approve_with_primary_owner, owners=["OWNER_A"])
+    foreign_message = CaseMessage.objects.create(
+        case=other,
+        author_login="owner_a",
+        body="Чужой кейс",
+    )
+
+    _login(client, "owner_a")
+    response = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data=json.dumps({"body": "Ответ", "parent_id": foreign_message.id}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert "не найдено" in response.json()["error"].lower()
 
 
 @pytest.mark.django_db
@@ -298,5 +385,148 @@ def test_landing_page_has_events_shell(client, owner_a, approve_with_primary_own
     assert "approval-create-event-btn" not in content
     assert "approval-chat-geometry-btn" in content
     assert "approval-chat-approve-btn" in content
+    assert "approval-chat-confirm-dialog" in content
     assert "Прикрепить файл" in content
     assert "Досъём участка №142" not in content
+
+
+@pytest.mark.django_db
+def test_message_reaction_set_switch_and_toggle_off(
+    client,
+    owner_a,
+    owner_b_user,
+    approve_with_primary_owner,
+):
+    event = _event_case(approve=approve_with_primary_owner)
+    message = CaseMessage.objects.create(
+        case=event,
+        author_login="owner_a",
+        body="Нужна правка",
+    )
+
+    _login(client, "owner_b")
+    url = reverse("approval:api_message_reaction", kwargs={"message_id": message.id})
+
+    set_response = client.post(
+        url,
+        data=json.dumps({"kind": "in_progress"}),
+        content_type="application/json",
+    )
+    assert set_response.status_code == 200
+    payload = set_response.json()
+    assert payload["ok"] is True
+    assert payload["message"]["my_reaction"] == "in_progress"
+    assert len(payload["message"]["reactions"]) == 1
+    assert CaseMessageReaction.objects.filter(message=message, reactor_login="owner_b", kind="in_progress").exists()
+
+    switch_response = client.post(
+        url,
+        data=json.dumps({"kind": "done"}),
+        content_type="application/json",
+    )
+    assert switch_response.status_code == 200
+    switch_payload = switch_response.json()
+    assert switch_payload["message"]["my_reaction"] == "done"
+    assert CaseMessageReaction.objects.filter(message=message, reactor_login="owner_b").count() == 1
+    assert CaseMessageReaction.objects.get(message=message, reactor_login="owner_b").kind == "done"
+
+    toggle_response = client.post(
+        url,
+        data=json.dumps({"kind": "done"}),
+        content_type="application/json",
+    )
+    assert toggle_response.status_code == 200
+    toggle_payload = toggle_response.json()
+    assert toggle_payload["message"]["my_reaction"] is None
+    assert toggle_payload["message"]["reactions"] == []
+    assert not CaseMessageReaction.objects.filter(message=message).exists()
+
+
+@pytest.mark.django_db
+def test_message_reaction_rejects_own_message_and_closed_case(
+    client,
+    owner_a,
+    owner_b_user,
+    approve_with_primary_owner,
+):
+    event = _event_case(approve=approve_with_primary_owner)
+    own_message = CaseMessage.objects.create(case=event, author_login="owner_a", body="Моё")
+    other_message = CaseMessage.objects.create(case=event, author_login="owner_b", body="Чужое")
+
+    _login(client, "owner_a")
+    own_response = client.post(
+        reverse("approval:api_message_reaction", kwargs={"message_id": own_message.id}),
+        data=json.dumps({"kind": "done"}),
+        content_type="application/json",
+    )
+    assert own_response.status_code == 400
+
+    event.approved = True
+    event.status = "согласовано"
+    event.save(update_fields=["approved", "status"])
+
+    closed_response = client.post(
+        reverse("approval:api_message_reaction", kwargs={"message_id": other_message.id}),
+        data=json.dumps({"kind": "in_progress"}),
+        content_type="application/json",
+    )
+    assert closed_response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_revoke_case_approval_reopens_primary(
+    client,
+    owner_a,
+    inspector_user,
+    approve_with_primary_owner,
+):
+    primary = _primary_case(approve_with_primary_owner)
+
+    _login(client, "owner_a")
+    client.post(
+        reverse("approval:api_approve_case", kwargs={"case_id": primary.id}),
+        data="{}",
+        content_type="application/json",
+    )
+    _login(client, "inspector_user")
+    client.post(
+        reverse("approval:api_approve_case", kwargs={"case_id": primary.id}),
+        data="{}",
+        content_type="application/json",
+    )
+    primary.refresh_from_db()
+    assert primary.approved is True
+    approve_with_primary_owner.refresh_from_db()
+    assert approve_with_primary_owner.approved is True
+
+    response = client.post(
+        reverse("approval:api_revoke_case", kwargs={"case_id": primary.id}),
+        data="{}",
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["case"]["approved"] is False
+    assert payload["case"]["status"] == "в работе"
+    assert payload["case"]["current_user_approved"] is False
+    assert payload["case"]["approvals_done"] == 1
+
+    primary.refresh_from_db()
+    assert primary.approved is False
+    assert primary.closed_at is None
+    assert not CaseApproval.objects.filter(case=primary, approver_login="inspector_user").exists()
+    assert CaseApproval.objects.filter(case=primary, owner_legal_person_id="OWNER_A").exists()
+    approve_with_primary_owner.refresh_from_db()
+    assert approve_with_primary_owner.approved is False
+
+    reapprove = client.post(
+        reverse("approval:api_approve_case", kwargs={"case_id": primary.id}),
+        data="{}",
+        content_type="application/json",
+    )
+    assert reapprove.status_code == 200
+    primary.refresh_from_db()
+    assert primary.approved is True
+    approve_with_primary_owner.refresh_from_db()
+    assert approve_with_primary_owner.approved is True
