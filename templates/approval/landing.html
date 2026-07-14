@@ -29,8 +29,8 @@
         <h1 class="approval-header__title">Согласование</h1>
         <a class="approval-header__back" href="{% url 'home' %}">На главную</a>
     </header>
-    <div class="approval-workspace">
-        <aside class="approval-panel approval-panel--layers" id="approval-panel-layers">
+    <div class="approval-workspace approval-workspace--layers-collapsed">
+        <aside class="approval-panel approval-panel--layers is-collapsed" id="approval-panel-layers">
             {% include 'approval/includes/layer_panel_shell.html' %}
         </aside>
         <section class="approval-panel approval-panel--map">

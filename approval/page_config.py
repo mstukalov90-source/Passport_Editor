@@ -41,6 +41,8 @@ def landing_page_config(
             "caseDetail": "/approval/api/cases/{caseId}/",
             "postMessage": "/approval/api/cases/{caseId}/messages/",
             "approveCase": "/approval/api/cases/{caseId}/approve/",
+            "revokeCase": "/approval/api/cases/{caseId}/revoke/",
+            "messageReaction": "/approval/api/messages/{messageId}/reactions/",
             "attachment": "/approval/api/attachments/{attachmentId}/",
         },
         "layerStyleIconsBase": "/static/approval/icons/svg/",

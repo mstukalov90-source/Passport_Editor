@@ -20,11 +20,13 @@ from .events_service import (
     get_cases_queryset,
     parse_geometry_payload,
     record_case_approval,
+    revoke_case_approval,
     serialize_approve_option,
     serialize_case_detail,
     serialize_case_summary,
     serialize_message,
     upsert_approve_from_qgis,
+    upsert_message_reaction,
     validate_attachment_file,
 )
 from .models import Case, CaseMessage, CaseMessageAttachment
@@ -197,14 +199,25 @@ def api_post_message(request, case_id):
 
     body = ""
     uploads = []
-    geometry_payload = None
+    geometry_payloads = []
+    parent_id_raw = None
     if request.content_type and "multipart/form-data" in request.content_type:
         body = (request.POST.get("body") or "").strip()
         uploads = list(request.FILES.getlist("files"))
+        parent_id_raw = request.POST.get("parent_id")
+        geometries_raw = (request.POST.get("geometries") or "").strip()
         geometry_raw = (request.POST.get("geometry") or "").strip()
-        if geometry_raw:
+        if geometries_raw:
             try:
-                geometry_payload = json.loads(geometry_raw)
+                parsed = json.loads(geometries_raw)
+            except json.JSONDecodeError:
+                return _json_error("Некорректный JSON в поле geometries.")
+            if not isinstance(parsed, list):
+                return _json_error("Поле geometries должно быть массивом.")
+            geometry_payloads = parsed
+        elif geometry_raw:
+            try:
+                geometry_payloads = [json.loads(geometry_raw)]
             except json.JSONDecodeError:
                 return _json_error("Некорректный JSON в поле geometry.")
     else:
@@ -212,25 +225,42 @@ def api_post_message(request, case_id):
         if payload is None:
             return _json_error("Некорректный JSON.")
         body = (payload.get("body") or "").strip()
-        geometry_payload = payload.get("geometry")
+        parent_id_raw = payload.get("parent_id")
+        if payload.get("geometries") is not None:
+            if not isinstance(payload.get("geometries"), list):
+                return _json_error("Поле geometries должно быть массивом.")
+            geometry_payloads = payload.get("geometries") or []
+        elif payload.get("geometry") is not None:
+            geometry_payloads = [payload.get("geometry")]
 
-    if geometry_payload is not None:
+    for geometry_payload in geometry_payloads:
         try:
             parse_geometry_payload(geometry_payload)
         except ValueError as exc:
             return _json_error(str(exc))
 
-    if not body and not uploads and geometry_payload is None:
+    parent = None
+    if parent_id_raw not in (None, ""):
+        try:
+            parent_id = int(parent_id_raw)
+        except (TypeError, ValueError):
+            return _json_error("Некорректный parent_id.")
+        parent = CaseMessage.objects.filter(pk=parent_id, case=case).first()
+        if parent is None:
+            return _json_error("Сообщение для ответа не найдено в этом событии.")
+
+    if not body and not uploads and not geometry_payloads:
         return _json_error("Введите текст сообщения, прикрепите файл или добавьте геометрию.")
 
     message = CaseMessage.objects.create(
         case=case,
+        parent=parent,
         author_login=actor["username"],
         author_role="",
-        body=body or ("(геометрия)" if geometry_payload is not None else "(вложение)"),
+        body=body or ("(геометрия)" if geometry_payloads else "(вложение)"),
     )
 
-    if geometry_payload is not None:
+    for geometry_payload in geometry_payloads:
         attach_geometry_to_message(
             case=case,
             message=message,
@@ -260,6 +290,12 @@ def api_post_message(request, case_id):
             content_type=getattr(uploaded, "content_type", "") or "application/octet-stream",
             size_bytes=target.stat().st_size,
         )
+
+    message = CaseMessage.objects.select_related("parent").prefetch_related(
+        "attachments",
+        "geometries",
+        "reactions",
+    ).get(pk=message.pk)
 
     return JsonResponse(
         {
@@ -301,6 +337,82 @@ def api_approve_case(request, case_id):
     return JsonResponse(
         {
             "ok": True,
+            "case": _serialize_case(case, request=request, actor=actor),
+        }
+    )
+
+
+@login_required
+@require_POST
+def api_revoke_case(request, case_id):
+    actor, error = _actor_context(request)
+    if error:
+        return error
+
+    case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
+    if error:
+        return error
+
+    try:
+        case = revoke_case_approval(
+            case=case,
+            owner_id=actor["owner_id"],
+            username=actor["username"],
+        )
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "case": _serialize_case(case, request=request, actor=actor),
+        }
+    )
+
+
+@login_required
+@require_POST
+def api_message_reaction(request, message_id):
+    actor, error = _actor_context(request)
+    if error:
+        return error
+
+    message = get_object_or_404(
+        CaseMessage.objects.select_related("case__approve", "parent").prefetch_related(
+            "attachments",
+            "geometries",
+            "reactions",
+        ),
+        pk=message_id,
+    )
+    case = message.case
+    if not user_can_access_case(case, actor["owner_id"], username=actor["username"]):
+        return _json_error("Сообщение не найдено или недоступно.", status=404)
+
+    payload = _parse_json_body(request)
+    if payload is None:
+        return _json_error("Некорректный JSON.")
+    kind = (payload.get("kind") or "").strip()
+
+    try:
+        upsert_message_reaction(
+            message=message,
+            username=actor["username"],
+            kind=kind,
+        )
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    message = CaseMessage.objects.select_related("parent").prefetch_related(
+        "attachments",
+        "geometries",
+        "reactions",
+    ).get(pk=message.pk)
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "message": serialize_message(message, current_login=actor["username"], request=request),
             "case": _serialize_case(case, request=request, actor=actor),
         }
     )

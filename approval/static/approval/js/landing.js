@@ -629,36 +629,53 @@
     }
 
     function setPendingMessageGeometry(geometry) {
-        if (!map || !eventGeometriesGroup || !geometry) {
+        if (!geometry) {
+            clearPendingMessageGeometry();
+            return;
+        }
+        setPendingMessageGeometries([geometry]);
+    }
+
+    function setPendingMessageGeometries(geometries) {
+        if (!map || !eventGeometriesGroup) {
             return;
         }
         removePendingGeometryLayer();
-        pendingGeometryGeoJson = geometry;
-        const feature = {
-            type: 'Feature',
-            geometry: geometry,
-            properties: {
-                layerKey: PENDING_LAYER_KEY,
-            },
-        };
-        const layer = L.geoJSON(feature, {
-            style: function () {
-                return pendingGeometryStyle();
-            },
-            pointToLayer: function (_feat, latlng) {
-                return L.circleMarker(latlng, {
-                    radius: 7,
-                    color: '#7c3aed',
-                    weight: 3,
-                    dashArray: '8 6',
-                    fillColor: 'rgba(124, 58, 237, 0.35)',
-                    fillOpacity: 0.9,
-                }).bindTooltip('Черновик геометрии', { sticky: true });
-            },
-            onEachFeature: function (_feat, lyr) {
-                lyr.bindTooltip('Черновик геометрии', { sticky: true });
-            },
+        const items = (geometries || []).filter(Boolean);
+        if (!items.length) {
+            return;
+        }
+        pendingGeometryGeoJson = items.length === 1 ? items[0] : items;
+        const features = items.map(function (geometry) {
+            return {
+                type: 'Feature',
+                geometry: geometry,
+                properties: {
+                    layerKey: PENDING_LAYER_KEY,
+                },
+            };
         });
+        const layer = L.geoJSON(
+            { type: 'FeatureCollection', features: features },
+            {
+                style: function () {
+                    return pendingGeometryStyle();
+                },
+                pointToLayer: function (_feat, latlng) {
+                    return L.circleMarker(latlng, {
+                        radius: 7,
+                        color: '#7c3aed',
+                        weight: 3,
+                        dashArray: '8 6',
+                        fillColor: 'rgba(124, 58, 237, 0.35)',
+                        fillOpacity: 0.9,
+                    }).bindTooltip('Черновик геометрии', { sticky: true });
+                },
+                onEachFeature: function (_feat, lyr) {
+                    lyr.bindTooltip('Черновик геометрии', { sticky: true });
+                },
+            }
+        );
         geometryLayerByKey[PENDING_LAYER_KEY] = layer;
         layer.addTo(eventGeometriesGroup);
     }
@@ -736,6 +753,16 @@
         }
     }
 
+    function messageGeometryItems(message) {
+        if (message.geometries && message.geometries.length) {
+            return message.geometries;
+        }
+        if (message.geometry) {
+            return [{ id: message.geometry_id || '0', geometry: message.geometry }];
+        }
+        return [];
+    }
+
     function renderGeometries(caseItem) {
         if (!map || !eventGeometriesGroup) {
             return;
@@ -756,16 +783,20 @@
         }
 
         (caseItem.messages || []).forEach(function (message) {
-            if (!message.geometry) {
-                return;
-            }
-            const messageKey = geometryLayerKey('message', message.id);
-            addGeometryLayer(
-                messageKey,
-                message.geometry,
-                'Геометрия сообщения',
-                false
-            );
+            const items = messageGeometryItems(message);
+            items.forEach(function (item, index) {
+                if (!item || !item.geometry) {
+                    return;
+                }
+                const geomId = item.id != null ? item.id : index;
+                const messageKey = geometryLayerKey('message', message.id + ':' + geomId);
+                addGeometryLayer(
+                    messageKey,
+                    item.geometry,
+                    'Геометрия сообщения',
+                    false
+                );
+            });
         });
     }
 
@@ -780,6 +811,15 @@
         }
     }
 
+    function isMessageLayerActive(layerKey, messageId) {
+        if (!messageId) {
+            return false;
+        }
+        const prefix = geometryLayerKey('message', messageId + ':');
+        const legacyKey = geometryLayerKey('message', messageId);
+        return layerKey === legacyKey || layerKey.indexOf(prefix) === 0;
+    }
+
     function refreshGeometryStyles() {
         Object.keys(geometryLayerByKey).forEach(function (layerKey) {
             const layer = geometryLayerByKey[layerKey];
@@ -788,7 +828,7 @@
             }
             const isActive =
                 layerKey === geometryLayerKey('case', activeCaseId) ||
-                layerKey === geometryLayerKey('message', activeMessageGeometryId);
+                isMessageLayerActive(layerKey, activeMessageGeometryId);
             applyStyleToGeometryLayer(layer, layerKey, isActive);
         });
     }
@@ -821,12 +861,52 @@
         map.fitBounds(bounds.pad(0.2));
     }
 
+    function fitGeometryLayers(layerKeys) {
+        if (!map || !layerKeys || !layerKeys.length) {
+            return;
+        }
+        let combined = null;
+        layerKeys.forEach(function (layerKey) {
+            const layer = geometryLayerByKey[layerKey];
+            if (!layer) {
+                return;
+            }
+            const bounds = layer.getBounds();
+            if (!bounds.isValid()) {
+                return;
+            }
+            combined = combined ? combined.extend(bounds) : bounds;
+        });
+        if (!combined || !combined.isValid()) {
+            return;
+        }
+        const northEast = combined.getNorthEast();
+        const southWest = combined.getSouthWest();
+        if (northEast.lat === southWest.lat && northEast.lng === southWest.lng) {
+            map.setView(combined.getCenter(), Math.max(map.getZoom(), 17));
+            return;
+        }
+        map.fitBounds(combined.pad(0.2));
+    }
+
     function fitCaseGeometry(caseId) {
         fitGeometryLayer(geometryLayerKey('case', caseId));
     }
 
     function fitMessageGeometry(messageId) {
-        fitGeometryLayer(geometryLayerKey('message', messageId));
+        if (!messageId) {
+            return;
+        }
+        const prefix = geometryLayerKey('message', messageId + ':');
+        const legacyKey = geometryLayerKey('message', messageId);
+        const keys = Object.keys(geometryLayerByKey).filter(function (layerKey) {
+            return layerKey === legacyKey || layerKey.indexOf(prefix) === 0;
+        });
+        if (keys.length === 1) {
+            fitGeometryLayer(keys[0]);
+            return;
+        }
+        fitGeometryLayers(keys);
     }
 
     function initMap() {
@@ -910,8 +990,8 @@
             return;
         }
 
-        toggle.addEventListener('click', function () {
-            const collapsed = panel.classList.toggle('is-collapsed');
+        function applyCollapsedState(collapsed) {
+            panel.classList.toggle('is-collapsed', collapsed);
             if (layersAside) {
                 layersAside.classList.toggle('is-collapsed', collapsed);
             }
@@ -922,6 +1002,12 @@
             toggle.title = collapsed ? 'Развернуть панель слоёв' : 'Свернуть панель слоёв';
             invalidateMapSize();
             window.setTimeout(invalidateMapSize, 120);
+        }
+
+        applyCollapsedState(panel.classList.contains('is-collapsed'));
+
+        toggle.addEventListener('click', function () {
+            applyCollapsedState(!panel.classList.contains('is-collapsed'));
         });
     }
 
@@ -946,6 +1032,7 @@
         fitCaseGeometry: fitCaseGeometry,
         fitMessageGeometry: fitMessageGeometry,
         setPendingMessageGeometry: setPendingMessageGeometry,
+        setPendingMessageGeometries: setPendingMessageGeometries,
         clearPendingMessageGeometry: clearPendingMessageGeometry,
         getPendingMessageGeometry: getPendingMessageGeometry,
         invalidateMapSize: invalidateMapSize,

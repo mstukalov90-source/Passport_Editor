@@ -1,6 +1,18 @@
 <div class="approval-events" aria-label="События согласования">
-    <section class="approval-events__section approval-events__section--secondary">
-        <h3 class="approval-events__section-title">Чаты событий</h3>
+    <section class="approval-events__section approval-events__section--secondary is-collapsed">
+        <div class="approval-events__section-header">
+            <h3 class="approval-events__section-title">Чаты событий</h3>
+            <button
+                type="button"
+                class="approval-events__section-toggle"
+                id="approval-events-list-toggle"
+                aria-expanded="false"
+                aria-controls="approval-secondary-chats"
+                title="Развернуть чаты событий"
+            >
+                <span class="approval-events__section-toggle-icon" aria-hidden="true"></span>
+            </button>
+        </div>
         <div class="approval-events__chat-area approval-events__chat-area--list" id="approval-secondary-chats">
             <div id="approval-primary-event-card" class="approval-events__primary-event-slot" hidden></div>
             <ul class="approval-event-list" id="approval-secondary-event-list"></ul>
@@ -31,6 +43,7 @@
                 hidden
             />
             <span class="approval-chat-composer__file-names" id="approval-chat-file-names"></span>
+            <div class="approval-chat-composer__reply-banner" id="approval-chat-reply-banner" hidden></div>
             <span class="approval-chat-composer__geometry-hint" id="approval-chat-geometry-hint" hidden></span>
             <textarea
                 id="approval-chat-input"
@@ -55,3 +68,14 @@
         <button type="button" class="approval-chat-composer__approve" id="approval-chat-approve-btn">Согласовать</button>
     </section>
 </div>
+
+<dialog id="approval-chat-confirm-dialog" class="approval-event-dialog" aria-labelledby="approval-chat-confirm-title">
+    <form method="dialog" class="approval-event-dialog__form" id="approval-chat-confirm-form">
+        <h3 class="approval-event-dialog__title" id="approval-chat-confirm-title">Подтверждение</h3>
+        <p class="approval-chat-confirm-dialog__text" id="approval-chat-confirm-text"></p>
+        <div class="approval-event-dialog__actions">
+            <button type="submit" value="cancel" class="approval-event-dialog__cancel">Отменить</button>
+            <button type="submit" value="confirm" class="approval-event-dialog__submit" id="approval-chat-confirm-submit">Подтвердить</button>
+        </div>
+    </form>
+</dialog>

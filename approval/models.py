@@ -56,6 +56,14 @@ class CaseMessage(models.Model):
         related_name="messages",
         db_column="case_id",
     )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        related_name="replies",
+        db_column="parent_id",
+        blank=True,
+        null=True,
+    )
     author_login = models.TextField()
     author_role = models.TextField(blank=True, null=True)
     body = models.TextField()
@@ -118,6 +126,37 @@ class CaseMessageAttachment(models.Model):
 
     def __str__(self):
         return self.original_name
+
+
+class CaseMessageReaction(models.Model):
+    KIND_IN_PROGRESS = "in_progress"
+    KIND_DONE = "done"
+    KIND_CHOICES = (
+        (KIND_IN_PROGRESS, "В работе"),
+        (KIND_DONE, "Выполнено"),
+    )
+
+    message = models.ForeignKey(
+        CaseMessage,
+        on_delete=models.CASCADE,
+        related_name="reactions",
+        db_column="message_id",
+    )
+    reactor_login = models.TextField()
+    kind = models.TextField(choices=KIND_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = '"approval"."case_message_reactions"'
+        constraints = [
+            models.UniqueConstraint(
+                fields=["message", "reactor_login"],
+                name="case_message_reactions_message_reactor_uniq",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.reactor_login}:{self.kind}:{self.message_id}"
 
 
 class ApprovalGeometry(models.Model):
