@@ -144,6 +144,7 @@ docs/
 .codegraph/
 *.json
 !approval/static/approval/work_layer_styles.json
+!approval/static/approval/svg_index.json
 *.geojson
 *.xlsx
 SECURITY.md
