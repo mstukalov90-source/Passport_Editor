@@ -10,6 +10,7 @@ import pytest
 from approval.events_service import parse_geometry_payload, upsert_approve_from_qgis
 from approval.models import ApprovalGeometry, Approve, Case
 from django.urls import reverse
+from pass_viewer.models import ExternalUser
 
 
 @pytest.fixture(autouse=True)
@@ -206,7 +207,8 @@ def test_upsert_updates_event_by_n_root(client):
 
     updated_case = Case.objects.get(pk=first_event_case_id)
     assert updated_case.title == "Обновлённое событие"
-    assert updated_case.owners == [TASK_OWNER, "9000099"]
+    # QGIS owners come first; previous side owner is preserved if still present.
+    assert updated_case.owners == [TASK_OWNER, "9000099", "9000022"]
 
     geometry = ApprovalGeometry.objects.get(pk=first_geometry_id)
     expected_geom = parse_geometry_payload(UPDATED_GEOMETRY_A)
@@ -467,3 +469,188 @@ def test_upsert_preserves_inspector_extra_owners_and_participant_logins(client):
     event_case.refresh_from_db()
     assert event_case.owners == [TASK_OWNER, "9000022", "OWNER_EXTRA"]
     assert event_case.participant_logins == ["guest_login"]
+
+
+# --- QGIS read/write by login ---
+
+
+def _qgis_get(client, name, *, user, host="172.21.197.77", **kwargs):
+    return client.get(
+        reverse(f"approval:{name}", kwargs=kwargs),
+        {"user": user},
+        HTTP_HOST=host,
+    )
+
+
+def _qgis_post_json(client, name, payload, *, host="172.21.197.77", **kwargs):
+    return client.post(
+        reverse(f"approval:{name}", kwargs=kwargs),
+        data=json.dumps(payload),
+        content_type="application/json",
+        HTTP_HOST=host,
+    )
+
+
+@pytest.mark.django_db
+def test_qgis_list_requires_user(client):
+    _post_qgis_approve(client, _valid_payload())
+    response = client.get(reverse("approval:api_qgis_upsert_approve"), HTTP_HOST="172.21.197.77")
+    assert response.status_code == 400
+    assert "user" in response.json()["error"].lower()
+
+
+@pytest.mark.django_db
+def test_qgis_list_and_detail_for_inspector(client):
+    create = _post_qgis_approve(client, _valid_payload())
+    assert create.status_code == 200
+    approve_id = create.json()["approve_id"]
+
+    ExternalUser.objects.create(login="asidorov", password="pass", owner_legal_person_id=None)
+
+    list_response = _qgis_get(client, "api_qgis_upsert_approve", user="asidorov")
+    assert list_response.status_code == 200
+    list_payload = list_response.json()
+    assert list_payload["ok"] is True
+    assert list_payload["current_user"] == "asidorov"
+    assert len(list_payload["approves"]) == 1
+    assert list_payload["approves"][0]["id"] == approve_id
+    assert list_payload["approves"][0]["cases_count"] >= 1
+
+    detail = _qgis_get(client, "api_qgis_approve_detail", user="asidorov", approve_id=approve_id)
+    assert detail.status_code == 200
+    detail_payload = detail.json()
+    assert detail_payload["approve"]["incoming_guid"] == INCOMING_GUID
+    assert len(detail_payload["cases"]) >= 2
+    assert detail_payload["primary_case_id"]
+
+    by_guid = _qgis_get(
+        client,
+        "api_qgis_approve_by_guid",
+        user="asidorov",
+        incoming_guid=INCOMING_GUID,
+    )
+    assert by_guid.status_code == 200
+    assert by_guid.json()["approve"]["id"] == approve_id
+
+
+@pytest.mark.django_db
+def test_qgis_list_hides_from_other_user(client):
+    _post_qgis_approve(client, _valid_payload())
+    ExternalUser.objects.create(login="stranger", password="pass", owner_legal_person_id="OTHER")
+
+    list_response = _qgis_get(client, "api_qgis_upsert_approve", user="stranger")
+    assert list_response.status_code == 200
+    assert list_response.json()["approves"] == []
+
+
+@pytest.mark.django_db
+def test_qgis_read_rejects_public_host(client):
+    create = _post_qgis_approve(client, _valid_payload())
+    approve_id = create.json()["approve_id"]
+    response = _qgis_get(
+        client,
+        "api_qgis_approve_detail",
+        user="asidorov",
+        host="border-ogh.mggt.ru",
+        approve_id=approve_id,
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_qgis_case_detail_and_geometries(client):
+    create = _post_qgis_approve(client, _valid_payload())
+    approve_id = create.json()["approve_id"]
+    event_case_id = create.json()["events"][0]["case_id"]
+    ExternalUser.objects.create(login="asidorov", password="pass", owner_legal_person_id=None)
+
+    case_response = _qgis_get(client, "api_qgis_case_detail", user="asidorov", case_id=event_case_id)
+    assert case_response.status_code == 200
+    case_payload = case_response.json()["case"]
+    assert case_payload["id"] == event_case_id
+    assert case_payload["geometry"] is not None
+    assert len(case_payload["messages"]) >= 1
+
+    geom_response = _qgis_get(
+        client,
+        "api_qgis_approve_geometries",
+        user="asidorov",
+        approve_id=approve_id,
+    )
+    assert geom_response.status_code == 200
+    geom_payload = geom_response.json()
+    assert geom_payload["type"] == "FeatureCollection"
+    assert len(geom_payload["features"]) >= 2
+    props = geom_payload["features"][0]["properties"]
+    assert props["approve_id"] == approve_id
+    assert "case_id" in props
+    assert "message_id" in props
+    assert "is_primary" in props
+
+
+@pytest.mark.django_db
+def test_qgis_post_message_with_geometry(client):
+    create = _post_qgis_approve(client, _valid_payload())
+    case_id = create.json()["events"][0]["case_id"]
+    ExternalUser.objects.create(login="asidorov", password="pass", owner_legal_person_id=None)
+
+    response = _qgis_post_json(
+        client,
+        "api_qgis_post_message",
+        {
+            "user": "asidorov",
+            "body": "Комментарий из QGIS",
+            "geometry": {"type": "Point", "coordinates": [37.6, 55.7]},
+        },
+        case_id=case_id,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["message"]["text"] == "Комментарий из QGIS"
+    assert payload["message"]["geometries"]
+    assert ApprovalGeometry.objects.filter(message_id=payload["message"]["id"]).exists()
+
+
+@pytest.mark.django_db
+def test_qgis_approve_and_revoke_case(client):
+    create = _post_qgis_approve(client, _valid_payload())
+    case_id = create.json()["primary_case_id"]
+    ExternalUser.objects.create(login="asidorov", password="pass", owner_legal_person_id=None)
+    ExternalUser.objects.create(login="owner_task", password="pass", owner_legal_person_id=TASK_OWNER)
+
+    owner_approve = _qgis_post_json(
+        client,
+        "api_qgis_approve_case",
+        {"user": "owner_task"},
+        case_id=case_id,
+    )
+    assert owner_approve.status_code == 200
+
+    inspector_approve = _qgis_post_json(
+        client,
+        "api_qgis_approve_case",
+        {"user": "asidorov"},
+        case_id=case_id,
+    )
+    assert inspector_approve.status_code == 200
+    assert inspector_approve.json()["case"]["approved"] is True
+
+    revoke = _qgis_post_json(
+        client,
+        "api_qgis_revoke_case",
+        {"user": "asidorov"},
+        case_id=case_id,
+    )
+    assert revoke.status_code == 200
+    assert revoke.json()["case"]["approved"] is False
+
+
+@pytest.mark.django_db
+def test_qgis_case_detail_forbidden_for_stranger(client):
+    create = _post_qgis_approve(client, _valid_payload())
+    case_id = create.json()["events"][0]["case_id"]
+    ExternalUser.objects.create(login="stranger", password="pass", owner_legal_person_id="OTHER")
+
+    response = _qgis_get(client, "api_qgis_case_detail", user="stranger", case_id=case_id)
+    assert response.status_code == 404

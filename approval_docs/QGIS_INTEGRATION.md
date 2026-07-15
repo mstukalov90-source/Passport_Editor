@@ -1,14 +1,30 @@
-# Инструкция: отправка согласования из QGIS в geodb
+# Инструкция: согласование из QGIS в geodb
 
-Документ для разработчика QGIS-модуля, который создаёт запись согласования в PostgreSQL/PostGIS на **сервере МГГТ** (`geodb`, схема `approval`).
+Документ для разработчика QGIS-модуля, который создаёт и сопровождает согласование в PostgreSQL/PostGIS на **сервере МГГТ** (`geodb`, схема `approval`).
 
-**Рекомендуемый способ** — HTTP API веб-приложения «Согласование» по внутреннему адресу сервера МГГТ. Полное описание endpoint, полей, ответов и примеров — в отдельном документе **[QGIS_API.md](QGIS_API.md)**.
+**Рекомендуемый способ** — HTTP API веб-приложения «Согласование» по внутреннему адресу сервера МГГТ. Полное описание всех endpoint (ingest, чаты, геометрия) — в **[QGIS_API.md](QGIS_API.md)**. Модель данных — в **[DATA_MODEL.md](DATA_MODEL.md)**.
 
 ```
+# ingest
 POST http://172.21.197.77/approval/api/qgis/approves/
+
+# чтение / чат / геометрия (после auth в QGIS — параметр user=логин)
+GET  http://172.21.197.77/approval/api/qgis/approves/?user=<login>
+GET  http://172.21.197.77/approval/api/qgis/approves/<approve_id>/geometries/?user=<login>
+GET  http://172.21.197.77/approval/api/qgis/cases/<case_id>/?user=<login>
+POST http://172.21.197.77/approval/api/qgis/cases/<case_id>/messages/
 ```
 
-Публичный домен `https://border-ogh.mggt.ru` для этого API **не используется** — запросы через reverse-proxy отклоняются (HTTP 403). Альтернатива — прямая запись в БД `geodb` на `172.21.197.77` (разделы 4–5 ниже).
+Публичный домен `https://border-ogh.mggt.ru` для этого API **не используется** — запросы через reverse-proxy отклоняются (HTTP 403). Альтернатива для ingest — прямая запись в БД `geodb` на `172.21.197.77` (разделы 4–5 ниже).
+
+### Чтение и чат из QGIS
+
+1. Пользователь логинится в модуле QGIS (auth на стороне плагина).
+2. Модуль вызывает `GET .../approves/?user=<login>` — список доступных согласований.
+3. Для карты: `GET .../approves/<id>/geometries/?user=<login>` (FeatureCollection).
+4. Для чата: `GET .../cases/<case_id>/?user=<login>`; ответы — `POST .../messages/` с `user`, `body`, опционально `geometry`.
+
+Детали полей и кодов ответа — в [QGIS_API.md](QGIS_API.md).
 
 ---
 

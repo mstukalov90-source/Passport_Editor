@@ -1,4 +1,4 @@
-"""Access rules for the QGIS ingest API (internal host only)."""
+"""Access rules for the QGIS approval API (internal host only)."""
 
 from django.conf import settings
 

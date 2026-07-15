@@ -58,6 +58,55 @@ def serialize_approve_option(approve: Approve, *, username: str | None = None) -
     }
 
 
+def serialize_approve_qgis_summary(approve: Approve) -> dict:
+    """Short approve payload for QGIS list/detail headers."""
+    name = (approve.name or "").strip()
+    cases_count = getattr(approve, "cases_count", None)
+    if cases_count is None:
+        cases_count = approve.cases.count()
+    return {
+        "id": str(approve.id),
+        "incoming_guid": str(approve.incoming_guid),
+        "name": name,
+        "approved": bool(approve.approved),
+        "user": (approve.user or "").strip(),
+        "owners": list(approve.owners or []),
+        "n_root": list(approve.n_root or []),
+        "v_root": list(approve.v_root or []) if approve.v_root is not None else None,
+        "cases_count": int(cases_count),
+        "created_at": _format_dt(approve.created_at),
+        "updated_at": _format_dt(approve.updated_at),
+    }
+
+
+def build_geometries_feature_collection(geometry_rows) -> dict:
+    """GeoJSON FeatureCollection for QGIS map layers."""
+    features = []
+    for row in geometry_rows:
+        geometry = _geometry_to_geojson(row)
+        if geometry is None:
+            continue
+        case = row.case if hasattr(row, "case") else None
+        features.append(
+            {
+                "type": "Feature",
+                "id": row.id,
+                "geometry": geometry,
+                "properties": {
+                    "geometry_id": row.id,
+                    "approve_id": str(row.approve_id),
+                    "case_id": str(row.case_id) if row.case_id else None,
+                    "message_id": row.message_id,
+                    "label": (row.label or "").strip(),
+                    "n_root": (case.n_root or "") if case is not None else "",
+                    "is_primary": bool(case.is_primary) if case is not None else False,
+                    "owner_legal_person_id": row.owner_legal_person_id or "",
+                },
+            }
+        )
+    return {"type": "FeatureCollection", "features": features}
+
+
 @transaction.atomic
 def delete_approve_for_inspector(*, approve_id, username: str | None) -> Approve:
     username_text = (username or "").strip()

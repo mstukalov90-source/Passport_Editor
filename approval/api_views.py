@@ -10,13 +10,10 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from .access import get_accessible_approve, get_accessible_approves, get_accessible_cases_queryset, get_owner_id_for_username, user_can_access_case
 from .events_service import (
-    ApproveAlreadyApprovedError,
-    ApproveUserConflictError,
     add_case_participant,
     attach_geometry_to_message,
     change_case_owner,
@@ -29,12 +26,10 @@ from .events_service import (
     serialize_case_detail,
     serialize_case_summary,
     serialize_message,
-    upsert_approve_from_qgis,
     upsert_message_reaction,
     validate_attachment_file,
 )
 from .models import Case, CaseMessage, CaseMessageAttachment
-from .qgis_access import qgis_api_host_allowed
 
 
 def _json_error(message, *, status=400):
@@ -57,31 +52,6 @@ def _parse_json_body(request):
     except (UnicodeDecodeError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
-
-
-@csrf_exempt
-@require_POST
-def api_qgis_upsert_approve(request):
-    if not qgis_api_host_allowed(request):
-        return _json_error(
-            "QGIS API доступен только по внутреннему адресу сервера (172.21.197.77).",
-            status=403,
-        )
-
-    payload = _parse_json_body(request)
-    if payload is None:
-        return _json_error("Некорректный JSON.")
-
-    try:
-        result = upsert_approve_from_qgis(payload)
-    except (ApproveAlreadyApprovedError, ApproveUserConflictError) as exc:
-        return _json_error(str(exc), status=409)
-    except ValueError as exc:
-        return _json_error(str(exc))
-    except Exception:
-        return _json_error("Не удалось сохранить согласование.", status=500)
-
-    return JsonResponse({"ok": True, **result})
 
 
 def _case_or_error(case_id, *, owner_id=None, username=None):
