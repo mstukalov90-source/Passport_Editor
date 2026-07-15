@@ -13,6 +13,13 @@ _COMMENT_RE = re.compile(
     re.IGNORECASE,
 )
 
+# topopassport CAD layers (not listed in create_work.sql work schema comments)
+TOPOGRAPHY_LAYER_LABELS: dict[str, str] = {
+    "topolines": "Линии топоосновы",
+    "topopoint": "Точки топоосновы",
+    "topotext": "Тексты топоосновы",
+}
+
 
 def _sql_path() -> Path:
     return Path(getattr(settings, "APPROVAL_LAYER_STYLES_SQL", settings.BASE_DIR / "approval" / "layer_styles" / "create_work.sql"))
@@ -22,9 +29,9 @@ def _sql_path() -> Path:
 def load_work_layer_labels() -> dict[str, str]:
     path = _sql_path()
     if not path.is_file():
-        return {}
+        return dict(TOPOGRAPHY_LAYER_LABELS)
     text = path.read_text(encoding="utf-8")
-    labels: dict[str, str] = {}
+    labels: dict[str, str] = dict(TOPOGRAPHY_LAYER_LABELS)
     for match in _COMMENT_RE.finditer(text):
         table_name = match.group(1)
         title = match.group(2).replace("''", "'")

@@ -7,6 +7,7 @@
 {% block page_styles %}
 {% load static %}
 <link rel="stylesheet" href="{% static 'pass_viewer/css/tokens.css' %}">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/map-editor.css' %}">
 <link rel="stylesheet" href="{% static 'approval/css/landing.css' %}">
 {% endblock %}
 
@@ -29,7 +30,7 @@
         <h1 class="approval-header__title">Согласование</h1>
         <a class="approval-header__back" href="{% url 'home' %}">На главную</a>
     </header>
-    <div class="approval-workspace approval-workspace--layers-collapsed">
+    <div class="approval-workspace approval-workspace--layers-truncated">
         <aside class="approval-panel approval-panel--layers is-collapsed" id="approval-panel-layers">
             {% include 'approval/includes/layer_panel_shell.html' %}
         </aside>
@@ -50,10 +51,19 @@
                 <button type="button" id="approval-draw-cancel" class="approval-draw-toolbar__btn approval-draw-toolbar__btn--cancel">Отмена</button>
             </div>
             <div id="approval-map" aria-label="Карта согласования"></div>
+            <p class="approval-map-load-status note" id="approval-map-load-status" hidden></p>
         </section>
         <aside class="approval-panel approval-panel--events">
             {% include 'approval/includes/events_shell.html' %}
         </aside>
+    </div>
+</div>
+<div id="db-loading-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width: 420px; text-align: center;">
+        <p class="note" style="margin: 0; font-size: 15px; font-weight: 600; color: #0f172a;">
+            Выполняется выгрузка обьектов. Подождите
+        </p>
+        <p class="note" id="approval-db-loading-detail" style="margin: 10px 0 0; font-size: 13px; color: #64748b;"></p>
     </div>
 </div>
 {% endblock %}

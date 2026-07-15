@@ -12,10 +12,17 @@ from typing import Any
 
 from django.conf import settings
 
-from .work_layer_labels import load_work_layer_labels
+from .work_layer_labels import load_work_layer_labels, work_layer_label
 
 TABLE_QML_ALIASES: dict[str, str] = {
     "PlanarStructurePoly": "PlanarStructure",
+}
+
+# topopassport CAD topo tables → TopographyLayers_*.qml filenames
+TOPOGRAPHY_TABLE_QML: dict[str, str] = {
+    "topolines": "TopographyLayers_lines.qml",
+    "topopoint": "TopographyLayers_inserts.qml",
+    "topotext": "TopographyLayers_texts.qml",
 }
 
 GEOMETRY_TYPES = {
@@ -24,12 +31,33 @@ GEOMETRY_TYPES = {
     "2": "polygon",
 }
 
+_FIELD_TOKEN = r'(?:"(?P<qfield>[^"]+)"|(?P<ufield>[A-Za-z_][\w]*))'
+_STRING_LIT = r"'((?:''|[^'])*)'"
 _FILTER_EQ_RE = re.compile(
-    r'^\s*"([^"]+)"\s*=\s*\'((?:\'\'|[^\'])*)\'\s*$',
+    rf"^\s*{_FIELD_TOKEN}\s*=\s*{_STRING_LIT}\s*$",
     re.IGNORECASE,
 )
-_FILTER_NULL_RE = re.compile(r'^\s*"([^"]+)"\s+is\s+null\s*$', re.IGNORECASE)
-_FILTER_NOT_NULL_RE = re.compile(r'^\s*"([^"]+)"\s+is\s+not\s+null\s*$', re.IGNORECASE)
+_FILTER_NE_RE = re.compile(
+    rf"^\s*{_FIELD_TOKEN}\s*!=\s*{_STRING_LIT}\s*$",
+    re.IGNORECASE,
+)
+_FILTER_NULL_RE = re.compile(
+    rf"^\s*{_FIELD_TOKEN}\s+is\s+null\s*$",
+    re.IGNORECASE,
+)
+_FILTER_NOT_NULL_RE = re.compile(
+    rf"^\s*{_FIELD_TOKEN}\s+is\s+not\s+null\s*$",
+    re.IGNORECASE,
+)
+_FILTER_LIKE_RE = re.compile(
+    rf"^\s*{_FIELD_TOKEN}\s+like\s+{_STRING_LIT}\s*$",
+    re.IGNORECASE,
+)
+_FILTER_IN_RE = re.compile(
+    rf"^\s*{_FIELD_TOKEN}\s+in\s*\((.*)\)\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
+_STRING_IN_LIST_RE = re.compile(_STRING_LIT)
 
 _COLOR_RE = re.compile(
     r"^(?P<r>\d+),(?P<g>\d+),(?P<b>\d+),(?P<a>\d+)",
@@ -97,30 +125,196 @@ def parse_qgis_color(raw: str | None) -> dict[str, Any] | None:
     }
 
 
+def _field_from_match(match: re.Match[str]) -> str:
+    return match.group("qfield") or match.group("ufield")
+
+
+def _unescape_qgis_string(value: str) -> str:
+    return value.replace("''", "'")
+
+
+def _paren_depth_delta(char: str, in_string: bool) -> int:
+    if in_string:
+        return 0
+    if char == "(":
+        return 1
+    if char == ")":
+        return -1
+    return 0
+
+
+def _split_top_level(text: str, keyword: str) -> list[str] | None:
+    """Split by a boolean keyword at top paren depth outside quotes. None if no split."""
+    needle = f" {keyword} "
+    parts: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    in_string = False
+    i = 0
+    lower = text.lower()
+    needle_l = needle.lower()
+    while i < len(text):
+        ch = text[i]
+        if ch == "'" and not in_string:
+            in_string = True
+            buf.append(ch)
+            i += 1
+            continue
+        if ch == "'" and in_string:
+            # doubled quote inside string
+            if i + 1 < len(text) and text[i + 1] == "'":
+                buf.append("''")
+                i += 2
+                continue
+            in_string = False
+            buf.append(ch)
+            i += 1
+            continue
+        depth += _paren_depth_delta(ch, in_string)
+        if (
+            depth == 0
+            and not in_string
+            and lower.startswith(needle_l, i)
+        ):
+            part = "".join(buf).strip()
+            if not part:
+                return None
+            parts.append(part)
+            buf = []
+            i += len(needle)
+            continue
+        buf.append(ch)
+        i += 1
+    if not parts:
+        return None
+    tail = "".join(buf).strip()
+    if not tail:
+        return None
+    parts.append(tail)
+    return parts
+
+
+def _unwrap_parens(text: str) -> str:
+    current = text.strip()
+    while current.startswith("(") and current.endswith(")"):
+        depth = 0
+        in_string = False
+        balanced = True
+        for i, ch in enumerate(current):
+            if ch == "'" and not in_string:
+                in_string = True
+                continue
+            if ch == "'" and in_string:
+                if i + 1 < len(current) and current[i + 1] == "'":
+                    continue
+                in_string = False
+                continue
+            depth += _paren_depth_delta(ch, in_string)
+            if depth == 0 and i < len(current) - 1:
+                balanced = False
+                break
+        if not balanced or depth != 0:
+            break
+        current = current[1:-1].strip()
+    return current
+
+
+def _parse_in_values(inner: str) -> list[str] | None:
+    values = [_unescape_qgis_string(m.group(1)) for m in _STRING_IN_LIST_RE.finditer(inner)]
+    # Require that we consumed something reasonable (at least one string).
+    if not values:
+        return None
+    return values
+
+
+def _parse_filter_atom(text: str) -> dict[str, Any] | None:
+    match = _FILTER_EQ_RE.match(text)
+    if match:
+        return {
+            "type": "eq",
+            "field": _field_from_match(match),
+            "value": _unescape_qgis_string(match.group(3)),
+        }
+    match = _FILTER_NE_RE.match(text)
+    if match:
+        return {
+            "type": "ne",
+            "field": _field_from_match(match),
+            "value": _unescape_qgis_string(match.group(3)),
+        }
+    match = _FILTER_NOT_NULL_RE.match(text)
+    if match:
+        return {"type": "not_null", "field": _field_from_match(match)}
+    match = _FILTER_NULL_RE.match(text)
+    if match:
+        return {"type": "null", "field": _field_from_match(match)}
+    match = _FILTER_LIKE_RE.match(text)
+    if match:
+        return {
+            "type": "like",
+            "field": _field_from_match(match),
+            "pattern": _unescape_qgis_string(match.group(3)),
+        }
+    match = _FILTER_IN_RE.match(text)
+    if match:
+        values = _parse_in_values(match.group(3))
+        if values is None:
+            return None
+        return {
+            "type": "in",
+            "field": _field_from_match(match),
+            "values": values,
+        }
+    return None
+
+
+def _parse_filter_expr(text: str) -> dict[str, Any] | None:
+    current = _unwrap_parens(text.strip())
+    if not current:
+        return None
+    if current.upper() == "ELSE":
+        return {"type": "else"}
+
+    or_parts = _split_top_level(current, "or")
+    if or_parts and len(or_parts) > 1:
+        children = [_parse_filter_expr(part) for part in or_parts]
+        if any(child is None for child in children):
+            return None
+        return {"type": "or", "children": children}
+
+    and_parts = _split_top_level(current, "and")
+    if and_parts and len(and_parts) > 1:
+        children = [_parse_filter_expr(part) for part in and_parts]
+        if any(child is None for child in children):
+            return None
+        return {"type": "and", "children": children}
+
+    return _parse_filter_atom(current)
+
+
 def parse_filter(filter_text: str | None) -> dict[str, Any] | None:
     if not filter_text:
         return None
     text = filter_text.strip()
     if not text:
         return None
+    return _parse_filter_expr(text)
 
-    match = _FILTER_EQ_RE.match(text)
-    if match:
-        return {
-            "type": "eq",
-            "field": match.group(1),
-            "value": match.group(2).replace("''", "'"),
-        }
 
-    match = _FILTER_NULL_RE.match(text)
-    if match:
-        return {"type": "null", "field": match.group(1)}
-
-    match = _FILTER_NOT_NULL_RE.match(text)
-    if match:
-        return {"type": "not_null", "field": match.group(1)}
-
-    return None
+def filter_fields(filt: dict[str, Any] | None) -> set[str]:
+    """Collect property field names referenced by a parsed filter AST."""
+    if not filt:
+        return set()
+    ftype = filt.get("type")
+    if ftype in {"and", "or"}:
+        out: set[str] = set()
+        for child in filt.get("children") or []:
+            out |= filter_fields(child)
+        return out
+    if ftype == "else":
+        return set()
+    field = filt.get("field")
+    return {field} if field else set()
 
 
 def _mm_to_px(value: str | None, default: float = 2.0) -> float:
@@ -340,6 +534,11 @@ def _is_vertex_rule(rule_el: ET.Element) -> bool:
 
 def resolve_qml_path(table_name: str, qml_dir: Path | None = None) -> Path | None:
     directory = qml_dir or _qml_dir()
+    topo_file = TOPOGRAPHY_TABLE_QML.get(table_name)
+    if topo_file:
+        topo_path = directory / topo_file
+        if topo_path.is_file():
+            return topo_path
     candidates = [table_name, TABLE_QML_ALIASES.get(table_name, "")]
     for base in candidates:
         if not base:
@@ -380,25 +579,39 @@ def parse_qml_file(path: Path) -> dict[str, Any]:
             if _is_vertex_rule(rule_el):
                 continue
             label = (rule_el.get("label") or "").strip()
-            filt = parse_filter(rule_el.get("filter"))
+            raw_filter = rule_el.get("filter")
             symbol_id = rule_el.get("symbol")
             style = symbols.get(symbol_id or "", {})
             if not style:
                 continue
+            filt: dict[str, Any] | None = None
+            if raw_filter and raw_filter.strip():
+                filt = parse_filter(raw_filter)
+                if filt is None:
+                    # Skip rules we cannot evaluate — avoid treating them as catch-alls.
+                    continue
             entry: dict[str, Any] = {"label": label, "style": style}
             if filt:
                 entry["filter"] = filt
-                fields.add(filt["field"])
+                fields |= filter_fields(filt)
             rules.append(entry)
             lower_label = label.lower()
-            if default_rule_index is None and ("нет данных" in lower_label or filt and filt.get("type") == "null"):
+            if default_rule_index is None and (
+                "нет данных" in lower_label
+                or "прочие" in lower_label
+                or (filt and filt.get("type") in {"null", "else"})
+            ):
                 default_rule_index = len(rules) - 1
 
     elif renderer.get("type") == "singleSymbol":
         symbol_id = renderer.get("symbol") or "0"
         style = symbols.get(symbol_id, {})
         if style:
-            label = path.stem.replace("WorkLayers_", "").replace("MasterLayers_", "")
+            label = (
+                path.stem.replace("WorkLayers_", "")
+                .replace("MasterLayers_", "")
+                .replace("TopographyLayers_", "")
+            )
             rules.append({"label": label, "style": style})
             default_rule_index = 0
 
@@ -420,18 +633,19 @@ def parse_qml_file(path: Path) -> dict[str, Any]:
 
 
 def collect_table_names() -> list[str]:
-    labels = load_work_layer_labels()
-    if labels:
-        return sorted(labels.keys())
+    """Union of SQL COMMENT labels, WorkLayers_*.qml stems, and topography tables."""
+    names: set[str] = set(load_work_layer_labels().keys())
+    names.update(TOPOGRAPHY_TABLE_QML.keys())
     qml_dir = _qml_dir()
-    names: set[str] = set()
     for path in qml_dir.glob("WorkLayers_*.qml"):
-        names.add(path.stem.replace("WorkLayers_", ""))
+        stem = path.stem.removeprefix("WorkLayers_")
+        if ".mobile" in stem.lower():
+            continue
+        names.add(stem)
     return sorted(names)
 
 
 def build_manifest(*, tables: list[str] | None = None) -> dict[str, Any]:
-    labels = load_work_layer_labels()
     qml_dir = _qml_dir()
     manifest_tables: dict[str, Any] = {}
     target_tables = tables or collect_table_names()
@@ -441,7 +655,7 @@ def build_manifest(*, tables: list[str] | None = None) -> dict[str, Any]:
         if not qml_path:
             continue
         parsed = parse_qml_file(qml_path)
-        parsed["label"] = labels.get(table_name, table_name)
+        parsed["label"] = work_layer_label(table_name)
         manifest_tables[table_name] = parsed
 
     return {

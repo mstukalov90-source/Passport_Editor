@@ -1,12 +1,13 @@
 from django.urls import path
 
 from . import api_views, qgis_api_views
-from .views import landing
+from .views import api_map_layer, landing
 
 app_name = "approval"
 
 urlpatterns = [
     path("", landing, name="landing"),
+    path("api/map-layer/", api_map_layer, name="api_map_layer"),
     # QGIS API (host allowlist + login query/body param `user`)
     path("api/qgis/approves/", qgis_api_views.api_qgis_approves, name="api_qgis_upsert_approve"),
     path(

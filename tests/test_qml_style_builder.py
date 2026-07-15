@@ -8,6 +8,7 @@ import pytest
 from approval.qml_style_builder import (
     build_manifest,
     build_svg_index,
+    collect_table_names,
     parse_filter,
     parse_qgis_color,
     parse_qml_file,
@@ -19,6 +20,8 @@ from django.conf import settings
 
 @pytest.fixture(autouse=True)
 def _configure_style_paths(settings):
+    from approval.work_layer_labels import load_work_layer_labels
+
     base = Path(settings.BASE_DIR)
     settings.APPROVAL_LAYER_STYLES_QML_DIR = base / "approval" / "layer_styles" / "qml"
     settings.APPROVAL_LAYER_STYLES_SQL = base / "approval" / "layer_styles" / "create_work.sql"
@@ -26,6 +29,7 @@ def _configure_style_paths(settings):
     settings.APPROVAL_LAYER_STYLES_MANIFEST = base / "approval" / "static" / "approval" / "work_layer_styles.json"
     settings.APPROVAL_LAYER_STYLES_SVG_STATIC = base / "approval" / "static" / "approval" / "icons" / "svg"
     settings.APPROVAL_LAYER_STYLES_SVG_INDEX = base / "approval" / "static" / "approval" / "svg_index.json"
+    load_work_layer_labels.cache_clear()
 
 
 def test_parse_qgis_color_rgb():
@@ -40,6 +44,64 @@ def test_parse_filter_eq_and_null():
         "value": "fence_road_stone",
     }
     assert parse_filter('"AbutmentType" is null') == {"type": "null", "field": "AbutmentType"}
+
+
+def test_parse_filter_topography_compound_expressions():
+    parsed = parse_filter("layer = 'Level 2' and olinetype != 'UP line'")
+    assert parsed == {
+        "type": "and",
+        "children": [
+            {"type": "eq", "field": "layer", "value": "Level 2"},
+            {"type": "ne", "field": "olinetype", "value": "UP line"},
+        ],
+    }
+    parsed_in = parse_filter("layer in ('Level 3', 'Level 5') and olinetype != 'UP line'")
+    assert parsed_in["type"] == "and"
+    assert parsed_in["children"][0] == {
+        "type": "in",
+        "field": "layer",
+        "values": ["Level 3", "Level 5"],
+    }
+    parsed_like = parse_filter(
+        "(layer like 'Тротуар%' or layer like 'Борт тротуара%' or layer = 'Понижение борта')"
+    )
+    assert parsed_like["type"] == "or"
+    assert parsed_like["children"][0] == {
+        "type": "like",
+        "field": "layer",
+        "pattern": "Тротуар%",
+    }
+    assert parse_filter("ELSE") == {"type": "else"}
+
+
+def test_resolve_qml_path_topography_tables():
+    qml_dir = Path(settings.APPROVAL_LAYER_STYLES_QML_DIR)
+    assert resolve_qml_path("topolines", qml_dir).name == "TopographyLayers_lines.qml"
+    assert resolve_qml_path("topopoint", qml_dir).name == "TopographyLayers_inserts.qml"
+    assert resolve_qml_path("topotext", qml_dir).name == "TopographyLayers_texts.qml"
+
+
+def test_build_manifest_includes_topography_tables():
+    from approval.work_layer_labels import load_work_layer_labels
+
+    load_work_layer_labels.cache_clear()
+    manifest = build_manifest(tables=["topolines", "topopoint", "topotext"])
+    assert manifest["tables"]["topolines"]["label"] == "Линии топоосновы"
+    assert manifest["tables"]["topolines"]["geometry"] == "line"
+    assert len(manifest["tables"]["topolines"]["rules"]) >= 20
+    assert "layer" in manifest["tables"]["topolines"]["fields"]
+    assert "olinetype" in manifest["tables"]["topolines"]["fields"]
+    assert manifest["tables"]["topopoint"]["label"] == "Точки топоосновы"
+    assert manifest["tables"]["topopoint"]["geometry"] == "point"
+    assert manifest["tables"]["topotext"]["label"] == "Тексты топоосновы"
+    assert "text" in manifest["tables"]["topotext"]["fields"]
+
+
+def test_collect_table_names_includes_topography_tables():
+    names = collect_table_names()
+    assert "topolines" in names
+    assert "topopoint" in names
+    assert "topotext" in names
 
 
 def test_resolve_qml_path_planar_structure_alias():
@@ -134,3 +196,16 @@ def test_build_svg_index_includes_cyrillic_basename(tmp_path, settings):
 
     assert index[filename] == filename
     assert index[Path(filename).name] == filename
+
+
+def test_collect_table_names_includes_qml_only_tables():
+    names = collect_table_names()
+    assert "TopPoly" in names
+    assert "CarriagewayPolyAxis" in names
+    assert not any(".mobile" in name.lower() for name in names)
+
+
+def test_build_manifest_includes_toppoly():
+    manifest = build_manifest()
+    assert "TopPoly" in manifest["tables"]
+    assert manifest["tables"]["TopPoly"]["rules"]

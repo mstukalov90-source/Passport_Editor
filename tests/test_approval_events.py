@@ -437,12 +437,10 @@ def test_foreign_owner_cannot_access_case(client, owner_a, approve_with_primary_
 @pytest.mark.django_db
 def test_landing_page_has_events_shell(client, owner_a, approve_with_primary_owner):
     with patch("approval.views.count_features_by_table", return_value={}):
-        with patch(
-            "approval.views.build_work_feature_collection",
-            return_value=({"type": "FeatureCollection", "features": []}, None),
-        ):
-            _login(client, "owner_a")
-            response = client.get(reverse("approval:landing"))
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
+            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+                _login(client, "owner_a")
+                response = client.get(reverse("approval:landing"))
     assert response.status_code == 200
     content = response.content.decode("utf-8")
     assert "approval-approve-select" not in content

@@ -64,6 +64,12 @@ def test_build_adjacent_layer_groups_skips_zero_counts():
 def test_count_adjacent_features(mock_connections):
     cursor = MagicMock()
     mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+    # found roots in work (3 tables) then counts for n_work/v_work across 3 tables each
+    cursor.fetchall.side_effect = [
+        [("09811",), ("10482",)],
+        [],
+        [],
+    ]
     cursor.fetchone.side_effect = [(1,), (2,), (0,), (1,), (0,), (0,)]
 
     with patch("approval.work_adjacent._resolve_rootid_column", return_value="RootId"):
@@ -71,6 +77,60 @@ def test_count_adjacent_features(mock_connections):
 
     assert n_count == 3
     assert v_count == 1
+
+
+@patch("approval.work_adjacent.connections")
+def test_build_adjacent_features_prefers_work_then_master(mock_connections):
+    cursor = MagicMock()
+    mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+
+    feature_work = {
+        "type": "Feature",
+        "geometry": {"type": "Polygon", "coordinates": []},
+        "properties": {
+            "layerKey": LAYER_KEY_OBJECTS,
+            "sourceTable": "YardPoly",
+            "fid": 1,
+            "RootId": "09811",
+        },
+    }
+    feature_master = {
+        "type": "Feature",
+        "geometry": {"type": "Polygon", "coordinates": []},
+        "properties": {
+            "layerKey": LAYER_KEY_OBJECTS,
+            "sourceTable": "YardPoly",
+            "fid": 2,
+            "RootId": "10482",
+        },
+    }
+    # found in work: only 09811
+    # work features for 09811 across 3 tables
+    # master features for 10482 across 3 tables
+    cursor.fetchall.side_effect = [
+        [("09811",)],
+        [],
+        [],
+        [(feature_work,)],
+        [],
+        [],
+        [(feature_master,)],
+        [],
+        [],
+    ]
+
+    with patch("approval.work_adjacent._resolve_rootid_column", return_value="RootId"):
+        with patch("approval.work_adjacent._adjacent_select_sql", return_value="SELECT 1"):
+            with patch("approval.work_adjacent._style_fields_for_table", return_value=[]):
+                features, error = build_adjacent_features(["09811"], ["10482"])
+
+    assert error is None
+    assert len(features) == 2
+    by_root = {feature["properties"]["RootId"]: feature["properties"] for feature in features}
+    assert by_root["09811"]["adjacentRootKind"] == "n"
+    assert by_root["09811"]["sourceSchema"] == "work"
+    assert by_root["10482"]["adjacentRootKind"] == "v"
+    assert by_root["10482"]["sourceSchema"] == "master"
 
 
 @patch("approval.work_adjacent.connections")
@@ -98,7 +158,14 @@ def test_build_adjacent_features_assigns_layer_keys(mock_connections):
             "RootId": "10482",
         },
     }
-    cursor.fetchall.side_effect = [[(feature_n,), (feature_v,)], [], []]
+    cursor.fetchall.side_effect = [
+        [("09811",), ("10482",)],
+        [],
+        [],
+        [(feature_n,), (feature_v,)],
+        [],
+        [],
+    ]
 
     with patch("approval.work_adjacent._resolve_rootid_column", return_value="RootId"):
         with patch("approval.work_adjacent._adjacent_select_sql", return_value="SELECT 1"):
@@ -139,7 +206,14 @@ def test_build_adjacent_features_active_case_moves_single_n_root(mock_connection
             "RootId": "10002",
         },
     }
-    cursor.fetchall.side_effect = [[(feature_a,), (feature_b,)], [], []]
+    cursor.fetchall.side_effect = [
+        [("10001",), ("10002",)],
+        [],
+        [],
+        [(feature_a,), (feature_b,)],
+        [],
+        [],
+    ]
 
     with patch("approval.work_adjacent._resolve_rootid_column", return_value="RootId"):
         with patch("approval.work_adjacent._adjacent_select_sql", return_value="SELECT 1"):
@@ -229,40 +303,22 @@ def test_landing_with_case_only_n_roots():
         owners=[owner_id, "9000022"],
     )
 
-    adjacent_feature = {
-        "type": "Feature",
-        "geometry": {"type": "Polygon", "coordinates": [[[37.6, 55.75], [37.61, 55.75], [37.61, 55.76], [37.6, 55.76], [37.6, 55.75]]]},
-        "properties": {
-            "layerKey": LAYER_KEY_APPROVAL,
-            "adjacentRootKind": "n",
-            "sourceTable": "YardPoly",
-            "fid": 1,
-            "RootId": "09811",
-        },
-    }
-
     request = RequestFactory().get("/approval/")
     request.user = MagicMock(is_authenticated=True, username="case_roots_user")
 
     with patch("approval.views.count_features_by_table", return_value={}):
-        with patch(
-            "approval.views.build_work_feature_collection",
-            return_value=({"type": "FeatureCollection", "features": []}, None),
-        ):
-            with patch("approval.views.build_adjacent_features", return_value=([adjacent_feature], None)) as mock_build:
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
+            with patch("approval.views.count_adjacent_features", return_value=(1, 1)):
                 with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
                     with patch("approval.views.load_svg_index", return_value={}):
                         with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
                             response = landing(request)
 
     assert response.status_code == 200
-    mock_build.assert_called_once()
-    n_roots, v_roots = mock_build.call_args[0]
-    assert n_roots == ["09811"]
-    assert v_roots == ["10482"]
     page_config = mock_render.call_args[0][2]["page_config"]
     assert page_config["adjacentRoots"]["n_roots"] == ["09811"]
     assert page_config["adjacentRoots"]["v_roots"] == ["10482"]
+    assert any(spec["key"] == "adjacent" for spec in page_config["mapLayerLoadOrder"])
 
 
 @pytest.mark.django_db
@@ -280,35 +336,16 @@ def test_landing_with_adjacent_layers():
     primary.owners = [owner_id]
     primary.save(update_fields=["owners", "updated_at"])
 
-    adjacent_feature = {
-        "type": "Feature",
-        "geometry": {"type": "Polygon", "coordinates": [[[37.6, 55.75], [37.61, 55.75], [37.61, 55.76], [37.6, 55.76], [37.6, 55.75]]]},
-        "properties": {
-            "layerKey": LAYER_KEY_APPROVAL,
-            "sourceTable": "YardPoly",
-            "fid": 1,
-            "RootId": "09811",
-        },
-    }
-
     request = RequestFactory().get("/approval/")
     request.user = MagicMock(is_authenticated=True, username="adjacent_map_user")
 
     with patch("approval.views.count_features_by_table", return_value={}):
-        with patch(
-            "approval.views.build_work_feature_collection",
-            return_value=({"type": "FeatureCollection", "features": []}, None),
-        ):
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
             with patch("approval.views.count_adjacent_features", return_value=(1, 1)):
-                with patch("approval.views.build_adjacent_features", return_value=([adjacent_feature], None)):
-                    with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
-                        with patch("approval.views.load_svg_index", return_value={}):
-                            with patch("approval.views.landing_page_config", return_value={}):
-                                with patch(
-                                    "approval.views.render",
-                                    return_value=HttpResponse("ok"),
-                                ) as mock_render:
-                                    response = landing(request)
+                with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
+                    with patch("approval.views.load_svg_index", return_value={}):
+                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                            response = landing(request)
 
     assert response.status_code == 200
     context = mock_render.call_args[0][2]
@@ -323,7 +360,8 @@ def test_landing_with_adjacent_layers():
         for group in layer_groups
         for layer in group["layers"]
     )
-    assert any(feature["properties"]["layerKey"] == LAYER_KEY_APPROVAL for feature in context["map_geojson"]["features"])
+    assert context["map_geojson"]["features"] == []
+    assert any(spec["key"] == "adjacent" for spec in context["page_config"]["mapLayerLoadOrder"])
 
 
 @pytest.mark.django_db
@@ -333,15 +371,11 @@ def test_landing_without_owner_shows_message_unchanged():
     request.user = MagicMock(is_authenticated=True, username="no_owner_adjacent")
 
     with patch("approval.views.count_features_by_table", return_value={}):
-        with patch(
-            "approval.views.build_work_feature_collection",
-            return_value=({"type": "FeatureCollection", "features": []}, None),
-        ):
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
             with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
-                with patch("approval.views.build_adjacent_features", return_value=([], None)):
-                    with patch("approval.views.landing_page_config", return_value={}):
-                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
-                            response = landing(request)
+                with patch("approval.views.landing_page_config", return_value={}):
+                    with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                        response = landing(request)
 
     assert response.status_code == 200
     assert "Нет доступных согласований" in mock_render.call_args[0][2]["map_message"]
@@ -362,11 +396,11 @@ def test_format_adjacent_roots_message_lists_unique_roots():
     assert "09811" in message
     assert "10001" in message
     assert "10482" in message
-    assert "master" in message
+    assert "work/master" in message
     assert "YardPoly/OznPoly/OdhPoly" in message
 
 
-def test_adjacent_select_sql_uses_master_schema():
+def test_adjacent_select_sql_uses_master_schema_by_default():
     cursor = MagicMock()
     with patch("approval.work_adjacent._resolve_rootid_column", return_value="RootId"):
         with patch("approval.work_adjacent._column_exists", return_value=False):
@@ -379,6 +413,22 @@ def test_adjacent_select_sql_uses_master_schema():
             )
     assert sql is not None
     assert '"master"."YardPoly"' in sql
+
+
+def test_adjacent_select_sql_accepts_work_schema():
+    cursor = MagicMock()
+    with patch("approval.work_adjacent._resolve_rootid_column", return_value="RootId"):
+        with patch("approval.work_adjacent._column_exists", return_value=False):
+            sql = _adjacent_select_sql(
+                "YardPoly",
+                LAYER_KEY_OBJECTS,
+                [],
+                cursor,
+                single_root=False,
+                schema="work",
+            )
+    assert sql is not None
+    assert '"work"."YardPoly"' in sql
 
 
 @pytest.mark.django_db
@@ -410,20 +460,17 @@ def test_landing_scopes_work_to_selected_approve():
     request.user = MagicMock(is_authenticated=True, username=inspector_login)
 
     with patch("approval.views.count_features_by_table", return_value={}) as mock_counts:
-        with patch(
-            "approval.views.build_work_feature_collection",
-            return_value=({"type": "FeatureCollection", "features": []}, None),
-        ) as mock_work:
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
             with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
-                with patch("approval.views.build_adjacent_features", return_value=([], None)):
-                    with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
-                        with patch("approval.views.load_svg_index", return_value={}):
-                            with patch("approval.views.render", return_value=HttpResponse("ok")):
-                                response = landing(request)
+                with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
+                    with patch("approval.views.load_svg_index", return_value={}):
+                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                            response = landing(request)
 
     assert response.status_code == 200
     mock_counts.assert_called_once_with([str(guid_b)])
-    mock_work.assert_called_once_with([str(guid_b)], tables=None)
+    context = mock_render.call_args[0][2]
+    assert context["map_geojson"]["features"] == []
 
 
 @pytest.mark.django_db
@@ -451,16 +498,12 @@ def test_landing_inspector_adjacent_roots_from_cases():
     request.user = MagicMock(is_authenticated=True, username=inspector_login)
 
     with patch("approval.views.count_features_by_table", return_value={}):
-        with patch(
-            "approval.views.build_work_feature_collection",
-            return_value=({"type": "FeatureCollection", "features": []}, None),
-        ):
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
             with patch("approval.views.count_adjacent_features", return_value=(1, 1)):
-                with patch("approval.views.build_adjacent_features", return_value=([], None)):
-                    with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
-                        with patch("approval.views.load_svg_index", return_value={}):
-                            with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
-                                response = landing(request)
+                with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
+                    with patch("approval.views.load_svg_index", return_value={}):
+                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                            response = landing(request)
 
     assert response.status_code == 200
     page_config = mock_render.call_args[0][2]["page_config"]
@@ -487,16 +530,12 @@ def test_landing_adjacent_message_when_roots_but_no_features():
     request.user = MagicMock(is_authenticated=True, username="adjacent_msg_user")
 
     with patch("approval.views.count_features_by_table", return_value={}):
-        with patch(
-            "approval.views.build_work_feature_collection",
-            return_value=({"type": "FeatureCollection", "features": []}, None),
-        ):
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
             with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
-                with patch("approval.views.build_adjacent_features", return_value=([], None)):
-                    with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
-                        with patch("approval.views.load_svg_index", return_value={}):
-                            with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
-                                response = landing(request)
+                with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
+                    with patch("approval.views.load_svg_index", return_value={}):
+                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                            response = landing(request)
 
     assert response.status_code == 200
     map_message = mock_render.call_args[0][2]["map_message"]
