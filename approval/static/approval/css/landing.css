@@ -25,6 +25,9 @@ main.container.container--approval {
 .approval-header__title {
     margin: 0;
     font-size: 20px;
+    flex: 1;
+    min-width: 0;
+    line-height: 1.25;
 }
 
 .approval-header__back {
@@ -1181,6 +1184,30 @@ main.container.container--approval {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+}
+
+.approval-adjacent-popup {
+    min-width: 160px;
+    max-width: 260px;
+}
+
+.approval-adjacent-popup__root,
+.approval-adjacent-popup__name {
+    margin: 0 0 6px;
+    font-size: 13px;
+    color: #334155;
+}
+
+.approval-adjacent-popup__action {
+    display: inline-block;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    background: #1f6feb;
+    color: #fff;
 }
 
 .approval-event-dialog__cancel,

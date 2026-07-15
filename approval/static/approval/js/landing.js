@@ -552,6 +552,10 @@
                 applySvgMarkerSize(entry, resolveMarkerPixelSize(latlng, entry.meters, 'MapUnit', zoom));
                 return;
             }
+            if (entry.kind === 'text') {
+                applyTextLabelSize(entry, resolveMarkerPixelSize(latlng, entry.meters, 'MapUnit', zoom));
+                return;
+            }
             if (entry.kind === 'circle' && typeof entry.marker.setRadius === 'function') {
                 const diameterPx = resolveMarkerPixelSize(latlng, entry.meters, 'MapUnit', zoom);
                 const radius = Math.max(2, Math.round(diameterPx / 2));
@@ -1158,9 +1162,169 @@
         return parts.join(' · ') || 'объект';
     }
 
+    function buildTextLabelIcon(textHtml, fontPx, color, rotationDeg) {
+        const size = Math.max(12, Math.round(fontPx * 1.4));
+        const half = Math.round(size / 2);
+        const rotate =
+            Number.isFinite(rotationDeg) && rotationDeg !== 0
+                ? 'transform:rotate(' + rotationDeg + 'deg);'
+                : '';
+        return L.divIcon({
+            className: 'approval-topo-text-label',
+            html:
+                '<div style="color:' +
+                color +
+                ';font-size:' +
+                fontPx +
+                'px;font-weight:500;line-height:1.1;white-space:pre;text-align:center;' +
+                'pointer-events:none;user-select:none;' +
+                rotate +
+                '">' +
+                textHtml +
+                '</div>',
+            iconSize: [size * 4, size],
+            iconAnchor: [size * 2, half],
+        });
+    }
+
+    function applyTextLabelSize(entry, fontPx) {
+        const size = Math.max(8, Math.round(fontPx));
+        if (entry.lastSize === size) {
+            return;
+        }
+        entry.lastSize = size;
+        const color = entry.color || '#000000';
+        const rotationDeg = entry.rotationDeg;
+        entry.marker.setIcon(buildTextLabelIcon(entry.textHtml, size, color, rotationDeg));
+    }
+
+    function createTextLabelMarker(latlng, feature, labeling) {
+        const props = feature.properties || {};
+        const field = labeling.field;
+        const rawText = propertyValue(props, field);
+        if (rawText === null) {
+            return null;
+        }
+        const text = String(rawText).replace(/\\P/g, '\n');
+        if (!text.trim()) {
+            return null;
+        }
+        const sizeUnit = labeling.fontSizeUnit || 'Point';
+        const baseSize = Number(labeling.fontSize) > 0 ? Number(labeling.fontSize) : 12;
+        const color = labeling.color || '#000000';
+        let fontPx;
+        if (sizeUnit === 'MapUnit') {
+            fontPx = resolveMarkerPixelSize(latlng, baseSize, 'MapUnit');
+        } else if (sizeUnit === 'MM') {
+            fontPx = Math.max(8, Math.round(baseSize * 3.78));
+        } else {
+            // Point ≈ CSS px at 1:1 for screen labels
+            fontPx = Math.max(8, Math.round(baseSize));
+        }
+
+        let rotationDeg = null;
+        const rotField = labeling.rotationField;
+        if (rotField) {
+            const angleRaw = propertyValue(props, rotField);
+            const angleNum = Number(angleRaw);
+            if (Number.isFinite(angleNum)) {
+                rotationDeg =
+                    labeling.rotationMode === 'complement' ? 360 - angleNum : angleNum;
+            }
+        }
+
+        const textHtml = escapeHtml(text).replace(/\n/g, '<br>');
+        const marker = L.marker(latlng, {
+            icon: buildTextLabelIcon(textHtml, fontPx, color, rotationDeg),
+            interactive: true,
+            zIndexOffset: 500,
+        }).bindTooltip(featureTooltip(feature), { sticky: true });
+
+        if (sizeUnit === 'MapUnit') {
+            mapUnitMarkers.push({
+                kind: 'text',
+                marker: marker,
+                meters: baseSize,
+                textHtml: textHtml,
+                color: color,
+                rotationDeg: rotationDeg,
+                lastSize: Math.round(fontPx),
+            });
+        }
+        return marker;
+    }
+
+    function invisiblePointMarker(latlng) {
+        // Placeholder so GeoJSON still has a layer; never a white MapUnit disk.
+        return L.circleMarker(latlng, {
+            radius: 0,
+            opacity: 0,
+            fillOpacity: 0,
+            weight: 0,
+            interactive: false,
+            pane: 'markerPane',
+        });
+    }
+
+    function topotextLabelingConfig(tableDef) {
+        const labeling = tableDef && tableDef.labeling;
+        if (labeling && labeling.field) {
+            return labeling;
+        }
+        // Hardcoded defaults if page embed is stale / missing labeling block.
+        return {
+            field: 'text',
+            fontSize: 1,
+            fontSizeUnit: 'MapUnit',
+            color: '#000000',
+            rotationField: 'angle',
+            rotationMode: 'complement',
+        };
+    }
+
     function pointToLayer(feature, latlng) {
         const props = feature.properties || {};
         const styleKey = styleTableKey(props);
+        const tableDef = getTableStyleDef(styleKey);
+        const isTopotext = String(styleKey || '').toLowerCase() === 'topotext';
+
+        // Only "Тексты топоосновы" use QGIS labeling as primary symbology.
+        // Never fall through to white SimpleMarker (QGIS uses alpha=0 anchors).
+        if (isTopotext) {
+            if (String(props.layer || '') === 'Фотофиксация') {
+                const photoUrl = photoFixIconUrl();
+                if (photoUrl) {
+                    const size = resolveMarkerPixelSize(latlng, 12, 'MM');
+                    const fractions = resolveIconAnchorFractions(
+                        photoUrl,
+                        props,
+                        null,
+                        'center',
+                        'center'
+                    );
+                    return createSvgMarker(
+                        latlng,
+                        photoUrl,
+                        size,
+                        feature,
+                        null,
+                        fractions[0],
+                        fractions[1]
+                    );
+                }
+                return invisiblePointMarker(latlng);
+            }
+            const textMarker = createTextLabelMarker(
+                latlng,
+                feature,
+                topotextLabelingConfig(tableDef)
+            );
+            if (textMarker) {
+                return textMarker;
+            }
+            return invisiblePointMarker(latlng);
+        }
+
         const ruleStyle = resolveRuleStyle(styleKey, props);
         const sizeUnit =
             (ruleStyle && (ruleStyle.iconSizeUnit || ruleStyle.sizeUnit)) || 'MM';
@@ -1218,7 +1382,20 @@
         const baseRadius = (ruleStyle && ruleStyle.radius) || 5;
         const stroke = (ruleStyle && ruleStyle.color) || colors.stroke;
         const fill = (ruleStyle && ruleStyle.fillColor) || colors.fill;
-        const fillOpacity = (ruleStyle && ruleStyle.fillOpacity) || 0.85;
+        const fillOpacity = (ruleStyle && ruleStyle.fillOpacity) !== undefined
+            ? Number(ruleStyle.fillOpacity)
+            : 0.85;
+        const strokeOpacity =
+            ruleStyle && ruleStyle.opacity !== undefined ? Number(ruleStyle.opacity) : 1;
+        // QGIS alpha=0 labeling anchors must stay invisible.
+        if (
+            Number.isFinite(fillOpacity) &&
+            fillOpacity <= 0 &&
+            Number.isFinite(strokeOpacity) &&
+            strokeOpacity <= 0
+        ) {
+            return invisiblePointMarker(latlng);
+        }
         let radius;
         if (sizeUnit === 'MapUnit') {
             // QGIS SimpleMarker size is diameter; prefer iconSize when radius is a tiny halo.
@@ -1237,8 +1414,9 @@
             radius: radius,
             color: stroke,
             weight: 2,
+            opacity: Number.isFinite(strokeOpacity) ? strokeOpacity : 1,
             fillColor: fill,
-            fillOpacity: fillOpacity,
+            fillOpacity: Number.isFinite(fillOpacity) ? fillOpacity : 0.85,
             pane: 'markerPane',
         }).bindTooltip(featureTooltip(feature), { sticky: true });
         if (sizeUnit === 'MapUnit') {
@@ -1800,6 +1978,111 @@
             return false;
         }
 
+        function isDrawModeActive() {
+            return !!(
+                window.ApprovalEventDraw &&
+                typeof window.ApprovalEventDraw.isDrawMode === 'function' &&
+                window.ApprovalEventDraw.isDrawMode()
+            );
+        }
+
+        function bindAdjacentInspectorPopup(layer, feature) {
+            const props = feature.properties || {};
+            const isApprovalAdjacent =
+                props.layerKey === 'adjacent_approval' || props.adjacentRootKind === 'n';
+            const isObjectsAdjacent =
+                props.layerKey === 'adjacent_objects' || props.adjacentRootKind === 'v';
+            if (!isApprovalAdjacent && !isObjectsAdjacent) {
+                return;
+            }
+
+            const rootId = String(props.RootId || '');
+            const name = String(props.Name || '');
+            const ownerId = String(props.OwnerLegalPersonId || '');
+            const geomEncoded = feature.geometry
+                ? encodeURIComponent(JSON.stringify(feature.geometry))
+                : '';
+            const action = isApprovalAdjacent ? 'change-owner' : 'create-event';
+            const buttonLabel = isApprovalAdjacent ? 'Сменить владельца' : 'Добавить событие';
+            const rootLine = rootId
+                ? '<p class="approval-adjacent-popup__root">Паспорт ' + escapeHtml(rootId) + '</p>'
+                : '';
+            const nameLine = name ? '<p class="approval-adjacent-popup__name">' + escapeHtml(name) + '</p>' : '';
+            const html =
+                '<div class="approval-adjacent-popup">' +
+                rootLine +
+                nameLine +
+                '<button type="button" class="approval-adjacent-popup__action"' +
+                ' data-action="' +
+                action +
+                '"' +
+                ' data-root-id="' +
+                escapeHtml(rootId) +
+                '"' +
+                ' data-name="' +
+                escapeHtml(name) +
+                '"' +
+                ' data-owner-id="' +
+                escapeHtml(ownerId) +
+                '"' +
+                ' data-geometry="' +
+                geomEncoded +
+                '">' +
+                escapeHtml(buttonLabel) +
+                '</button></div>';
+
+            layer.bindPopup(html);
+            layer.on('popupopen', function () {
+                if (isDrawModeActive()) {
+                    layer.closePopup();
+                    return;
+                }
+                const popup = layer.getPopup();
+                const container = popup && popup.getElement ? popup.getElement() : null;
+                if (!container) {
+                    return;
+                }
+                const btn = container.querySelector('.approval-adjacent-popup__action');
+                if (!btn || btn.dataset.bound === '1') {
+                    return;
+                }
+                btn.dataset.bound = '1';
+                L.DomEvent.disableClickPropagation(btn);
+                btn.addEventListener('click', function () {
+                    if (isDrawModeActive()) {
+                        return;
+                    }
+                    const eventsApi = window.ApprovalEvents || {};
+                    const root = btn.getAttribute('data-root-id') || '';
+                    if (btn.getAttribute('data-action') === 'change-owner') {
+                        if (typeof eventsApi.openChangeOwnerForRootId === 'function') {
+                            eventsApi.openChangeOwnerForRootId(root);
+                        }
+                        layer.closePopup();
+                        return;
+                    }
+                    let geometry = null;
+                    const encoded = btn.getAttribute('data-geometry') || '';
+                    if (encoded) {
+                        try {
+                            geometry = JSON.parse(decodeURIComponent(encoded));
+                        } catch (err) {
+                            geometry = null;
+                        }
+                    }
+                    if (typeof eventsApi.openCreateEventFromAdjacent === 'function') {
+                        eventsApi.openCreateEventFromAdjacent({
+                            rootId: root,
+                            name: btn.getAttribute('data-name') || '',
+                            ownerId: btn.getAttribute('data-owner-id') || '',
+                            geometry: geometry,
+                        });
+                    }
+                    layer.closePopup();
+                });
+            });
+        }
+
         function onEachFeature(feature, layer) {
             const props = feature.properties || {};
             const layerKey = props.layerKey || props.sourceTable;
@@ -1813,26 +2096,16 @@
                 return;
             }
             if (isAdjacentFeature(props)) {
-                const isApprovalAdjacent =
-                    props.layerKey === 'adjacent_approval' || props.adjacentRootKind === 'n';
-                if (!isApprovalAdjacent) {
-                    return;
-                }
-                layer.on('click', function () {
-                    const rootId = props.RootId || '';
-                    if (
-                        window.ApprovalEvents &&
-                        typeof window.ApprovalEvents.openChangeOwnerForRootId === 'function'
-                    ) {
-                        window.ApprovalEvents.openChangeOwnerForRootId(rootId);
-                    }
-                });
+                bindAdjacentInspectorPopup(layer, feature);
                 return;
             }
             if (isReferenceLayerKey(layerKey)) {
                 return;
             }
             layer.on('click', function () {
+                if (isDrawModeActive()) {
+                    return;
+                }
                 const taskGuid = props.taskGuid || props.TaskGUID;
                 if (
                     window.ApprovalEvents &&

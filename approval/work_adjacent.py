@@ -158,8 +158,11 @@ def _adjacent_property_pairs(
     ]
     if _column_exists(cursor, schema, table_name, "Name"):
         pairs.append(f"'Name', t.{_quote_ident('Name')}::text")
+    owner_col = getattr(settings, "GIS_OBJECT_OWNER_FIELD", "OwnerLegalPersonId")
+    if _column_exists(cursor, schema, table_name, owner_col):
+        pairs.append(f"'OwnerLegalPersonId', t.{_quote_ident(owner_col)}::text")
     for field in style_fields:
-        if field in {"fid", "RootId", "Name"}:
+        if field in {"fid", "RootId", "Name", "OwnerLegalPersonId", owner_col}:
             continue
         if not _column_exists(cursor, schema, table_name, field):
             continue

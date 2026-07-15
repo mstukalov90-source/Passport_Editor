@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import uuid
+from unittest.mock import patch
 
 import pytest
-from approval.models import Approve, Case, CaseMessage
+from approval.models import ApprovalGeometry, Approve, Case, CaseMessage
 from django.urls import reverse
 from pass_viewer.models import ExternalUser
 
@@ -305,3 +306,123 @@ def test_owner_cannot_add_case_participant(client, owner_a_user, approve_bundle)
     )
     assert response.status_code == 400
     assert "инспектору" in response.json()["error"].lower()
+
+
+ADJACENT_EVENT_GEOMETRY = {
+    "type": "Point",
+    "coordinates": [37.618173936455285, 55.720464618162595],
+}
+
+
+@pytest.mark.django_db
+@patch(
+    "approval.events_service.resolve_task_owner_legal_person_id",
+    return_value="OWNER_A",
+)
+def test_inspector_creates_event_from_adjacent(mock_task_owner, client, inspector_user, approve_bundle):
+    approve, _, _ = approve_bundle
+    approve.v_root = ["20004567"]
+    approve.save(update_fields=["v_root", "updated_at"])
+    _login(client, "inspector_user")
+
+    response = client.post(
+        reverse("approval:api_create_adjacent_event", kwargs={"approve_id": approve.id}),
+        data=json.dumps(
+            {
+                "n_root": "20004567",
+                "geometry": ADJACENT_EVENT_GEOMETRY,
+                "title": "Смежный объект 20004567",
+                "owner": "OWNER_B",
+            }
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    case_id = payload["case"]["id"]
+    assert set(payload["case"]["owners"]) == {"OWNER_A", "OWNER_B"}
+    assert payload["case"]["n_root"] == "20004567"
+    assert payload["case"]["is_primary"] is False
+
+    created = Case.objects.get(pk=case_id)
+    assert created.n_root == "20004567"
+    assert set(created.owners) == {"OWNER_A", "OWNER_B"}
+    assert ApprovalGeometry.objects.filter(case=created).exists()
+    assert CaseMessage.objects.filter(case=created, body="Событие создано.").exists()
+
+    approve.refresh_from_db()
+    assert "20004567" in (approve.n_root or [])
+    assert "20004567" not in (approve.v_root or [])
+    assert "OWNER_A" in (approve.owners or [])
+    assert "OWNER_B" in (approve.owners or [])
+    mock_task_owner.assert_called()
+
+
+@pytest.mark.django_db
+@patch(
+    "approval.events_service.resolve_task_owner_legal_person_id",
+    return_value="OWNER_A",
+)
+def test_duplicate_adjacent_n_root_returns_400(mock_task_owner, client, inspector_user, approve_bundle):
+    approve, _, event = approve_bundle
+    assert event.n_root == "10001260"
+    _login(client, "inspector_user")
+
+    response = client.post(
+        reverse("approval:api_create_adjacent_event", kwargs={"approve_id": approve.id}),
+        data=json.dumps(
+            {
+                "n_root": "10001260",
+                "geometry": ADJACENT_EVENT_GEOMETRY,
+                "owner": "OWNER_B",
+            }
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert "уже существует" in response.json()["error"].lower()
+
+
+@pytest.mark.django_db
+def test_owner_cannot_create_adjacent_event(client, owner_a_user, approve_bundle):
+    approve, _, _ = approve_bundle
+    _login(client, "owner_a")
+
+    response = client.post(
+        reverse("approval:api_create_adjacent_event", kwargs={"approve_id": approve.id}),
+        data=json.dumps(
+            {
+                "n_root": "20004567",
+                "geometry": ADJACENT_EVENT_GEOMETRY,
+                "owner": "OWNER_B",
+            }
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 403
+    assert "инспектору" in response.json()["error"].lower()
+
+
+@pytest.mark.django_db
+@patch(
+    "approval.events_service.resolve_task_owner_legal_person_id",
+    return_value="OWNER_A",
+)
+def test_adjacent_event_requires_neighbor_owner(mock_task_owner, client, inspector_user, approve_bundle):
+    approve, _, _ = approve_bundle
+    _login(client, "inspector_user")
+
+    response = client.post(
+        reverse("approval:api_create_adjacent_event", kwargs={"approve_id": approve.id}),
+        data=json.dumps(
+            {
+                "n_root": "20004567",
+                "geometry": ADJACENT_EVENT_GEOMETRY,
+                "owner": "",
+            }
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert "OwnerLegalPersonId" in response.json()["error"]

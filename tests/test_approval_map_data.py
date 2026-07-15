@@ -10,7 +10,13 @@ from approval.access import get_accessible_approves, get_owner_id_for_username
 from approval.models import Approve
 from approval.views import landing
 from approval.page_config import landing_page_config
-from approval.work_layers import build_layer_groups, count_features_by_table, layer_stack_order
+from approval.work_layers import (
+    build_layer_groups,
+    count_features_by_table,
+    format_survey_page_title,
+    layer_stack_order,
+    resolve_task_survey_title,
+)
 from django.http import HttpResponse
 from django.test import RequestFactory
 from django.urls import reverse
@@ -185,10 +191,14 @@ def test_landing_with_approve_and_mock_qgis_layers():
             with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
                 with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
                     with patch("approval.views.load_svg_index", return_value={"marker.svg": "marker.svg"}):
-                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
-                            request = RequestFactory().get("/approval/")
-                            request.user = MagicMock(is_authenticated=True, username="approval_map_user")
-                            response = landing(request)
+                        with patch(
+                            "approval.views.resolve_task_survey_title",
+                            return_value="Согласование",
+                        ):
+                            with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                                request = RequestFactory().get("/approval/")
+                                request.user = MagicMock(is_authenticated=True, username="approval_map_user")
+                                response = landing(request)
 
     assert response.status_code == 200
     context = mock_render.call_args[0][2]
@@ -229,7 +239,7 @@ def test_build_topopassport_layer_groups_uses_prefixed_keys():
     assert groups[0]["layers"][0]["key"] == "topo:DtsPoly"
 
 
-def test_build_topopassport_hides_topopoint_and_topotext_by_default():
+def test_build_topopassport_hides_topopoint_by_default():
     from approval.work_layers import build_topopassport_layer_groups
 
     groups = build_topopassport_layer_groups(
@@ -238,7 +248,7 @@ def test_build_topopassport_hides_topopoint_and_topotext_by_default():
     layers = {layer["key"]: layer for layer in groups[0]["layers"]}
     assert layers["topo:topolines"]["checked"] is True
     assert layers["topo:topopoint"]["checked"] is False
-    assert layers["topo:topotext"]["checked"] is False
+    assert layers["topo:topotext"]["checked"] is True
 
 
 def test_build_map_layer_load_order():
@@ -350,3 +360,105 @@ def test_list_topopassport_tables_looks_for_guid_column(mock_connections):
     params = cursor.execute.call_args[0][1]
     assert params[0] == "topopassport"
     assert params[1] == "guid"
+
+
+def test_format_survey_page_title_full_and_fallback():
+    assert (
+        format_survey_page_title("Павла Андреева ул. 28", "46998")
+        == "Согласование Павла Андреева ул. 28 по заявке 46998."
+    )
+    assert format_survey_page_title("", "46998") == "Согласование"
+    assert format_survey_page_title("Street", "") == "Согласование"
+    assert format_survey_page_title(None, None) == "Согласование"
+    assert format_survey_page_title("  ", "  ") == "Согласование"
+
+
+@patch("approval.work_layers.connections")
+def test_resolve_task_survey_title_uses_first_matching_table(mock_connections):
+    cursor = MagicMock()
+    mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+
+    # column_exists checks (3 per table until hit) then SELECT
+    exists_then_row = [
+        (1,),  # YardPoly TaskGUID
+        (1,),  # YardPoly Name
+        (1,),  # YardPoly PassBrId
+        ("Шаболовка ул. 23", "24976"),
+    ]
+    cursor.fetchone.side_effect = exists_then_row
+
+    title = resolve_task_survey_title("23f956bf-f000-4668-91f2-45274c453122")
+
+    assert title == "Согласование Шаболовка ул. 23 по заявке 24976."
+    select_calls = [
+        call_args
+        for call_args in cursor.execute.call_args_list
+        if "SELECT t." in call_args[0][0]
+    ]
+    assert len(select_calls) == 1
+    assert '"YardPoly"' in select_calls[0][0][0]
+    assert select_calls[0][0][1] == ["23f956bf-f000-4668-91f2-45274c453122"]
+
+
+@patch("approval.work_layers.connections")
+def test_resolve_task_survey_title_falls_back_when_empty(mock_connections):
+    cursor = MagicMock()
+    mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+    # All three tables: TaskGUID / Name / PassBrId exist, SELECT returns None
+    cursor.fetchone.side_effect = [
+        (1,),
+        (1,),
+        (1,),
+        None,  # YardPoly row
+        (1,),
+        (1,),
+        (1,),
+        None,  # OznPoly row
+        (1,),
+        (1,),
+        (1,),
+        None,  # OdhPoly row
+    ]
+
+    assert resolve_task_survey_title("00000000-0000-0000-0000-000000000001") == "Согласование"
+    assert resolve_task_survey_title("") == "Согласование"
+
+
+@pytest.mark.django_db
+def test_landing_passes_resolved_page_title():
+    owner_id = "10233594"
+    incoming_guid = uuid.UUID("956c45bb-dc44-46a7-9944-9d1996fec147")
+    ExternalUser.objects.create(login="title_user", password="pass", owner_legal_person_id=owner_id)
+    approve = Approve.objects.create(incoming_guid=incoming_guid, owners=[owner_id])
+    primary = approve.cases.get(is_primary=True)
+    primary.owners = [owner_id]
+    primary.save(update_fields=["owners", "updated_at"])
+
+    expected = "Согласование Павла Андреева ул. 28 к.6, 28 к.7 по заявке 46998."
+
+    with patch("approval.views.count_features_by_table", return_value={}):
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
+            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+                with patch("approval.views.collect_adjacent_roots", return_value=([], [])):
+                    with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
+                        with patch("approval.views.load_svg_index", return_value={}):
+                            with patch(
+                                "approval.views.resolve_task_survey_title",
+                                return_value=expected,
+                            ) as mock_title:
+                                with patch(
+                                    "approval.views.render",
+                                    return_value=HttpResponse("ok"),
+                                ) as mock_render:
+                                    request = RequestFactory().get(
+                                        f"/approval/?approve={approve.id}"
+                                    )
+                                    request.user = MagicMock(
+                                        is_authenticated=True, username="title_user"
+                                    )
+                                    response = landing(request)
+
+    assert response.status_code == 200
+    mock_title.assert_called_once_with(incoming_guid)
+    context = mock_render.call_args[0][2]
+    assert context["page_title"] == expected

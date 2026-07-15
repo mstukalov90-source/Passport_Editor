@@ -19,6 +19,7 @@ from .work_layers import (
     build_topopassport_layer_groups,
     count_features_by_table,
     count_topopassport_features_by_table,
+    resolve_task_survey_title,
 )
 
 import json
@@ -99,6 +100,10 @@ def landing(request):
     # GeoJSON loads progressively via api_map_layer.
     map_geojson = {"type": "FeatureCollection", "features": []}
 
+    page_title = "Согласование"
+    if selected_approve is not None:
+        page_title = resolve_task_survey_title(selected_approve.incoming_guid)
+
     return render(
         request,
         "approval/landing.html",
@@ -123,6 +128,7 @@ def landing(request):
             "svg_index": load_svg_index(),
             "map_message": map_message,
             "map_error": map_error,
+            "page_title": page_title,
         },
     )
 

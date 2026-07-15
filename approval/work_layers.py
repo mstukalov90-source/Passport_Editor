@@ -13,7 +13,7 @@ from .work_layer_labels import work_layer_label
 logger = logging.getLogger(__name__)
 
 _SCHEMA_TABLES_CACHE: dict[str, list[str]] = {}
-_DEFAULT_HIDDEN_LAYERS = frozenset({"task", "YardPoly", "topopoint", "topotext"})
+_DEFAULT_HIDDEN_LAYERS = frozenset({"task", "YardPoly", "topopoint"})
 _GEOMETRY_TIER = {"point": 0, "line": 1, "polygon": 2}
 _BOTTOM_POLYGON_TABLES = frozenset({"OdhPoly", "OznPoly", "YardPoly"})
 TOPO_LAYER_KEY_PREFIX = "topo:"
@@ -75,6 +75,10 @@ def style_table_name_for_layer_key(layer_key: str) -> str:
 
 
 _OWNER_LOOKUP_PRIORITY_TABLES = ("YardPoly", "OznPoly", "OdhPoly")
+_SURVEY_TITLE_TABLES = ("YardPoly", "OznPoly", "OdhPoly")
+_DEFAULT_SURVEY_TITLE = "Согласование"
+_SURVEY_NAME_COLUMN = "Name"
+_SURVEY_BRID_COLUMN = "PassBrId"
 
 
 def _column_exists(cursor, schema: str, table_name: str, column_name: str) -> bool:
@@ -145,6 +149,63 @@ def resolve_task_owner_legal_person_id(task_guid: str) -> str:
     raise ValueError(
         f"Не найден OwnerLegalPersonId для TaskGUID {task_guid_text} в mggt_asu (схема {schema})."
     )
+
+
+def format_survey_page_title(name: str | None, brid: str | None) -> str:
+    """Build approval page title from work-layer Name and PassBrId."""
+    name_text = str(name or "").strip()
+    brid_text = str(brid or "").strip()
+    if name_text and brid_text:
+        return f"{_DEFAULT_SURVEY_TITLE} {name_text} по заявке {brid_text}."
+    return _DEFAULT_SURVEY_TITLE
+
+
+def resolve_task_survey_title(task_guid: str) -> str:
+    """
+    Return landing page title from work YardPoly → OznPoly → OdhPoly for TaskGUID.
+
+    Uses the first table that has a matching row with both Name and PassBrId.
+    Falls back to «Согласование» when nothing is found or the query fails.
+    """
+    task_guid_text = str(task_guid or "").strip()
+    if not task_guid_text:
+        return _DEFAULT_SURVEY_TITLE
+
+    schema = work_schema_name()
+    task_col = work_taskguid_column()
+    name_col = _SURVEY_NAME_COLUMN
+    brid_col = _SURVEY_BRID_COLUMN
+
+    try:
+        with connections["qgis"].cursor() as cursor:
+            for table in _SURVEY_TITLE_TABLES:
+                if not _column_exists(cursor, schema, table, task_col):
+                    continue
+                if not _column_exists(cursor, schema, table, name_col):
+                    continue
+                if not _column_exists(cursor, schema, table, brid_col):
+                    continue
+                cursor.execute(
+                    f"""
+                    SELECT t.{_quote_ident(name_col)}::text,
+                           t.{_quote_ident(brid_col)}::text
+                    FROM {_quote_ident(schema)}.{_quote_ident(table)} t
+                    WHERE t.{_quote_ident(task_col)} = %s::uuid
+                    LIMIT 1
+                    """,
+                    [task_guid_text],
+                )
+                row = cursor.fetchone()
+                if not row:
+                    continue
+                title = format_survey_page_title(row[0], row[1])
+                if title != _DEFAULT_SURVEY_TITLE:
+                    return title
+    except Exception:
+        logger.exception("resolve_task_survey_title: qgis query failed")
+        return _DEFAULT_SURVEY_TITLE
+
+    return _DEFAULT_SURVEY_TITLE
 
 
 def list_schema_layer_tables(schema: str, *, force_refresh: bool = False) -> list[str]:

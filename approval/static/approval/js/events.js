@@ -11,7 +11,12 @@
         approveConfirmMode: null,
         replyToMessageId: null,
         replyToAuthor: '',
+        chatPollTimer: null,
+        chatPollInFlight: false,
+        chatPollFingerprint: '',
     };
+
+    const CHAT_POLL_INTERVAL_MS = 2500;
 
     const REACTION_LABELS = {
         in_progress: 'В работе',
@@ -383,8 +388,13 @@
         return [];
     }
 
+    function messageHasReplyTarget(message) {
+        const hasAttachments = !!(message.attachments && message.attachments.length);
+        return hasAttachments || messageGeometries(message).length > 0;
+    }
+
     function renderReplyButton(message, caseClosed) {
-        if (caseClosed) {
+        if (caseClosed || !messageHasReplyTarget(message)) {
             return '';
         }
         return (
@@ -551,7 +561,8 @@
         });
     }
 
-    function renderChatMessages(messages) {
+    function renderChatMessages(messages, options) {
+        const opts = options || {};
         const thread = el('approval-chat-thread');
         if (!thread) {
             return;
@@ -591,7 +602,9 @@
         bindMessageReactionClicks();
         bindMessageReplyClicks();
         bindAttachmentClicks();
-        thread.scrollTop = thread.scrollHeight;
+        if (opts.autoScroll !== false) {
+            thread.scrollTop = thread.scrollHeight;
+        }
     }
 
     function formatParticipants(caseItem) {
@@ -734,6 +747,8 @@
 
     function renderActiveCase(caseItem, options) {
         if (!caseItem) {
+            stopChatPolling();
+            state.chatPollFingerprint = '';
             el('approval-active-title').textContent = '';
             const subtitle = el('approval-active-subtitle');
             if (subtitle) {
@@ -927,6 +942,153 @@
         });
     }
 
+    function caseChatFingerprint(caseItem) {
+        if (!caseItem) {
+            return '';
+        }
+        const messages = caseItem.messages || [];
+        const messagesPart = messages
+            .map(function (message) {
+                const attachmentsCount =
+                    message.attachments && message.attachments.length ? message.attachments.length : 0;
+                const geometriesCount = messageGeometries(message).length;
+                const reactionsPart = (message.reactions || [])
+                    .map(function (reaction) {
+                        return (reaction.kind || '') + ':' + (reaction.author || '');
+                    })
+                    .join(',');
+                return [
+                    message.id,
+                    message.my_reaction || '',
+                    attachmentsCount,
+                    geometriesCount,
+                    message.parent_id || '',
+                    reactionsPart,
+                ].join('|');
+            })
+            .join(';');
+        return [
+            caseItem.id,
+            caseItem.approved ? '1' : '0',
+            caseItem.status || '',
+            caseItem.approvals_done || 0,
+            caseItem.approvals_total || 0,
+            caseItem.messages_count || messages.length,
+            caseItem.preview || '',
+            messagesPart,
+        ].join('#');
+    }
+
+    function isChatThreadNearBottom(thread) {
+        if (!thread) {
+            return true;
+        }
+        return thread.scrollHeight - thread.scrollTop - thread.clientHeight < 48;
+    }
+
+    function stopChatPolling() {
+        if (state.chatPollTimer) {
+            clearInterval(state.chatPollTimer);
+            state.chatPollTimer = null;
+        }
+    }
+
+    function startChatPolling() {
+        stopChatPolling();
+        if (!state.activeCaseId) {
+            return;
+        }
+        state.chatPollTimer = setInterval(function () {
+            softRefreshActiveCase().catch(function () {
+                /* ignore transient poll errors */
+            });
+        }, CHAT_POLL_INTERVAL_MS);
+    }
+
+    function applySoftCaseDetail(caseItem) {
+        const index = state.cases.findIndex(function (item) {
+            return item.id === caseItem.id;
+        });
+        if (index >= 0) {
+            const prev = state.cases[index];
+            state.cases[index] = Object.assign({}, prev, caseItem, {
+                geometry: caseItem.geometry != null ? caseItem.geometry : prev && prev.geometry,
+            });
+        } else {
+            state.cases.push(caseItem);
+        }
+
+        const preservedGeomId = state.activeMessageGeometryId;
+        const thread = el('approval-chat-thread');
+        const nearBottom = isChatThreadNearBottom(thread);
+        const prevScrollTop = thread ? thread.scrollTop : 0;
+
+        el('approval-active-title').textContent = caseItem.title;
+        const subtitleEl = el('approval-active-subtitle');
+        if (subtitleEl) {
+            if (caseItem.n_root) {
+                subtitleEl.hidden = false;
+                subtitleEl.textContent = 'Паспорт ' + caseItem.n_root;
+            } else if (caseItem.is_primary) {
+                subtitleEl.hidden = false;
+                subtitleEl.textContent = 'Основной чат по объекту съёмки';
+            } else {
+                subtitleEl.hidden = true;
+                subtitleEl.textContent = '';
+            }
+        }
+        renderParticipants(caseItem);
+        const statusEl = el('approval-active-status');
+        if (statusEl) {
+            statusEl.textContent = caseItem.status;
+            statusEl.className =
+                'approval-events__status approval-events__status--' + (caseItem.status_class || 'active');
+        }
+        updateComposerState(caseItem);
+
+        state.activeMessageGeometryId = preservedGeomId;
+        renderChatMessages(caseItem.messages || [], { autoScroll: nearBottom });
+        if (!nearBottom && thread) {
+            thread.scrollTop = prevScrollTop;
+        }
+
+        if (mapApi().highlightCase) {
+            mapApi().highlightCase(caseItem.id);
+        }
+        if (mapApi().updateAdjacentLayers) {
+            mapApi().updateAdjacentLayers(caseItem.is_primary ? '' : caseItem.n_root || '');
+        }
+        if (mapApi().renderGeometries) {
+            mapApi().renderGeometries(caseItem);
+        }
+
+        renderEventNav(splitCases(state.cases));
+    }
+
+    async function softRefreshActiveCase() {
+        if (!state.activeCaseId || document.hidden || state.chatPollInFlight || !state.config) {
+            return;
+        }
+        state.chatPollInFlight = true;
+        try {
+            const data = await fetchJson(
+                mapApi().apiUrl(state.config.apiUrls.caseDetail, { caseId: state.activeCaseId })
+            );
+            const caseItem = data.case;
+            if (!caseItem || String(caseItem.id) !== String(state.activeCaseId)) {
+                return;
+            }
+            const fingerprint = caseChatFingerprint(caseItem);
+            if (fingerprint === state.chatPollFingerprint) {
+                return;
+            }
+            state.chatPollFingerprint = fingerprint;
+            applySoftCaseDetail(caseItem);
+        } finally {
+            state.chatPollInFlight = false;
+        }
+    }
+
     async function openCase(caseId, options) {
         const data = await fetchJson(mapApi().apiUrl(state.config.apiUrls.caseDetail, { caseId: caseId }));
         const caseItem = data.case;
@@ -941,6 +1103,8 @@
         }
         renderActiveCase(caseItem, options);
         renderChatMessages(caseItem.messages || []);
+        state.chatPollFingerprint = caseChatFingerprint(caseItem);
+        startChatPolling();
         const split = splitCases(state.cases);
         renderEventNav(split);
     }
@@ -1199,6 +1363,9 @@
     }
 
     function openChangeOwnerForRootId(rootId) {
+        if (drawApi().isDrawMode && drawApi().isDrawMode()) {
+            return;
+        }
         const rootText = String(rootId || '').trim();
         if (!rootText) {
             return;
@@ -1214,6 +1381,64 @@
             return;
         }
         openChangeOwnerDialog({ caseId: match.id });
+    }
+
+    async function openCreateEventFromAdjacent(opts) {
+        if (drawApi().isDrawMode && drawApi().isDrawMode()) {
+            return;
+        }
+        const options = opts || {};
+        const rootId = String(options.rootId || '').trim();
+        const ownerId = String(options.ownerId || '').trim();
+        const name = String(options.name || '').trim();
+        const geometry = options.geometry || null;
+        if (!currentUserIsInspectorForSelected()) {
+            window.alert('Создавать события может только инспектор.');
+            return;
+        }
+        if (!state.selectedApproveId) {
+            window.alert('Выберите согласование.');
+            return;
+        }
+        if (!rootId) {
+            window.alert('У объекта нет RootId.');
+            return;
+        }
+        if (!ownerId) {
+            window.alert('У смежного объекта нет OwnerLegalPersonId.');
+            return;
+        }
+        if (!geometry) {
+            window.alert('У объекта нет геометрии.');
+            return;
+        }
+        const titleHint = name || ('Паспорт ' + rootId);
+        const confirmed = window.confirm(
+            'Создать событие для смежного объекта?\n\n' + titleHint + '\nRootId: ' + rootId
+        );
+        if (!confirmed) {
+            return;
+        }
+        try {
+            await fetchJson(
+                mapApi().apiUrl(state.config.apiUrls.createAdjacentEvent, {
+                    approveId: state.selectedApproveId,
+                }),
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        n_root: rootId,
+                        geometry: geometry,
+                        title: name || undefined,
+                        owner: ownerId,
+                    }),
+                }
+            );
+            await loadBootstrap();
+        } catch (error) {
+            window.alert((error && error.message) || 'Не удалось создать событие.');
+        }
     }
 
     async function submitChangeOwner() {
@@ -1459,6 +1684,20 @@
                 startGeometryDrawMode();
             });
         }
+
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) {
+                stopChatPolling();
+                return;
+            }
+            if (!state.activeCaseId) {
+                return;
+            }
+            softRefreshActiveCase().catch(function () {
+                /* ignore transient poll errors */
+            });
+            startChatPolling();
+        });
     }
 
     function showError(error) {
@@ -1468,6 +1707,7 @@
     window.ApprovalEvents = {
         openChangeOwnerForTaskGuid: openChangeOwnerForTaskGuid,
         openChangeOwnerForRootId: openChangeOwnerForRootId,
+        openCreateEventFromAdjacent: openCreateEventFromAdjacent,
         openAddParticipantDialog: openAddParticipantDialog,
         openChangeOwnerDialog: openChangeOwnerDialog,
     };

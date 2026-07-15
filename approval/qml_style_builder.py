@@ -521,6 +521,19 @@ def _parse_symbol(symbol_el: ET.Element, qml_dir: Path) -> dict[str, Any]:
         # SimpleMarker halo after SvgMarker must not clobber SVG size unit.
         if "iconSizeUnit" in merged:
             merged["sizeUnit"] = merged["iconSizeUnit"]
+    # QGIS marker symbols for labeling layers often use alpha=0 (invisible anchors).
+    try:
+        alpha = float(symbol_el.get("alpha") or "1")
+    except (TypeError, ValueError):
+        alpha = 1.0
+    alpha = max(0.0, min(1.0, alpha))
+    if alpha < 1.0:
+        merged["opacity"] = alpha
+        if "fillOpacity" in merged:
+            try:
+                merged["fillOpacity"] = float(merged["fillOpacity"]) * alpha
+            except (TypeError, ValueError):
+                merged["fillOpacity"] = alpha
     return merged
 
 
@@ -530,6 +543,76 @@ def _is_vertex_rule(rule_el: ET.Element) -> bool:
         return True
     filt = rule_el.get("filter") or ""
     return "fid" in filt.lower() and "is not null" in filt.lower()
+
+
+def _option_map_children(option_el: ET.Element) -> dict[str, ET.Element]:
+    out: dict[str, ET.Element] = {}
+    for child in option_el.findall("Option"):
+        name = child.get("name")
+        if name:
+            out[name] = child
+    return out
+
+
+def parse_labeling(root: ET.Element) -> dict[str, Any] | None:
+    """Extract QGIS simple labeling (field + style) for Leaflet text markers."""
+    labeling_el = root.find("labeling")
+    if labeling_el is None:
+        return None
+    text_style = labeling_el.find(".//text-style")
+    if text_style is None:
+        return None
+    field = (text_style.get("fieldName") or "").strip()
+    if not field:
+        return None
+
+    try:
+        font_size = float(text_style.get("fontSize") or "12")
+    except (TypeError, ValueError):
+        font_size = 12.0
+    font_size_unit = (text_style.get("fontSizeUnit") or "Point").strip() or "Point"
+    color_info = parse_qgis_color(text_style.get("textColor"))
+    color = color_info["color"] if color_info else "#000000"
+
+    labeling: dict[str, Any] = {
+        "field": field,
+        "fontSize": font_size,
+        "fontSizeUnit": font_size_unit,
+        "color": color,
+    }
+
+    # Prefer data-defined TextOrientation/LabelRotation → field "angle", mode 360-angle.
+    rotation_field: str | None = None
+    rotation_mode = "direct"
+    for named in labeling_el.findall(".//Option[@name]"):
+        name = named.get("name")
+        if name not in {"LabelRotation", "TextOrientation"}:
+            continue
+        children = _option_map_children(named)
+        active_el = children.get("active")
+        if active_el is not None and (active_el.get("value") or "").lower() not in {
+            "true",
+            "1",
+        }:
+            continue
+        field_el = children.get("field")
+        expr_el = children.get("expression")
+        if field_el is not None and (field_el.get("value") or "").strip():
+            rotation_field = field_el.get("value", "").strip()
+        elif expr_el is not None:
+            expr = (expr_el.get("value") or "").strip().lower().replace(" ", "")
+            if "angle" in expr:
+                rotation_field = "angle"
+                if "360" in expr and "-" in expr:
+                    rotation_mode = "complement"
+        if rotation_field:
+            break
+
+    if rotation_field:
+        labeling["rotationField"] = rotation_field
+        labeling["rotationMode"] = rotation_mode
+
+    return labeling
 
 
 def resolve_qml_path(table_name: str, qml_dir: Path | None = None) -> Path | None:
@@ -555,10 +638,24 @@ def parse_qml_file(path: Path) -> dict[str, Any]:
     qml_dir = path.parent
     geom_code = root.findtext("layerGeometryType")
     geometry = GEOMETRY_TYPES.get((geom_code or "").strip(), "polygon")
+    labeling = parse_labeling(root)
 
     renderer = root.find("renderer-v2")
     if renderer is None:
-        return {"geometry": geometry, "rules": [], "fields": []}
+        fields: set[str] = set()
+        result: dict[str, Any] = {
+            "geometry": geometry,
+            "rules": [],
+            "fields": [],
+            "qmlFile": path.name,
+        }
+        if labeling:
+            result["labeling"] = labeling
+            fields.add(labeling["field"])
+            if labeling.get("rotationField"):
+                fields.add(labeling["rotationField"])
+            result["fields"] = sorted(fields)
+        return result
 
     symbols: dict[str, dict[str, Any]] = {}
     symbols_parent = renderer.find("symbols")
@@ -570,7 +667,7 @@ def parse_qml_file(path: Path) -> dict[str, Any]:
             symbols[symbol_id] = _parse_symbol(symbol_el, qml_dir)
 
     rules: list[dict[str, Any]] = []
-    fields: set[str] = set()
+    fields = set()
     default_rule_index: int | None = None
 
     rules_parent = renderer.find("rules")
@@ -623,13 +720,21 @@ def parse_qml_file(path: Path) -> dict[str, Any]:
         if style.get("svgField"):
             fields.add(style["svgField"])
 
-    return {
+    if labeling:
+        fields.add(labeling["field"])
+        if labeling.get("rotationField"):
+            fields.add(labeling["rotationField"])
+
+    result = {
         "geometry": geometry,
         "rules": rules,
         "fields": sorted(fields),
         "defaultRule": default_rule_index,
         "qmlFile": path.name,
     }
+    if labeling:
+        result["labeling"] = labeling
+    return result
 
 
 def collect_table_names() -> list[str]:

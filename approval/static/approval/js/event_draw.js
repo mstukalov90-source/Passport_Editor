@@ -250,5 +250,8 @@
         stopDrawMode: stopDrawMode,
         startCreateMode: startDrawMode,
         stopCreateMode: stopDrawMode,
+        isDrawMode: function () {
+            return drawMode;
+        },
     };
 })();

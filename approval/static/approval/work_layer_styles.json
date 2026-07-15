@@ -133,9 +133,17 @@
           }
         }
       ],
-      "fields": [],
+      "fields": [
+        "'Ось ' + \"AxisName\""
+      ],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_AxialLines.qml",
+      "labeling": {
+        "field": "'Ось ' + \"AxisName\"",
+        "fontSize": 1.0,
+        "fontSizeUnit": "MapUnit",
+        "color": "#ba0000"
+      },
       "label": "Осевые линии ОДХ"
     },
     "BasePoly": {
@@ -146,9 +154,9 @@
           "style": {
             "kind": "polygon",
             "fillColor": "#e8718d",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.0,
             "color": "#232323",
-            "opacity": 1.0,
+            "opacity": 0.0,
             "weight": 0.98,
             "fillPattern": "no"
           },
@@ -1063,10 +1071,17 @@
         }
       ],
       "fields": [
+        "'ГРУНТ'",
         "FlatElementType"
       ],
       "defaultRule": 18,
       "qmlFile": "WorkLayers_CarriagewayPoly.qml",
+      "labeling": {
+        "field": "'ГРУНТ'",
+        "fontSize": 2.0,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "Проезжие части"
     },
     "CarriagewayPolyAxis": {
@@ -1509,10 +1524,17 @@
         }
       ],
       "fields": [
+        "'ТВ.'",
         "DtsType"
       ],
       "defaultRule": 11,
       "qmlFile": "WorkLayers_DtsPoly.qml",
+      "labeling": {
+        "field": "'ТВ.'",
+        "fontSize": 2.0,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "Дорожно-тропиночная сеть"
     },
     "EngineerBuildingPoint": {
@@ -2845,9 +2867,17 @@
           }
         }
       ],
-      "fields": [],
+      "fields": [
+        "GreenNum"
+      ],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_FlowersGardenPoly.qml",
+      "labeling": {
+        "field": "GreenNum",
+        "fontSize": 1.4,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "Цветники"
     },
     "FunctionalityLine": {
@@ -3135,9 +3165,9 @@
           "style": {
             "kind": "polygon",
             "fillColor": "#898989",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.5,
             "color": "#232323",
-            "opacity": 1.0,
+            "opacity": 0.5,
             "weight": 0.98
           },
           "filter": {
@@ -3151,9 +3181,9 @@
           "style": {
             "kind": "polygon",
             "fillColor": "#ffffc4",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.5,
             "color": "#232323",
-            "opacity": 1.0,
+            "opacity": 0.5,
             "weight": 0.98
           },
           "filter": {
@@ -3167,9 +3197,9 @@
           "style": {
             "kind": "polygon",
             "fillColor": "#5b5b5b",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.5,
             "color": "#232323",
-            "opacity": 1.0,
+            "opacity": 0.5,
             "weight": 0.98
           },
           "filter": {
@@ -3183,9 +3213,9 @@
           "style": {
             "kind": "polygon",
             "fillColor": "#e41a1c",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.5,
             "color": "#800e10",
-            "opacity": 1.0,
+            "opacity": 0.5,
             "weight": 0.98
           },
           "filter": {
@@ -3228,11 +3258,12 @@
           "style": {
             "kind": "point",
             "fillColor": "#e77148",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.3,
             "color": "#232323",
             "radius": 7.56,
             "sizeUnit": "MM",
-            "markerShape": "circle"
+            "markerShape": "circle",
+            "opacity": 0.3
           }
         }
       ],
@@ -3374,11 +3405,18 @@
         }
       ],
       "fields": [
+        "CASE\n  WHEN \"SectionNum\" < 100 THEN ' ' || \"SectionNum\" || ' '\n  ELSE \"SectionNum\"\nEND",
         "LawnType",
         "SectionNum"
       ],
       "defaultRule": 7,
       "qmlFile": "WorkLayers_LawnPoly.qml",
+      "labeling": {
+        "field": "CASE\n  WHEN \"SectionNum\" < 100 THEN ' ' || \"SectionNum\" || ' '\n  ELSE \"SectionNum\"\nEND",
+        "fontSize": 1.0,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "Газоны"
     },
     "LittleFormLine": {
@@ -3688,12 +3726,19 @@
         }
       ],
       "fields": [
+        "'К'",
         "MafTypeLevel1",
         "MafTypeLevel2",
         "MafTypeLevel3"
       ],
       "defaultRule": 18,
       "qmlFile": "WorkLayers_LittleFormLine.qml",
+      "labeling": {
+        "field": "'К'",
+        "fontSize": 0.8,
+        "fontSizeUnit": "MapUnit",
+        "color": "#0000ff"
+      },
       "label": "Малые архитектурные формы и элементы благоустройства (Линия)"
     },
     "LittleFormPoint": {
@@ -4577,11 +4622,12 @@
           "style": {
             "kind": "point",
             "fillColor": "#a47158",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.3,
             "color": "#232323",
             "radius": 7.56,
             "sizeUnit": "MM",
-            "markerShape": "circle"
+            "markerShape": "circle",
+            "opacity": 0.3
           }
         }
       ],
@@ -5091,10 +5137,17 @@
         }
       ],
       "fields": [
+        "'ГРУНТ'",
         "FlatElementType"
       ],
       "defaultRule": 13,
       "qmlFile": "WorkLayers_OtherFlatBuildingPoly.qml",
+      "labeling": {
+        "field": "'ГРУНТ'",
+        "fontSize": 2.0,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "Прочие территории"
     },
     "OtherFlatBuildingPolyAxis": {
@@ -5237,9 +5290,17 @@
           }
         }
       ],
-      "fields": [],
+      "fields": [
+        "PhotoName"
+      ],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_PhotoFixLine.qml",
+      "labeling": {
+        "field": "PhotoName",
+        "fontSize": 1.0,
+        "fontSizeUnit": "MapUnit",
+        "color": "#6b490e"
+      },
       "label": "Линии фотофиксации"
     },
     "PhotoFixPoint": {
@@ -5265,10 +5326,17 @@
         }
       ],
       "fields": [
+        "PhotoName",
         "Svg"
       ],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_PhotoFixPoint.qml",
+      "labeling": {
+        "field": "PhotoName",
+        "fontSize": 0.8,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "Точки фотофиксации"
     },
     "PlanarStructure": {
@@ -5642,10 +5710,17 @@
         }
       ],
       "fields": [
+        "'ТВ.'",
         "PlanarStructureType"
       ],
       "defaultRule": 22,
       "qmlFile": "WorkLayers_PlanarStructure.qml",
+      "labeling": {
+        "field": "'ТВ.'",
+        "fontSize": 2.0,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "PlanarStructure"
     },
     "PlanarStructurePoly": {
@@ -6019,10 +6094,17 @@
         }
       ],
       "fields": [
+        "'ТВ.'",
         "PlanarStructureType"
       ],
       "defaultRule": 22,
       "qmlFile": "WorkLayers_PlanarStructure.qml",
+      "labeling": {
+        "field": "'ТВ.'",
+        "fontSize": 2.0,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "Плоскостные сооружения"
     },
     "PpiLine": {
@@ -6099,10 +6181,17 @@
         }
       ],
       "fields": [
+        "'ПБ'",
         "ArrangeElementType"
       ],
       "defaultRule": 4,
       "qmlFile": "WorkLayers_PpiLine.qml",
+      "labeling": {
+        "field": "'ПБ'",
+        "fontSize": 0.8,
+        "fontSizeUnit": "MapUnit",
+        "color": "#000000"
+      },
       "label": "Элементы благоустройства для маломобильных групп населения (Линия)"
     },
     "PpiPoint": {
@@ -6181,11 +6270,12 @@
           "style": {
             "kind": "point",
             "fillColor": "#ff0004",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.97,
             "color": "#232323",
             "radius": 7.56,
             "sizeUnit": "MM",
-            "markerShape": "circle"
+            "markerShape": "circle",
+            "opacity": 0.97
           },
           "filter": {
             "type": "else"
@@ -6193,10 +6283,17 @@
         }
       ],
       "fields": [
+        "'Пандус'",
         "ArrangeElementType"
       ],
       "defaultRule": 4,
       "qmlFile": "WorkLayers_PpiPoint.qml",
+      "labeling": {
+        "field": "'Пандус'",
+        "fontSize": 0.7,
+        "fontSizeUnit": "MapUnit",
+        "color": "#000000"
+      },
       "label": "Элементы благоустройства для маломобильных групп населения (Точка)"
     },
     "PpiPoly": {
@@ -6487,11 +6584,12 @@
           "style": {
             "kind": "point",
             "fillColor": "#ff0004",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.97,
             "color": "#232323",
             "radius": 7.56,
             "sizeUnit": "MM",
-            "markerShape": "circle"
+            "markerShape": "circle",
+            "opacity": 0.97
           },
           "filter": {
             "type": "else"
@@ -6859,10 +6957,17 @@
         }
       ],
       "fields": [
+        "'ГРУНТ'",
         "FlatElementType"
       ],
       "defaultRule": 12,
       "qmlFile": "WorkLayers_SidewalksPoly.qml",
+      "labeling": {
+        "field": "'ГРУНТ'",
+        "fontSize": 2.0,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "Тротуары"
     },
     "SidewalksPolyAxis": {
@@ -6888,9 +6993,9 @@
           "style": {
             "kind": "polygon",
             "fillColor": "#ff9e17",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.3,
             "color": "#232323",
-            "opacity": 1.0,
+            "opacity": 0.3,
             "weight": 0.98
           }
         }
@@ -7115,11 +7220,12 @@
           "style": {
             "kind": "point",
             "fillColor": "#e77148",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.3,
             "color": "#232323",
             "radius": 7.56,
             "sizeUnit": "MM",
-            "markerShape": "circle"
+            "markerShape": "circle",
+            "opacity": 0.3
           }
         }
       ],
@@ -7327,10 +7433,17 @@
         }
       ],
       "fields": [
+        "CASE\nWHEN \"PlantationType\" = 'hedge' THEN 'ЖИ ' || \"GreenNum\"\nWHEN \"LifeFormType\" = 'tree' THEN 'ГД ' || \"GreenNum\"\nWHEN \"LifeFormType\" = 'bush' THEN 'ГК ' || \"GreenNum\"\nELSE \"GreenNum\"\nEND",
         "LifeFormType"
       ],
       "defaultRule": 2,
       "qmlFile": "WorkLayers_TreesShrubsLine.qml",
+      "labeling": {
+        "field": "CASE\nWHEN \"PlantationType\" = 'hedge' THEN 'ЖИ ' || \"GreenNum\"\nWHEN \"LifeFormType\" = 'tree' THEN 'ГД ' || \"GreenNum\"\nWHEN \"LifeFormType\" = 'bush' THEN 'ГК ' || \"GreenNum\"\nELSE \"GreenNum\"\nEND",
+        "fontSize": 1.4,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "Деревья и кустарники (Линия)"
     },
     "TreesShrubsPoint": {
@@ -7391,11 +7504,18 @@
         }
       ],
       "fields": [
+        "GreenNum",
         "LifeFormType",
         "Svg"
       ],
       "defaultRule": 2,
       "qmlFile": "WorkLayers_TreesShrubsPoint.qml",
+      "labeling": {
+        "field": "GreenNum",
+        "fontSize": 1.4,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "Деревья и кустарники (Точка)"
     },
     "TreesShrubsPoly": {
@@ -7414,9 +7534,17 @@
           }
         }
       ],
-      "fields": [],
+      "fields": [
+        "CASE\nWHEN \"PlantationType\" = 'hedge' THEN 'ЖИ ' || \"GreenNum\"\nWHEN \"LifeFormType\" = 'tree' THEN 'ГД ' || \"GreenNum\"\nWHEN \"LifeFormType\" = 'bush' THEN 'ГК ' || \"GreenNum\"\nELSE \"GreenNum\"\nEND"
+      ],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_TreesShrubsPoly.qml",
+      "labeling": {
+        "field": "CASE\nWHEN \"PlantationType\" = 'hedge' THEN 'ЖИ ' || \"GreenNum\"\nWHEN \"LifeFormType\" = 'tree' THEN 'ГД ' || \"GreenNum\"\nWHEN \"LifeFormType\" = 'bush' THEN 'ГК ' || \"GreenNum\"\nELSE \"GreenNum\"\nEND",
+        "fontSize": 1.4,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "Деревья и кустарники (Полигон)"
     },
     "TrolleybusContactNetworkLine": {
@@ -7681,9 +7809,9 @@
           "style": {
             "kind": "polygon",
             "fillColor": "#1f78b4",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.5,
             "color": "#232323",
-            "opacity": 1.0,
+            "opacity": 0.5,
             "weight": 0.98
           }
         }
@@ -7719,9 +7847,9 @@
           "style": {
             "kind": "polygon",
             "fillColor": "#1f78b4",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.5,
             "color": "#232323",
-            "opacity": 1.0,
+            "opacity": 0.5,
             "weight": 0.98
           }
         }
@@ -9215,6 +9343,12 @@
       ],
       "defaultRule": 11,
       "qmlFile": "TopographyLayers_inserts.qml",
+      "labeling": {
+        "field": "name",
+        "fontSize": 0.5,
+        "fontSizeUnit": "MapUnit",
+        "color": "#323232"
+      },
       "label": "Точки топоосновы"
     },
     "topotext": {
@@ -9225,11 +9359,12 @@
           "style": {
             "kind": "point",
             "fillColor": "#ffffff",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.0,
             "color": "#ffffff",
             "radius": 0.12,
             "sizeUnit": "MapUnit",
-            "markerShape": "circle"
+            "markerShape": "circle",
+            "opacity": 0.0
           },
           "filter": {
             "type": "and",
@@ -9251,11 +9386,12 @@
           "style": {
             "kind": "point",
             "fillColor": "#ffffff",
-            "fillOpacity": 1.0,
+            "fillOpacity": 0.0,
             "color": "#ffffff",
             "radius": 0.12,
             "sizeUnit": "MapUnit",
-            "markerShape": "circle"
+            "markerShape": "circle",
+            "opacity": 0.0
           },
           "filter": {
             "type": "eq",
@@ -9265,11 +9401,20 @@
         }
       ],
       "fields": [
+        "angle",
         "layer",
         "text"
       ],
       "defaultRule": 1,
       "qmlFile": "TopographyLayers_texts.qml",
+      "labeling": {
+        "field": "text",
+        "fontSize": 1.0,
+        "fontSizeUnit": "MapUnit",
+        "color": "#000000",
+        "rotationField": "angle",
+        "rotationMode": "complement"
+      },
       "label": "Тексты топоосновы"
     }
   }
