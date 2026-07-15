@@ -21,18 +21,16 @@ def test_anonymous_approval_landing_redirects_to_login(client):
 @pytest.mark.django_db
 def test_approval_landing_loads_for_authenticated_user(client, e2e_credentials):
     with patch('approval.views.count_features_by_table', return_value={}):
-        with patch(
-            'approval.views.build_work_feature_collection',
-            return_value=({'type': 'FeatureCollection', 'features': []}, None),
-        ):
-            client.post(
-                reverse('login'),
-                {
-                    'username': e2e_credentials['username'],
-                    'password': e2e_credentials['password'],
-                },
-            )
-            response = client.get(reverse('approval:landing'))
+        with patch('approval.views.count_topopassport_features_by_table', return_value={}):
+            with patch('approval.views.count_adjacent_features', return_value=(0, 0)):
+                client.post(
+                    reverse('login'),
+                    {
+                        'username': e2e_credentials['username'],
+                        'password': e2e_credentials['password'],
+                    },
+                )
+                response = client.get(reverse('approval:landing'))
     assert response.status_code == 200
     content = response.content.decode('utf-8')
     assert 'approval-map' in content

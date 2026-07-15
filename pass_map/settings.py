@@ -238,8 +238,10 @@ GIS_RZD_SIGNAL_GEOJSON_DECIMALS = int(os.getenv("GIS_RZD_SIGNAL_GEOJSON_DECIMALS
 GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH", "/opt/homebrew/lib/libgdal.dylib")
 GEOS_LIBRARY_PATH = os.getenv("GEOS_LIBRARY_PATH", "/opt/homebrew/lib/libgeos_c.dylib")
 
-# Approval map: mggt_asu.work schema (alias qgis, read-only).
+# Approval map: mggt_asu.work / topopassport schemas (alias qgis, read-only).
 APPROVAL_WORK_SCHEMA = os.getenv("APPROVAL_WORK_SCHEMA", "work")
+APPROVAL_TOPOPASSPORT_SCHEMA = os.getenv("APPROVAL_TOPOPASSPORT_SCHEMA", "topopassport")
+APPROVAL_TOPOPASSPORT_GUID_COLUMN = os.getenv("APPROVAL_TOPOPASSPORT_GUID_COLUMN", "guid")
 APPROVAL_WORK_GEOM_COLUMN = os.getenv("APPROVAL_WORK_GEOM_COLUMN", "Geometry")
 APPROVAL_WORK_TASKGUID_COLUMN = os.getenv("APPROVAL_WORK_TASKGUID_COLUMN", "TaskGUID")
 try:
@@ -253,6 +255,10 @@ except (TypeError, ValueError):
 APPROVAL_ADJACENT_POLY_TABLES = ["YardPoly", "OznPoly", "OdhPoly"]
 APPROVAL_ADJACENT_SCHEMA = os.getenv("APPROVAL_ADJACENT_SCHEMA", "master")
 APPROVAL_WORK_ROOTID_COLUMN = os.getenv("APPROVAL_WORK_ROOTID_COLUMN", "RootId")
+try:
+    APPROVAL_REFERENCE_BUFFER_METERS = float(os.getenv("APPROVAL_REFERENCE_BUFFER_METERS", "100"))
+except (TypeError, ValueError):
+    APPROVAL_REFERENCE_BUFFER_METERS = 100.0
 
 APPROVAL_ATTACHMENT_ALLOWED_EXTENSIONS = {
     ".jpg",

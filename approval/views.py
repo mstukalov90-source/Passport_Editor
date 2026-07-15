@@ -1,17 +1,28 @@
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import render
+from django.views.decorators.http import require_POST
 
-from .access import get_accessible_approves, get_owner_id_for_username
+from .access import get_accessible_approve, get_accessible_approves, get_owner_id_for_username
+from .map_load import build_map_layer_load_order, resolve_map_layer_features
 from .page_config import landing_page_config
 from .qml_style_builder import load_manifest, load_svg_index
 from .work_adjacent import (
-    build_adjacent_features,
     collect_adjacent_roots,
     count_adjacent_features,
     format_adjacent_roots_message,
 )
-from .work_geojson import build_work_feature_collection
-from .work_layers import build_adjacent_layer_groups, build_layer_groups, count_features_by_table
+from .work_layers import (
+    build_adjacent_layer_groups,
+    build_layer_groups,
+    build_reference_layer_groups,
+    build_topopassport_layer_groups,
+    count_features_by_table,
+    count_topopassport_features_by_table,
+)
+
+import json
+import uuid
 
 
 @login_required
@@ -19,7 +30,6 @@ def landing(request):
     username = request.user.username
     owner_id = get_owner_id_for_username(username)
     approves = list(get_accessible_approves(owner_id, username=username))
-    task_guids = [str(approve.incoming_guid) for approve in approves]
 
     map_message = None
     map_error = None
@@ -40,11 +50,14 @@ def landing(request):
     map_task_guids = (
         [str(selected_approve.incoming_guid)]
         if selected_approve is not None
-        else task_guids
+        else []
     )
 
     feature_counts = count_features_by_table(map_task_guids) if map_task_guids else {}
+    topo_counts = count_topopassport_features_by_table(map_task_guids) if map_task_guids else {}
     layer_groups = build_layer_groups(feature_counts)
+    if topo_counts:
+        layer_groups = layer_groups + build_topopassport_layer_groups(topo_counts)
 
     adjacent_n_count = 0
     adjacent_v_count = 0
@@ -60,29 +73,31 @@ def landing(request):
         if adjacent_groups:
             layer_groups = layer_groups + adjacent_groups
 
-    map_geojson, load_error = build_work_feature_collection(
-        map_task_guids,
-        tables=list(feature_counts.keys()) or None,
-    )
-    if selected_approve is not None:
-        adjacent_features, adjacent_error = build_adjacent_features(
-            adjacent_n_roots,
-            adjacent_v_roots,
+        # Reference layers always listed when an approve is selected (counts fill in as they load).
+        layer_groups = layer_groups + build_reference_layer_groups()
+
+        if (adjacent_n_roots or adjacent_v_roots) and adjacent_n_count == 0 and adjacent_v_count == 0:
+            map_message = map_message or format_adjacent_roots_message(
+                adjacent_n_roots,
+                adjacent_v_roots,
+            )
+
+    if map_task_guids and not feature_counts and not topo_counts and not adjacent_n_count and not adjacent_v_count:
+        map_message = map_message or "Для согласования не найдено объектов в схемах work/topopassport."
+
+    map_layer_load_order = (
+        build_map_layer_load_order(
+            work_counts=feature_counts,
+            topo_counts=topo_counts,
+            has_adjacent=bool(adjacent_n_count or adjacent_v_count),
+            include_reference=selected_approve is not None,
         )
-        if adjacent_features:
-            map_geojson.setdefault("features", []).extend(adjacent_features)
-        if adjacent_error:
-            map_error = adjacent_error
-        elif (adjacent_n_roots or adjacent_v_roots) and not adjacent_features:
-            if adjacent_n_count == 0 and adjacent_v_count == 0:
-                map_message = map_message or format_adjacent_roots_message(
-                    adjacent_n_roots,
-                    adjacent_v_roots,
-                )
-    if load_error:
-        map_error = load_error
-    elif map_task_guids and not feature_counts and not adjacent_n_count and not adjacent_v_count:
-        map_message = map_message or "Для согласования не найдено объектов в схеме work."
+        if selected_approve is not None
+        else []
+    )
+
+    # GeoJSON loads progressively via api_map_layer.
+    map_geojson = {"type": "FeatureCollection", "features": []}
 
     return render(
         request,
@@ -100,6 +115,7 @@ def landing(request):
                 }
                 if selected_approve is not None
                 else None,
+                map_layer_load_order=map_layer_load_order,
             ),
             "layer_groups": layer_groups,
             "map_geojson": map_geojson,
@@ -109,3 +125,51 @@ def landing(request):
             "map_error": map_error,
         },
     )
+
+
+@login_required
+@require_POST
+def api_map_layer(request):
+    username = (request.user.username or "").strip()
+    owner_id = get_owner_id_for_username(username)
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
+
+    if not isinstance(payload, dict):
+        return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
+
+    layer_key = str(payload.get("layer") or "").strip()
+    if not layer_key:
+        return JsonResponse({"ok": False, "error": "Не указан слой."}, status=400)
+
+    approve_id_raw = payload.get("approve_id")
+    if not approve_id_raw:
+        return JsonResponse({"ok": False, "error": "Не указан approve_id."}, status=400)
+    try:
+        approve_id = uuid.UUID(str(approve_id_raw))
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Некорректный approve_id."}, status=400)
+
+    approve = get_accessible_approve(approve_id, owner_id, username=username)
+    if approve is None:
+        return JsonResponse({"ok": False, "error": "Согласование не найдено или недоступно."}, status=404)
+
+    features, error = resolve_map_layer_features(approve, layer_key)
+    if error and (
+        error.startswith("Неизвест")
+        or error.startswith("Некоррект")
+        or error.startswith("Не указан")
+    ):
+        return JsonResponse({"ok": False, "error": error}, status=400)
+
+    response = {
+        "ok": True,
+        "layer": layer_key,
+        "features": features,
+    }
+    if error:
+        response["warning"] = error
+    return JsonResponse(response)

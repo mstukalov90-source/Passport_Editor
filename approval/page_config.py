@@ -15,6 +15,7 @@ def landing_page_config(
     current_user_login="",
     default_zoom=10,
     adjacent_roots=None,
+    map_layer_load_order=None,
 ):
     groups = layer_groups or []
     layer_group_map = {
@@ -39,8 +40,10 @@ def landing_page_config(
         "focusTaskGuid": str(focus_task_guid) if focus_task_guid else None,
         "approves": approve_options,
         "adjacentRoots": adjacent_roots or {"n_roots": [], "v_roots": []},
+        "mapLayerLoadOrder": map_layer_load_order or [],
         "apiUrls": {
             "bootstrap": reverse("approval:api_bootstrap"),
+            "mapLayer": reverse("approval:api_map_layer"),
             "caseDetail": "/approval/api/cases/{caseId}/",
             "postMessage": "/approval/api/cases/{caseId}/messages/",
             "approveCase": "/approval/api/cases/{caseId}/approve/",

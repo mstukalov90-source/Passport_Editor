@@ -135,15 +135,11 @@ def test_landing_without_owner_shows_message():
     request.user = MagicMock(is_authenticated=True, username="no_owner")
 
     with patch("approval.views.count_features_by_table", return_value={}):
-        with patch(
-            "approval.views.build_work_feature_collection",
-            return_value=({"type": "FeatureCollection", "features": []}, None),
-        ):
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
             with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
-                with patch("approval.views.build_adjacent_features", return_value=([], None)):
-                    with patch("approval.views.landing_page_config", return_value={}):
-                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
-                            response = landing(request)
+                with patch("approval.views.landing_page_config", return_value={}):
+                    with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                        response = landing(request)
 
     assert response.status_code == 200
     context = mock_render.call_args[0][2]
@@ -163,15 +159,11 @@ def test_landing_inspector_without_owner_id_loads_approves():
     request.user = MagicMock(is_authenticated=True, username="inspector_only")
 
     with patch("approval.views.count_features_by_table", return_value={}):
-        with patch(
-            "approval.views.build_work_feature_collection",
-            return_value=({"type": "FeatureCollection", "features": []}, None),
-        ):
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
             with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
-                with patch("approval.views.build_adjacent_features", return_value=([], None)):
-                    with patch("approval.views.landing_page_config", return_value={}):
-                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
-                            response = landing(request)
+                with patch("approval.views.landing_page_config", return_value={}):
+                    with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                        response = landing(request)
 
     assert response.status_code == 200
     context = mock_render.call_args[0][2]
@@ -188,36 +180,24 @@ def test_landing_with_approve_and_mock_qgis_layers():
     primary.owners = [owner_id]
     primary.save(update_fields=["owners", "updated_at"])
 
-    feature = {
-        "type": "Feature",
-        "geometry": {"type": "Point", "coordinates": [37.6, 55.75]},
-        "properties": {
-            "layerKey": "DtsPoly",
-            "sourceTable": "DtsPoly",
-            "taskGuid": str(incoming_guid),
-            "fid": 1,
-        },
-    }
     with patch("approval.views.count_features_by_table", return_value={"DtsPoly": 1}):
-        with patch(
-            "approval.views.build_work_feature_collection",
-            return_value=({"type": "FeatureCollection", "features": [feature]}, None),
-        ):
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
             with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
-                with patch("approval.views.build_adjacent_features", return_value=([], None)):
-                    with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
-                        with patch("approval.views.load_svg_index", return_value={"marker.svg": "marker.svg"}):
-                            with patch("approval.views.landing_page_config", return_value={}):
-                                with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
-                                    request = RequestFactory().get("/approval/")
-                                    request.user = MagicMock(is_authenticated=True, username="approval_map_user")
-                                    response = landing(request)
+                with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
+                    with patch("approval.views.load_svg_index", return_value={"marker.svg": "marker.svg"}):
+                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                            request = RequestFactory().get("/approval/")
+                            request.user = MagicMock(is_authenticated=True, username="approval_map_user")
+                            response = landing(request)
 
     assert response.status_code == 200
     context = mock_render.call_args[0][2]
     layer_names = [layer["name"] for group in context["layer_groups"] for layer in group["layers"]]
     assert "Дорожно-тропиночная сеть" in layer_names
-    assert context["map_geojson"]["features"][0]["properties"]["layerKey"] == "DtsPoly"
+    assert context["map_geojson"]["features"] == []
+    page_config = context["page_config"]
+    assert page_config["mapLayerLoadOrder"][0]["key"] == "work:DtsPoly"
+    assert any(spec["key"] == "dgi" for spec in page_config["mapLayerLoadOrder"])
 
 
 @pytest.mark.django_db
@@ -229,17 +209,144 @@ def test_landing_without_matching_approve_shows_empty_message():
     )
 
     with patch("approval.views.count_features_by_table", return_value={}):
-        with patch(
-            "approval.views.build_work_feature_collection",
-            return_value=({"type": "FeatureCollection", "features": []}, None),
-        ):
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
             with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
-                with patch("approval.views.build_adjacent_features", return_value=([], None)):
-                    with patch("approval.views.landing_page_config", return_value={}):
-                        with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
-                            request = RequestFactory().get("/approval/")
-                            request.user = MagicMock(is_authenticated=True, username="other_owner")
-                            response = landing(request)
+                with patch("approval.views.landing_page_config", return_value={}):
+                    with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
+                        request = RequestFactory().get("/approval/")
+                        request.user = MagicMock(is_authenticated=True, username="other_owner")
+                        response = landing(request)
 
     assert response.status_code == 200
     assert "Нет доступных согласований" in mock_render.call_args[0][2]["map_message"]
+
+
+def test_build_topopassport_layer_groups_uses_prefixed_keys():
+    from approval.work_layers import build_topopassport_layer_groups
+
+    groups = build_topopassport_layer_groups({"DtsPoly": 2})
+    assert groups[0]["key"] == "topopassport"
+    assert groups[0]["layers"][0]["key"] == "topo:DtsPoly"
+
+
+def test_build_topopassport_hides_topopoint_and_topotext_by_default():
+    from approval.work_layers import build_topopassport_layer_groups
+
+    groups = build_topopassport_layer_groups(
+        {"topolines": 10, "topopoint": 5, "topotext": 3}
+    )
+    layers = {layer["key"]: layer for layer in groups[0]["layers"]}
+    assert layers["topo:topolines"]["checked"] is True
+    assert layers["topo:topopoint"]["checked"] is False
+    assert layers["topo:topotext"]["checked"] is False
+
+
+def test_build_map_layer_load_order():
+    from approval.map_load import build_map_layer_load_order
+
+    specs = build_map_layer_load_order(
+        work_counts={"DtsPoly": 1},
+        topo_counts={"YardPoly": 2},
+        has_adjacent=True,
+        include_reference=True,
+    )
+    keys = [item["key"] for item in specs]
+    assert keys[0] == "work:DtsPoly"
+    assert "topo:YardPoly" in keys
+    assert "adjacent" in keys
+    assert keys.index("work:DtsPoly") < keys.index("topo:YardPoly")
+    assert keys.index("topo:YardPoly") < keys.index("adjacent")
+    assert keys[-4:] == ["dgi", "oozt", "renew", "rzd"]
+
+
+def test_schema_taskguid_column_uses_guid_for_topopassport():
+    from approval.work_layers import schema_taskguid_column
+
+    assert schema_taskguid_column("work") == "TaskGUID"
+    assert schema_taskguid_column("topopassport") == "guid"
+
+
+def test_topopassport_feature_select_sql_uses_guid_column():
+    from unittest.mock import MagicMock
+
+    from approval.work_geojson import _feature_select_sql
+
+    cursor = MagicMock()
+    sql = _feature_select_sql(
+        "SomePoly",
+        [],
+        cursor,
+        schema="topopassport",
+        layer_key="topo:SomePoly",
+    )
+    assert '"topopassport"."SomePoly"' in sql
+    assert '"guid"' in sql
+    assert "TaskGUID" not in sql
+
+
+def test_work_feature_select_sql_still_uses_taskguid():
+    from unittest.mock import MagicMock
+
+    from approval.work_geojson import _feature_select_sql
+
+    cursor = MagicMock()
+    sql = _feature_select_sql(
+        "DtsPoly",
+        [],
+        cursor,
+        schema="work",
+        layer_key="DtsPoly",
+    )
+    assert '"work"."DtsPoly"' in sql
+    assert '"TaskGUID"' in sql
+
+
+def test_feature_select_sql_resolves_style_columns_case_insensitively():
+    from unittest.mock import MagicMock
+
+    from approval.work_geojson import _feature_select_sql
+
+    cursor = MagicMock()
+    cursor.fetchone.return_value = ("dtstype",)
+
+    sql = _feature_select_sql(
+        "DtsPoly",
+        ["DtsType"],
+        cursor,
+        schema="topopassport",
+        layer_key="topo:DtsPoly",
+    )
+
+    assert "'DtsType', t.\"dtstype\"::text" in sql
+    query = cursor.execute.call_args[0][0]
+    params = cursor.execute.call_args[0][1]
+    assert "lower(column_name)" in query
+    assert params == ["topopassport", "DtsPoly", "DtsType"]
+
+
+def test_build_reference_layer_groups_unchecked_by_default():
+    from approval.work_layers import build_reference_layer_groups
+
+    groups = build_reference_layer_groups()
+    assert len(groups) == 1
+    assert groups[0]["key"] == "reference"
+    assert groups[0]["checked"] is False
+    assert all(layer["checked"] is False for layer in groups[0]["layers"])
+    assert [layer["key"] for layer in groups[0]["layers"]] == ["dgi", "oozt", "renew", "rzd"]
+
+
+@patch("approval.work_layers.connections")
+def test_list_topopassport_tables_looks_for_guid_column(mock_connections):
+    from approval.work_layers import list_schema_layer_tables
+
+    cursor = MagicMock()
+    mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+    cursor.fetchall.return_value = [("TopoPoly",)]
+
+    tables = list_schema_layer_tables("topopassport", force_refresh=True)
+
+    assert tables == ["TopoPoly"]
+    sql = cursor.execute.call_args[0][0]
+    params = cursor.execute.call_args[0][1]
+    assert params[0] == "topopassport"
+    assert params[1] == "guid"

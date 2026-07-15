@@ -29,3 +29,9 @@ def test_work_layer_label_fallback():
 
 def test_work_layer_label_known():
     assert work_layer_label("LawnPoly") == "Газоны"
+
+
+def test_work_layer_label_topography_tables():
+    assert work_layer_label("topolines") == "Линии топоосновы"
+    assert work_layer_label("topopoint") == "Точки топоосновы"
+    assert work_layer_label("topotext") == "Тексты топоосновы"

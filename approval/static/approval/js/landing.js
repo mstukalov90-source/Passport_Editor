@@ -56,6 +56,7 @@
     const MAP_UNIT_MARKER_MIN_PX = 20;
     const MAP_UNIT_MARKER_MAX_PX = 128;
     let mapUnitMarkers = [];
+    let signalTapeRenderer = null;
 
     function getSvgIndex() {
         if (svgIndex) {
@@ -152,32 +153,124 @@
 
     function getTableStyleDef(layerKey) {
         const manifest = getLayerStylesManifest();
-        return (manifest.tables || {})[layerKey] || null;
+        const tables = manifest.tables || {};
+        if (tables[layerKey]) {
+            return tables[layerKey];
+        }
+        const key = String(layerKey || '');
+        if (key.indexOf('topo:') === 0) {
+            const bare = key.slice(5);
+            return tables[bare] || null;
+        }
+        return null;
     }
 
     function propertyValue(props, field) {
         if (!field || !props) {
             return null;
         }
-        const value = props[field];
-        if (value === undefined || value === null || value === '') {
-            return null;
+        const direct = props[field];
+        if (direct !== undefined && direct !== null && direct !== '') {
+            return direct;
         }
-        return value;
+        const lower = String(field).toLowerCase();
+        const keys = Object.keys(props);
+        for (let i = 0; i < keys.length; i += 1) {
+            if (keys[i].toLowerCase() === lower) {
+                const value = props[keys[i]];
+                if (value !== undefined && value !== null && value !== '') {
+                    return value;
+                }
+            }
+        }
+        return null;
+    }
+
+    function likeMatch(value, pattern) {
+        const text = String(value == null ? '' : value);
+        const raw = String(pattern == null ? '' : pattern);
+        let regexSrc = '';
+        for (let i = 0; i < raw.length; i += 1) {
+            const ch = raw.charAt(i);
+            if (ch === '%') {
+                regexSrc += '.*';
+            } else if (ch === '_') {
+                regexSrc += '.';
+            } else if (/[.*+?^${}()|[\]\\]/.test(ch)) {
+                regexSrc += '\\' + ch;
+            } else {
+                regexSrc += ch;
+            }
+        }
+        try {
+            return new RegExp('^' + regexSrc + '$').test(text);
+        } catch (err) {
+            return false;
+        }
     }
 
     function matchFilter(props, filter) {
         if (!filter) {
             return true;
         }
-        const value = propertyValue(props, filter.field);
-        if (filter.type === 'eq') {
-            return String(value) === String(filter.value);
+        const ftype = filter.type;
+        if (ftype === 'else') {
+            return true;
         }
-        if (filter.type === 'null') {
+        if (ftype === 'and') {
+            const children = filter.children || [];
+            for (let i = 0; i < children.length; i += 1) {
+                if (!matchFilter(props, children[i])) {
+                    return false;
+                }
+            }
+            return children.length > 0;
+        }
+        if (ftype === 'or') {
+            const children = filter.children || [];
+            for (let i = 0; i < children.length; i += 1) {
+                if (matchFilter(props, children[i])) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (ftype === 'in') {
+            const value = propertyValue(props, filter.field);
+            if (value === null) {
+                return false;
+            }
+            const values = filter.values || [];
+            const asText = String(value);
+            for (let i = 0; i < values.length; i += 1) {
+                if (asText === String(values[i])) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (ftype === 'like') {
+            const value = propertyValue(props, filter.field);
+            if (value === null) {
+                return false;
+            }
+            return likeMatch(value, filter.pattern);
+        }
+        if (ftype === 'ne') {
+            const value = propertyValue(props, filter.field);
+            if (value === null) {
+                return false;
+            }
+            return String(value) !== String(filter.value);
+        }
+        const value = propertyValue(props, filter.field);
+        if (ftype === 'eq') {
+            return value !== null && String(value) === String(filter.value);
+        }
+        if (ftype === 'null') {
             return value === null;
         }
-        if (filter.type === 'not_null') {
+        if (ftype === 'not_null') {
             return value !== null;
         }
         return false;
@@ -188,11 +281,20 @@
         if (!tableDef || !Array.isArray(tableDef.rules) || !tableDef.rules.length) {
             return null;
         }
+        let elseStyle = null;
         for (let i = 0; i < tableDef.rules.length; i += 1) {
             const rule = tableDef.rules[i];
-            if (matchFilter(props, rule.filter)) {
+            const filt = rule.filter;
+            if (filt && filt.type === 'else') {
+                elseStyle = rule.style || null;
+                continue;
+            }
+            if (matchFilter(props, filt)) {
                 return rule.style || null;
             }
+        }
+        if (elseStyle) {
+            return elseStyle;
         }
         const defaultIdx = tableDef.defaultRule;
         if (typeof defaultIdx === 'number' && tableDef.rules[defaultIdx]) {
@@ -533,7 +635,221 @@
     }
 
     function styleTableKey(props) {
-        return props.sourceTable || props.layerKey || 'work';
+        const sourceTable = props.sourceTable;
+        if (sourceTable) {
+            return sourceTable;
+        }
+        const layerKey = String(props.layerKey || '');
+        if (layerKey.indexOf('topo:') === 0) {
+            return layerKey.slice(5);
+        }
+        return layerKey || 'work';
+    }
+
+    const REFERENCE_LAYER_STYLES = {
+        dgi: { color: '#dc2626', weight: 4, opacity: 0.95, fillOpacity: 0, dashArray: '10 8' },
+        oozt: { color: '#16a34a', weight: 4, opacity: 0.95, fillOpacity: 0, dashArray: '10 8' },
+        renew: { color: '#b45309', weight: 4, opacity: 0.95, fillOpacity: 0, dashArray: '10 8' },
+        rzd: { color: '#dc2626', weight: 4, opacity: 0.95, fillOpacity: 0, dashArray: '10 8' },
+    };
+
+    const REFERENCE_SIGNAL_TAPE = {
+        dgi: { patternId: 'approval-dgi-signal-tape-pattern', stripe: '#dc2626', bg: '#ffffff', stroke: '#dc2626', title: 'ДГИ' },
+        oozt: { patternId: 'approval-oozt-signal-tape-pattern', stripe: '#16a34a', bg: '#ffffff', stroke: '#16a34a', title: 'ООЗТ' },
+        renew: { patternId: 'approval-renew-signal-tape-pattern', stripe: '#f59e0b', bg: '#ffffff', stroke: '#b45309', title: 'Реновация' },
+        rzd: { patternId: 'approval-rzd-signal-tape-pattern', stripe: '#dc2626', bg: '#16a34a', stroke: '#dc2626', title: 'РЖД' },
+    };
+
+    function referenceLayerStyle(layerKey) {
+        return REFERENCE_LAYER_STYLES[layerKey] || null;
+    }
+
+    function isReferenceLayerKey(layerKey) {
+        return Boolean(REFERENCE_LAYER_STYLES[layerKey]);
+    }
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function isBlankDisplayValue(value) {
+        const text = String(value == null ? '' : value).trim();
+        return !text || ['null', 'none', '-'].includes(text.toLowerCase());
+    }
+
+    function formatDgiShortSobstvRr(value) {
+        const raw = String(value == null ? '' : value).trim();
+        if (!raw || ['null', 'none', '-'].includes(raw.toLowerCase())) {
+            return '';
+        }
+        if (raw.toUpperCase() === 'ЧС') {
+            return 'Частная собственность';
+        }
+        return raw;
+    }
+
+    function ensureSignalPattern(patternId, stripeColorHex, backgroundColorHex) {
+        if (!map || !patternId) {
+            return null;
+        }
+        const svg =
+            (signalTapeRenderer &&
+                signalTapeRenderer._container &&
+                signalTapeRenderer._container.ownerSVGElement) ||
+            map.getPanes().overlayPane.querySelector('svg');
+        if (!svg) {
+            return null;
+        }
+        let defs = svg.querySelector('defs');
+        if (!defs) {
+            defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            svg.insertBefore(defs, svg.firstChild);
+        }
+        if (!svg.querySelector('#' + patternId)) {
+            const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+            pattern.setAttribute('id', patternId);
+            pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+            pattern.setAttribute('width', '24');
+            pattern.setAttribute('height', '24');
+            pattern.setAttribute('patternTransform', 'rotate(45)');
+
+            const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            bgRect.setAttribute('x', '0');
+            bgRect.setAttribute('y', '0');
+            bgRect.setAttribute('width', '24');
+            bgRect.setAttribute('height', '24');
+            bgRect.setAttribute('fill', backgroundColorHex);
+
+            const stripeRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            stripeRect.setAttribute('x', '0');
+            stripeRect.setAttribute('y', '0');
+            stripeRect.setAttribute('width', '12');
+            stripeRect.setAttribute('height', '24');
+            stripeRect.setAttribute('fill', stripeColorHex);
+
+            pattern.appendChild(bgRect);
+            pattern.appendChild(stripeRect);
+            defs.appendChild(pattern);
+        }
+        return patternId;
+    }
+
+    function bindReferenceLayerPopup(layer, feature, layerKey) {
+        const props = (feature && feature.properties) || {};
+        const tape = REFERENCE_SIGNAL_TAPE[layerKey];
+        if (!tape) {
+            return;
+        }
+        let html = '<div style="min-width: 220px;"><div><strong>' + escapeHtml(tape.title) + '</strong></div>';
+        if (layerKey === 'dgi') {
+            const descr = props.descr;
+            const address = props.address;
+            const vri = props.vri;
+            const sobstvRrDisplay = formatDgiShortSobstvRr(props.short_sobstv_rr);
+            if (!isBlankDisplayValue(descr)) {
+                html +=
+                    '<div style="margin-top: 6px;"><strong>Кадастровый номер:</strong> ' +
+                    escapeHtml(descr) +
+                    '</div>';
+            }
+            if (!isBlankDisplayValue(address)) {
+                html +=
+                    '<div style="margin-top: 6px;"><strong>Адрес:</strong> ' +
+                    escapeHtml(address) +
+                    '</div>';
+            }
+            if (!isBlankDisplayValue(vri)) {
+                html +=
+                    '<div style="margin-top: 6px;"><strong>Назначение:</strong> ' +
+                    escapeHtml(vri) +
+                    '</div>';
+            }
+            if (sobstvRrDisplay) {
+                html +=
+                    '<div style="margin-top: 6px;"><strong>Собственник:</strong> ' +
+                    escapeHtml(sobstvRrDisplay) +
+                    '</div>';
+            }
+        } else if (layerKey === 'oozt') {
+            if (!isBlankDisplayValue(props.type)) {
+                html +=
+                    '<div style="margin-top: 6px;"><strong>Тип:</strong> ' +
+                    escapeHtml(props.type) +
+                    '</div>';
+            }
+            if (!isBlankDisplayValue(props.nomer1)) {
+                html +=
+                    '<div style="margin-top: 6px;"><strong>Номер:</strong> ' +
+                    escapeHtml(props.nomer1) +
+                    '</div>';
+            }
+            if (!isBlankDisplayValue(props.comment)) {
+                html +=
+                    '<div style="margin-top: 6px;"><strong>Комментарий:</strong> ' +
+                    escapeHtml(props.comment) +
+                    '</div>';
+            }
+        } else if (layerKey === 'rzd') {
+            if (!isBlankDisplayValue(props.name)) {
+                html +=
+                    '<div style="margin-top: 6px;"><strong>Название:</strong> ' +
+                    escapeHtml(props.name) +
+                    '</div>';
+            }
+            if (!isBlankDisplayValue(props.comment_)) {
+                html +=
+                    '<div style="margin-top: 6px;"><strong>Комментарий:</strong> ' +
+                    escapeHtml(props.comment_) +
+                    '</div>';
+            }
+        } else if (layerKey === 'renew') {
+            if (!isBlankDisplayValue(props.name)) {
+                html +=
+                    '<div style="margin-top: 6px;"><strong>Название:</strong> ' +
+                    escapeHtml(props.name) +
+                    '</div>';
+            }
+        }
+        html += '</div>';
+        layer.bindPopup(html);
+    }
+
+    function attachSignalTapeHatching(layer, layerKey) {
+        const tapeConfig = REFERENCE_SIGNAL_TAPE[layerKey];
+        if (!tapeConfig || !layer) {
+            return;
+        }
+        const restoreDom = function () {
+            const patternId = ensureSignalPattern(
+                tapeConfig.patternId,
+                tapeConfig.stripe,
+                tapeConfig.bg
+            );
+            const el = layer.getElement && layer.getElement();
+            if (!patternId || !el) {
+                return;
+            }
+            const o = layer.options || {};
+            const dash =
+                o.dashArray != null && o.dashArray !== ''
+                    ? String(o.dashArray)
+                    : '10 8';
+            el.setAttribute('fill', 'url(#' + patternId + ')');
+            el.setAttribute('fill-opacity', '0.25');
+            el.setAttribute('stroke', tapeConfig.stroke);
+            el.setAttribute('stroke-width', '2');
+            el.setAttribute('stroke-dasharray', dash);
+        };
+        layer._approvalRestoreSignalTapeDom = restoreDom;
+        layer.on('add', restoreDom);
+        if (layer._map) {
+            restoreDom();
+        }
     }
 
     function adjacentLayerLabel(layerKey) {
@@ -788,20 +1104,26 @@
 
     function styleFeature(feature) {
         const props = feature.properties || {};
-        const styleKey = styleTableKey(props);
         const displayKey = props.layerKey || props.sourceTable || 'work';
+        const refStyle = referenceLayerStyle(displayKey);
+        if (refStyle) {
+            return Object.assign({}, refStyle);
+        }
+        const styleKey = styleTableKey(props);
         const geometry = feature.geometry || {};
         const type = geometry.type || '';
         const tableDef = getTableStyleDef(styleKey);
         const geometryType = tableDef ? tableDef.geometry : null;
+        // Use bare table name so topo:X and work X share the same hashColor fallback.
+        const fallbackKey = styleKey || displayKey;
 
         if (type === 'Point' || type === 'MultiPoint') {
             return {};
         }
         if (type === 'LineString' || type === 'MultiLineString') {
-            return leafletPathStyle(resolveRuleStyle(styleKey, props), displayKey, geometryType || 'line');
+            return leafletPathStyle(resolveRuleStyle(styleKey, props), fallbackKey, geometryType || 'line');
         }
-        return leafletPathStyle(resolveRuleStyle(styleKey, props), displayKey, geometryType || 'polygon');
+        return leafletPathStyle(resolveRuleStyle(styleKey, props), fallbackKey, geometryType || 'polygon');
     }
 
     function featureTooltip(feature) {
@@ -839,7 +1161,6 @@
     function pointToLayer(feature, latlng) {
         const props = feature.properties || {};
         const styleKey = styleTableKey(props);
-        const displayKey = props.layerKey || props.sourceTable || 'work';
         const ruleStyle = resolveRuleStyle(styleKey, props);
         const sizeUnit =
             (ruleStyle && (ruleStyle.iconSizeUnit || ruleStyle.sizeUnit)) || 'MM';
@@ -893,7 +1214,7 @@
             );
         }
 
-        const colors = hashColor(displayKey);
+        const colors = hashColor(styleKey);
         const baseRadius = (ruleStyle && ruleStyle.radius) || 5;
         const stroke = (ruleStyle && ruleStyle.color) || colors.stroke;
         const fill = (ruleStyle && ruleStyle.fillColor) || colors.fill;
@@ -1426,6 +1747,7 @@
 
         managedLayers = {};
         mapUnitMarkers = [];
+        signalTapeRenderer = L.svg({ padding: 0.5 });
         eventGeometriesGroup = L.featureGroup().addTo(map);
         map.invalidateSize();
 
@@ -1470,8 +1792,14 @@
         }
 
         function onEachFeature(feature, layer) {
-            layer.bindTooltip(featureTooltip(feature), { sticky: true });
             const props = feature.properties || {};
+            const layerKey = props.layerKey || props.sourceTable;
+            if (isReferenceLayerKey(layerKey)) {
+                bindReferenceLayerPopup(layer, feature, layerKey);
+                attachSignalTapeHatching(layer, layerKey);
+            } else {
+                layer.bindTooltip(featureTooltip(feature), { sticky: true });
+            }
             if (!isInspectorForSelectedApprove()) {
                 return;
             }
@@ -1492,6 +1820,9 @@
                 });
                 return;
             }
+            if (isReferenceLayerKey(layerKey)) {
+                return;
+            }
             layer.on('click', function () {
                 const taskGuid = props.taskGuid || props.TaskGUID;
                 if (
@@ -1503,8 +1834,13 @@
             });
         }
 
-        if (mapGeojson && Array.isArray(mapGeojson.features)) {
-            mapGeojson.features.forEach(function (feature) {
+        function addMapFeatures(features) {
+            if (!Array.isArray(features) || !features.length) {
+                return 0;
+            }
+            let added = 0;
+            const countsByKey = {};
+            features.forEach(function (feature) {
                 try {
                     const props = feature.properties || {};
                     const layerKey = props.layerKey || props.sourceTable;
@@ -1514,12 +1850,16 @@
                     const targetGroup = ensureLayerGroup(layerKey);
                     const checkbox = document.querySelector('input[data-layer-key="' + layerKey + '"]');
                     const isVisible = !checkbox || checkbox.checked;
-
-                    L.geoJSON(feature, {
+                    const geoJsonOptions = {
                         style: styleFeature,
                         onEachFeature: onEachFeature,
                         pointToLayer: pointToLayer,
-                    }).eachLayer(function (layer) {
+                    };
+                    if (isReferenceLayerKey(layerKey) && signalTapeRenderer) {
+                        geoJsonOptions.renderer = signalTapeRenderer;
+                    }
+
+                    L.geoJSON(feature, geoJsonOptions).eachLayer(function (layer) {
                         if (isAdjacentFeature(props)) {
                             registerAdjacentLeafletLayer(props, layer);
                         }
@@ -1529,10 +1869,39 @@
                     if (!isVisible) {
                         setLayerVisible(layerKey, false);
                     }
+                    added += 1;
+                    countsByKey[layerKey] = (countsByKey[layerKey] || 0) + 1;
                 } catch (err) {
                     console.warn('approval map: failed to add feature', err);
                 }
             });
+            Object.keys(countsByKey).forEach(function (layerKey) {
+                if (REFERENCE_LAYER_STYLES[layerKey]) {
+                    setLayerCount(layerKey, countsByKey[layerKey], true);
+                }
+            });
+            return added;
+        }
+
+        function setLayerCount(layerKey, count, accumulate) {
+            const row = document.querySelector('input[data-layer-key="' + layerKey + '"]');
+            if (!row) {
+                return;
+            }
+            const countEl = row.parentElement && row.parentElement.querySelector('.approval-layer-row__count');
+            if (!countEl) {
+                return;
+            }
+            let next = count;
+            if (accumulate) {
+                const current = parseInt(String(countEl.textContent || '').replace(/[^\d]/g, ''), 10);
+                next = (Number.isFinite(current) ? current : 0) + count;
+            }
+            countEl.textContent = '(' + next + ')';
+        }
+
+        if (mapGeojson && Array.isArray(mapGeojson.features)) {
+            addMapFeatures(mapGeojson.features);
         }
 
         initLayerPanelControls(config);
@@ -1550,6 +1919,121 @@
             map.invalidateSize();
             refreshMapUnitMarkers();
         }, 0);
+
+        loadDeferredMapLayers(config, addMapFeatures);
+    }
+
+    function showDbLoadingModal(detailText) {
+        const modal = document.getElementById('db-loading-modal');
+        const detail = document.getElementById('approval-db-loading-detail');
+        if (detail) {
+            detail.textContent = detailText || '';
+        }
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    }
+
+    function hideDbLoadingModal() {
+        const modal = document.getElementById('db-loading-modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    function setMapLoadStatus(text) {
+        const el = document.getElementById('approval-map-load-status');
+        if (!el) {
+            return;
+        }
+        if (!text) {
+            el.hidden = true;
+            el.textContent = '';
+            return;
+        }
+        el.hidden = false;
+        el.textContent = text;
+    }
+
+    async function fetchMapLayerFeatures(url, approveId, layerKey) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || '',
+            },
+            body: JSON.stringify({
+                approve_id: approveId,
+                layer: layerKey,
+            }),
+        });
+        let data = {};
+        try {
+            data = await response.json();
+        } catch (err) {
+            throw new Error('Некорректный ответ сервера.');
+        }
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Ошибка загрузки слоя.');
+        }
+        return Array.isArray(data.features) ? data.features : [];
+    }
+
+    async function loadDeferredMapLayers(config, addMapFeatures) {
+        const specs = Array.isArray(config.mapLayerLoadOrder) ? config.mapLayerLoadOrder : [];
+        const approveId = config.selectedApproveId;
+        const url = config.apiUrls && config.apiUrls.mapLayer;
+        if (!specs.length || !approveId || !url || typeof addMapFeatures !== 'function') {
+            return;
+        }
+
+        showDbLoadingModal();
+        let loadedCount = 0;
+        let failedCount = 0;
+        let didFit = false;
+        try {
+            for (let i = 0; i < specs.length; i += 1) {
+                const spec = specs[i] || {};
+                const layerKey = spec.key;
+                if (!layerKey) {
+                    continue;
+                }
+                const label = spec.label || layerKey;
+                setMapLoadStatus('Загружаем: ' + label + '...');
+                showDbLoadingModal(label);
+                try {
+                    const features = await fetchMapLayerFeatures(url, approveId, layerKey);
+                    const added = addMapFeatures(features);
+                    if (added) {
+                        loadedCount += 1;
+                        reorderMapLayers();
+                        if (!didFit) {
+                            if (!fitTaskGuidBounds(config.focusTaskGuid)) {
+                                fitVisibleBounds();
+                            }
+                            didFit = true;
+                        }
+                        refreshMapUnitMarkers();
+                    } else {
+                        loadedCount += 1;
+                    }
+                } catch (layerError) {
+                    failedCount += 1;
+                    console.warn('approval map layer load failed:', layerKey, layerError);
+                }
+            }
+            if (!loadedCount && failedCount) {
+                setMapLoadStatus('Не удалось загрузить слои карты.');
+            } else if (failedCount) {
+                setMapLoadStatus(
+                    'Карта готова (загружено ' + (specs.length - failedCount) + ' из ' + specs.length + ' слоёв).'
+                );
+            } else {
+                setMapLoadStatus('Карта готова.');
+            }
+        } finally {
+            hideDbLoadingModal();
+        }
     }
 
     function initLayerPanelToggle() {

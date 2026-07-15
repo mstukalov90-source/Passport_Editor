@@ -100,35 +100,20 @@
       "geometry": "line",
       "rules": [
         {
-          "label": "Замыкание",
-          "style": {
-            "kind": "line",
-            "color": "#cbcbcb",
-            "opacity": 1.0,
-            "weight": 2.49
-          }
-        },
-        {
-          "label": "Механизированная уборка",
-          "style": {
-            "kind": "line",
-            "color": "#00cb4e",
-            "opacity": 1.0,
-            "weight": 8.0
-          }
-        },
-        {
           "label": "Нет данных",
           "style": {
             "kind": "line",
             "color": "#b70000",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
       "fields": [],
-      "defaultRule": 2,
+      "defaultRule": 0,
       "qmlFile": "WorkLayers_AuxilaryLines.qml",
       "label": "Вспомогательные линии"
     },
@@ -136,35 +121,20 @@
       "geometry": "line",
       "rules": [
         {
-          "label": "Осевая линия проезжей части",
-          "style": {
-            "kind": "line",
-            "color": "#cb0003",
-            "opacity": 1.0,
-            "weight": 0.94
-          }
-        },
-        {
-          "label": "Осевая разделительная линия",
-          "style": {
-            "kind": "line",
-            "color": "#ededed",
-            "opacity": 1.0,
-            "weight": 1.2
-          }
-        },
-        {
           "label": "",
           "style": {
             "kind": "line",
             "color": "#cbcbcb",
             "opacity": 1.0,
             "weight": 2.49
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
       "fields": [],
-      "defaultRule": 2,
+      "defaultRule": 0,
       "qmlFile": "WorkLayers_AxialLines.qml",
       "label": "Осевые линии ОДХ"
     },
@@ -181,6 +151,112 @@
             "opacity": 1.0,
             "weight": 0.98,
             "fillPattern": "no"
+          },
+          "filter": {
+            "type": "in",
+            "field": "elementtype",
+            "values": [
+              "building_residential",
+              "building_non_residential",
+              "blind_area_dt",
+              "blind_area_oo",
+              "architecture_dt",
+              "architecture_oo",
+              "monument_dt",
+              "monument_oo",
+              "container_bunker_area",
+              "container_container_area",
+              "container_pavilion_rso",
+              "container_roll_container_area",
+              "container_roll_container_useful_components_area",
+              "planar_autoparking",
+              "planar_kids_playground",
+              "planar_rink",
+              "planar_playground_for_pets",
+              "planar_recreation_area",
+              "planar_site_for_fire_equipment",
+              "planar_other_type_of_site",
+              "planar_playground_artificial_ice",
+              "planar_viewing_platform",
+              "planar_sport_playground",
+              "planar_technical_site",
+              "planar_household_platform_drying_clothes",
+              "planar_ecoparking",
+              "planar_street_aviary",
+              "planar_skate_park",
+              "planar_rollerdrome",
+              "planar_amphitheater",
+              "planar_bicycle_open_park",
+              "planar_area_emergency_rescue_equipment",
+              "planar_open_bicycle_parking_shorttime",
+              "planar_extreme_place",
+              "bike_longtime_parking",
+              "bike_shorttime_parking",
+              "dts_bicycle_lane",
+              "dts_artificial_road_roughness",
+              "dts_footpath",
+              "dts_passage",
+              "dts_technical_sidewalk",
+              "dts_sidewalk",
+              "dts_running_road",
+              "dts_relief_crosswalk",
+              "dts_track",
+              "dts_ramp",
+              "dts_stairs",
+              "lawn_lawn_other_type",
+              "lawn_meadow_grass",
+              "lawn_on_slope",
+              "lawn_ordinary",
+              "lawn_ground_floor",
+              "lawn_cellular_parking_ecoparking",
+              "lawn_cover_without_dern",
+              "flowers",
+              "relief_gabion",
+              "relief_pedestrian_stairs",
+              "relief_retaining_walls",
+              "relief_slope_reinforcement_systems",
+              "tree_tree",
+              "tree_bush",
+              "tree_hedge",
+              "water_Pond",
+              "water_Swamp",
+              "water_Lake",
+              "water_River",
+              "water_Stream",
+              "water_Fountain",
+              "sfo_ventilation",
+              "ppi_low_ramp",
+              "ppi_ramp",
+              "engine_gutter_tray_oo",
+              "other_not_oks_object_admin",
+              "other_not_oks_object_tech",
+              "other_not_oks_modular_wc",
+              "other_not_oks_object_trade",
+              "other_not_oks_shooting_gallery",
+              "other_not_oks_pavilion",
+              "other_not_oks_gazebo",
+              "other_not_oks_rotunda",
+              "other_not_oks_garage",
+              "other_not_oks_veranda_walk",
+              "other_not_oks_scene",
+              "other_not_oks_another_nocapital_structure",
+              "other_not_oks_dovecote",
+              "other_not_oks_scene_canopy",
+              "other_not_oks_scene_wo_canopy",
+              "other_not_oks_brick_fencing",
+              "other_not_oks_object_tech_ventilation",
+              "other_not_oks_nonresidential_structure",
+              "engineer_building_fountain_dt",
+              "engineer_building_dry_fountain_dt",
+              "engineer_building_pier",
+              "engineer_building_pedestrian_bridge",
+              "engineer_building_another_objects",
+              "engineer_building_fountain_oo",
+              "engineer_building_dry_fountain_oo",
+              "engineer_building_berth",
+              "engineer_building_pool",
+              "engineer_building_promenade"
+            ]
           }
         },
         {
@@ -193,6 +269,179 @@
             "opacity": 1.0,
             "weight": 0.98,
             "fillPattern": "no"
+          },
+          "filter": {
+            "type": "in",
+            "field": "elementtype",
+            "values": [
+              "carriageway_main",
+              "carriageway_entry",
+              "carriageway_adjacent",
+              "carriageway_side_passage",
+              "carriageway_parking",
+              "carriageway_PSP",
+              "carriageway_pocket_type_widening",
+              "carriageway_cross_passage",
+              "carriageway_overpass",
+              "carriageway_bridge",
+              "carriageway_road_overpass",
+              "carriageway_tunnel",
+              "carriageway_bicycle_lane",
+              "carriageway_ORP",
+              "carriageway_tramway",
+              "carriageway_tunnel_ramp",
+              "carriageway_pocket_type_widening_not_pb",
+              "carriageway_parking_TTK",
+              "sidewalk_technical",
+              "sidewalk_adjacent_carriageway",
+              "sidewalk_not_adjacent_carriageway",
+              "sidewalk_overpass",
+              "sidewalk_bridge",
+              "sidewalk_road_overpass",
+              "sidewalk_tunnel",
+              "sidewalk_tunnel_ramp",
+              "sidewalk_adjacent_carriageway_bicycle_lane",
+              "sidewalk_not_adjacent_carriageway_bicycle_lane",
+              "sidewalk_parking",
+              "sidewalk_parking_TTK",
+              "sidewalk_cutout",
+              "roadside_lawn",
+              "roadside_unfortified",
+              "roadside_cement",
+              "roadside_gravel",
+              "roadside_asphalt",
+              "roadside_pgs",
+              "maf_afisha",
+              "maf_flowerpot",
+              "maf_cabin",
+              "maf_bike_parking",
+              "maf_garage",
+              "maf_navigation_sign",
+              "pavilion_stop",
+              "pub_transport_stop",
+              "pub_transport_stop_tpu",
+              "fencing_no_type",
+              "fencing_parapet",
+              "fencing_bollard",
+              "fencing_safety_buffer",
+              "fencing_protective_screen",
+              "fencing_other",
+              "fencing_MBF_Wave",
+              "fencing_MBF_Transbarrier",
+              "fencing_MBF_Pipe",
+              "fencing_MBF_Fracasso",
+              "fencing_metal_railing",
+              "fencing_bridge_New_Jersey",
+              "fencing_pedestrian_ORUD",
+              "fencing_pedestrian_decorative",
+              "fencing_New_Jersey",
+              "fencing_sidewalk_bollards",
+              "other_terr_dividing_strip_same_level",
+              "other_terr_dividing_strip_different_level",
+              "other_terr_technical_sidewalk",
+              "other_terr_gas_station",
+              "other_terr_technical_platform",
+              "other_terr_safety_island",
+              "other_terr_dividing_island",
+              "other_terr_waste_collection_area",
+              "other_terr_parking_and_turning_area",
+              "other_terr_parking",
+              "other_terr_under_flyover_space",
+              "other_terr_refuge",
+              "other_terr_construction_site",
+              "other_terr_parking_inside_TTK",
+              "dividing_strip",
+              "engine_gutter_tray",
+              "engine_idn_rubber",
+              "engine_idn_plastic",
+              "engine_ramp",
+              "engine_bridge",
+              "engine_overpass",
+              "engine_tunnel",
+              "engine_flyover",
+              "engine_auto_anti_icing_system",
+              "engine_auto_rail_crossing_entry_barriers",
+              "engine_arch",
+              "engine_bypass",
+              "engine_fire_hose",
+              "engine_ventilation",
+              "engine_metro_station_lobby",
+              "engine_water_drainage_structure",
+              "engine_culvert_pipe",
+              "engine_gate",
+              "engine_traffic_light_VPU",
+              "engine_gabion",
+              "engine_gas_distribution_chamber",
+              "engine_hydrant",
+              "engine_lightning_rod",
+              "engine_dam",
+              "engine_expansion_joint",
+              "engine_railway_crossings",
+              "engine_camera",
+              "engine_traffic_light_controller",
+              "engine_stairs",
+              "engine_metal_cabinet",
+              "engine_weather_station",
+              "engine_canopy",
+              "engine_overhead_crossing",
+              "engine_vertical_clearance_limiter",
+              "engine_engineering_structure_support",
+              "engine_lighting_device",
+              "engine_ramp",
+              "engine_emergency_intercom",
+              "engine_pedestrian_bridge",
+              "engine_underground_pedestrian_crossing",
+              "engine_retaining_wall",
+              "engine_tunnel_ramp",
+              "engine_cellular_repeater",
+              "engine_turnout_mechanism_track_translation",
+              "engine_fuel_dispenser",
+              "engine_transformer_substation",
+              "engine_pipeline",
+              "engine_fountain",
+              "engine_clock",
+              "engine_barrier_(railway)",
+              "engine_electronic_board_at_OOT",
+              "engine_overpass_for_technical_inspection_of_vehicles",
+              "engine_PPI",
+              "engine_charging_station_for_electric_transport",
+              "isolated_tramway",
+              "maf_can_vending_machine",
+              "maf_gazebo",
+              "maf_concrete_hemisphere",
+              "maf_concrete_base",
+              "maf_security_post",
+              "maf_decorative_structure",
+              "maf_road_mirror",
+              "maf_reinforced_concrete_other",
+              "maf_reinforced_concrete_block",
+              "maf_information_stand",
+              "maf_kiosk",
+              "maf_solid_waste_container",
+              "maf_technical_container",
+              "maf_navigation_stele",
+              "maf_architectural_monument",
+              "maf_parking_meter",
+              "maf_payment_terminal",
+              "maf_mailbox",
+              "maf_advertising_structure",
+              "maf_garden_sofa",
+              "maf_bench",
+              "maf_sculpture",
+              "maf_sports_or_play_element",
+              "maf_payphone",
+              "maf_telephone_booth",
+              "maf_shopping_pavilion",
+              "maf_toilet",
+              "maf_trash_can",
+              "maf_communication_device",
+              "maf_flagpole",
+              "maf_vertical_landscaping",
+              "maf_barrier",
+              "maf_box_with_pgm",
+              "engine_flyover",
+              "engine_elevator_ppi"
+            ]
           }
         },
         {
@@ -204,6 +453,11 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "elementtype",
+            "value": "on_slope_lawn"
           }
         },
         {
@@ -215,6 +469,11 @@
             "color": "#8fb583",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "elementtype",
+            "value": "lawn"
           }
         },
         {
@@ -226,6 +485,11 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "elementtype",
+            "value": "building"
           }
         },
         {
@@ -237,6 +501,11 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "elementtype",
+            "value": "hydro"
           }
         },
         {
@@ -246,6 +515,11 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 1.36
+          },
+          "filter": {
+            "type": "like",
+            "field": "elementtype",
+            "pattern": "roadside_%"
           }
         },
         {
@@ -257,6 +531,11 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "elementtype",
+            "value": "sidewalk"
           }
         },
         {
@@ -268,6 +547,11 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "elementtype",
+            "value": "pedestrian_underrpass"
           }
         },
         {
@@ -279,6 +563,11 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "elementtype",
+            "value": "unknown"
           }
         },
         {
@@ -290,10 +579,15 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
-      "fields": [],
+      "fields": [
+        "elementtype"
+      ],
       "defaultRule": 10,
       "qmlFile": "WorkLayers_BasePoly.qml",
       "label": "Базовые полигоны для атрибутации"
@@ -419,6 +713,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "1",
+              "339"
+            ]
           }
         },
         {
@@ -430,6 +732,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "3",
+              "341"
+            ]
           }
         },
         {
@@ -441,6 +751,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "4",
+              "342"
+            ]
           }
         },
         {
@@ -452,6 +770,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "22",
+              "466"
+            ]
           }
         },
         {
@@ -463,6 +789,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "23",
+              "467"
+            ]
           }
         },
         {
@@ -474,6 +808,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "24",
+              "468"
+            ]
           }
         },
         {
@@ -485,6 +827,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "25",
+              "469"
+            ]
           }
         },
         {
@@ -496,6 +846,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "26",
+              "470"
+            ]
           }
         },
         {
@@ -507,6 +865,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "27",
+              "471"
+            ]
           }
         },
         {
@@ -518,6 +884,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "28",
+              "472"
+            ]
           }
         },
         {
@@ -529,6 +903,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "29",
+              "473"
+            ]
           }
         },
         {
@@ -540,6 +922,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "30",
+              "474"
+            ]
           }
         },
         {
@@ -552,6 +942,14 @@
             "opacity": 1.0,
             "weight": 0.98,
             "fillPattern": "no"
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "333",
+              "885"
+            ]
           }
         },
         {
@@ -563,6 +961,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "891",
+              "913"
+            ]
           }
         },
         {
@@ -574,6 +980,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "892",
+              "914"
+            ]
           }
         },
         {
@@ -585,6 +999,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "907",
+              "908"
+            ]
           }
         },
         {
@@ -596,6 +1018,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "909",
+              "910"
+            ]
           }
         },
         {
@@ -607,6 +1037,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "915",
+              "916"
+            ]
           }
         },
         {
@@ -618,31 +1056,33 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
-        },
+        }
+      ],
+      "fields": [
+        "FlatElementType"
+      ],
+      "defaultRule": 18,
+      "qmlFile": "WorkLayers_CarriagewayPoly.qml",
+      "label": "Проезжие части"
+    },
+    "CarriagewayPolyAxis": {
+      "geometry": "line",
+      "rules": [
         {
-          "label": "Механизированная уборка",
+          "label": "",
           "style": {
-            "kind": "fill"
-          }
-        },
-        {
-          "label": "Ручная уборка",
-          "style": {
-            "kind": "fill"
-          }
-        },
-        {
-          "label": "Без уборки",
-          "style": {
-            "kind": "fill"
+            "kind": "line"
           }
         }
       ],
       "fields": [],
-      "defaultRule": 18,
-      "qmlFile": "WorkLayers_CarriagewayPoly.qml",
-      "label": "Проезжие части"
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_CarriagewayPolyAxis.qml",
+      "label": "CarriagewayPolyAxis"
     },
     "ContainerPoint": {
       "geometry": "point",
@@ -746,6 +1186,9 @@
             "radius": 11.34,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -849,6 +1292,9 @@
             "color": "#800e10",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -1056,6 +1502,9 @@
             "color": "#800e10",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -1249,6 +1698,9 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -1431,6 +1883,9 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -1451,6 +1906,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "210",
+              "225"
+            ]
           }
         },
         {
@@ -1460,6 +1923,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "213",
+              "228"
+            ]
           }
         },
         {
@@ -1469,6 +1940,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "200",
+              "215"
+            ]
           }
         },
         {
@@ -1478,6 +1957,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "206",
+              "221"
+            ]
           }
         },
         {
@@ -1487,6 +1974,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "214",
+              "232"
+            ]
           }
         },
         {
@@ -1496,6 +1991,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "202",
+              "217"
+            ]
           }
         },
         {
@@ -1505,6 +2008,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "203",
+              "218"
+            ]
           }
         },
         {
@@ -1514,6 +2025,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "201",
+              "216"
+            ]
           }
         },
         {
@@ -1523,6 +2042,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "205",
+              "220"
+            ]
           }
         },
         {
@@ -1532,6 +2059,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "212",
+              "227"
+            ]
           }
         },
         {
@@ -1541,6 +2076,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "211",
+              "226"
+            ]
           }
         },
         {
@@ -1550,6 +2093,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "207",
+              "222"
+            ]
           }
         },
         {
@@ -1559,6 +2110,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "208",
+              "223"
+            ]
           }
         },
         {
@@ -1568,6 +2127,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "204",
+              "219"
+            ]
           }
         },
         {
@@ -1577,6 +2144,14 @@
             "color": "#0000ff",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "209",
+              "224"
+            ]
           }
         },
         {
@@ -1586,10 +2161,15 @@
             "color": "#d00a00",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
-      "fields": [],
+      "fields": [
+        "EquipmentKind"
+      ],
       "defaultRule": 15,
       "qmlFile": "WorkLayers_FencingLine.qml",
       "label": "Ограждения (Линия)"
@@ -1607,6 +2187,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "210",
+              "225"
+            ]
           }
         },
         {
@@ -1621,6 +2209,14 @@
             "iconAnchorY": "bottom",
             "svg": "Боллард.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "213",
+              "228"
+            ]
           }
         },
         {
@@ -1635,6 +2231,14 @@
             "iconAnchorY": "bottom",
             "svg": "Буфер безопасности 1.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "200",
+              "215"
+            ]
           }
         },
         {
@@ -1647,6 +2251,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "206",
+              "221"
+            ]
           }
         },
         {
@@ -1659,6 +2271,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "214",
+              "232"
+            ]
           }
         },
         {
@@ -1671,6 +2291,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "202",
+              "217"
+            ]
           }
         },
         {
@@ -1683,6 +2311,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "203",
+              "218"
+            ]
           }
         },
         {
@@ -1695,6 +2331,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "201",
+              "216"
+            ]
           }
         },
         {
@@ -1707,6 +2351,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "205",
+              "220"
+            ]
           }
         },
         {
@@ -1719,6 +2371,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "212",
+              "227"
+            ]
           }
         },
         {
@@ -1731,6 +2391,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "211",
+              "226"
+            ]
           }
         },
         {
@@ -1743,6 +2411,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "207",
+              "222"
+            ]
           }
         },
         {
@@ -1755,6 +2431,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "208",
+              "223"
+            ]
           }
         },
         {
@@ -1767,6 +2451,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "204",
+              "219"
+            ]
           }
         },
         {
@@ -1781,6 +2473,14 @@
             "iconAnchorY": "center",
             "svg": "Антипарковочный столбик.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "209",
+              "224"
+            ]
           }
         },
         {
@@ -1793,10 +2493,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
       "fields": [
+        "EquipmentKind",
         "Svg"
       ],
       "defaultRule": 15,
@@ -1815,6 +2519,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "210",
+              "225"
+            ]
           }
         },
         {
@@ -1826,6 +2538,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "213",
+              "228"
+            ]
           }
         },
         {
@@ -1837,6 +2557,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "200",
+              "215"
+            ]
           }
         },
         {
@@ -1848,6 +2576,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "206",
+              "221"
+            ]
           }
         },
         {
@@ -1859,6 +2595,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "214",
+              "232"
+            ]
           }
         },
         {
@@ -1870,6 +2614,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "202",
+              "217"
+            ]
           }
         },
         {
@@ -1881,6 +2633,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "203",
+              "218"
+            ]
           }
         },
         {
@@ -1892,6 +2652,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "201",
+              "216"
+            ]
           }
         },
         {
@@ -1903,6 +2671,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "205",
+              "220"
+            ]
           }
         },
         {
@@ -1914,6 +2690,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "212",
+              "227"
+            ]
           }
         },
         {
@@ -1925,6 +2709,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "211",
+              "226"
+            ]
           }
         },
         {
@@ -1936,6 +2728,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "207",
+              "222"
+            ]
           }
         },
         {
@@ -1947,6 +2747,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "208",
+              "223"
+            ]
           }
         },
         {
@@ -1958,6 +2766,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "204",
+              "219"
+            ]
           }
         },
         {
@@ -1969,6 +2785,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EquipmentKind",
+            "values": [
+              "209",
+              "224"
+            ]
           }
         },
         {
@@ -1978,13 +2802,33 @@
             "color": "#ff0000",
             "opacity": 1.0,
             "weight": 1.74
+          },
+          "filter": {
+            "type": "else"
+          }
+        }
+      ],
+      "fields": [
+        "EquipmentKind"
+      ],
+      "defaultRule": 15,
+      "qmlFile": "WorkLayers_FencingPoly.qml",
+      "label": "Ограждения (Точка)"
+    },
+    "FencingPolyAxis": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "FencingPolyAxis",
+          "style": {
+            "kind": "line"
           }
         }
       ],
       "fields": [],
-      "defaultRule": 15,
-      "qmlFile": "WorkLayers_FencingPoly.qml",
-      "label": "Ограждения (Точка)"
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_FencingPolyAxis.qml",
+      "label": "FencingPolyAxis"
     },
     "FlowersGardenPoly": {
       "geometry": "polygon",
@@ -2016,6 +2860,14 @@
             "color": "#00b0b9",
             "opacity": 1.0,
             "weight": 2.49
+          },
+          "filter": {
+            "type": "in",
+            "field": "ArrangeElementType",
+            "values": [
+              "gutter_trays",
+              "gutter_tray"
+            ]
           }
         },
         {
@@ -2039,6 +2891,14 @@
             "color": "#000000",
             "opacity": 1.0,
             "weight": 2.0
+          },
+          "filter": {
+            "type": "in",
+            "field": "ArrangeElementType",
+            "values": [
+              "artificial_road_roughness",
+              "speed_dump"
+            ]
           }
         },
         {
@@ -2080,23 +2940,6 @@
       "geometry": "point",
       "rules": [
         {
-          "label": "СФО",
-          "style": {
-            "kind": "point",
-            "fillColor": "#ffffff",
-            "iconSize": 14.0,
-            "iconSizeUnit": "MapUnit",
-            "sizeUnit": "MapUnit",
-            "iconAnchorX": "center",
-            "iconAnchorY": "bottom",
-            "fillOpacity": 1.0,
-            "color": "#0000ff",
-            "radius": 0.05,
-            "markerShape": "circle",
-            "svgField": "Svg"
-          }
-        },
-        {
           "label": "Люк",
           "style": {
             "kind": "point",
@@ -2111,6 +2954,11 @@
             "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "underground_communications_hatch"
           }
         },
         {
@@ -2128,6 +2976,11 @@
             "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "barrier"
           }
         },
         {
@@ -2145,6 +2998,11 @@
             "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "ArrangeElementType",
+            "value": "speed_dump"
           }
         },
         {
@@ -2163,13 +3021,17 @@
             "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
       "fields": [
+        "ArrangeElementType",
         "Svg"
       ],
-      "defaultRule": 4,
+      "defaultRule": 3,
       "qmlFile": "WorkLayers_FunctionalityPoint.qml",
       "label": "Системы функционального обеспечения (Точка)"
     },
@@ -2201,6 +3063,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "ArrangeElementType",
+            "values": [
+              "gutter_tray",
+              "gutter_trays"
+            ]
           }
         },
         {
@@ -2244,6 +3114,9 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -2314,6 +3187,9 @@
             "color": "#800e10",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -2515,6 +3391,47 @@
             "color": "#ff0000",
             "opacity": 1.0,
             "weight": 0.57
+          },
+          "filter": {
+            "type": "or",
+            "children": [
+              {
+                "type": "null",
+                "field": "MafTypeLevel1"
+              },
+              {
+                "type": "and",
+                "children": [
+                  {
+                    "type": "eq",
+                    "field": "MafTypeLevel1",
+                    "value": "fencing"
+                  },
+                  {
+                    "type": "null",
+                    "field": "MafTypeLevel2"
+                  }
+                ]
+              },
+              {
+                "type": "and",
+                "children": [
+                  {
+                    "type": "eq",
+                    "field": "MafTypeLevel1",
+                    "value": "fencing"
+                  },
+                  {
+                    "type": "null",
+                    "field": "MafTypeLevel2"
+                  },
+                  {
+                    "type": "null",
+                    "field": "MafTypeLevel3"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -2772,7 +3689,8 @@
       ],
       "fields": [
         "MafTypeLevel1",
-        "MafTypeLevel2"
+        "MafTypeLevel2",
+        "MafTypeLevel3"
       ],
       "defaultRule": 18,
       "qmlFile": "WorkLayers_LittleFormLine.qml",
@@ -2796,6 +3714,10 @@
             "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "not_null",
+            "field": "MafTypeLevel1"
           }
         },
         {
@@ -2814,10 +3736,14 @@
             "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
       "fields": [
+        "MafTypeLevel1",
         "Svg"
       ],
       "defaultRule": 1,
@@ -2859,6 +3785,14 @@
             "iconAnchorY": "bottom",
             "svg": "Информационный стенд.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "ConvElementType",
+            "values": [
+              "763",
+              "764"
+            ]
           }
         },
         {
@@ -2873,6 +3807,14 @@
             "iconAnchorY": "bottom",
             "svg": "Скамья.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "ConvElementType",
+            "values": [
+              "783",
+              "784"
+            ]
           }
         },
         {
@@ -2887,6 +3829,14 @@
             "iconAnchorY": "bottom",
             "svg": "Скульптура.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "ConvElementType",
+            "values": [
+              "785",
+              "786"
+            ]
           }
         },
         {
@@ -2901,6 +3851,14 @@
             "iconAnchorY": "bottom",
             "svg": "Урна.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "ConvElementType",
+            "values": [
+              "797",
+              "798"
+            ]
           }
         },
         {
@@ -2915,6 +3873,14 @@
             "iconAnchorY": "bottom",
             "svg": "Флагшток.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "ConvElementType",
+            "values": [
+              "801",
+              "802"
+            ]
           }
         },
         {
@@ -2929,6 +3895,14 @@
             "iconAnchorY": "bottom",
             "svg": "Стойка для велопарковки.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "ConvElementType",
+            "values": [
+              "751",
+              "752"
+            ]
           }
         },
         {
@@ -2943,6 +3917,14 @@
             "iconAnchorY": "bottom",
             "svg": "Рекламная конструкция.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "ConvElementType",
+            "values": [
+              "779",
+              "780"
+            ]
           }
         },
         {
@@ -2957,6 +3939,14 @@
             "iconAnchorY": "bottom",
             "svg": "Полусфера антипарковочная.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "ConvElementType",
+            "values": [
+              "743",
+              "744"
+            ]
           }
         },
         {
@@ -2971,6 +3961,14 @@
             "iconAnchorY": "bottom",
             "svg": "Дорожное зеркало.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "ConvElementType",
+            "values": [
+              "757",
+              "758"
+            ]
           }
         },
         {
@@ -2985,6 +3983,14 @@
             "iconAnchorY": "bottom",
             "svg": "Вышка связи многофункциональная.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "ConvElementType",
+            "values": [
+              "799",
+              "800"
+            ]
           }
         },
         {
@@ -2999,6 +4005,14 @@
             "iconAnchorY": "bottom",
             "svg": "Шлагбаум.svg",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "ConvElementType",
+            "values": [
+              "805",
+              "806"
+            ]
           }
         },
         {
@@ -3011,10 +4025,14 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
       "fields": [
+        "ConvElementType",
         "Svg"
       ],
       "defaultRule": 11,
@@ -3033,6 +4051,86 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "ConvElementType",
+            "values": [
+              "737",
+              "738",
+              "739",
+              "740",
+              "741",
+              "742",
+              "743",
+              "744",
+              "745",
+              "746",
+              "747",
+              "748",
+              "811",
+              "812",
+              "749",
+              "750",
+              "751",
+              "752",
+              "753",
+              "754",
+              "755",
+              "756",
+              "757",
+              "758",
+              "759",
+              "760",
+              "761",
+              "762",
+              "763",
+              "764",
+              "765",
+              "766",
+              "767",
+              "768",
+              "769",
+              "770",
+              "813",
+              "814",
+              "771",
+              "772",
+              "773",
+              "774",
+              "775",
+              "776",
+              "777",
+              "778",
+              "779",
+              "780",
+              "781'782",
+              "783",
+              "784",
+              "785",
+              "786",
+              "787",
+              "788",
+              "789",
+              "790",
+              "791",
+              "792",
+              "793",
+              "794",
+              "795",
+              "796",
+              "797",
+              "798",
+              "799",
+              "800",
+              "801'802",
+              "803",
+              "804",
+              "805",
+              "806",
+              "807",
+              "808"
+            ]
           }
         },
         {
@@ -3042,13 +4140,33 @@
             "color": "#ff0000",
             "opacity": 1.0,
             "weight": 1.74
+          },
+          "filter": {
+            "type": "else"
+          }
+        }
+      ],
+      "fields": [
+        "ConvElementType"
+      ],
+      "defaultRule": 1,
+      "qmlFile": "WorkLayers_MafPoly.qml",
+      "label": "Малые архитектурные формы (Полигон)"
+    },
+    "MafPolyAxis": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "",
+          "style": {
+            "kind": "line"
           }
         }
       ],
       "fields": [],
-      "defaultRule": 1,
-      "qmlFile": "WorkLayers_MafPoly.qml",
-      "label": "Малые архитектурные формы (Полигон)"
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_MafPolyAxis.qml",
+      "label": "MafPolyAxis"
     },
     "ManholesPoint": {
       "geometry": "point",
@@ -3118,6 +4236,27 @@
             "iconAnchorX": "center",
             "iconAnchorY": "bottom",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "Accessory",
+            "values": [
+              "vks",
+              "g",
+              "geoprom",
+              "gks",
+              "gs",
+              "zbk",
+              "k",
+              "kk",
+              "kover",
+              "mks",
+              "mosenergo",
+              "me",
+              "telefon",
+              "tm",
+              "tc"
+            ]
           }
         },
         {
@@ -3381,24 +4520,9 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
-          }
-        },
-        {
-          "label": "Механизированная уборка",
-          "style": {
-            "kind": "fill"
-          }
-        },
-        {
-          "label": "Ручная уборка",
-          "style": {
-            "kind": "fill"
-          }
-        },
-        {
-          "label": "Без уборки",
-          "style": {
-            "kind": "fill"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -3408,6 +4532,24 @@
       "defaultRule": 6,
       "qmlFile": "WorkLayers_MarginPoly.qml",
       "label": "Обочины"
+    },
+    "MarginPolyAxis": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_MarginPolyAxis.qml",
+      "label": "MarginPolyAxis"
     },
     "OdhPoly": {
       "geometry": "polygon",
@@ -3460,6 +4602,114 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "in",
+            "field": "EngineStructType",
+            "values": [
+              "875",
+              "878",
+              "877",
+              "876",
+              "771",
+              "772",
+              "773",
+              "774",
+              "775",
+              "776",
+              "777",
+              "778",
+              "779",
+              "780",
+              "781",
+              "783",
+              "782",
+              "784",
+              "785",
+              "786",
+              "787",
+              "788",
+              "789",
+              "790",
+              "791",
+              "792",
+              "793",
+              "794",
+              "795",
+              "796",
+              "797",
+              "798",
+              "799",
+              "800",
+              "801",
+              "802",
+              "803",
+              "804",
+              "805",
+              "806",
+              "807",
+              "808",
+              "electr",
+              "electr_tpu",
+              "809",
+              "810",
+              "811",
+              "812",
+              "813",
+              "814",
+              "815",
+              "816",
+              "819",
+              "820",
+              "821",
+              "822",
+              "825",
+              "826",
+              "827",
+              "828",
+              "829",
+              "830",
+              "832",
+              "831",
+              "833",
+              "835",
+              "834",
+              "836",
+              "837",
+              "838",
+              "839",
+              "840",
+              "841",
+              "842",
+              "843",
+              "844",
+              "849",
+              "850",
+              "851",
+              "852",
+              "853",
+              "854",
+              "857",
+              "858",
+              "859",
+              "860",
+              "862",
+              "861",
+              "863",
+              "864",
+              "865",
+              "866",
+              "867",
+              "868",
+              "869",
+              "870",
+              "873",
+              "874",
+              "25",
+              "363",
+              "14",
+              "352"
+            ]
           }
         },
         {
@@ -3471,6 +4721,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "EngineStructType",
+            "values": [
+              "823",
+              "824"
+            ]
           }
         },
         {
@@ -3482,6 +4740,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "EngineStructType",
+            "values": [
+              "847",
+              "848"
+            ]
           }
         },
         {
@@ -3493,6 +4759,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "EngineStructType",
+            "values": [
+              "855",
+              "856"
+            ]
           }
         },
         {
@@ -3504,6 +4778,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "EngineStructType",
+            "values": [
+              "871",
+              "872"
+            ]
           }
         },
         {
@@ -3515,13 +4797,33 @@
             "color": "#800e10",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
+          }
+        }
+      ],
+      "fields": [
+        "EngineStructType"
+      ],
+      "defaultRule": 5,
+      "qmlFile": "WorkLayers_OtherEnginConstructPoly.qml",
+      "label": "Инженерные сооружения (Полигон)"
+    },
+    "OtherEnginConstructPolyAxis": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "",
+          "style": {
+            "kind": "line"
           }
         }
       ],
       "fields": [],
-      "defaultRule": 5,
-      "qmlFile": "WorkLayers_OtherEnginConstructPoly.qml",
-      "label": "Инженерные сооружения (Полигон)"
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_OtherEnginConstructPolyAxis.qml",
+      "label": "OtherEnginConstructPolyAxis"
     },
     "OtherFlatBuildingPoly": {
       "geometry": "polygon",
@@ -3535,6 +4837,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "13",
+              "457"
+            ]
           }
         },
         {
@@ -3546,6 +4856,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "14",
+              "458"
+            ]
           }
         },
         {
@@ -3557,6 +4875,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "905",
+              "906"
+            ]
           }
         },
         {
@@ -3568,6 +4894,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "17",
+              "461"
+            ]
           }
         },
         {
@@ -3579,6 +4913,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "18",
+              "462"
+            ]
           }
         },
         {
@@ -3590,6 +4932,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "39",
+              "483"
+            ]
           }
         },
         {
@@ -3601,17 +4951,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
-          }
-        },
-        {
-          "label": "Место сбора отходов",
-          "style": {
-            "kind": "polygon",
-            "fillColor": "#c3c3c3",
-            "fillOpacity": 1.0,
-            "color": "#555555",
-            "opacity": 1.0,
-            "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "401",
+              "836"
+            ]
           }
         },
         {
@@ -3623,6 +4970,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "895",
+              "896"
+            ]
           }
         },
         {
@@ -3634,6 +4989,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "897",
+              "898"
+            ]
           }
         },
         {
@@ -3645,6 +5008,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "899",
+              "900"
+            ]
           }
         },
         {
@@ -3656,6 +5027,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "901",
+              "902"
+            ]
           }
         },
         {
@@ -3667,6 +5046,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "903",
+              "904"
+            ]
           }
         },
         {
@@ -3678,6 +5065,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "919",
+              "920"
+            ]
           }
         },
         {
@@ -3689,31 +5084,33 @@
             "color": "#800e10",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
-        },
+        }
+      ],
+      "fields": [
+        "FlatElementType"
+      ],
+      "defaultRule": 13,
+      "qmlFile": "WorkLayers_OtherFlatBuildingPoly.qml",
+      "label": "Прочие территории"
+    },
+    "OtherFlatBuildingPolyAxis": {
+      "geometry": "line",
+      "rules": [
         {
-          "label": "Механизированная уборка",
+          "label": "",
           "style": {
-            "kind": "fill"
-          }
-        },
-        {
-          "label": "Ручная уборка",
-          "style": {
-            "kind": "fill"
-          }
-        },
-        {
-          "label": "Без уборки",
-          "style": {
-            "kind": "fill"
+            "kind": "line"
           }
         }
       ],
       "fields": [],
-      "defaultRule": 14,
-      "qmlFile": "WorkLayers_OtherFlatBuildingPoly.qml",
-      "label": "Прочие территории"
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_OtherFlatBuildingPolyAxis.qml",
+      "label": "OtherFlatBuildingPolyAxis"
     },
     "OtherOksPoly": {
       "geometry": "polygon",
@@ -3727,6 +5124,11 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "ne",
+            "field": "BuildingsTypeSpec",
+            "value": "blind_area"
           }
         },
         {
@@ -3754,6 +5156,9 @@
             "color": "#800e10",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -3787,6 +5192,9 @@
             "color": "#800e10",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -3823,6 +5231,9 @@
             "color": "#e29d23",
             "opacity": 1.0,
             "weight": 0.5
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -3859,6 +5270,383 @@
       "defaultRule": 0,
       "qmlFile": "WorkLayers_PhotoFixPoint.qml",
       "label": "Точки фотофиксации"
+    },
+    "PlanarStructure": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Автопарковка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#898989",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "autoparking"
+          }
+        },
+        {
+          "label": "Детская площадка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffffc4",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "kids_playground"
+          }
+        },
+        {
+          "label": "Каток",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "rink"
+          }
+        },
+        {
+          "label": "Площадка для выгула домашних животных",
+          "style": {
+            "kind": "line",
+            "color": "#c99494",
+            "opacity": 1.0,
+            "weight": 1.74
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "playground_for_pets"
+          }
+        },
+        {
+          "label": "Площадка для отдыха",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#d9ffff",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "recreation_area"
+          }
+        },
+        {
+          "label": "Площадка для пожарной техники",
+          "style": {
+            "kind": "line",
+            "fillColor": "#ffffff",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "opacity": 1.0,
+            "weight": 1.74
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "site_for_fire_equipment"
+          }
+        },
+        {
+          "label": "Площадка для аварийно-спасательной техники",
+          "style": {
+            "kind": "line",
+            "fillColor": "#ffffff",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "opacity": 1.0,
+            "weight": 1.74
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "area_emergency_rescue_equipment"
+          }
+        },
+        {
+          "label": "Площадка иного типа",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#000000",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98,
+            "fillPattern": "cross"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "other_type_of_site"
+          }
+        },
+        {
+          "label": "Площадка с искусственным льдом (каток)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "playground_artificial_ice"
+          }
+        },
+        {
+          "label": "Смотровая площадка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "viewing_platform"
+          }
+        },
+        {
+          "label": "Спортивная площадка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffa940",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "sport_playground"
+          }
+        },
+        {
+          "label": "Техническая площадка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "technical_site"
+          }
+        },
+        {
+          "label": "Хозяйственная площадка (для сушки белья)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#9d9dce",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "household_platform_drying_clothes"
+          }
+        },
+        {
+          "label": "Экопарковка",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#00ff00",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98,
+            "fillPattern": "diagonal_x"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "ecoparking"
+          }
+        },
+        {
+          "label": "Уличный вольер",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "street_aviary"
+          }
+        },
+        {
+          "label": "Скейтпарк",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffa940",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "skate_park"
+          }
+        },
+        {
+          "label": "Роллердром",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#ffa940",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "rollerdrome"
+          }
+        },
+        {
+          "label": "Амфитеатр",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "amphitheater"
+          }
+        },
+        {
+          "label": "Велопарковка открытого типа",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "bicycle_open_park"
+          }
+        },
+        {
+          "label": "Велопарковка открытого типа для кратковременного хранения велосипедов",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "open_bicycle_parking_shorttime"
+          }
+        },
+        {
+          "label": "Площадка для экстремальных видов спорта",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "extreme_place"
+          }
+        },
+        {
+          "label": "Площадка с искусственным льдом (каток)",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#5b5b5b",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "PlanarStructureType",
+            "value": "playground_artificial_ice"
+          }
+        },
+        {
+          "label": "Нет данных",
+          "style": {
+            "kind": "polygon",
+            "fillColor": "#e41a1c",
+            "fillOpacity": 1.0,
+            "color": "#800e10",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
+          }
+        }
+      ],
+      "fields": [
+        "PlanarStructureType"
+      ],
+      "defaultRule": 22,
+      "qmlFile": "WorkLayers_PlanarStructure.qml",
+      "label": "PlanarStructure"
     },
     "PlanarStructurePoly": {
       "geometry": "polygon",
@@ -4224,6 +6012,9 @@
             "color": "#800e10",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -4395,6 +6186,9 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -4524,6 +6318,9 @@
             "radius": 11.34,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -4695,6 +6492,9 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -4781,6 +6581,9 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -4793,30 +6596,19 @@
     },
     "RoadSignsLine": {
       "geometry": "line",
-      "rules": [
-        {
-          "label": "Знаки, указатели и информационные щиты",
-          "style": {
-            "kind": "line",
-            "color": "#989898",
-            "opacity": 0.6,
-            "weight": 0.98
-          }
-        },
-        {
-          "label": "Знаки, указатели и информационные щиты с изменяемым значением",
-          "style": {
-            "kind": "line",
-            "color": "#989898",
-            "opacity": 0.8,
-            "weight": 0.98
-          }
-        }
-      ],
+      "rules": [],
       "fields": [],
-      "defaultRule": 1,
+      "defaultRule": null,
       "qmlFile": "WorkLayers_RoadSignsLine.qml",
       "label": "Знаки, указатели и информационные щиты"
+    },
+    "RoadSignsLineWithText": {
+      "geometry": "line",
+      "rules": [],
+      "fields": [],
+      "defaultRule": null,
+      "qmlFile": "WorkLayers_RoadSignsLineWithText.qml",
+      "label": "RoadSignsLineWithText"
     },
     "SidewalksPoly": {
       "geometry": "polygon",
@@ -4830,6 +6622,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "18",
+              "462"
+            ]
           }
         },
         {
@@ -4841,6 +6641,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "31",
+              "475"
+            ]
           }
         },
         {
@@ -4852,6 +6660,14 @@
             "color": "#555555",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "32",
+              "476"
+            ]
           }
         },
         {
@@ -4863,6 +6679,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "33",
+              "477"
+            ]
           }
         },
         {
@@ -4874,6 +6698,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "34",
+              "478"
+            ]
           }
         },
         {
@@ -4885,6 +6717,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "35",
+              "479"
+            ]
           }
         },
         {
@@ -4896,6 +6736,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "36",
+              "480"
+            ]
           }
         },
         {
@@ -4907,6 +6755,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "37",
+              "481"
+            ]
           }
         },
         {
@@ -4919,6 +6775,14 @@
             "opacity": 1.0,
             "weight": 0.98,
             "fillPattern": "no"
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "335",
+              "887"
+            ]
           }
         },
         {
@@ -4931,6 +6795,14 @@
             "opacity": 1.0,
             "weight": 0.98,
             "fillPattern": "no"
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "336",
+              "888"
+            ]
           }
         },
         {
@@ -4942,6 +6814,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "911",
+              "912"
+            ]
           }
         },
         {
@@ -4953,6 +6833,14 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "in",
+            "field": "FlatElementType",
+            "values": [
+              "917",
+              "918"
+            ]
           }
         },
         {
@@ -4964,31 +6852,33 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
-        },
+        }
+      ],
+      "fields": [
+        "FlatElementType"
+      ],
+      "defaultRule": 12,
+      "qmlFile": "WorkLayers_SidewalksPoly.qml",
+      "label": "Тротуары"
+    },
+    "SidewalksPolyAxis": {
+      "geometry": "line",
+      "rules": [
         {
-          "label": "Механизированная уборка",
+          "label": "",
           "style": {
-            "kind": "fill"
-          }
-        },
-        {
-          "label": "Ручная уборка",
-          "style": {
-            "kind": "fill"
-          }
-        },
-        {
-          "label": "Без уборки",
-          "style": {
-            "kind": "fill"
+            "kind": "line"
           }
         }
       ],
       "fields": [],
-      "defaultRule": 12,
-      "qmlFile": "WorkLayers_SidewalksPoly.qml",
-      "label": "Тротуары"
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_SidewalksPolyAxis.qml",
+      "label": "SidewalksPolyAxis"
     },
     "SpaPoly": {
       "geometry": "polygon",
@@ -5054,12 +6944,9 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
-          }
-        },
-        {
-          "label": "Ручная уборка",
-          "style": {
-            "kind": "fill"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -5069,6 +6956,24 @@
       "defaultRule": 2,
       "qmlFile": "WorkLayers_StopsPoly.qml",
       "label": "Остановки общественного транспорта"
+    },
+    "StopsPolyAxis": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_StopsPolyAxis.qml",
+      "label": "StopsPolyAxis"
     },
     "StoragePlacePoly": {
       "geometry": "polygon",
@@ -5114,6 +7019,9 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -5168,6 +7076,9 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -5177,6 +7088,24 @@
       "defaultRule": 2,
       "qmlFile": "WorkLayers_TechPlacePoly.qml",
       "label": "Некапитальные объекты для обеспечения производственной деятельности по содержанию и ремонту территорий"
+    },
+    "TopPoly": {
+      "geometry": "polygon",
+      "rules": [
+        {
+          "label": "Дворовая территория",
+          "style": {
+            "kind": "line",
+            "color": "#e41a1c",
+            "opacity": 1.0,
+            "weight": 1.89
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_TopPoly.qml",
+      "label": "TopPoly"
     },
     "TrafficLightPoint": {
       "geometry": "point",
@@ -5307,6 +7236,9 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -5316,6 +7248,21 @@
       "defaultRule": 6,
       "qmlFile": "WorkLayers_TramRailsPoly.qml",
       "label": "Трамвайные пути"
+    },
+    "TramRailsPolyAxis": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "",
+          "style": {
+            "kind": "line"
+          }
+        }
+      ],
+      "fields": [],
+      "defaultRule": 0,
+      "qmlFile": "WorkLayers_TramRailsPolyAxis.qml",
+      "label": "TramRailsPolyAxis"
     },
     "TreeMergeLines": {
       "geometry": "line",
@@ -5373,6 +7320,9 @@
             "color": "#a03d00",
             "opacity": 1.0,
             "weight": 2.49
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -5434,6 +7384,9 @@
             "radius": 7.56,
             "sizeUnit": "MM",
             "markerShape": "circle"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -5532,6 +7485,9 @@
             "color": "#b60000",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -5582,6 +7538,9 @@
             "radius": 0.05,
             "markerShape": "circle",
             "svgField": "Svg"
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -5701,6 +7660,9 @@
             "color": "#232323",
             "opacity": 1.0,
             "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
           }
         }
       ],
@@ -5768,6 +7730,1547 @@
       "defaultRule": 0,
       "qmlFile": "WorkLayers_task.qml",
       "label": "Таблица для редактирования геометрии задач"
+    },
+    "topolines": {
+      "geometry": "line",
+      "rules": [
+        {
+          "label": "ОКС",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "eq",
+                "field": "layer",
+                "value": "Level 2"
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Линии разделения адресов",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "layer",
+            "value": "Level 53"
+          }
+        },
+        {
+          "label": "Части зданий, строений",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 3",
+                  "Level 5"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Нависающие части зданий, строений",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "eq",
+                "field": "layer",
+                "value": "Level 3"
+              },
+              {
+                "type": "eq",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Тротуары",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "or",
+            "children": [
+              {
+                "type": "like",
+                "field": "layer",
+                "pattern": "Тротуар%"
+              },
+              {
+                "type": "like",
+                "field": "layer",
+                "pattern": "Борт тротуара%"
+              },
+              {
+                "type": "eq",
+                "field": "layer",
+                "value": "Понижение борта"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Дороги",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "or",
+            "children": [
+              {
+                "type": "like",
+                "field": "layer",
+                "pattern": "Дорога%"
+              },
+              {
+                "type": "like",
+                "field": "layer",
+                "pattern": "Борт дороги%"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Борта",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "or",
+            "children": [
+              {
+                "type": "like",
+                "field": "layer",
+                "pattern": "Борт%"
+              },
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 56",
+                  "Level 57"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "label": "Разделительные полосы",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "eq",
+                "field": "layer",
+                "value": "Разделительная полоса"
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Автомобильные парковки",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "eq",
+                "field": "layer",
+                "value": "Парковка автомобильная"
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Велопарковки",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "eq",
+                "field": "layer",
+                "value": "Парковка велосипедная"
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Ограждения",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "eq",
+                "field": "layer",
+                "value": "Level 44"
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Парапеты",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 36",
+                  "Level 45"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Линии смены покрытий",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "eq",
+                "field": "layer",
+                "value": "Level 32"
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Площадки, лестницы",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "eq",
+                "field": "layer",
+                "value": "Level 33"
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "МСО",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "eq",
+                "field": "layer",
+                "value": "Level 9"
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Промышленные объекты",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 10",
+                  "Level 11",
+                  "Level 12",
+                  "Level 13",
+                  "Level 14",
+                  "Level 15"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "ЛЭП",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 16",
+                  "Level 18",
+                  "Level 20",
+                  "Level 21",
+                  "Level 22"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Объекты водоснабжения",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 23",
+                  "Level 24",
+                  "Level 25"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Объекты связи",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 26",
+                  "Level 27"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Железнодорожные объекты",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 28",
+                  "Level 29",
+                  "Level 30",
+                  "Level 31",
+                  "Level 38",
+                  "Level 51",
+                  "Level 52",
+                  "Level 54",
+                  "Level 63"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Шоссейные и грунтовые дороги",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 17",
+                  "Level 34"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Гидрография",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 35"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Рельеф",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 37",
+                  "Level 38",
+                  "Level 46",
+                  "Level 50"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Растительность",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 39",
+                  "Level 40",
+                  "Level 41",
+                  "Level 42",
+                  "Level 43"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Мосты, путепроводы, переправы",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Level 47",
+                  "Level 48"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Цветники",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "layer",
+                "values": [
+                  "Клумба"
+                ]
+              },
+              {
+                "type": "ne",
+                "field": "olinetype",
+                "value": "UP line"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Остановки",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "layer",
+            "value": "Level 7"
+          }
+        },
+        {
+          "label": "Линии не на уровне земли",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "olinetype",
+            "value": "UP line"
+          }
+        },
+        {
+          "label": "Границы заказа",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "eq",
+            "field": "layer",
+            "value": "Границы заказа"
+          }
+        },
+        {
+          "label": "Прочие объекты",
+          "style": {
+            "kind": "line",
+            "color": "#232323",
+            "opacity": 1.0,
+            "weight": 0.98
+          },
+          "filter": {
+            "type": "else"
+          }
+        }
+      ],
+      "fields": [
+        "layer",
+        "olinetype"
+      ],
+      "defaultRule": 29,
+      "qmlFile": "TopographyLayers_lines.qml",
+      "label": "Линии топоосновы"
+    },
+    "topopoint": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "МСО",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 10.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.12,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "MAF_Bunker8_1",
+              "MAF_Bunker8",
+              "MAF_Bunker_8",
+              "MAF_pavilion_PCO",
+              "MAF_Dop_konteyner",
+              "MAF_Konteyner11",
+              "MAF_Konteyner08",
+              "MAF_Konteyner066"
+            ]
+          }
+        },
+        {
+          "label": "Тактильная плитка",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 0.5,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.12,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "TP_50",
+              "TP_40",
+              "TP_30"
+            ]
+          }
+        },
+        {
+          "label": "СФО (Люки)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 10.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.1333,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "POLIV",
+              "KOLOD_2",
+              "KOLOD_1",
+              "KOLOD",
+              "117_20",
+              "117_19",
+              "117_18",
+              "117_17",
+              "117_16",
+              "117_15",
+              "117_14",
+              "117_13",
+              "117_12",
+              "117_11",
+              "117_10",
+              "117_9",
+              "117_8",
+              "117_7",
+              "117_6",
+              "117_5",
+              "117_4",
+              "117_3",
+              "117_2",
+              "117_1"
+            ]
+          }
+        },
+        {
+          "label": "СФО (Ливневые решетки)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 10.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.0667,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "RESHT1",
+              "RESHT2",
+              "RESHT3"
+            ]
+          }
+        },
+        {
+          "label": "СФО (Опора наружного освещения)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 10.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.12,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "54GD",
+              "55GD",
+              "63GD",
+              "FNRM1",
+              "FNRM2",
+              "FONAR5",
+              "FONAR6",
+              "FONARK",
+              "LEPST1",
+              "LEPST2",
+              "RADFON",
+              "STL.B",
+              "STL.M",
+              "STLB.B",
+              "STLB.D",
+              "STLB.D",
+              "STLB.M",
+              "STOLBG",
+              "STOLBM",
+              "STRFON",
+              "LANDSH_POD",
+              "svetilnik podvesnoy"
+            ]
+          }
+        },
+        {
+          "label": "СФО (Шлагбаум)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 18.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.12,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "SHLAGB"
+            ]
+          }
+        },
+        {
+          "label": "Антипарковочный столбик",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 9.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.06,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "APSTOLB"
+            ]
+          }
+        },
+        {
+          "label": "Гидрография",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 7.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.12,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "FOUNTAIN",
+              "FONTAN",
+              "MAF_Fontan"
+            ]
+          }
+        },
+        {
+          "label": "Пикеты",
+          "style": {
+            "kind": "point",
+            "fillColor": "#91522d",
+            "fillOpacity": 0.0,
+            "color": "#d52323",
+            "radius": 1.0,
+            "sizeUnit": "MapUnit",
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "PIKET",
+              "GP83",
+              "GP87",
+              "GP871",
+              "GP872",
+              "GP873",
+              "GP874",
+              "GP875",
+              "GP101",
+              "GP102",
+              "GP103",
+              "GP11",
+              "GP12",
+              "GP14",
+              "GP15",
+              "GP16",
+              "GP17",
+              "GP18",
+              "GP13",
+              "GP19",
+              "GP211",
+              "GP230",
+              "GP271",
+              "GP280",
+              "GP291",
+              "GP292",
+              "GP201",
+              "GP202",
+              "GP200",
+              "GP210",
+              "GP220",
+              "GP240",
+              "GP270",
+              "GP905",
+              "GP221",
+              "GP251",
+              "GP823",
+              "GP906",
+              "GP907",
+              "GP996",
+              "GP192",
+              "GP612",
+              "GP64",
+              "GP65",
+              "GP66",
+              "GP641",
+              "GP651",
+              "GP652",
+              "GP662",
+              "GP669",
+              "GP671",
+              "GP672",
+              "GP81",
+              "GP82",
+              "GP84",
+              "GP821",
+              "GP60",
+              "GP61",
+              "GP62",
+              "GP63",
+              "GP67",
+              "GP601",
+              "GP602",
+              "GP80",
+              "GP826",
+              "GP822",
+              "GP827",
+              "GP68",
+              "GP250",
+              "GP41",
+              "GP40",
+              "GP43",
+              "GP45",
+              "GP47",
+              "GP48",
+              "GP69",
+              "GP98",
+              "GP471",
+              "GP93",
+              "GP85",
+              "GP38",
+              "GP39",
+              "GP86",
+              "GP381",
+              "GP653",
+              "GP654",
+              "GP655",
+              "GP656",
+              "GP674",
+              "GP675",
+              "GP673",
+              "GP824",
+              "GP841",
+              "GP30",
+              "GP31",
+              "GP32",
+              "GP33",
+              "GP34",
+              "GP35",
+              "GP37",
+              "GP301",
+              "GP302",
+              "GP305",
+              "GP306",
+              "GP311",
+              "GP321",
+              "GP331",
+              "GP341",
+              "GP351",
+              "GP36",
+              "GP376",
+              "GP377",
+              "GP378",
+              "GP379",
+              "GP225",
+              "GP97",
+              "GP222",
+              "GP223",
+              "GP997",
+              "GP49",
+              "GP481",
+              "GP131",
+              "GP825",
+              "GP90",
+              "GP96",
+              "GP91",
+              "GP993",
+              "GP994",
+              "GP224",
+              "GP831",
+              "GP991",
+              "GP992",
+              "GP995",
+              "GP999",
+              "GP99",
+              "GP74",
+              "GP72",
+              "GP95",
+              "GP731",
+              "GP70",
+              "GP73",
+              "GP701",
+              "GP702",
+              "GP703",
+              "GP704",
+              "GP705",
+              "GP706",
+              "GP71",
+              "GP721",
+              "GP722",
+              "GP711",
+              "GP717",
+              "GP712",
+              "GP713",
+              "GP730",
+              "GP714",
+              "GP715",
+              "GP716",
+              "GP551",
+              "GP55",
+              "GP50",
+              "GP51",
+              "GP56",
+              "GP52",
+              "GP53",
+              "GP531",
+              "GP54",
+              "GP511",
+              "GP998",
+              "GP94",
+              "GP191",
+              "GP88",
+              "GP881",
+              "GP882",
+              "GP884",
+              "GP885",
+              "GP89",
+              "GP891",
+              "GP892",
+              "GP893",
+              "GP894",
+              "GP895",
+              "GP896",
+              "GP897",
+              "GP57"
+            ]
+          }
+        },
+        {
+          "label": "Растительность",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 10.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.12,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "layer",
+            "values": [
+              "Level 39",
+              "Level 40",
+              "Level 42",
+              "Level 43"
+            ]
+          }
+        },
+        {
+          "label": "Растительность кустарники",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 10.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.12,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "KUST2",
+              "KUST1",
+              "ZABOL"
+            ]
+          }
+        },
+        {
+          "label": "Прочие объекты",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 10.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "bottom",
+            "fillOpacity": 1.0,
+            "color": "#ff2323",
+            "radius": 0.12,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "else"
+          }
+        },
+        {
+          "label": "МАФ",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 10.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.12,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "MAF_Doska_dlya_risovaniya",
+              "MAF_Zmeika",
+              "SPORT TR",
+              "vertikalnye_konstrukcii_inye",
+              "snarjad_kolco_dlja_sobak",
+              "zmejka_dlja_sobak",
+              "metallofon",
+              "interaktivnaja_doska",
+              "sportivnyj_trenazher_bez_podvizhnyh_elementov",
+              "stenka_dlja_risovanija",
+              "zmeika_2"
+            ]
+          }
+        },
+        {
+          "label": "МАФ(точка привязки в центре)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 10.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.12,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "tramplin_dlja_sobak",
+              "MAF_SK_Radiusnaya_Piramida",
+              "MAF_SK_Gimnast_kompleks",
+              "MAF_Igrovoy_komplex",
+              "IGRKOM III",
+              "IGRKOM II",
+              "IGRKOM I",
+              "detskij_igrovoj_kompleks_2_kategorii",
+              "detskij_igrovoj_kompleks_3_kategorii",
+              "detskij_igrovoj_kompleks_4_kategorii",
+              "detskij_igrovoj_kompleks_5_kategorii",
+              "radiusnaja piramida",
+              "pesochnyj_dvorik",
+              "detskij_igrovoj_kompleks_1_kategorii",
+              "detskij_sportivnyj_kompleks_1_kategorii",
+              "detskij_sportivnyj_kompleks_2_kategorii",
+              "detskij_sportivnyj_kompleks_3_kategorii",
+              "kompleks_dlja_detej_s_ogranichennymi_vozmozhnostjami",
+              "MAF_pavilon",
+              "MAF_Naves",
+              "PAVIL",
+              "naves",
+              "pristvolnaja_reshetka",
+              "stol_dt",
+              "skamja_dlja_pressa",
+              "stol_dlja_igry_v_nastolnyj_tennis",
+              "stol_dlja_igry_v_shahmaty",
+              "stol_dlja_tjekbola",
+              "razgonka",
+              "fanboks",
+              "detskij_kanatnyj_igrovoj_kompleks_1_kategorii",
+              "detskij_kanatnyj_igrovoj_kompleks_2_kategorii",
+              "detskij_kanatnyj_igrovoj_kompleks_3_kategorii",
+              "pesochnica_bez_navesa",
+              "pesochnica_s_navesom",
+              "pesochnica_s_kryshkoj",
+              "pesochnica_s_figuroj",
+              "pesochnyj_dvorik",
+              "figura_zhivotnogo",
+              "igrovoj_element",
+              "trap_dlja_sobak",
+              "lesenka_dlja_sobak",
+              "pavilon",
+              "Derevyannyj_nastil",
+              "Stol_detskiy",
+              "Stol_sadovo_parkoviy",
+              "Stol_so_skamjamy",
+              "korablik",
+              "lodochka",
+              "inogo_tipa",
+              "sportivnyj_trenazher_s_podvizhnymi_elementami",
+              "pesochnica_katerok",
+              "pesochnica 1.8x1.8",
+              "Lesenka_krug",
+              "balansir_dlja_sobak",
+              "skamja_dlya_prizhkov",
+              "Ploshadka_dlya_vikantih_kontejnerov_oo",
+              "Ploshadka_dlya_vikantih_kontejnerov",
+              "pesochnaya_fabrika",
+              "PESD",
+              "PESPL",
+              "PES KAT",
+              "STOL",
+              "MAF_Korablik",
+              "MAF_Lodochka",
+              "MAF_Lesenka_Krug",
+              "MAF_Stol_detskiy",
+              "MAF_Pristvolnaya_Reshetka",
+              "MAF_SP_Tramplin",
+              "MAF_SP_Skamya_press",
+              "MAF_SP_Stol_tennis",
+              "MAF_SK_Razgonka",
+              "MAF_SK_Fanbox",
+              "MAF_Animal_Skamya_dlya_prijkov",
+              "MAF_Animal_Balansir",
+              "MAF_Animal_Trap",
+              "MAF_Animal_Lesenka",
+              "SPORT TR POD",
+              "IGR EL",
+              "podium_na_sobachej_ploshhadke",
+              "labirint_dlja_sobak"
+            ]
+          }
+        },
+        {
+          "label": "МАФ(точка привязки в центре для ОО)",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "iconSize": 10.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
+            "fillOpacity": 1.0,
+            "color": "#ff0000",
+            "radius": 0.12,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "in",
+                "field": "name",
+                "values": [
+                  "sportivnyj_kompleks_vorkaut_1_kategorii",
+                  "sportivnyj_kompleks_vorkaut_2_kategorii",
+                  "sportivnyj_kompleks_vorkaut_3_kategorii"
+                ]
+              },
+              {
+                "type": "in",
+                "field": "svg_name",
+                "values": [
+                  "Комплексы_Спортивный комплекс_1 категория (менее 15 кв. м).svg",
+                  "Комплексы_Спортивный комплекс_2 категория (15 - 30 кв. м).svg",
+                  "Комплексы_Спортивный комплекс_3 категория (более 30 кв. м).svg"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "label": "Ошибки и замечания",
+          "style": {
+            "kind": "point",
+            "fillColor": "#000000",
+            "iconSize": 1.0,
+            "iconSizeUnit": "MapUnit",
+            "sizeUnit": "MapUnit",
+            "iconAnchorX": "center",
+            "iconAnchorY": "center",
+            "fillOpacity": 1.0,
+            "color": "#232323",
+            "radius": 0.01,
+            "markerShape": "circle",
+            "svgField": "Svg"
+          },
+          "filter": {
+            "type": "in",
+            "field": "name",
+            "values": [
+              "11D_5"
+            ]
+          }
+        }
+      ],
+      "fields": [
+        "Svg",
+        "layer",
+        "name",
+        "svg_name"
+      ],
+      "defaultRule": 11,
+      "qmlFile": "TopographyLayers_inserts.qml",
+      "label": "Точки топоосновы"
+    },
+    "topotext": {
+      "geometry": "point",
+      "rules": [
+        {
+          "label": "Текст",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "fillOpacity": 1.0,
+            "color": "#ffffff",
+            "radius": 0.12,
+            "sizeUnit": "MapUnit",
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "and",
+            "children": [
+              {
+                "type": "not_null",
+                "field": "text"
+              },
+              {
+                "type": "ne",
+                "field": "layer",
+                "value": "Фотофиксация"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Фотофиксация",
+          "style": {
+            "kind": "point",
+            "fillColor": "#ffffff",
+            "fillOpacity": 1.0,
+            "color": "#ffffff",
+            "radius": 0.12,
+            "sizeUnit": "MapUnit",
+            "markerShape": "circle"
+          },
+          "filter": {
+            "type": "eq",
+            "field": "layer",
+            "value": "Фотофиксация"
+          }
+        }
+      ],
+      "fields": [
+        "layer",
+        "text"
+      ],
+      "defaultRule": 1,
+      "qmlFile": "TopographyLayers_texts.qml",
+      "label": "Тексты топоосновы"
     }
   }
 }
