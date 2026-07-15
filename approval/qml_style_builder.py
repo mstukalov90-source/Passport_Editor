@@ -792,11 +792,12 @@ def _index_key_variants(relative_path: str) -> list[str]:
 
 
 def build_svg_index(relative_paths: list[str] | None = None) -> dict[str, str]:
-    source = _svg_source_dir()
     if relative_paths is None:
-        if not source.is_dir():
+        source = _svg_source_dir()
+        scan_root = source if source.is_dir() else _svg_static_dir()
+        if not scan_root.is_dir():
             return {}
-        relative_paths = sorted(path.relative_to(source).as_posix() for path in source.rglob("*.svg"))
+        relative_paths = sorted(path.relative_to(scan_root).as_posix() for path in scan_root.rglob("*.svg"))
 
     index: dict[str, str] = {}
     for rel_path in relative_paths:
@@ -835,9 +836,10 @@ def write_svg_index(index: dict[str, str] | None = None, *, relative_paths: list
 
 def load_svg_index() -> dict[str, str]:
     path = _svg_index_path()
-    if not path.is_file():
-        return {}
-    return json.loads(path.read_text(encoding="utf-8"))
+    if path.is_file():
+        return json.loads(path.read_text(encoding="utf-8"))
+    # Rebuild from SVG files on disk (prod may miss the JSON if it was never collected).
+    return build_svg_index()
 
 
 def copy_referenced_svgs(manifest: dict[str, Any], *, clean: bool = True) -> list[str]:
