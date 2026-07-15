@@ -12,11 +12,11 @@ from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_GET, require_POST
 
-from .access import get_accessible_approve, get_accessible_approves, get_accessible_cases_queryset, get_owner_id_for_username, user_can_access_case
 from .events_service import (
     add_case_participant,
     attach_geometry_to_message,
     change_case_owner,
+    create_event_from_adjacent,
     delete_approve_for_inspector,
     get_cases_queryset,
     parse_geometry_payload,
@@ -29,7 +29,15 @@ from .events_service import (
     upsert_message_reaction,
     validate_attachment_file,
 )
-from .models import Case, CaseMessage, CaseMessageAttachment
+from .models import Approve, Case, CaseMessage, CaseMessageAttachment
+from .access import (
+    get_accessible_approve,
+    get_accessible_approves,
+    get_accessible_cases_queryset,
+    get_owner_id_for_username,
+    is_inspector_for_approve,
+    user_can_access_case,
+)
 
 
 def _json_error(message, *, status=400):
@@ -219,9 +227,17 @@ def api_post_message(request, case_id):
             parent_id = int(parent_id_raw)
         except (TypeError, ValueError):
             return _json_error("Некорректный parent_id.")
-        parent = CaseMessage.objects.filter(pk=parent_id, case=case).first()
+        parent = (
+            CaseMessage.objects.filter(pk=parent_id, case=case)
+            .prefetch_related("attachments", "geometries")
+            .first()
+        )
         if parent is None:
             return _json_error("Сообщение для ответа не найдено в этом событии.")
+        if not parent.attachments.exists() and not parent.geometries.exists():
+            return _json_error(
+                "Ответить можно только на сообщение с геометрией или файлом."
+            )
 
     if not body and not uploads and not geometry_payloads:
         return _json_error("Введите текст сообщения, прикрепите файл или добавьте геометрию.")
@@ -423,6 +439,47 @@ def api_download_attachment(request, attachment_id):
     )
     response["Content-Type"] = content_type
     return response
+
+
+@login_required
+@require_POST
+def api_create_adjacent_event(request, approve_id):
+    actor, error = _actor_context(request)
+    if error:
+        return error
+
+    approve = get_accessible_approve(approve_id, actor["owner_id"], username=actor["username"])
+    if approve is None:
+        return _json_error("Согласование не найдено или недоступно.", status=404)
+    if not is_inspector_for_approve(actor["username"], approve):
+        return _json_error("Создание события доступно только инспектору этого согласования.", status=403)
+
+    payload = _parse_json_body(request)
+    if payload is None:
+        return _json_error("Некорректный JSON.")
+
+    geometry_payload = payload.get("geometry")
+    if geometry_payload is None:
+        return _json_error("Укажите geometry.")
+
+    try:
+        case = create_event_from_adjacent(
+            approve=approve,
+            n_root=payload.get("n_root") or "",
+            geometry_payload=geometry_payload,
+            neighbor_owner=payload.get("owner") or "",
+            username=actor["username"],
+            title=payload.get("title"),
+        )
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "case": _serialize_case(case, request=request, actor=actor),
+        }
+    )
 
 
 @login_required

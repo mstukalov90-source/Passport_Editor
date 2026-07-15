@@ -97,6 +97,21 @@ def test_build_manifest_includes_topography_tables():
     assert "text" in manifest["tables"]["topotext"]["fields"]
 
 
+def test_parse_topography_texts_labeling():
+    qml_dir = Path(settings.APPROVAL_LAYER_STYLES_QML_DIR)
+    parsed = parse_qml_file(qml_dir / "TopographyLayers_texts.qml")
+    labeling = parsed["labeling"]
+    assert labeling["field"] == "text"
+    assert labeling["fontSizeUnit"] == "MapUnit"
+    assert labeling["fontSize"] == 1.0
+    assert labeling["color"] == "#000000"
+    assert labeling["rotationField"] == "angle"
+    assert labeling["rotationMode"] == "complement"
+    assert "text" in parsed["fields"]
+    assert "angle" in parsed["fields"]
+    assert any(rule.get("label") == "Текст" for rule in parsed["rules"])
+
+
 def test_collect_table_names_includes_topography_tables():
     names = collect_table_names()
     assert "topolines" in names

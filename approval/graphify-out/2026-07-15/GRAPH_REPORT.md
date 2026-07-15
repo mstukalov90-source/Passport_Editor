@@ -1,12 +1,12 @@
-# Graph Report - GeoDjango/approval  (2026-07-14)
+# Graph Report - GeoDjango/approval  (2026-07-15)
 
 ## Corpus Check
-- 32 files · ~626,469 words
+- 36 files · ~631,880 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 378 nodes · 1018 edges · 18 communities (9 shown, 9 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 21 edges (avg confidence: 0.57)
+- 472 nodes · 1370 edges · 25 communities (16 shown, 9 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 30 edges (avg confidence: 0.58)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -25,79 +25,114 @@
 - 0006_inspector_and_case_roots.py
 - 0007_case_message_reactions.py
 - 0008_case_message_parent.py
+- updateAdjacentLayers
+- pointToLayer
+- initMap
+- geometryLayerKey
+- svgIconUrl
+- lookupSvgHotspot
+- 0009_case_participant_logins.py
 
 ## God Nodes (most connected - your core abstractions)
-1. `Case` - 28 edges
-2. `el()` - 19 edges
-3. `Approve` - 16 edges
-4. `initMap()` - 16 edges
-5. `landing()` - 16 edges
-6. `serialize_case_summary()` - 14 edges
-7. `load_manifest()` - 14 edges
-8. `bindUi()` - 14 edges
-9. `openCase()` - 13 edges
-10. `_parse_svg_marker()` - 12 edges
+1. `Case` - 33 edges
+2. `el()` - 29 edges
+3. `Approve` - 22 edges
+4. `serialize_case_summary()` - 18 edges
+5. `landing()` - 17 edges
+6. `bindUi()` - 16 edges
+7. `openCase()` - 15 edges
+8. `load_manifest()` - 14 edges
+9. `_qgis_actor()` - 13 edges
+10. `mapApi()` - 13 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `api_qgis_upsert_approve()` --indirect_call--> `ApproveAlreadyApprovedError`  [INFERRED]
+  GeoDjango/approval/qgis_api_views.py → GeoDjango/approval/events_service.py
+- `api_qgis_upsert_approve()` --indirect_call--> `ApproveUserConflictError`  [INFERRED]
+  GeoDjango/approval/qgis_api_views.py → GeoDjango/approval/events_service.py
 - `_actor_context()` --calls--> `get_owner_id_for_username()`  [EXTRACTED]
   GeoDjango/approval/api_views.py → GeoDjango/approval/access.py
-- `api_bootstrap()` --calls--> `get_accessible_approves()`  [EXTRACTED]
-  GeoDjango/approval/api_views.py → GeoDjango/approval/access.py
-- `api_bootstrap()` --calls--> `get_accessible_approve()`  [EXTRACTED]
-  GeoDjango/approval/api_views.py → GeoDjango/approval/access.py
-- `api_bootstrap()` --calls--> `serialize_approve_option()`  [EXTRACTED]
-  GeoDjango/approval/api_views.py → GeoDjango/approval/events_service.py
-- `ApprovalConfig` --uses--> `Approve`  [INFERRED]
-  GeoDjango/approval/apps.py → GeoDjango/approval/models.py
+- `_qgis_actor()` --calls--> `get_owner_id_for_username()`  [EXTRACTED]
+  GeoDjango/approval/qgis_api_views.py → GeoDjango/approval/access.py
+- `serialize_approve_option()` --calls--> `is_inspector_for_approve()`  [EXTRACTED]
+  GeoDjango/approval/events_service.py → GeoDjango/approval/access.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (18 total, 9 thin omitted)
+## Communities (25 total, 9 thin omitted)
 
 ### Community 0 - "work_adjacent.py"
-Cohesion: 0.09
-Nodes (53): get_accessible_approve(), get_accessible_approves(), get_owner_id_for_username(), is_inspector_for_approve(), Access control for approval workflows., serialize_approve_option(), landing_page_config(), Page bootstrap config for approval templates (json_script). (+45 more)
+Cohesion: 0.06
+Nodes (90): get_accessible_approve(), get_accessible_approves(), get_owner_id_for_username(), _normalized_participant_logins(), Access control for approval workflows., api_bootstrap(), serialize_approve_option(), build_map_layer_load_order() (+82 more)
 
 ### Community 1 - "landing.js"
-Cohesion: 0.05
-Nodes (84): addGeometryLayer(), adjacentBaseStyle(), adjacentFeatureKey(), adjacentLayerForRoot(), adjacentLayerLabel(), adjacentPulsePhase(), anchorPixelsFromFractions(), applyAdjacentFeatureStyle() (+76 more)
+Cohesion: 0.12
+Nodes (22): addGeometryLayer(), adjacentBaseStyle(), adjacentFeatureKey(), applyStyleToGeometryLayer(), clampNumber(), clearEventGeometries(), clearPendingMessageGeometry(), clearSavedGeometries() (+14 more)
 
 ### Community 2 - "qml_style_builder.py"
-Cohesion: 0.10
-Nodes (51): Any, Element, build_manifest(), build_svg_index(), _collect_svg_references(), collect_table_names(), copy_referenced_svgs(), default_swatch_style() (+43 more)
+Cohesion: 0.11
+Nodes (47): Any, BaseCommand, Element, Command, build_manifest(), build_svg_index(), _collect_svg_references(), collect_table_names() (+39 more)
 
 ### Community 3 - "events_service.py"
 Cohesion: 0.07
-Nodes (73): get_accessible_cases_queryset(), user_can_access_case(), _actor_context(), api_approve_case(), api_bootstrap(), api_case_detail(), api_create_case(), api_download_attachment() (+65 more)
+Nodes (77): is_inspector_for_approve(), user_can_access_case(), _actor_context(), api_add_case_participant(), api_approve_case(), api_case_detail(), api_change_case_owner(), api_create_case() (+69 more)
 
 ### Community 4 - "events.js"
-Cohesion: 0.13
-Nodes (51): addPendingMessageGeometry(), approveCase(), bindEventCardClicks(), bindMessageGeometryClicks(), bindMessageReactionClicks(), bindMessageReplyClicks(), bindUi(), buildEventCardHtml() (+43 more)
+Cohesion: 0.10
+Nodes (67): addPendingMessageGeometry(), approveCase(), attachmentDownloadUrl(), bindAttachmentClicks(), bindEventCardClicks(), bindMessageGeometryClicks(), bindMessageReactionClicks(), bindMessageReplyClicks() (+59 more)
+
+### Community 5 - "api_views.py"
+Cohesion: 0.14
+Nodes (32): get_accessible_cases_queryset(), build_geometries_feature_collection(), _format_dt(), get_cases_queryset(), Short approve payload for QGIS list/detail headers., GeoJSON FeatureCollection for QGIS map layers., serialize_approve_qgis_summary(), qgis_api_host_allowed() (+24 more)
 
 ### Community 6 - "event_draw.js"
 Cohesion: 0.49
 Nodes (10): bindMapDrawEvents(), clearBrushPreview(), finishGeometry(), getMap(), initToolbar(), layerToGeoJSON(), startDrawer(), startDrawMode() (+2 more)
 
+### Community 18 - "updateAdjacentLayers"
+Cohesion: 0.16
+Nodes (16): adjacentLayerForRoot(), adjacentPulsePhase(), applyAdjacentFeatureStyle(), ensureLayerGroup(), findManagedGroupContaining(), hasAdjacentHighlightedEntries(), isAdjacentRootHighlighted(), lerpHexColor() (+8 more)
+
+### Community 19 - "pointToLayer"
+Cohesion: 0.20
+Nodes (15): adjacentLayerLabel(), createSvgMarker(), enumAnchorToFraction(), featureTooltip(), getTableStyleDef(), hashColor(), leafletPathStyle(), matchFilter() (+7 more)
+
+### Community 20 - "initMap"
+Cohesion: 0.20
+Nodes (15): fitTaskGuidBounds(), fitVisibleBounds(), getLayerStylesManifest(), getSvgHotspots(), hideDbLoadingModal(), initLayerPanelControls(), initMap(), loadDeferredMapLayers() (+7 more)
+
+### Community 21 - "geometryLayerKey"
+Cohesion: 0.28
+Nodes (9): fitCaseGeometry(), fitGeometryLayer(), fitGeometryLayers(), fitMessageGeometry(), geometryLayerKey(), highlightCase(), highlightMessageGeometry(), isMessageLayerActive() (+1 more)
+
+### Community 22 - "svgIconUrl"
+Cohesion: 0.33
+Nodes (7): encodeSvgPath(), getSvgIndex(), isUnknownSvgPath(), normalizeSvgLookupKey(), photoFixIconUrl(), resolveSvgRelativePath(), svgIconUrl()
+
+### Community 23 - "lookupSvgHotspot"
+Cohesion: 0.40
+Nodes (6): anchorPixelsFromFractions(), applySvgMarkerSize(), buildSvgIcon(), clampFraction(), hotspotBasenameFromIconUrl(), lookupSvgHotspot()
+
 ## Knowledge Gaps
-- **9 isolated node(s):** `Migration`, `Migration`, `Migration`, `Migration`, `Migration` (+4 more)
+- **10 isolated node(s):** `Migration`, `Migration`, `Migration`, `Migration`, `Migration` (+5 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **9 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Case` connect `events_service.py` to `work_adjacent.py`?**
-  _High betweenness centrality (0.032) - this node is a cross-community bridge._
-- **Why does `Approve` connect `events_service.py` to `work_adjacent.py`?**
-  _High betweenness centrality (0.017) - this node is a cross-community bridge._
-- **Why does `load_manifest()` connect `work_adjacent.py` to `qml_style_builder.py`, `api_views.py`?**
-  _High betweenness centrality (0.015) - this node is a cross-community bridge._
-- **Are the 2 inferred relationships involving `Case` (e.g. with `ApprovalConfig` and `ApproveAlreadyApprovedError`) actually correct?**
-  _`Case` has 2 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 3 inferred relationships involving `Approve` (e.g. with `ApprovalConfig` and `.ready()`) actually correct?**
-  _`Approve` has 3 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 2 inferred relationships involving `initMap()` (e.g. with `pointToLayer()` and `styleFeature()`) actually correct?**
-  _`initMap()` has 2 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `Case` connect `events_service.py` to `work_adjacent.py`, `api_views.py`?**
+  _High betweenness centrality (0.030) - this node is a cross-community bridge._
+- **Why does `Approve` connect `events_service.py` to `work_adjacent.py`, `api_views.py`?**
+  _High betweenness centrality (0.027) - this node is a cross-community bridge._
+- **Why does `resolve_task_owner_legal_person_id()` connect `work_adjacent.py` to `events_service.py`?**
+  _High betweenness centrality (0.009) - this node is a cross-community bridge._
+- **Are the 3 inferred relationships involving `Case` (e.g. with `ApprovalConfig` and `ApproveAlreadyApprovedError`) actually correct?**
+  _`Case` has 3 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 4 inferred relationships involving `Approve` (e.g. with `ApprovalConfig` and `.ready()`) actually correct?**
+  _`Approve` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Access control for approval workflows.`, `JSON API for approval events and chats.`, `Serialization and business logic for approval events/chats.` to the rest of the system?**
-  _28 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _44 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `work_adjacent.py` be split into smaller, more focused modules?**
+  _Cohesion score 0.055134925257231605 - nodes in this community are weakly interconnected._

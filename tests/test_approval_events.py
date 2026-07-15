@@ -361,21 +361,26 @@ def test_post_message_reply_and_nested_reply(client, owner_a, owner_b_user, appr
     primary = _primary_case(approve_with_primary_owner)
     primary.owners = ["OWNER_A", "OWNER_B"]
     primary.save(update_fields=["owners", "updated_at"])
+    geometry = {
+        "type": "Polygon",
+        "coordinates": [[[37.6, 55.75], [37.61, 55.75], [37.61, 55.76], [37.6, 55.76], [37.6, 55.75]]],
+    }
 
     _login(client, "owner_a")
     root_response = client.post(
         reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
-        data=json.dumps({"body": "Корневое"}),
+        data=json.dumps({"body": "Корневое", "geometry": geometry}),
         content_type="application/json",
     )
     assert root_response.status_code == 200
     root = root_response.json()["message"]
     assert root["parent_id"] is None
+    assert root["geometry"] is not None
 
     _login(client, "owner_b")
     reply_response = client.post(
         reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
-        data=json.dumps({"body": "Ответ", "parent_id": root["id"]}),
+        data=json.dumps({"body": "Ответ", "parent_id": root["id"], "geometry": geometry}),
         content_type="application/json",
     )
     assert reply_response.status_code == 200
@@ -392,6 +397,31 @@ def test_post_message_reply_and_nested_reply(client, owner_a, owner_b_user, appr
     nested = nested_response.json()["message"]
     assert nested["parent_id"] == reply["id"]
     assert nested["reply_to_author"] == "owner_b"
+
+
+@pytest.mark.django_db
+def test_post_message_rejects_reply_to_text_only(client, owner_a, owner_b_user, approve_with_primary_owner):
+    primary = _primary_case(approve_with_primary_owner)
+    primary.owners = ["OWNER_A", "OWNER_B"]
+    primary.save(update_fields=["owners", "updated_at"])
+
+    _login(client, "owner_a")
+    root_response = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data=json.dumps({"body": "Только текст"}),
+        content_type="application/json",
+    )
+    assert root_response.status_code == 200
+    root = root_response.json()["message"]
+
+    _login(client, "owner_b")
+    reply_response = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data=json.dumps({"body": "Ответ", "parent_id": root["id"]}),
+        content_type="application/json",
+    )
+    assert reply_response.status_code == 400
+    assert "геометрией или файлом" in reply_response.json()["error"].lower()
 
 
 @pytest.mark.django_db

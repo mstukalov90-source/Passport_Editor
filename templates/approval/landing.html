@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Согласование{% endblock %}
+{% block title %}{{ page_title|default:"Согласование" }}{% endblock %}
 
 {% block container_class %}container--wide container--approval{% endblock %}
 
@@ -29,7 +29,7 @@
 {% block content %}
 <div class="approval-shell">
     <header class="approval-header">
-        <h1 class="approval-header__title">Согласование</h1>
+        <h1 class="approval-header__title">{{ page_title|default:"Согласование" }}</h1>
         <a class="approval-header__back" href="{% url 'home' %}">На главную</a>
     </header>
     <div class="approval-workspace approval-workspace--layers-truncated">

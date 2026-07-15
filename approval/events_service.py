@@ -837,6 +837,89 @@ def create_case_with_geometry(
     return case
 
 
+@transaction.atomic
+def create_event_from_adjacent(
+    *,
+    approve: Approve,
+    n_root: str,
+    geometry_payload,
+    neighbor_owner: str,
+    username: str | None,
+    title: str | None = None,
+) -> Case:
+    username_text = (username or "").strip()
+    if not username_text:
+        raise ValueError("Не указан пользователь.")
+    if not is_inspector_for_approve(username_text, approve):
+        raise ValueError("Создание события доступно только инспектору этого согласования.")
+    if approve.approved:
+        raise ValueError("Согласование уже согласовано. Создание событий недоступно.")
+
+    root_text = str(n_root or "").strip()
+    if not root_text:
+        raise ValueError("Укажите n_root (RootId) смежного объекта.")
+
+    neighbor_text = str(neighbor_owner or "").strip()
+    if not neighbor_text:
+        raise ValueError("Не указан OwnerLegalPersonId смежного объекта.")
+
+    if Case.objects.filter(approve=approve, is_primary=False, n_root=root_text).exists():
+        raise ValueError(f"Событие для паспорта {root_text} уже существует.")
+
+    task_owner_id = resolve_task_owner_legal_person_id(str(approve.incoming_guid))
+    event_owners = resolve_event_case_owners(
+        task_owner_id=task_owner_id,
+        event_owners=[neighbor_text],
+    )
+    geom = parse_geometry_payload(geometry_payload)
+
+    title_text = (title or "").strip()
+    if not title_text:
+        title_text = f"Согласование с паспортом {root_text}"
+
+    case = Case.objects.create(
+        approve=approve,
+        is_primary=False,
+        title=title_text,
+        status="в работе",
+        created_by_login=username_text,
+        n_root=root_text,
+        owners=event_owners,
+    )
+    ApprovalGeometry.objects.create(
+        approve=approve,
+        case=case,
+        geom=geom,
+        label=title_text,
+        owner_legal_person_id=neighbor_text,
+    )
+    CaseMessage.objects.create(
+        case=case,
+        author_login=username_text,
+        author_role="",
+        body="Событие создано.",
+    )
+
+    n_roots = [str(item).strip() for item in (approve.n_root or []) if str(item).strip()]
+    if root_text not in n_roots:
+        n_roots.append(root_text)
+    v_roots = [
+        str(item).strip()
+        for item in (approve.v_root or [])
+        if str(item).strip() and str(item).strip() != root_text
+    ]
+    approve_owners = list(approve.owners or [])
+    for owner in event_owners:
+        if owner not in approve_owners:
+            approve_owners.append(owner)
+    approve.n_root = n_roots
+    approve.v_root = v_roots
+    approve.owners = approve_owners
+    approve.save(update_fields=["n_root", "v_root", "owners", "updated_at"])
+
+    return case
+
+
 def _sync_approve_status_after_case_approval(approve: Approve, case: Case) -> None:
     if not case.is_primary or not case.approved or approve.approved:
         return
