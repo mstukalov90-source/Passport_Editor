@@ -1472,10 +1472,24 @@
         function onEachFeature(feature, layer) {
             layer.bindTooltip(featureTooltip(feature), { sticky: true });
             const props = feature.properties || {};
-            if (isAdjacentFeature(props)) {
+            if (!isInspectorForSelectedApprove()) {
                 return;
             }
-            if (!isInspectorForSelectedApprove()) {
+            if (isAdjacentFeature(props)) {
+                const isApprovalAdjacent =
+                    props.layerKey === 'adjacent_approval' || props.adjacentRootKind === 'n';
+                if (!isApprovalAdjacent) {
+                    return;
+                }
+                layer.on('click', function () {
+                    const rootId = props.RootId || '';
+                    if (
+                        window.ApprovalEvents &&
+                        typeof window.ApprovalEvents.openChangeOwnerForRootId === 'function'
+                    ) {
+                        window.ApprovalEvents.openChangeOwnerForRootId(rootId);
+                    }
+                });
                 return;
             }
             layer.on('click', function () {

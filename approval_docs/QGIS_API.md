@@ -1,41 +1,43 @@
-# HTTP API: приём согласований из QGIS
+# HTTP API: QGIS ↔ согласование
 
-Документ для разработчика QGIS-модуля, который создаёт или обновляет согласование через веб-приложение «Согласование» (Django, приложение `approval`).
+Документ для разработчика QGIS-модуля: **создание** согласований, **чтение** чатов/геометрии и **запись** сообщений через приложение `approval`.
 
 Связанные материалы:
 
-- [QGIS_INTEGRATION.md](QGIS_INTEGRATION.md) — полная инструкция по интеграции (в т.ч. прямая запись в БД как fallback)
+- [DATA_MODEL.md](DATA_MODEL.md) — схема `approval`, смысл сущностей и связи
+- [QGIS_INTEGRATION.md](QGIS_INTEGRATION.md) — интеграция, fallback прямая запись в БД
 - [DEPLOY.md](../DEPLOY.md) — деплой на `172.21.197.77`, переменные `.env`
+
+Базовый URL (прод): `http://172.21.197.77/approval/api/qgis/`
 
 ---
 
-## Обзор
+## Обзор эндпоинтов
 
-| Параметр | Значение |
-|----------|----------|
-| Метод | `POST` |
-| URL (прод) | `http://172.21.197.77/approval/api/qgis/approves/` |
-| Content-Type | `application/json` |
-| Аутентификация | не требуется |
-| Идемпотентность | upsert по полю `incoming_guid` |
+| Метод | URL | Назначение |
+|-------|-----|------------|
+| POST | `approves/` | Upsert согласования из QGIS (ingest) |
+| GET | `approves/?user=` | Список доступных согласований |
+| GET | `approves/<approve_id>/?user=` | Деталь согласования + доступные cases |
+| GET | `approves/by-guid/<incoming_guid>/?user=` | То же по `incoming_guid` |
+| GET | `approves/<approve_id>/geometries/?user=` | GeoJSON FeatureCollection геометрий |
+| GET | `cases/<case_id>/?user=` | Чат события: сообщения, вложения, геометрии |
+| POST | `cases/<case_id>/messages/` | Новое сообщение (+ geometry / files) |
+| POST | `cases/<case_id>/approve/` | Согласовать событие от имени `user` |
+| POST | `cases/<case_id>/revoke/` | Снять своё согласование |
 
-API в одной транзакции:
-
-1. INSERT или UPDATE строки в `approval.approves`
-2. При первом создании — триггер БД создаёт основной чат (`approval.cases`, `is_primary = true`)
-3. Заголовок основного чата устанавливается из поля `name`; `owners` primary — `OwnerLegalPersonId` объекта съёмки из `mggt_asu` по `TaskGUID = incoming_guid`
-4. Для каждого элемента `events[]` — INSERT или UPDATE события (`approval.cases`, `is_primary = false`) и его геометрии (`approval.geometry`, SRID 4326)
+Content-Type для JSON: `application/json`. Django session **не** используется.
 
 ---
 
 ## Доступ и безопасность
 
-### Только внутренний адрес сервера
+### Host allowlist
 
-Запросы принимаются **только** при обращении напрямую к внутреннему IP сервера МГГТ:
+Все эндпоинты QGIS API принимают запросы **только** при обращении к внутреннему IP:
 
 ```
-http://172.21.197.77/approval/api/qgis/approves/
+http://172.21.197.77/approval/api/qgis/...
 ```
 
 | Адрес | Результат |
@@ -43,29 +45,51 @@ http://172.21.197.77/approval/api/qgis/approves/
 | `http://172.21.197.77/...` | Разрешён |
 | `https://border-ogh.mggt.ru/...` | **403 Forbidden** |
 
-Публичный домен `border-ogh.mggt.ru` терминирует TLS на корпоративном reverse-proxy. Для QGIS API он **не используется** — приложение проверяет заголовок `Host` и отклоняет запросы с публичного домена.
+Публичный домен для QGIS API **не используется**.
 
-Контейнер `passport_web` слушает **порт 80** (HTTP). Шифрование на внутреннем IP отсутствует.
+### Логин (`user`)
 
-### Настройки сервера (`.env`)
+Auth выполняется в QGIS. Сервер **доверяет** переданному логину после проверки Host.
+
+| Тип запроса | Как передать `user` |
+|-------------|---------------------|
+| GET | обязательный query: `?user=asidorov` |
+| POST (сообщения / approve / revoke) | поле JSON `user` и/или query `?user=` |
+| POST upsert | поле JSON `user` (логин инспектора в `approves.user`) |
+
+Без `user` на read/write-эндпоинтах → **400**.
+
+Фильтрация видимости — как в веб-модуле ([`access.py`](../approval/access.py)):
+
+- инспектор: `approves.user == login`
+- участник: `login` в `cases.participant_logins`
+- владелец: `users.OwnerLegalPersonId` входит в `cases.owners`
+
+Нет доступа → **404** (событие/согласование «не найдено»).
+
+### Настройки (`.env`)
 
 ```text
-# Разрешённые значения Host для QGIS API (через запятую)
 APPROVAL_QGIS_ALLOWED_HOSTS=172.21.197.77,127.0.0.1,localhost,testserver
-
-# Справочный URL (для документации и клиентов)
 APPROVAL_QGIS_API_URL=http://172.21.197.77/approval/api/qgis/approves/
-```
-
-На проде `172.21.197.77` уже входит в `DJANGO_ALLOWED_HOSTS`. После изменения `.env` пересоздать контейнер:
-
-```bash
-sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --force-recreate web
 ```
 
 ---
 
-## Запрос
+## 1. Upsert согласования (ingest)
+
+| Параметр | Значение |
+|----------|----------|
+| Метод | `POST` |
+| URL | `/approval/api/qgis/approves/` |
+| Аутентификация | Host only; `user` в теле = инспектор |
+
+В одной транзакции:
+
+1. INSERT или UPDATE `approval.approves`
+2. При первом создании — триггер создаёт primary case (`is_primary = true`)
+3. Primary: `title = name`, `owners` из `mggt_asu` по `TaskGUID = incoming_guid`, без геометрии
+4. Для каждого `events[]` — upsert event case + geometry (SRID 4326)
 
 ### Тело (JSON)
 
@@ -73,39 +97,25 @@ sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --f
 
 | Поле | Тип | Обязательно | Описание |
 |------|-----|-------------|----------|
-| `incoming_guid` | string (UUID v4) | да | Внешний идентификатор задания. Генерируется **один раз в QGIS**. Ключ upsert и `TaskGUID` для слоёв съёмки на карте |
-| `v_root` | array[string] | нет | Список rootid участников согласования, например `["141564", "4066869", "1289566312"]`. Может отсутствовать |
-| `user` | string | да | Логин инспектора (записывается в `approval.approves.user`) |
-| `name` | string | да | Название согласования (отображается в веб-UI и как заголовок основного чата) |
-| `events` | array[object] | да | Список событий согласования (см. ниже) |
-| `brid` | string | нет | Справочная информация из QGIS; **игнорируется** API |
+| `incoming_guid` | string (UUID v4) | да | Внешний id задания; ключ upsert и `TaskGUID` слоёв съёмки |
+| `v_root` | array[string] | нет | rootid участников; может отсутствовать |
+| `user` | string | да | Логин инспектора (`approves.user`) |
+| `name` | string | да | Название согласования / заголовок primary |
+| `events` | array[object] | да | События (см. ниже) |
+| `brid` | string | нет | Игнорируется API |
 
 **Каждый элемент `events[]`**
 
 | Поле | Тип | Обязательно | Описание |
 |------|-----|-------------|----------|
-| `n_root` | string | да | RootId смежного паспорта; ключ upsert события внутри согласования |
-| `owners` | array[string] | да | `OwnerLegalPersonId` стороны смежного паспорта (минимум 1). Владелец объекта съёмки добавляется автоматически по `incoming_guid` |
-| `name` | string | да | Заголовок события (`approval.cases.title`) |
-| `geometry` | GeoJSON object | да | Геометрия события. SRID **4326** (WGS84) |
+| `n_root` | string | да | RootId смежного паспорта; ключ upsert события |
+| `owners` | array[string] | да | `OwnerLegalPersonId` стороны (минимум 1); владелец съёмки добавляется автоматически |
+| `name` | string | да | Заголовок события |
+| `geometry` | GeoJSON object | да | Геометрия события, SRID **4326** |
 
-**Агрегация в `approval.approves`:**
+**Агрегация в `approves`:** `n_root` и `owners` собираются из `events[]` (+ owner съёмки).
 
-- `n_root` = уникальные `events[].n_root` в порядке появления
-- `owners` = владелец объекта съёмки (`TaskGUID = incoming_guid`) + объединение всех `events[].owners` (уникальные, порядок сохраняется)
-
-**Event case** (`is_primary = false`):
-
-- `owners` = владелец объекта съёмки + стороны из `events[].owners` (после дедупликации 1 или 2 уникальных `OwnerLegalPersonId`; совпадение владельцев допустимо)
-
-**Primary case** (`is_primary = true`):
-
-- создаётся автоматически при INSERT в `approves`
-- `title = name`, геометрии **нет**
-- `owners` = один `OwnerLegalPersonId`, найденный в `mggt_asu` по `TaskGUID = incoming_guid`
-- инспектор (`user`) видит согласование через `approves.user`
-
-### Пример значений
+### Пример запроса
 
 ```json
 {
@@ -123,41 +133,12 @@ sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --f
         "type": "Point",
         "coordinates": [37.618173936455285, 55.720464618162595]
       }
-    },
-    {
-      "n_root": "12345148",
-      "owners": ["9000022"],
-      "name": "Согласование заявок по паспортизации 46998 и паспорта 12345148",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [37.61776133391202, 55.720827777176524]
-      }
     }
   ]
 }
 ```
 
-### Геометрия
-
-- Допустимые типы GeoJSON: `Point`, `Polygon`, `LineString`, `MultiPolygon`, `MultiLineString` и другие, поддерживаемые PostGIS
-- Координаты в WGS84 (долгота, широта)
-- Если исходная геометрия в другой СК (например МСК), трансформируйте в **4326** на стороне QGIS до отправки
-
-### Идентификаторы: что генерировать, что не передавать
-
-| Идентификатор | Кто создаёт | Комментарий |
-|---------------|-------------|-------------|
-| `incoming_guid` | **QGIS** | Единственный UUID, который модуль обязан сгенерировать |
-| `approve_id` | **API / БД** | Возвращается в ответе, не передаётся в запросе |
-| `primary_case_id` | **API / БД** (триггер) | Возвращается в ответе |
-| `events[].case_id` | **API / БД** | Возвращается в ответе для каждого события |
-| `events[].geometry_id` | **API / БД** | Возвращается в ответе для каждого события |
-
----
-
-## Ответ
-
-### Успех (HTTP 200)
+### Успешный ответ (200)
 
 ```json
 {
@@ -173,121 +154,261 @@ sudo docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --f
       "geometry_id": 42,
       "created": true,
       "skipped": false
-    },
-    {
-      "n_root": "12345148",
-      "case_id": "22222222-2222-2222-2222-222222222222",
-      "geometry_id": 43,
-      "created": true,
-      "skipped": false
     }
   ]
 }
 ```
 
-| Поле | Тип | Описание |
-|------|-----|----------|
-| `ok` | boolean | Всегда `true` при успехе |
-| `created` | boolean | `true` — согласование создано впервые; `false` — выполнен upsert |
-| `approve_id` | string (UUID) | Внутренний id в `approval.approves` |
-| `incoming_guid` | string (UUID) | Эхо переданного идентификатора |
-| `primary_case_id` | string (UUID) | Id основного чата (`is_primary = true`) |
-| `events` | array | Результат upsert по каждому событию |
-| `events[].n_root` | string | RootId события |
-| `events[].case_id` | string (UUID) | Id события в `approval.cases` |
-| `events[].geometry_id` | integer \| null | Id геометрии в `approval.geometry` |
-| `events[].created` | boolean | `true` — событие создано; `false` — обновлено |
-| `events[].skipped` | boolean | `true` — событие уже согласовано, изменения пропущены |
+### Поведение upsert
 
-### Ошибка (HTTP 4xx / 5xx)
+- тот же `incoming_guid` — только тот же `user` (иначе 409)
+- обновляет агрегаты, title primary, события по `n_root`
+- **не удаляет** отсутствующие в payload события
+- уже согласованные события — `skipped: true`
+- полностью согласованный approve — 409
+
+### Коды HTTP (upsert)
+
+| Код | Когда |
+|-----|-------|
+| 200 | Создано/обновлено |
+| 400 | Невалидный payload / нет owner в `mggt_asu` |
+| 403 | Публичный Host |
+| 409 | Уже согласовано или чужой `user` |
+| 500 | Ошибка сервера |
+
+---
+
+## 2. Список согласований
+
+```
+GET /approval/api/qgis/approves/?user=asidorov
+```
+
+**Ответ:**
 
 ```json
 {
-  "ok": false,
-  "error": "Описание ошибки на русском языке"
+  "ok": true,
+  "current_user": "asidorov",
+  "approves": [
+    {
+      "id": "...",
+      "incoming_guid": "...",
+      "name": "...",
+      "approved": false,
+      "user": "asidorov",
+      "owners": ["OWNER_TASK", "9000022"],
+      "n_root": ["10001260"],
+      "v_root": ["141564"],
+      "cases_count": 3,
+      "created_at": "15.07.2026 09:00",
+      "updated_at": "15.07.2026 09:05"
+    }
+  ]
 }
 ```
 
-### Коды HTTP
+---
 
-| Код | Когда возникает |
-|-----|-----------------|
-| **200** | Согласование создано или обновлено |
-| **400** | Невалидный JSON, отсутствуют обязательные поля, неверный UUID, пустой `events`/`user`, дублирующийся `n_root`, не найден `OwnerLegalPersonId` по `TaskGUID` |
-| **403** | Запрос не через внутренний IP (`Host` не в `APPROVAL_QGIS_ALLOWED_HOSTS`) |
-| **409** | Согласование уже полностью согласовано (`approved = true`), либо `incoming_guid` уже занят другим `user` — upsert запрещён |
-| **500** | Неожиданная ошибка сервера или БД |
+## 3. Деталь согласования
 
-### Поведение upsert
+```
+GET /approval/api/qgis/approves/<approve_id>/?user=asidorov
+GET /approval/api/qgis/approves/by-guid/<incoming_guid>/?user=asidorov
+```
 
-Повторный `POST` с тем же `incoming_guid`:
+Возвращает заголовок approve и массив `cases` (только доступные логину). Формат case — summary: title, status, approvals, participants, **geometry** события (без ленты сообщений).
 
-- разрешён **только тому же** `user`, что уже записан в `approval.approves.user`; чужой `user` получает HTTP 409
-- обновляет `user`, `name`, агрегированные `n_root` и `owners` в `approval.approves`
-- обновляет `v_root`, только если поле передано в запросе
-- обновляет заголовок и `owners` основного чата (owner из `mggt_asu`)
-- для каждого `events[]` сопоставляет событие по `n_root`: обновляет title/owners/geometry или создаёт новое
-- **не удаляет** события, отсутствующие в новом payload
-- **не изменяет** события, у которых `approved = true` (`skipped: true` в ответе)
+```json
+{
+  "ok": true,
+  "current_user": "asidorov",
+  "approve": { "...": "..." },
+  "primary_case_id": "...",
+  "cases": [
+    {
+      "id": "...",
+      "title": "...",
+      "is_primary": false,
+      "approved": false,
+      "n_root": "10001260",
+      "geometry": { "type": "Point", "coordinates": [37.61, 55.72] },
+      "messages_count": 2
+    }
+  ]
+}
+```
 
-Upsert **запрещён**, если согласование уже имеет `approved = true`, либо если `user` в запросе отличается от уже сохранённого.
+---
+
+## 4. Геометрии (слой для карты QGIS)
+
+```
+GET /approval/api/qgis/approves/<approve_id>/geometries/?user=asidorov
+```
+
+Ответ — FeatureCollection (корневые `type`/`features` + `ok`):
+
+| properties | Описание |
+|------------|----------|
+| `geometry_id` | id в `approval.geometry` |
+| `approve_id` | UUID согласования |
+| `case_id` | UUID события |
+| `message_id` | id сообщения или `null` (геометрия события) |
+| `label` | подпись |
+| `n_root` | root события |
+| `is_primary` | primary case? |
+| `owner_legal_person_id` | владелец, если задан |
+
+**Два вида геометрии:**
+
+- `message_id IS NULL` — геометрия **события** (из upsert `events[].geometry`)
+- `message_id` задан — геометрия, прикреплённая к **сообщению чата**
+
+---
+
+## 5. Деталь события / чат
+
+```
+GET /approval/api/qgis/cases/<case_id>/?user=asidorov
+```
+
+`case` включает summary + `messages[]`. Поля сообщения:
+
+| Поле | Описание |
+|------|----------|
+| `id` | id сообщения |
+| `author` | логин автора |
+| `text` | текст |
+| `time` | время (локальный формат) |
+| `parent_id` | ответ на сообщение |
+| `attachments` | файлы (`url` для скачивания через веб-путь attachments) |
+| `geometry` / `geometries` | GeoJSON геометрии(й) сообщения |
+| `reactions` | реакции `in_progress` / `done` |
+
+---
+
+## 6. Отправка сообщения
+
+```
+POST /approval/api/qgis/cases/<case_id>/messages/
+Content-Type: application/json
+```
+
+```json
+{
+  "user": "asidorov",
+  "body": "Комментарий из QGIS",
+  "parent_id": null,
+  "geometry": { "type": "Point", "coordinates": [37.6, 55.7] }
+}
+```
+
+или `geometries: [ ... ]` — несколько. Допустим multipart (`body`, `user`, `geometry`/`geometries` JSON-строки, `files`).
+
+Если кейс уже `approved` — новые сообщения запрещены (400).
+
+**Ответ:** `{ ok, message, case, current_user }`.
+
+---
+
+## 7. Согласовать / отозвать
+
+```
+POST /approval/api/qgis/cases/<case_id>/approve/
+POST /approval/api/qgis/cases/<case_id>/revoke/
+```
+
+```json
+{ "user": "asidorov" }
+```
+
+Логика та же, что в вебе: инспектор пишет в `case_approvals` по `approver_login`; владелец — по `owner_legal_person_id`. Событие закрывается, когда собраны все требуемые стороны (+ инспектор при наличии).
+
+---
+
+## Геометрия: требования
+
+- GeoJSON, координаты WGS84 (долгота, широта), SRID **4326**
+- Типы: Point, Polygon, LineString, Multi\* и др., поддерживаемые PostGIS
+- Если исходные данные в МСК — трансформировать в 4326 **на стороне QGIS** до отправки
+
+---
+
+## Идентификаторы
+
+| Идентификатор | Кто создаёт |
+|---------------|-------------|
+| `incoming_guid` | **QGIS** (один раз) |
+| `approve_id`, `case_id` | API / БД |
+| `geometry.id` | БД (identity) |
 
 ---
 
 ## Примеры вызова
 
-### curl
+### Upsert (curl)
 
 ```bash
 curl -X POST 'http://172.21.197.77/approval/api/qgis/approves/' \
   -H 'Content-Type: application/json' \
   -d '{
     "incoming_guid": "956c45bb-dc44-46a7-9944-9d1996fec147",
-    "v_root": ["141564", "4066869", "1289566312"],
     "user": "asidorov",
-    "name": "Согласование заявки из графика паспортизации 46998",
+    "name": "Согласование заявки 46998",
     "events": [
       {
         "n_root": "10001260",
         "owners": ["9000022"],
-        "name": "Согласование заявок по паспортизации 46998 и паспорта 10001260",
-        "geometry": {
-          "type": "Point",
-          "coordinates": [37.618173936455285, 55.720464618162595]
-        }
+        "name": "Событие по паспорту 10001260",
+        "geometry": { "type": "Point", "coordinates": [37.618, 55.720] }
       }
     ]
   }'
 ```
 
-### Python (requests)
+### Чтение списка и чата (Python)
 
 ```python
 import requests
 
-response = requests.post(
-    "http://172.21.197.77/approval/api/qgis/approves/",
+BASE = "http://172.21.197.77/approval/api/qgis"
+USER = "asidorov"
+
+approves = requests.get(f"{BASE}/approves/", params={"user": USER}, timeout=30).json()
+approve_id = approves["approves"][0]["id"]
+
+detail = requests.get(
+    f"{BASE}/approves/{approve_id}/",
+    params={"user": USER},
+    timeout=30,
+).json()
+
+case_id = detail["cases"][0]["id"]
+chat = requests.get(
+    f"{BASE}/cases/{case_id}/",
+    params={"user": USER},
+    timeout=30,
+).json()
+
+# слой для карты
+fc = requests.get(
+    f"{BASE}/approves/{approve_id}/geometries/",
+    params={"user": USER},
+    timeout=30,
+).json()
+
+# сообщение с геометрией
+requests.post(
+    f"{BASE}/cases/{case_id}/messages/",
     json={
-        "incoming_guid": "956c45bb-dc44-46a7-9944-9d1996fec147",
-        "v_root": ["141564", "4066869", "1289566312"],
-        "user": "asidorov",
-        "name": "Согласование заявки из графика паспортизации 46998",
-        "events": [
-            {
-                "n_root": "10001260",
-                "owners": ["9000022"],
-                "name": "Согласование заявок по паспортизации 46998 и паспорта 10001260",
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [37.618173936455285, 55.720464618162595],
-                },
-            }
-        ],
+        "user": USER,
+        "body": "Уточнение границы",
+        "geometry": {"type": "Point", "coordinates": [37.62, 55.72]},
     },
     timeout=30,
-)
-response.raise_for_status()
-print(response.json())
+).raise_for_status()
 ```
 
 ---
@@ -296,19 +417,11 @@ print(response.json())
 
 ### Веб-интерфейс
 
-Войти под пользователем, у которого `users."OwnerLegalPersonId"` входит в `owners` события или primary, и открыть:
-
 ```
 https://border-ogh.mggt.ru/approval/
 ```
 
-На карте должны отобразиться геометрии событий и слои съёмки (при совпадении `incoming_guid` с `TaskGUID` в `mggt_asu`).
-
-### SQL (на сервере)
-
-```bash
-sudo docker exec -it passport_db psql -U postgres -d geodb
-```
+### SQL
 
 ```sql
 SELECT id, incoming_guid, n_root, v_root, name, owners, "user", approved
@@ -320,9 +433,8 @@ FROM approval.cases c
 JOIN approval.approves a ON a.id = c.approve_id
 WHERE a.incoming_guid = '956c45bb-dc44-46a7-9944-9d1996fec147'::uuid;
 
-SELECT g.id, c.n_root, ST_AsText(g.geom), g.label
+SELECT g.id, g.case_id, g.message_id, ST_AsText(g.geom), g.label
 FROM approval.geometry g
-JOIN approval.cases c ON c.id = g.case_id
 JOIN approval.approves a ON a.id = g.approve_id
 WHERE a.incoming_guid = '956c45bb-dc44-46a7-9944-9d1996fec147'::uuid;
 ```
@@ -331,9 +443,7 @@ WHERE a.incoming_guid = '956c45bb-dc44-46a7-9944-9d1996fec147'::uuid;
 
 ## Связь с картой съёмки
 
-Веб-карта подгружает объекты из БД **`mggt_asu`** (`172.21.197.51`), схема `work`, фильтруя по **`TaskGUID`** = **`incoming_guid`**.
-
-Поэтому `incoming_guid`, который QGIS передаёт в API, должен **совпадать** с `TaskGUID` в таблицах `work.*` на `172.21.197.51`. По этому же GUID API определяет `OwnerLegalPersonId` для primary case.
+Веб-карта подгружает объекты из **`mggt_asu`** (`work.*`), фильтруя по **`TaskGUID` = `incoming_guid`**. GUID в API и в съёмке должен совпадать.
 
 ---
 
@@ -341,14 +451,12 @@ WHERE a.incoming_guid = '956c45bb-dc44-46a7-9944-9d1996fec147'::uuid;
 
 | Симптом | Причина | Решение |
 |---------|---------|---------|
-| HTTP 403 | Запрос через `border-ogh.mggt.ru` | Использовать `http://172.21.197.77/...` |
-| HTTP 409 | Согласование уже согласовано | Не повторять upsert; создать новое с другим `incoming_guid` |
-| HTTP 409, другим пользователем | `incoming_guid` уже создан другим `user` | Повторять upsert только тем же `user`, либо взять другой `incoming_guid` |
-| HTTP 400, `events` | Пустой или отсутствующий массив | Передать хотя бы одно событие |
-| HTTP 400, OwnerLegalPersonId | Нет объекта с `TaskGUID = incoming_guid` в `mggt_asu` | Убедиться, что съёмка записана в `work.*` до отправки |
-| Согласование не видно в веб-UI | Неверный `owners` в events или owner primary | Проверить `OwnerLegalPersonId` в payload и в `mggt_asu` |
-| Геометрия не на карте | Неверный SRID или пустая geometry | GeoJSON в WGS84 (4326) |
-| Слои съёмки не видны | `incoming_guid` ≠ `TaskGUID` | Использовать один GUID в API и в `mggt_asu` |
+| HTTP 403 | Запрос через `border-ogh.mggt.ru` | `http://172.21.197.77/...` |
+| HTTP 400, `user` | Нет логина на GET/POST read-write | Передать `?user=` / поле `user` |
+| HTTP 404 | Нет доступа по логину | Проверить inspector / owners / participants |
+| HTTP 409 | Уже согласовано / чужой upsert user | Другой GUID или тот же `user` |
+| HTTP 400, OwnerLegalPersonId | Нет `TaskGUID` в `mggt_asu` | Сначала записать съёмку |
+| Геометрия не на карте | Неверный SRID | Только 4326 |
 
 ---
 
@@ -356,11 +464,12 @@ WHERE a.incoming_guid = '956c45bb-dc44-46a7-9944-9d1996fec147'::uuid;
 
 | Компонент | Путь |
 |-----------|------|
-| View | `approval/api_views.py` → `api_qgis_upsert_approve` |
-| Бизнес-логика | `approval/events_service.py` → `upsert_approve_from_qgis` |
-| Lookup owner | `approval/work_layers.py` → `resolve_task_owner_legal_person_id` |
-| Проверка Host | `approval/qgis_access.py` → `qgis_api_host_allowed` |
-| URL | `approval/urls.py` → `api/qgis/approves/` |
+| QGIS views | `approval/qgis_api_views.py` |
+| Веб views | `approval/api_views.py` |
+| Бизнес-логика | `approval/events_service.py` |
+| Доступ | `approval/access.py` |
+| Host check | `approval/qgis_access.py` |
+| URL | `approval/urls.py` → `api/qgis/...` |
 | Тесты | `tests/test_approval_qgis_api.py` |
 | Настройки | `pass_map/settings.py` → `APPROVAL_QGIS_*` |
 
@@ -368,12 +477,8 @@ WHERE a.incoming_guid = '956c45bb-dc44-46a7-9944-9d1996fec147'::uuid;
 
 ## Локальная разработка
 
-При отладке на Mac/CI endpoint доступен на `http://127.0.0.1:8000/approval/api/qgis/approves/` (runserver). `127.0.0.1` входит в `APPROVAL_QGIS_ALLOWED_HOSTS` по умолчанию.
-
 ```bash
 cd GeoDjango
 python manage.py runserver
-curl -X POST 'http://127.0.0.1:8000/approval/api/qgis/approves/' \
-  -H 'Content-Type: application/json' \
-  -d '{"incoming_guid":"956c45bb-dc44-46a7-9944-9d1996fec147","v_root":["141564"],"user":"asidorov","name":"Тест","events":[{"n_root":"10001260","owners":["9000022"],"name":"Событие","geometry":{"type":"Point","coordinates":[37.61,55.72]}}]}'
+curl 'http://127.0.0.1:8000/approval/api/qgis/approves/?user=asidorov'
 ```

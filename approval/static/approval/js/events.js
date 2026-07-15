@@ -1198,6 +1198,24 @@
         openChangeOwnerDialog();
     }
 
+    function openChangeOwnerForRootId(rootId) {
+        const rootText = String(rootId || '').trim();
+        if (!rootText) {
+            return;
+        }
+        if (!currentUserIsInspectorForSelected()) {
+            return;
+        }
+        const match = state.cases.find(function (item) {
+            return !item.is_primary && !item.approved && String(item.n_root || '').trim() === rootText;
+        });
+        if (!match) {
+            window.alert('Не найдено событие для паспорта ' + rootText + '.');
+            return;
+        }
+        openChangeOwnerDialog({ caseId: match.id });
+    }
+
     async function submitChangeOwner() {
         const caseSelect = el('approval-change-owner-case');
         const oldSelect = el('approval-change-owner-old');
@@ -1449,6 +1467,7 @@
 
     window.ApprovalEvents = {
         openChangeOwnerForTaskGuid: openChangeOwnerForTaskGuid,
+        openChangeOwnerForRootId: openChangeOwnerForRootId,
         openAddParticipantDialog: openAddParticipantDialog,
         openChangeOwnerDialog: openChangeOwnerDialog,
     };
