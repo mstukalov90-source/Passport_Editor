@@ -22,12 +22,16 @@
         }
     }
 
-    function clearBrushPreview() {
+    function removeBrushPreviewLayer() {
         const map = getMap();
         if (brushPreview && map) {
             map.removeLayer(brushPreview);
         }
         brushPreview = null;
+    }
+
+    function clearBrushPreview() {
+        removeBrushPreviewLayer();
         brushLatLngs = [];
         brushDrawing = false;
     }
@@ -141,9 +145,9 @@
             if (!drawMode || !brushMode) {
                 return;
             }
+            removeBrushPreviewLayer();
             brushDrawing = true;
             brushLatLngs = [event.latlng];
-            clearBrushPreview();
             brushPreview = L.polyline(brushLatLngs, {
                 color: EVENT_COLOR,
                 weight: 3,

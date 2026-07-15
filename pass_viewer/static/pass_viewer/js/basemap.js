@@ -209,13 +209,15 @@
 
     PassViewer.attachBasemapControl = function attachBasemapControl(map, options) {
         const scopeRoot = options && options.scopeRoot;
+        const defaultMode = options && options.defaultMode ? options.defaultMode : null;
+        const position = (options && options.position) || 'topright';
         const { mggtLayer, scale2000Layer, topoLayer, satelliteLayer } =
             PassViewer.createBasemapLayers();
         const basemapLayers = [mggtLayer, scale2000Layer, topoLayer, satelliteLayer];
 
         const cachedAvailability = getCachedMggtAvailability();
         let mggtAvailable = cachedAvailability === true;
-        let currentMode = mggtAvailable ? 'mggt' : 'topo';
+        let currentMode = defaultMode || (mggtAvailable ? 'mggt' : 'topo');
         let controlContainer = null;
 
         function buttonScope() {
@@ -275,7 +277,7 @@
             bindButtonListeners(container);
         }
 
-        const basemapControl = L.control({ position: 'topright' });
+        const basemapControl = L.control({ position: position });
         basemapControl.onAdd = function () {
             const container = L.DomUtil.create('div', 'map-basemap-control');
             container.innerHTML = buildBasemapButtonsHtml(mggtAvailable, currentMode);
@@ -294,7 +296,7 @@
                     return;
                 }
                 mggtAvailable = available;
-                if (available) {
+                if (available && !defaultMode) {
                     setBasemap('mggt');
                     renderButtons('mggt');
                 } else {

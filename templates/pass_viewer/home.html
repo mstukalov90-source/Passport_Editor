@@ -41,8 +41,9 @@
                     id="approval-notifications-panel"
                     class="approval-notifications-panel"
                     role="listbox"
-                    aria-label="Согласования в работе"
+                    aria-label="Уведомления"
                     hidden
+                    data-pending-approval-count="{{ pending_approval_count|default:0 }}"
                 >
                     <div class="approval-notifications-panel__header">Согласования в работе</div>
                     {% if pending_approval_count %}
@@ -66,6 +67,10 @@
                     {% else %}
                         <p class="approval-notifications-empty">Нет согласований в работе</p>
                     {% endif %}
+                    <div id="approval-ods-sync-section" class="approval-ods-sync-section" hidden>
+                        <div class="approval-notifications-panel__header">АСУ ОДС</div>
+                        <ul id="approval-ods-sync-list" class="approval-notifications-list"></ul>
+                    </div>
                 </div>
             </div>
             <button type="button" id="user-guide-open-btn" class="user-guide-open-btn">Инструкция пользования</button>

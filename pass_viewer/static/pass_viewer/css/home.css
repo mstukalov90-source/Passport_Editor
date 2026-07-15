@@ -126,6 +126,15 @@ button.user-guide-open-btn.approval-home-link.is-open {
     font-size: 13px;
     color: #64748b;
 }
+.approval-ods-sync-section {
+    border-top: 1px solid #eef1f6;
+}
+.approval-ods-sync-item--ok .approval-notifications-item__status {
+    color: #15803d;
+}
+.approval-ods-sync-item--bad .approval-notifications-item__status {
+    color: #b91c1c;
+}
 .approval-notifications-badge {
     display: inline-flex;
     align-items: center;

@@ -7,6 +7,7 @@
 {% block page_styles %}
 {% load static %}
 <link rel="stylesheet" href="{% static 'pass_viewer/css/tokens.css' %}">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}">
 <link rel="stylesheet" href="{% static 'pass_viewer/css/map-editor.css' %}">
 <link rel="stylesheet" href="{% static 'approval/css/landing.css' %}">
 {% endblock %}
@@ -19,6 +20,7 @@
     {% include 'pass_viewer/includes/map_leaflet_vendor.html' %}
     {% include 'pass_viewer/includes/map_draw_vendor.html' %}
     {% load static %}
+    <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
     <script src="{% static 'approval/js/landing.js' %}"></script>
     <script src="{% static 'approval/js/event_draw.js' %}"></script>
     <script src="{% static 'approval/js/events.js' %}"></script>
