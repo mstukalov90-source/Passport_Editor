@@ -1732,6 +1732,7 @@
         map = L.map(mapElementId, {
             zoomControl: true,
             attributionControl: true,
+            maxZoom: 30,
             // Own MapUnit sizing must drive marker scale; Leaflet CSS zoom-anim
             // on markers would double-scale and look like drift.
             markerZoomAnimation: false,
@@ -1744,6 +1745,14 @@
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a>'
         );
+
+        if (window.PassViewer && typeof window.PassViewer.attachBasemapControl === 'function') {
+            window.PassViewer.attachBasemapControl(map, {
+                defaultMode: 'none',
+                position: 'bottomright',
+                scopeRoot: mapEl.parentElement,
+            });
+        }
 
         managedLayers = {};
         mapUnitMarkers = [];

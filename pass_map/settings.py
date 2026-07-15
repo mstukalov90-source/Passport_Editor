@@ -217,6 +217,9 @@ except (TypeError, ValueError):
 # На main: не грузить смежные ДТ и reference-слои в HTML — подгрузка через AJAX после открытия страницы.
 GIS_DEFER_MAP_CONTEXT_LAYERS = os.getenv("GIS_DEFER_MAP_CONTEXT_LAYERS", "1")
 
+# Автопоказ модалки «Выберите действие» на home (0 = выкл.; 1 = вкл.).
+HOME_WORKFLOW_MODAL_ENABLED = os.getenv("HOME_WORKFLOW_MODAL_ENABLED", "0") not in ("0", "false", "False")
+
 # Упрощение линейных слоёв ООЗТ/РЖД при отдаче на карту (меньше точек → быстрее JSON).
 try:
     GIS_OOZT_SIGNAL_SIMPLIFY_METERS = float(os.getenv("GIS_OOZT_SIGNAL_SIMPLIFY_METERS", "2"))
