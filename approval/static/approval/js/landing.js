@@ -47,6 +47,8 @@
     const ADJACENT_ACTIVE_STROKE_STRONG = '#ca8a04';
     const ADJACENT_ACTIVE_WEIGHT = 4;
     const ADJACENT_PULSE_PERIOD_MS = 2800;
+    /** Temporarily disable adjacent passport Leaflet popup (change owner / create event). */
+    const ADJACENT_INSPECTOR_POPUP_ENABLED = false;
     let adjacentPulseRaf = null;
     let adjacentPulseStart = 0;
     const MM_MARKER_SIZE_SCALE = 1;
@@ -1987,6 +1989,9 @@
         }
 
         function bindAdjacentInspectorPopup(layer, feature) {
+            if (!ADJACENT_INSPECTOR_POPUP_ENABLED) {
+                return;
+            }
             const props = feature.properties || {};
             const isApprovalAdjacent =
                 props.layerKey === 'adjacent_approval' || props.adjacentRootKind === 'n';
@@ -2311,7 +2316,7 @@
                     'Карта готова (загружено ' + (specs.length - failedCount) + ' из ' + specs.length + ' слоёв).'
                 );
             } else {
-                setMapLoadStatus('Карта готова.');
+                setMapLoadStatus('');
             }
         } finally {
             hideDbLoadingModal();
