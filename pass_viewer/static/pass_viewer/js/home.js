@@ -152,78 +152,35 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             return messages;
         }
 
-        function updateApprovalNotificationsBadge(odsMessageCount) {
-            const btn = document.getElementById('approval-notifications-btn');
-            const panel = document.getElementById('approval-notifications-panel');
-            if (!btn) {
-                return;
-            }
-            const pendingApprovals = panel
-                ? (parseInt(panel.dataset.pendingApprovalCount || '0', 10) || 0)
-                : 0;
-            const total = pendingApprovals + (Number(odsMessageCount) || 0);
-            let badge = btn.querySelector('.approval-notifications-badge');
-            if (total > 0) {
-                if (!badge) {
-                    badge = document.createElement('span');
-                    badge.className = 'approval-notifications-badge';
-                    const chevron = btn.querySelector('.approval-notifications-chevron');
-                    if (chevron) {
-                        btn.insertBefore(badge, chevron);
-                    } else {
-                        btn.appendChild(badge);
-                    }
-                }
-                badge.textContent = String(total);
-            } else if (badge) {
-                badge.remove();
-            }
-        }
-
-        function renderApprovalOdsSyncChanges(messages) {
-            const section = document.getElementById('approval-ods-sync-section');
-            const list = document.getElementById('approval-ods-sync-list');
-            if (!section || !list) {
-                updateApprovalNotificationsBadge(0);
+        function renderHomeWorkflowOdsSyncChanges(messages) {
+            const block = document.getElementById('home-workflow-ods-sync-block');
+            const list = document.getElementById('home-workflow-ods-sync-list');
+            if (!block || !list) {
                 return;
             }
             list.replaceChildren();
             if (!messages.length) {
-                section.hidden = true;
-                updateApprovalNotificationsBadge(0);
+                block.hidden = true;
                 return;
             }
             messages.forEach((msg) => {
                 const li = document.createElement('li');
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = msg.kind === 'ok'
-                    ? 'approval-notifications-item approval-ods-sync-item approval-ods-sync-item--ok'
-                    : 'approval-notifications-item approval-ods-sync-item approval-ods-sync-item--bad';
-                btn.dataset.requestId = msg.brid;
-                btn.setAttribute('role', 'option');
-                const title = document.createElement('span');
-                title.className = 'approval-notifications-item__title';
-                title.textContent = msg.kind === 'ok'
+                li.className = msg.kind === 'ok'
+                    ? 'home-workflow-ods-sync-item home-workflow-ods-sync-item--ok'
+                    : 'home-workflow-ods-sync-item home-workflow-ods-sync-item--bad';
+                li.textContent = msg.kind === 'ok'
                     ? `Заявка № ${msg.brid} подтверждена АСУ ОДС`
                     : `Заявка № ${msg.brid} не подтверждена АСУ ОДС`;
-                const status = document.createElement('span');
-                status.className = 'approval-notifications-item__status';
-                status.textContent = msg.kind === 'ok' ? 'Подтверждена' : 'Не подтверждена';
-                btn.appendChild(title);
-                btn.appendChild(status);
-                li.appendChild(btn);
                 list.appendChild(li);
             });
-            section.hidden = false;
-            updateApprovalNotificationsBadge(messages.length);
+            block.hidden = false;
         }
 
         function applyHomeWorkflowOdsSyncNotifications() {
             const prev = readOdsSyncSnapshot();
             const current = collectCurrentOdsSyncStatuses();
             const messages = buildOdsSyncChangeMessages(prev, current);
-            renderApprovalOdsSyncChanges(messages);
+            renderHomeWorkflowOdsSyncChanges(messages);
             writeOdsSyncSnapshot(current);
         }
         const ownedMapEl = document.getElementById('owned-passports-map');
@@ -748,18 +705,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 getActiveOwnedListTab() === 'approvals' && approvalRows.length > 0;
             approvalSelectWrapEl.hidden = !show;
         }
-
-        document.querySelectorAll('form.owned-approval-delete-form').forEach((form) => {
-            form.addEventListener('submit', (event) => {
-                const btn = form.querySelector('.owned-approval-delete-btn');
-                const message =
-                    (btn && btn.getAttribute('data-confirm-message')) ||
-                    'Удалить согласование?';
-                if (!window.confirm(message)) {
-                    event.preventDefault();
-                }
-            });
-        });
 
         function syncSourceFiltersVisibility() {
             if (!sourceFiltersEl) {
@@ -2072,27 +2017,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             window.location.href = '/approval/?approve=' + encodeURIComponent(normalizedApproveId);
         }
 
-        function openOdsRequestFromNotifications(requestId) {
-            const brid = String(requestId || '').trim();
-            setApprovalNotificationsOpen(false);
-            clearHomeOghSpecialModes();
-            setOwnedListTab('requests');
-            applyOwnedFilters();
-            const requestsPanel = document.querySelector('.owned-list-panel[data-list-panel="requests"]');
-            if (requestsPanel && typeof requestsPanel.scrollIntoView === 'function') {
-                requestsPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-            if (!brid) {
-                return;
-            }
-            const targetRow = Array.from(document.querySelectorAll('.owned-request-row')).find(
-                (row) => (row.dataset.requestId || '').trim() === brid
-            );
-            if (targetRow && typeof targetRow.scrollIntoView === 'function') {
-                targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }
-
         if (approvalNotificationsBtn && approvalNotificationsPanel) {
             approvalNotificationsBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
@@ -2101,15 +2025,11 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             });
             approvalNotificationsPanel.addEventListener('click', (event) => {
                 event.stopPropagation();
-                const odsItem = event.target.closest('.approval-ods-sync-item');
-                if (odsItem) {
-                    openOdsRequestFromNotifications(odsItem.dataset.requestId);
-                    return;
-                }
-                const approvalItem = event.target.closest('.approval-notifications-item[data-approve-id]');
-                if (approvalItem) {
-                    openApprovalFromNotifications(approvalItem.dataset.approveId);
-                }
+            });
+            approvalNotificationsPanel.querySelectorAll('.approval-notifications-item').forEach((item) => {
+                item.addEventListener('click', () => {
+                    openApprovalFromNotifications(item.dataset.approveId);
+                });
             });
             document.addEventListener('click', () => {
                 setApprovalNotificationsOpen(false);
@@ -2160,11 +2080,10 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
         });
 
-        applyHomeWorkflowOdsSyncNotifications();
-
         if (needEntryRequestIdOnLoad) {
             openEntryRequestModal('pending');
-        } else if (homeWorkflowModal && cfg.features?.workflowModal) {
+        } else if (homeWorkflowModal) {
+            applyHomeWorkflowOdsSyncNotifications();
             homeWorkflowModal.style.display = 'flex';
             setTimeout(() => {
                 const firstWorkflowBtn = homeWorkflowOdsRequestsBtn || homeWorkflowPrimaryBtn;
