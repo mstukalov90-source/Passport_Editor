@@ -152,28 +152,69 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             return messages;
         }
 
+        function updateApprovalNotificationsBadge(odsMessageCount) {
+            const btn = document.getElementById('approval-notifications-btn');
+            const panel = document.getElementById('approval-notifications-panel');
+            if (!btn) {
+                return;
+            }
+            const pendingApprovals = Number(panel?.dataset.pendingApprovalCount || 0) || 0;
+            const total = pendingApprovals + (Number(odsMessageCount) || 0);
+            let badge = btn.querySelector('.approval-notifications-badge');
+            if (total > 0) {
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'approval-notifications-badge';
+                    const chevron = btn.querySelector('.approval-notifications-chevron');
+                    if (chevron) {
+                        btn.insertBefore(badge, chevron);
+                    } else {
+                        btn.appendChild(badge);
+                    }
+                }
+                badge.textContent = String(total);
+            } else if (badge) {
+                badge.remove();
+            }
+        }
+
         function renderHomeWorkflowOdsSyncChanges(messages) {
-            const block = document.getElementById('home-workflow-ods-sync-block');
-            const list = document.getElementById('home-workflow-ods-sync-list');
-            if (!block || !list) {
+            const section = document.getElementById('approval-ods-sync-section');
+            const list = document.getElementById('approval-ods-sync-list');
+            if (!section || !list) {
+                updateApprovalNotificationsBadge(0);
                 return;
             }
             list.replaceChildren();
             if (!messages.length) {
-                block.hidden = true;
+                section.hidden = true;
+                updateApprovalNotificationsBadge(0);
                 return;
             }
             messages.forEach((msg) => {
                 const li = document.createElement('li');
-                li.className = msg.kind === 'ok'
-                    ? 'home-workflow-ods-sync-item home-workflow-ods-sync-item--ok'
-                    : 'home-workflow-ods-sync-item home-workflow-ods-sync-item--bad';
-                li.textContent = msg.kind === 'ok'
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = msg.kind === 'ok'
+                    ? 'approval-notifications-item approval-ods-sync-item--ok'
+                    : 'approval-notifications-item approval-ods-sync-item--bad';
+                item.dataset.odsBrid = msg.brid;
+                item.setAttribute('role', 'option');
+                const title = document.createElement('span');
+                title.className = 'approval-notifications-item__title';
+                title.textContent = msg.kind === 'ok'
                     ? `Заявка № ${msg.brid} подтверждена АСУ ОДС`
                     : `Заявка № ${msg.brid} не подтверждена АСУ ОДС`;
+                const status = document.createElement('span');
+                status.className = 'approval-notifications-item__status';
+                status.textContent = msg.kind === 'ok' ? 'Подтверждена' : 'Не подтверждена';
+                item.appendChild(title);
+                item.appendChild(status);
+                li.appendChild(item);
                 list.appendChild(li);
             });
-            block.hidden = false;
+            section.hidden = false;
+            updateApprovalNotificationsBadge(messages.length);
         }
 
         function applyHomeWorkflowOdsSyncNotifications() {
@@ -2017,6 +2058,26 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             window.location.href = '/approval/?approve=' + encodeURIComponent(normalizedApproveId);
         }
 
+        function openOdsRequestFromNotifications(brid) {
+            const normalizedBrid = String(brid || '').trim().toLowerCase();
+            if (!normalizedBrid) {
+                return;
+            }
+            setApprovalNotificationsOpen(false);
+            setOwnedListTab('requests');
+            applyOwnedFilters();
+            let targetRow = null;
+            document.querySelectorAll('.owned-request-row').forEach((row) => {
+                const rowId = (row.dataset.requestId || '').trim().toLowerCase();
+                if (rowId && rowId === normalizedBrid) {
+                    targetRow = row;
+                }
+            });
+            if (targetRow && typeof targetRow.scrollIntoView === 'function') {
+                targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
         if (approvalNotificationsBtn && approvalNotificationsPanel) {
             approvalNotificationsBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
@@ -2025,11 +2086,15 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             });
             approvalNotificationsPanel.addEventListener('click', (event) => {
                 event.stopPropagation();
-            });
-            approvalNotificationsPanel.querySelectorAll('.approval-notifications-item').forEach((item) => {
-                item.addEventListener('click', () => {
-                    openApprovalFromNotifications(item.dataset.approveId);
-                });
+                const odsItem = event.target.closest('.approval-notifications-item[data-ods-brid]');
+                if (odsItem) {
+                    openOdsRequestFromNotifications(odsItem.dataset.odsBrid);
+                    return;
+                }
+                const approvalItem = event.target.closest('.approval-notifications-item[data-approve-id]');
+                if (approvalItem) {
+                    openApprovalFromNotifications(approvalItem.dataset.approveId);
+                }
             });
             document.addEventListener('click', () => {
                 setApprovalNotificationsOpen(false);
@@ -2080,10 +2145,11 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
         });
 
+        applyHomeWorkflowOdsSyncNotifications();
+
         if (needEntryRequestIdOnLoad) {
             openEntryRequestModal('pending');
-        } else if (homeWorkflowModal) {
-            applyHomeWorkflowOdsSyncNotifications();
+        } else if (homeWorkflowModal && cfg.features && cfg.features.workflowModal) {
             homeWorkflowModal.style.display = 'flex';
             setTimeout(() => {
                 const firstWorkflowBtn = homeWorkflowOdsRequestsBtn || homeWorkflowPrimaryBtn;

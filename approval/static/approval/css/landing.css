@@ -451,12 +451,6 @@ main.container.container--approval {
     color: #334155;
 }
 
-.approval-event-card__n-root {
-    margin: 0 0 6px;
-    font-size: 12px;
-    color: #64748b;
-}
-
 .approval-event-card__progress {
     font-size: 12px;
     color: #64748b;
@@ -615,6 +609,12 @@ main.container.container--approval {
     border: 1px solid #e3e6ec;
     border-radius: 8px;
     background: #fff;
+    cursor: pointer;
+}
+
+.approval-event-card--closed {
+    background: #ecfdf5;
+    border-color: #a7f3d0;
 }
 
 .approval-event-card__head {
@@ -656,17 +656,11 @@ main.container.container--approval {
     color: #047857;
 }
 
-.approval-event-card__preview {
-    margin: 0 0 8px;
-    font-size: 12px;
-    line-height: 1.35;
-    color: #64748b;
-}
-
 .approval-event-card__footer {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
+    flex-wrap: wrap;
     gap: 8px;
 }
 
@@ -675,7 +669,8 @@ main.container.container--approval {
     color: #94a3b8;
 }
 
-.approval-event-card__open {
+.approval-event-card__add-participant {
+    margin-left: auto;
     border: none;
     background: #e5e7eb;
     color: #111827;
@@ -686,7 +681,7 @@ main.container.container--approval {
     font-family: inherit;
 }
 
-.approval-event-card__open:hover {
+.approval-event-card__add-participant:hover {
     background: #d1d5db;
 }
 
@@ -735,6 +730,86 @@ main.container.container--approval {
     margin: 0 0 8px;
     font-size: 12px;
     color: #475569;
+}
+
+.approval-events__message-stats {
+    margin: 0 0 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.approval-events__message-stats-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.approval-events__message-stats-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.approval-events__message-stats-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: #e5e7eb;
+    color: #111827;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.approval-events__message-stats-toggle:hover {
+    background: #d1d5db;
+}
+
+.approval-events__message-stats-toggle-icon {
+    display: block;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid currentColor;
+    transition: transform 0.15s ease;
+}
+
+.approval-events__message-stats.is-collapsed .approval-events__message-stats-toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.approval-events__message-stats.is-collapsed .approval-events__message-stats-list {
+    display: none;
+}
+
+.approval-events__message-stats-list {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+}
+
+.approval-events__message-stats-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12px;
+    color: #475569;
+}
+
+.approval-events__message-stats-count {
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+    font-weight: 600;
 }
 
 .approval-events__closed-banner {
@@ -887,6 +962,16 @@ main.container.container--approval {
     color: #1e3a8a;
 }
 
+.approval-chat-message__reaction-badge[data-reaction-kind="accepted"] {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.approval-chat-message__reaction-badge[data-reaction-kind="rejected"] {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
 .approval-chat-message__reaction-actions {
     display: flex;
     flex-wrap: wrap;
@@ -975,6 +1060,15 @@ main.container.container--approval {
 
 .approval-chat-composer__geometry-hint-item {
     margin: 2px 0;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 1px 4px;
+    margin-left: -4px;
+}
+
+.approval-chat-composer__geometry-hint-item:hover {
+    background: rgba(124, 58, 237, 0.08);
+    color: #5b21b6;
 }
 
 .approval-chat-message__reaction-btn {
@@ -1088,7 +1182,8 @@ main.container.container--approval {
 
 .approval-draw-toolbar {
     position: absolute;
-    top: 12px;
+    /* Below Leaflet topright basemap control (~10px margin + ~42px height + gap). */
+    top: 62px;
     right: 12px;
     z-index: 600;
     display: flex;
@@ -1103,7 +1198,7 @@ main.container.container--approval {
     max-width: calc(100% - 24px);
 }
 
-/* Keep basemap clear of the draw toolbar (top-right). */
+/* Basemap sits in Leaflet topright; draw toolbar stacks under it. */
 .approval-panel--map .map-basemap-control {
     max-width: none;
     border-color: #e2e8f0;
@@ -1114,6 +1209,90 @@ main.container.container--approval {
     border-color: #7c3aed;
     background: #f3e8ff;
     color: #6d28d9;
+}
+
+.approval-map-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.1);
+}
+
+.approval-map-tools.leaflet-bar a,
+.approval-map-tools.leaflet-bar a:hover {
+    border-bottom: none;
+    width: auto;
+    height: auto;
+    line-height: normal;
+}
+
+.approval-map-tools__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 44px;
+    min-height: 40px;
+    margin: 0;
+    padding: 8px 10px;
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    background: transparent;
+    color: #1f2937;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.approval-map-tools__btn:last-child {
+    border-bottom: none;
+}
+
+.approval-map-tools__btn:hover {
+    background: #f8fafc;
+}
+
+.approval-map-tools__btn.is-active {
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.approval-map-tools__icon {
+    display: inline-flex;
+    line-height: 0;
+}
+
+.approval-map-tools__caption {
+    line-height: 1;
+}
+
+.approval-measure-label {
+    background: transparent;
+    border: none;
+}
+
+.approval-measure-label span {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #fdba74;
+    color: #9a3412;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+}
+
+.approval-measure-label--total span {
+    border-color: #ea580c;
+    background: #fff7ed;
+    color: #9a3412;
 }
 
 .approval-draw-toolbar[hidden] {
@@ -1186,6 +1365,14 @@ main.container.container--approval {
     gap: 8px;
 }
 
+.approval-feature-popup {
+    min-width: 120px;
+    max-width: 280px;
+    font-size: 13px;
+    color: #334155;
+    line-height: 1.35;
+}
+
 .approval-adjacent-popup {
     min-width: 160px;
     max-width: 260px;
@@ -1238,21 +1425,6 @@ main.container.container--approval {
     margin: 0;
     color: #b91c1c;
     font-size: 13px;
-}
-
-.approval-event-card__add-participant {
-    border: none;
-    background: transparent;
-    color: #1f6feb;
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-    padding: 0;
-    text-decoration: underline;
-}
-
-.approval-event-card__add-participant:hover {
-    color: #1554b3;
 }
 
 .approval-event-marker-icon span {

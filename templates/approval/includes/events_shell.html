@@ -29,6 +29,22 @@
         <p class="approval-events__event-subtitle" id="approval-active-subtitle" hidden></p>
         <div class="approval-events__participants" id="approval-active-participants" hidden></div>
         <div class="approval-events__approval-progress" id="approval-approval-progress" hidden></div>
+        <div class="approval-events__message-stats" id="approval-message-stats" hidden>
+            <div class="approval-events__message-stats-header">
+                <span class="approval-events__message-stats-title">Статистика сообщений</span>
+                <button
+                    type="button"
+                    class="approval-events__message-stats-toggle"
+                    id="approval-message-stats-toggle"
+                    aria-expanded="true"
+                    aria-controls="approval-message-stats-list"
+                    title="Свернуть статистику сообщений"
+                >
+                    <span class="approval-events__message-stats-toggle-icon" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="approval-events__message-stats-list" id="approval-message-stats-list"></ul>
+        </div>
         <div class="approval-events__closed-banner" id="approval-closed-banner" hidden>Событие согласовано.</div>
         <div class="approval-events__chat-area" id="approval-primary-chat">
             <div class="approval-chat-thread" id="approval-chat-thread"></div>

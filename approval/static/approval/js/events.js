@@ -14,6 +14,7 @@
         chatPollTimer: null,
         chatPollInFlight: false,
         chatPollFingerprint: '',
+        messageStatsCollapsed: false,
     };
 
     const CHAT_POLL_INTERVAL_MS = 2500;
@@ -21,7 +22,12 @@
     const REACTION_LABELS = {
         in_progress: 'В работе',
         done: 'Выполнено',
+        accepted: 'Принято',
+        rejected: 'Отклонено',
     };
+
+    const INSPECTOR_REACTION_KINDS = ['in_progress', 'done'];
+    const OWNER_VERDICT_KINDS = ['accepted', 'rejected'];
 
     function el(id) {
         return document.getElementById(id);
@@ -146,6 +152,9 @@
         if (!hint) {
             return;
         }
+        if (mapApi().clearPendingGeometryHighlight) {
+            mapApi().clearPendingGeometryHighlight();
+        }
         const items = state.pendingMessageGeometries || [];
         if (!items.length) {
             hint.hidden = true;
@@ -156,7 +165,9 @@
         const listHtml = items
             .map(function (_geom, index) {
                 return (
-                    '<li class="approval-chat-composer__geometry-hint-item">' +
+                    '<li class="approval-chat-composer__geometry-hint-item" data-geometry-index="' +
+                    index +
+                    '">' +
                     'Объект ' +
                     (index + 1) +
                     ' ' +
@@ -189,6 +200,20 @@
                     if (!Number.isNaN(index)) {
                         removePendingMessageGeometryAt(index);
                     }
+                }
+            });
+        });
+        hint.querySelectorAll('.approval-chat-composer__geometry-hint-item').forEach(function (item) {
+            item.addEventListener('mouseenter', function () {
+                const index = Number(item.getAttribute('data-geometry-index'));
+                if (Number.isNaN(index) || !mapApi().highlightPendingGeometry) {
+                    return;
+                }
+                mapApi().highlightPendingGeometry(index);
+            });
+            item.addEventListener('mouseleave', function () {
+                if (mapApi().clearPendingGeometryHighlight) {
+                    mapApi().clearPendingGeometryHighlight();
                 }
             });
         });
@@ -305,6 +330,8 @@
                     return (
                         '<span class="approval-chat-message__reaction-badge' +
                         ownClass +
+                        '" data-reaction-kind="' +
+                        escapeHtml(reaction.kind) +
                         '" title="' +
                         escapeHtml(reaction.author) +
                         '">' +
@@ -319,14 +346,17 @@
         );
     }
 
-    function renderReactionActions(message, caseClosed) {
-        if (message.is_own || caseClosed) {
-            return '';
-        }
+    function messageHasDoneReaction(message) {
+        return !!(message.reactions || []).some(function (reaction) {
+            return reaction.kind === 'done';
+        });
+    }
+
+    function renderReactionActionButtons(kinds, message) {
         const myReaction = message.my_reaction || '';
         return (
             '<div class="approval-chat-message__reaction-actions">' +
-            Object.keys(REACTION_LABELS)
+            kinds
                 .map(function (kind) {
                     const activeClass = myReaction === kind ? ' is-active' : '';
                     return (
@@ -344,6 +374,23 @@
                 .join('') +
             '</div>'
         );
+    }
+
+    function renderReactionActions(message, caseClosed) {
+        if (caseClosed) {
+            return '';
+        }
+        const caseItem = findCase(state.activeCaseId);
+        if (!caseItem) {
+            return '';
+        }
+        if (caseItem.current_user_is_inspector && !message.is_own && messageHasReplyTarget(message)) {
+            return renderReactionActionButtons(INSPECTOR_REACTION_KINDS, message);
+        }
+        if (caseItem.current_user_is_owner && messageHasDoneReaction(message)) {
+            return renderReactionActionButtons(OWNER_VERDICT_KINDS, message);
+        }
+        return '';
     }
 
     function bindMessageReactionClicks() {
@@ -742,6 +789,55 @@
                 progressText += ' (ожидается подпись инспектора)';
             }
             progress.textContent = progressText;
+        } else if (progress) {
+            progress.hidden = true;
+            progress.textContent = '';
+        }
+        renderMessageStats(caseItem);
+    }
+
+    function renderMessageStats(caseItem) {
+        const root = el('approval-message-stats');
+        const list = el('approval-message-stats-list');
+        const toggle = el('approval-message-stats-toggle');
+        if (!root || !list) {
+            return;
+        }
+        if (!caseItem || !caseItem.current_user_is_inspector) {
+            root.hidden = true;
+            list.innerHTML = '';
+            return;
+        }
+        const stats = caseItem.message_reaction_stats || {};
+        const rows = [
+            { key: 'unprocessed', label: 'Необработанных сообщений' },
+            { key: 'in_progress', label: 'Сообщений в работе' },
+            { key: 'done', label: 'Сообщений выполнено' },
+            { key: 'accepted', label: 'Принято' },
+            { key: 'rejected', label: 'Отклонено' },
+        ];
+        list.innerHTML = rows
+            .map(function (row) {
+                const count = Number(stats[row.key] || 0);
+                return (
+                    '<li class="approval-events__message-stats-item">' +
+                    '<span class="approval-events__message-stats-label">' +
+                    escapeHtml(row.label) +
+                    '</span>' +
+                    '<span class="approval-events__message-stats-count">' +
+                    escapeHtml(String(count)) +
+                    '</span>' +
+                    '</li>'
+                );
+            })
+            .join('');
+        root.hidden = false;
+        root.classList.toggle('is-collapsed', !!state.messageStatsCollapsed);
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', state.messageStatsCollapsed ? 'false' : 'true');
+            toggle.title = state.messageStatsCollapsed
+                ? 'Развернуть статистику сообщений'
+                : 'Свернуть статистику сообщений';
         }
     }
 
@@ -811,9 +907,10 @@
         const title = opts.titleOverride || caseItem.title;
         const extraClass = opts.extraClass || '';
         const active = caseItem.id === state.activeCaseId ? ' is-active' : '';
-        const nRootHtml = caseItem.n_root
-            ? '<p class="approval-event-card__n-root">Паспорт ' + escapeHtml(caseItem.n_root) + '</p>'
-            : '';
+        const closedClass =
+            caseItem.approved || caseItem.status_class === 'closed'
+                ? ' approval-event-card--closed'
+                : '';
         const addParticipantHtml = caseItem.can_manage_participants
             ? '<button type="button" class="approval-event-card__add-participant" data-case-id="' +
               caseItem.id +
@@ -822,7 +919,10 @@
         return (
             '<div class="approval-event-card' +
             extraClass +
+            closedClass +
             active +
+            '" data-case-id="' +
+            escapeHtml(caseItem.id) +
             '">' +
             '<div class="approval-event-card__head">' +
             '<span class="approval-event-card__title">' +
@@ -834,10 +934,6 @@
             escapeHtml(caseItem.status) +
             '</span>' +
             '</div>' +
-            nRootHtml +
-            '<p class="approval-event-card__preview">' +
-            escapeHtml(caseItem.preview || '') +
-            '</p>' +
             '<div class="approval-event-card__footer">' +
             '<span class="approval-event-card__count">' +
             caseItem.messages_count +
@@ -848,9 +944,6 @@
             caseItem.approvals_total +
             '</span>' +
             addParticipantHtml +
-            '<button type="button" class="approval-event-card__open" data-case-id="' +
-            caseItem.id +
-            '">Открыть чат</button>' +
             '</div>' +
             '</div>'
         );
@@ -860,12 +953,6 @@
         if (!root) {
             return;
         }
-        root.querySelectorAll('.approval-event-card__open').forEach(function (button) {
-            button.addEventListener('click', function (event) {
-                event.stopPropagation();
-                openCase(button.dataset.caseId, { fitMap: false });
-            });
-        });
         root.querySelectorAll('.approval-event-card__add-participant').forEach(function (button) {
             button.addEventListener('click', function (event) {
                 event.stopPropagation();
@@ -874,15 +961,12 @@
         });
         root.querySelectorAll('.approval-event-card').forEach(function (card) {
             card.addEventListener('click', function (event) {
-                if (
-                    event.target.closest('.approval-event-card__open') ||
-                    event.target.closest('.approval-event-card__add-participant')
-                ) {
+                if (event.target.closest('.approval-event-card__add-participant')) {
                     return;
                 }
-                const openBtn = card.querySelector('.approval-event-card__open');
-                if (openBtn) {
-                    openCase(openBtn.dataset.caseId, { fitMap: false });
+                const caseId = card.dataset.caseId;
+                if (caseId) {
+                    openCase(caseId, { fitMap: false });
                 }
             });
         });
@@ -1259,6 +1343,22 @@
         });
     }
 
+    function initMessageStatsToggle() {
+        const root = el('approval-message-stats');
+        const toggle = el('approval-message-stats-toggle');
+        if (!root || !toggle) {
+            return;
+        }
+        toggle.addEventListener('click', function () {
+            state.messageStatsCollapsed = !state.messageStatsCollapsed;
+            root.classList.toggle('is-collapsed', state.messageStatsCollapsed);
+            toggle.setAttribute('aria-expanded', state.messageStatsCollapsed ? 'false' : 'true');
+            toggle.title = state.messageStatsCollapsed
+                ? 'Развернуть статистику сообщений'
+                : 'Свернуть статистику сообщений';
+        });
+    }
+
     function currentUserIsInspectorForSelected() {
         const config = state.config || {};
         const currentUser = (config.currentUser || '').trim();
@@ -1276,12 +1376,6 @@
         return false;
     }
 
-    function secondaryCasesForSelected() {
-        return state.cases.filter(function (item) {
-            return !item.is_primary && !item.approved && item.can_manage_participants;
-        });
-    }
-
     function setDialogError(errorEl, message) {
         if (!errorEl) {
             return;
@@ -1293,94 +1387,6 @@
         }
         errorEl.hidden = false;
         errorEl.textContent = message;
-    }
-
-    function fillChangeOwnerOldSelect(caseItem) {
-        const oldSelect = el('approval-change-owner-old');
-        if (!oldSelect) {
-            return;
-        }
-        const owners = (caseItem && caseItem.owners) || [];
-        oldSelect.innerHTML = owners
-            .map(function (ownerId) {
-                return '<option value="' + escapeHtml(ownerId) + '">' + escapeHtml(ownerId) + '</option>';
-            })
-            .join('');
-    }
-
-    function openChangeOwnerDialog(options) {
-        const opts = options || {};
-        const dialog = el('approval-change-owner-dialog');
-        const caseSelect = el('approval-change-owner-case');
-        const newInput = el('approval-change-owner-new');
-        const errorEl = el('approval-change-owner-error');
-        if (!dialog || !caseSelect || !newInput) {
-            return;
-        }
-        if (!currentUserIsInspectorForSelected()) {
-            return;
-        }
-        const secondary = secondaryCasesForSelected();
-        if (!secondary.length) {
-            window.alert('Нет доступных событий для смены владельца.');
-            return;
-        }
-        const preferredId = opts.caseId || state.activeCaseId;
-        caseSelect.innerHTML = secondary
-            .map(function (caseItem) {
-                const label = caseItem.n_root
-                    ? caseItem.title + ' (Паспорт ' + caseItem.n_root + ')'
-                    : caseItem.title;
-                return (
-                    '<option value="' +
-                    escapeHtml(caseItem.id) +
-                    '">' +
-                    escapeHtml(label) +
-                    '</option>'
-                );
-            })
-            .join('');
-        if (preferredId && secondary.some(function (item) { return item.id === preferredId; })) {
-            caseSelect.value = preferredId;
-        }
-        const selectedCase = findCase(caseSelect.value) || secondary[0];
-        fillChangeOwnerOldSelect(selectedCase);
-        newInput.value = '';
-        setDialogError(errorEl, '');
-        if (typeof dialog.showModal === 'function') {
-            dialog.showModal();
-        }
-    }
-
-    function openChangeOwnerForTaskGuid(taskGuid) {
-        const config = state.config || {};
-        const focusGuid = String(config.focusTaskGuid || '').trim();
-        const clickedGuid = String(taskGuid || '').trim();
-        if (!clickedGuid || (focusGuid && clickedGuid !== focusGuid)) {
-            return;
-        }
-        openChangeOwnerDialog();
-    }
-
-    function openChangeOwnerForRootId(rootId) {
-        if (drawApi().isDrawMode && drawApi().isDrawMode()) {
-            return;
-        }
-        const rootText = String(rootId || '').trim();
-        if (!rootText) {
-            return;
-        }
-        if (!currentUserIsInspectorForSelected()) {
-            return;
-        }
-        const match = state.cases.find(function (item) {
-            return !item.is_primary && !item.approved && String(item.n_root || '').trim() === rootText;
-        });
-        if (!match) {
-            window.alert('Не найдено событие для паспорта ' + rootText + '.');
-            return;
-        }
-        openChangeOwnerDialog({ caseId: match.id });
     }
 
     async function openCreateEventFromAdjacent(opts) {
@@ -1438,43 +1444,6 @@
             await loadBootstrap();
         } catch (error) {
             window.alert((error && error.message) || 'Не удалось создать событие.');
-        }
-    }
-
-    async function submitChangeOwner() {
-        const caseSelect = el('approval-change-owner-case');
-        const oldSelect = el('approval-change-owner-old');
-        const newInput = el('approval-change-owner-new');
-        const errorEl = el('approval-change-owner-error');
-        const dialog = el('approval-change-owner-dialog');
-        const caseId = caseSelect && caseSelect.value;
-        const oldOwner = oldSelect && oldSelect.value;
-        const newOwner = newInput && newInput.value.trim();
-        if (!caseId || !oldOwner || !newOwner) {
-            setDialogError(errorEl, 'Заполните все поля.');
-            return;
-        }
-        try {
-            const data = await fetchJson(
-                mapApi().apiUrl(state.config.apiUrls.changeCaseOwner, { caseId: caseId }),
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ old_owner: oldOwner, new_owner: newOwner }),
-                }
-            );
-            const index = state.cases.findIndex(function (item) {
-                return item.id === caseId;
-            });
-            if (index >= 0) {
-                state.cases[index] = Object.assign({}, state.cases[index], data.case);
-            }
-            if (dialog && typeof dialog.close === 'function') {
-                dialog.close();
-            }
-            await openCase(state.activeCaseId || caseId, { fitMap: false });
-        } catch (error) {
-            setDialogError(errorEl, (error && error.message) || 'Не удалось сменить владельца.');
         }
     }
 
@@ -1550,24 +1519,6 @@
     }
 
     function bindParticipantDialogs() {
-        const changeCaseSelect = el('approval-change-owner-case');
-        if (changeCaseSelect) {
-            changeCaseSelect.addEventListener('change', function () {
-                fillChangeOwnerOldSelect(findCase(changeCaseSelect.value));
-            });
-        }
-        const changeForm = el('approval-change-owner-form');
-        if (changeForm) {
-            changeForm.addEventListener('submit', function (event) {
-                const submitter = event.submitter;
-                const value = submitter && submitter.value ? submitter.value : 'cancel';
-                if (value !== 'confirm') {
-                    return;
-                }
-                event.preventDefault();
-                submitChangeOwner();
-            });
-        }
         const kindSelect = el('approval-add-participant-kind');
         if (kindSelect) {
             kindSelect.addEventListener('change', syncAddParticipantValueLabel);
@@ -1614,6 +1565,7 @@
             resizeChatInput();
         }
         initEventsListToggle();
+        initMessageStatsToggle();
         bindParticipantDialogs();
         if (approveBtn) {
             approveBtn.addEventListener('click', function () {
@@ -1681,7 +1633,10 @@
         }
         if (geometryBtn) {
             geometryBtn.addEventListener('click', function () {
-                startGeometryDrawMode();
+                const hasPending =
+                    state.pendingMessageGeometries &&
+                    state.pendingMessageGeometries.length > 0;
+                startGeometryDrawMode({ append: hasPending });
             });
         }
 
@@ -1705,11 +1660,8 @@
     }
 
     window.ApprovalEvents = {
-        openChangeOwnerForTaskGuid: openChangeOwnerForTaskGuid,
-        openChangeOwnerForRootId: openChangeOwnerForRootId,
         openCreateEventFromAdjacent: openCreateEventFromAdjacent,
         openAddParticipantDialog: openAddParticipantDialog,
-        openChangeOwnerDialog: openChangeOwnerDialog,
     };
 
     window.addEventListener('load', function () {

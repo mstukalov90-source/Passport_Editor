@@ -25,13 +25,31 @@ logger = logging.getLogger(__name__)
 LAYER_KEY_APPROVAL = "adjacent_approval"
 LAYER_KEY_OBJECTS = "adjacent_objects"
 
+# Panel / display order: ДТ → ОДХ → ОО
+ADJACENT_SOURCE_ORDER = ("YardPoly", "OdhPoly", "OznPoly")
+ADJACENT_SOURCE_LABELS = {
+    "YardPoly": "ДТ",
+    "OdhPoly": "ОДХ",
+    "OznPoly": "ОО",
+}
+
 
 def adjacent_poly_tables() -> list[str]:
     tables = getattr(settings, "APPROVAL_ADJACENT_POLY_TABLES", None)
     if tables:
         return list(tables)
-    return ["YardPoly", "OznPoly", "OdhPoly"]
+    return list(ADJACENT_SOURCE_ORDER)
 
+
+def adjacent_layer_key(base: str, table: str | None) -> str:
+    table_name = str(table or "").strip()
+    if not table_name:
+        return base
+    return f"{base}:{table_name}"
+
+
+def adjacent_source_label(table: str) -> str:
+    return ADJACENT_SOURCE_LABELS.get(table, table)
 
 def work_rootid_column() -> str:
     return getattr(settings, "APPROVAL_WORK_ROOTID_COLUMN", "RootId")
@@ -125,7 +143,9 @@ def _finalize_adjacent_feature(
     root_id = str(props.get("RootId", "")).strip()
     kind = "n" if root_id in n_set else "v"
     props["adjacentRootKind"] = kind
-    props["layerKey"] = _adjacent_layer_for_root(root_id, kind=kind, active_n_root=active_n_root)
+    source_table = str(props.get("sourceTable") or "").strip()
+    base_key = _adjacent_layer_for_root(root_id, kind=kind, active_n_root=active_n_root)
+    props["layerKey"] = adjacent_layer_key(base_key, source_table)
     if source_schema:
         props["sourceSchema"] = source_schema
     return feature
@@ -290,16 +310,25 @@ def _found_root_ids_in_schema(
     return found
 
 
-def count_adjacent_features(n_root: list[str] | str | None, v_root: list[str] | None) -> tuple[int, int]:
+def count_adjacent_features_by_source(
+    n_root: list[str] | str | None,
+    v_root: list[str] | None,
+) -> dict[str, dict[str, int]]:
+    """Return per-table adjacent feature counts: {table: {"n": int, "v": int}}."""
     n_values, v_values = adjacent_root_ids(n_root, v_root)
     if not n_values and not v_values:
-        return 0, 0
+        return {}
 
-    n_count = 0
-    v_count = 0
+    counts: dict[str, dict[str, int]] = {}
     tables = adjacent_poly_tables()
     primary_schema = adjacent_primary_schema_name()
     fallback_schema = adjacent_schema_name()
+
+    def _bump(table_name: str, kind: str, amount: int) -> None:
+        if amount <= 0:
+            return
+        bucket = counts.setdefault(table_name, {"n": 0, "v": 0})
+        bucket[kind] = bucket.get(kind, 0) + amount
 
     try:
         with connections["qgis"].cursor() as cursor:
@@ -312,29 +341,52 @@ def count_adjacent_features(n_root: list[str] | str | None, v_root: list[str] | 
                 n_master = [root for root in n_values if root in missing]
                 for table_name in tables:
                     if n_work:
-                        n_count += _count_adjacent_in_table(
-                            cursor, table_name, n_work, single_root=False, schema=primary_schema
+                        _bump(
+                            table_name,
+                            "n",
+                            _count_adjacent_in_table(
+                                cursor, table_name, n_work, single_root=False, schema=primary_schema
+                            ),
                         )
                     if n_master:
-                        n_count += _count_adjacent_in_table(
-                            cursor, table_name, n_master, single_root=False, schema=fallback_schema
+                        _bump(
+                            table_name,
+                            "n",
+                            _count_adjacent_in_table(
+                                cursor, table_name, n_master, single_root=False, schema=fallback_schema
+                            ),
                         )
             if v_values:
                 v_work = [root for root in v_values if root in found_in_work]
                 v_master = [root for root in v_values if root in missing]
                 for table_name in tables:
                     if v_work:
-                        v_count += _count_adjacent_in_table(
-                            cursor, table_name, v_work, single_root=False, schema=primary_schema
+                        _bump(
+                            table_name,
+                            "v",
+                            _count_adjacent_in_table(
+                                cursor, table_name, v_work, single_root=False, schema=primary_schema
+                            ),
                         )
                     if v_master:
-                        v_count += _count_adjacent_in_table(
-                            cursor, table_name, v_master, single_root=False, schema=fallback_schema
+                        _bump(
+                            table_name,
+                            "v",
+                            _count_adjacent_in_table(
+                                cursor, table_name, v_master, single_root=False, schema=fallback_schema
+                            ),
                         )
     except Exception:
-        logger.exception("count_adjacent_features: qgis query failed")
-        return 0, 0
+        logger.exception("count_adjacent_features_by_source: qgis query failed")
+        return {}
 
+    return counts
+
+
+def count_adjacent_features(n_root: list[str] | str | None, v_root: list[str] | None) -> tuple[int, int]:
+    counts = count_adjacent_features_by_source(n_root, v_root)
+    n_count = sum(int(bucket.get("n", 0) or 0) for bucket in counts.values())
+    v_count = sum(int(bucket.get("v", 0) or 0) for bucket in counts.values())
     return n_count, v_count
 
 

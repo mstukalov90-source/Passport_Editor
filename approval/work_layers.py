@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 
 from django.conf import settings
@@ -13,10 +14,13 @@ from .work_layer_labels import work_layer_label
 logger = logging.getLogger(__name__)
 
 _SCHEMA_TABLES_CACHE: dict[str, list[str]] = {}
-_DEFAULT_HIDDEN_LAYERS = frozenset({"task", "YardPoly", "topopoint"})
+_DEFAULT_HIDDEN_LAYERS = frozenset({"YardPoly", "topopoint"})
+PANEL_EXCLUDED_LAYERS = frozenset({"task", "BasePoly"})
 _GEOMETRY_TIER = {"point": 0, "line": 1, "polygon": 2}
 _BOTTOM_POLYGON_TABLES = frozenset({"OdhPoly", "OznPoly", "YardPoly"})
 TOPO_LAYER_KEY_PREFIX = "topo:"
+# Keep in sync with approval.work_geojson._TOPO_CLIP_TO_WORK_TABLES
+_TOPO_CLIP_TO_WORK_TABLES = frozenset({"topotext"})
 
 
 def _quote_ident(identifier: str) -> str:
@@ -265,6 +269,7 @@ def list_topopassport_layer_tables(*, force_refresh: bool = False) -> list[str]:
     return list_schema_layer_tables(topopassport_schema_name(), force_refresh=force_refresh)
 
 
+# topotext labels clipped to survey polygon (same rule as work_geojson).
 def count_features_by_table(
     task_guids: list[str],
     *,
@@ -287,9 +292,40 @@ def count_features_by_table(
         target_tables = list_schema_layer_tables(schema_name)
     counts: dict[str, int] = {}
 
+    clip_geojson = None
+    if schema_name == topopassport_schema_name() and any(
+        table in _TOPO_CLIP_TO_WORK_TABLES for table in target_tables
+    ):
+        from .reference_layers import load_work_anchor_geometry
+
+        for guid in task_guids:
+            geom = load_work_anchor_geometry(str(guid))
+            if geom:
+                clip_geojson = json.dumps(geom, ensure_ascii=False)
+                break
+
     try:
         with connections["qgis"].cursor() as cursor:
             for table in target_tables:
+                clip_table = (
+                    schema_name == topopassport_schema_name()
+                    and table in _TOPO_CLIP_TO_WORK_TABLES
+                )
+                if clip_table and not clip_geojson:
+                    continue
+                clip_sql = ""
+                params: list = [task_guids]
+                if clip_table:
+                    clip_sql = f"""
+                      AND ST_Intersects(
+                        t.{_quote_ident(geom_col)},
+                        ST_Transform(
+                          ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326),
+                          ST_SRID(t.{_quote_ident(geom_col)})
+                        )
+                      )
+                    """
+                    params.append(clip_geojson)
                 cursor.execute(
                     f"""
                     SELECT COUNT(*)
@@ -297,8 +333,9 @@ def count_features_by_table(
                     WHERE t.{_quote_ident(task_col)} = ANY(%s::uuid[])
                       AND t.{_quote_ident(geom_col)} IS NOT NULL
                       AND NOT ST_IsEmpty(t.{_quote_ident(geom_col)})
+                      {clip_sql}
                     """,
-                    [task_guids],
+                    params,
                 )
                 count = int(cursor.fetchone()[0] or 0)
                 if count:
@@ -358,6 +395,8 @@ def build_layer_groups(feature_counts_by_table: dict[str, int]) -> list[dict]:
         count = feature_counts_by_table[table_name]
         if count <= 0:
             continue
+        if table_name in PANEL_EXCLUDED_LAYERS:
+            continue
         table_def = manifest.get("tables", {}).get(table_name, {})
         geometry = table_def.get("geometry", "polygon")
         layers.append(
@@ -412,7 +451,7 @@ def build_topopassport_layer_groups(feature_counts_by_table: dict[str, int]) -> 
     return [
         {
             "key": "topopassport",
-            "title": "Топопаспорт",
+            "title": "Топография",
             "checked": True,
             "layers": layers,
         }
@@ -454,28 +493,52 @@ def build_reference_layer_groups(*, include_keys: set[str] | None = None) -> lis
     ]
 
 
-def build_adjacent_layer_groups(n_count: int, v_count: int) -> list[dict]:
-    layers = []
-    if n_count > 0:
-        layers.append(
-            {
-                "key": "adjacent_approval",
-                "name": "Смежный объект для согласования",
-                "count": n_count,
-                "geometry": "polygon",
-                "checked": True,
-            }
-        )
-    if v_count > 0:
-        layers.append(
-            {
-                "key": "adjacent_objects",
-                "name": "Смежные объекты",
-                "count": v_count,
-                "geometry": "polygon",
-                "checked": True,
-            }
-        )
+def build_adjacent_layer_groups(counts_by_source: dict[str, dict[str, int]]) -> list[dict]:
+    """Build panel rows split by source table (ДТ/ОДХ/ОО) for approval and objects."""
+    from .work_adjacent import (
+        ADJACENT_SOURCE_ORDER,
+        LAYER_KEY_APPROVAL,
+        LAYER_KEY_OBJECTS,
+        adjacent_layer_key,
+        adjacent_poly_tables,
+        adjacent_source_label,
+    )
+
+    tables = [t for t in ADJACENT_SOURCE_ORDER if t in set(adjacent_poly_tables())]
+    # Include any configured tables not in the default order at the end.
+    for table_name in adjacent_poly_tables():
+        if table_name not in tables:
+            tables.append(table_name)
+
+    layers: list[dict] = []
+    for table_name in tables:
+        bucket = counts_by_source.get(table_name) or {}
+        n_count = int(bucket.get("n", 0) or 0)
+        if n_count > 0:
+            label = adjacent_source_label(table_name)
+            layers.append(
+                {
+                    "key": adjacent_layer_key(LAYER_KEY_APPROVAL, table_name),
+                    "name": f"Смежный объект для согласования · {label}",
+                    "count": n_count,
+                    "geometry": "polygon",
+                    "checked": True,
+                }
+            )
+    for table_name in tables:
+        bucket = counts_by_source.get(table_name) or {}
+        v_count = int(bucket.get("v", 0) or 0)
+        if v_count > 0:
+            label = adjacent_source_label(table_name)
+            layers.append(
+                {
+                    "key": adjacent_layer_key(LAYER_KEY_OBJECTS, table_name),
+                    "name": f"Смежные объекты · {label}",
+                    "count": v_count,
+                    "geometry": "polygon",
+                    "checked": True,
+                }
+            )
     if not layers:
         return []
     return [

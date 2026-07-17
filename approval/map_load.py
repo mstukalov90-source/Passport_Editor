@@ -15,7 +15,7 @@ from .work_geojson import (
     build_work_feature_collection,
 )
 from .work_layer_labels import work_layer_label
-from .work_layers import REFERENCE_LAYER_SPECS
+from .work_layers import PANEL_EXCLUDED_LAYERS, REFERENCE_LAYER_SPECS
 
 if TYPE_CHECKING:
     from .models import Approve
@@ -37,6 +37,8 @@ def build_map_layer_load_order(
 
     for table_name in sorted(work_counts):
         if work_counts[table_name] <= 0:
+            continue
+        if table_name in PANEL_EXCLUDED_LAYERS:
             continue
         specs.append(
             {

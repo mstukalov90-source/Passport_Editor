@@ -65,10 +65,11 @@ def test_build_layer_groups_tracks_geometry_for_line_layers():
     assert layer["geometry"] == "line"
 
 
-def test_build_layer_groups_hides_task_and_yardpoly_by_default():
-    groups = build_layer_groups({"task": 2, "YardPoly": 4, "DtsPoly": 1})
+def test_build_layer_groups_excludes_task_and_basepoly_hides_yardpoly():
+    groups = build_layer_groups({"task": 2, "BasePoly": 3, "YardPoly": 4, "DtsPoly": 1})
     layers = {layer["key"]: layer for layer in groups[0]["layers"]}
-    assert layers["task"]["checked"] is False
+    assert "task" not in layers
+    assert "BasePoly" not in layers
     assert layers["YardPoly"]["checked"] is False
     assert layers["DtsPoly"]["checked"] is True
 
@@ -142,7 +143,7 @@ def test_landing_without_owner_shows_message():
 
     with patch("approval.views.count_features_by_table", return_value={}):
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
-            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={}):
                 with patch("approval.views.landing_page_config", return_value={}):
                     with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
                         response = landing(request)
@@ -166,7 +167,7 @@ def test_landing_inspector_without_owner_id_loads_approves():
 
     with patch("approval.views.count_features_by_table", return_value={}):
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
-            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={}):
                 with patch("approval.views.landing_page_config", return_value={}):
                     with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
                         response = landing(request)
@@ -188,7 +189,7 @@ def test_landing_with_approve_and_mock_qgis_layers():
 
     with patch("approval.views.count_features_by_table", return_value={"DtsPoly": 1}):
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
-            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={}):
                 with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
                     with patch("approval.views.load_svg_index", return_value={"marker.svg": "marker.svg"}):
                         with patch(
@@ -220,7 +221,7 @@ def test_landing_without_matching_approve_shows_empty_message():
 
     with patch("approval.views.count_features_by_table", return_value={}):
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
-            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={}):
                 with patch("approval.views.landing_page_config", return_value={}):
                     with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
                         request = RequestFactory().get("/approval/")
@@ -269,6 +270,21 @@ def test_build_map_layer_load_order():
     assert keys[-4:] == ["dgi", "oozt", "renew", "rzd"]
 
 
+def test_build_map_layer_load_order_skips_excluded_work_tables():
+    from approval.map_load import build_map_layer_load_order
+
+    specs = build_map_layer_load_order(
+        work_counts={"task": 2, "BasePoly": 3, "DtsPoly": 1},
+        topo_counts={},
+        has_adjacent=False,
+        include_reference=False,
+    )
+    keys = [item["key"] for item in specs]
+    assert keys == ["work:DtsPoly"]
+    assert "work:task" not in keys
+    assert "work:BasePoly" not in keys
+
+
 def test_schema_taskguid_column_uses_guid_for_topopassport():
     from approval.work_layers import schema_taskguid_column
 
@@ -292,6 +308,92 @@ def test_topopassport_feature_select_sql_uses_guid_column():
     assert '"topopassport"."SomePoly"' in sql
     assert '"guid"' in sql
     assert "TaskGUID" not in sql
+
+
+def test_topotext_feature_select_sql_clips_to_work_boundary():
+    from unittest.mock import MagicMock
+
+    from approval.work_geojson import _feature_select_sql
+
+    cursor = MagicMock()
+    sql = _feature_select_sql(
+        "topotext",
+        ["text", "angle"],
+        cursor,
+        schema="topopassport",
+        layer_key="topo:topotext",
+        clip_to_work_boundary=True,
+    )
+    assert "ST_Intersects" in sql
+    assert "ST_GeomFromGeoJSON(%s)" in sql
+    assert "ANY(%s::uuid[])" in sql
+    # Guids placeholder comes before boundary GeoJSON.
+    assert sql.index("ANY(%s::uuid[])") < sql.index("ST_GeomFromGeoJSON(%s)")
+
+
+def test_should_clip_only_topotext_in_topopassport():
+    from approval.work_geojson import _should_clip_table_to_work
+
+    assert _should_clip_table_to_work("topopassport", "topotext") is True
+    assert _should_clip_table_to_work("topopassport", "topolines") is False
+    assert _should_clip_table_to_work("work", "topotext") is False
+
+
+@patch("approval.work_geojson.load_work_anchor_geometry")
+@patch("approval.work_geojson.connections")
+def test_build_topopassport_skips_topotext_outside_work_boundary(
+    mock_connections, mock_anchor
+):
+    from approval.work_geojson import build_topopassport_feature_collection
+
+    mock_anchor.return_value = {
+        "type": "Polygon",
+        "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+    }
+    cursor = mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value
+    cursor.fetchone.return_value = None  # style column lookups may call fetchone
+    # One feature returned by SELECT
+    cursor.fetchall.return_value = [
+        (
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [0.5, 0.5]},
+                "properties": {"sourceTable": "topotext", "text": "inside"},
+            },
+        )
+    ]
+
+    collection, error = build_topopassport_feature_collection(
+        ["11111111-1111-1111-1111-111111111111"],
+        tables=["topotext"],
+    )
+    assert error is None
+    assert len(collection["features"]) == 1
+    sql = cursor.execute.call_args[0][0]
+    params = cursor.execute.call_args[0][1]
+    assert "ST_Intersects" in sql
+    assert "ST_GeomFromGeoJSON" in sql
+    assert params[0] == ["11111111-1111-1111-1111-111111111111"]
+    assert '"type": "Polygon"' in params[1] or '"type":"Polygon"' in params[1].replace(" ", "")
+
+
+@patch("approval.work_geojson.load_work_anchor_geometry", return_value=None)
+@patch("approval.work_geojson.connections")
+def test_build_topopassport_omits_topotext_when_no_work_boundary(
+    mock_connections, _mock_anchor
+):
+    from approval.work_geojson import build_topopassport_feature_collection
+
+    collection, error = build_topopassport_feature_collection(
+        ["11111111-1111-1111-1111-111111111111"],
+        tables=["topotext"],
+    )
+    assert error is None
+    assert collection["features"] == []
+    mock_connections.__getitem__.return_value.cursor.assert_called()
+    cursor = mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value
+    # No feature SELECT when boundary is missing.
+    assert cursor.execute.call_count == 0
 
 
 def test_work_feature_select_sql_still_uses_taskguid():
@@ -438,7 +540,7 @@ def test_landing_passes_resolved_page_title():
 
     with patch("approval.views.count_features_by_table", return_value={}):
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
-            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={}):
                 with patch("approval.views.collect_adjacent_roots", return_value=([], [])):
                     with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
                         with patch("approval.views.load_svg_index", return_value={}):
