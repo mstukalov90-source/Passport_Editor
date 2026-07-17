@@ -9,6 +9,7 @@ from django.conf import settings
 from django.db import connections
 
 from .qml_style_builder import load_manifest
+from .reference_layers import load_work_anchor_geometry
 from .work_layers import (
     _quote_ident,
     list_schema_layer_tables,
@@ -24,6 +25,8 @@ from .work_layers import (
 logger = logging.getLogger(__name__)
 
 _POINT_STYLE_FIELDS = ("Svg", "SvgMarkerPath", "SvgMarkerAngle")
+# topotext often covers a wide CAD extent — keep only labels inside the survey object.
+_TOPO_CLIP_TO_WORK_TABLES = frozenset({"topotext"})
 
 
 def _max_features() -> int:
@@ -68,6 +71,22 @@ def _style_fields_for_table(table_name: str, manifest: dict | None = None) -> li
     return fields
 
 
+def _should_clip_table_to_work(schema: str, table_name: str) -> bool:
+    return (
+        str(schema or "").strip() == topopassport_schema_name()
+        and str(table_name or "") in _TOPO_CLIP_TO_WORK_TABLES
+    )
+
+
+def _work_boundary_geojson_for_guids(task_guids: list[str]) -> str | None:
+    """GeoJSON polygon (EPSG:4326) of the survey object for the first matching guid."""
+    for guid in task_guids:
+        geom = load_work_anchor_geometry(str(guid))
+        if geom:
+            return json.dumps(geom, ensure_ascii=False)
+    return None
+
+
 def _feature_select_sql(
     table_name: str,
     style_fields: list[str],
@@ -75,6 +94,7 @@ def _feature_select_sql(
     *,
     schema: str,
     layer_key: str,
+    clip_to_work_boundary: bool = False,
 ) -> str:
     geom_col = work_geom_column()
     task_col = schema_taskguid_column(schema)
@@ -99,6 +119,20 @@ def _feature_select_sql(
         property_pairs.append(f"'{field}', t.{quoted_field}::text")
 
     props_sql = ", ".join(property_pairs)
+    clip_sql = ""
+    if clip_to_work_boundary:
+        # Boundary GeoJSON is EPSG:4326 (see load_work_anchor_geometry); reproject to layer SRID.
+        # Param order: guids first (ANY), then boundary GeoJSON.
+        clip_sql = f"""
+          AND ST_Intersects(
+            t.{quoted_geom},
+            ST_Transform(
+              ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326),
+              ST_SRID(t.{quoted_geom})
+            )
+          )
+        """
+
     return f"""
         SELECT json_build_object(
             'type', 'Feature',
@@ -111,6 +145,7 @@ def _feature_select_sql(
         WHERE t.{quoted_task} = ANY(%s::uuid[])
           AND t.{quoted_geom} IS NOT NULL
           AND NOT ST_IsEmpty(t.{quoted_geom})
+          {clip_sql}
     """
 
 
@@ -143,24 +178,33 @@ def build_schema_feature_collection(
     features: list[dict] = []
     manifest = load_manifest()
     key_fn = layer_key_for_table or (lambda table: table)
+    needs_clip = any(_should_clip_table_to_work(schema_name, name) for name in target_tables)
+    clip_geojson = _work_boundary_geojson_for_guids(normalized_guids) if needs_clip else None
 
     try:
         with connections["qgis"].cursor() as cursor:
             for table_name in target_tables:
                 if len(features) >= max_features:
                     break
+                clip_table = _should_clip_table_to_work(schema_name, table_name)
+                if clip_table and not clip_geojson:
+                    # No survey polygon → nothing inside the object boundary.
+                    continue
                 style_fields = _style_fields_for_table(table_name, manifest)
                 layer_key = key_fn(table_name)
-                cursor.execute(
-                    _feature_select_sql(
-                        table_name,
-                        style_fields,
-                        cursor,
-                        schema=schema_name,
-                        layer_key=layer_key,
-                    ),
-                    [normalized_guids],
+                sql = _feature_select_sql(
+                    table_name,
+                    style_fields,
+                    cursor,
+                    schema=schema_name,
+                    layer_key=layer_key,
+                    clip_to_work_boundary=clip_table,
                 )
+                # SQL placeholders: ANY(%s) first, then optional GeomFromGeoJSON(%s).
+                params: list = [normalized_guids]
+                if clip_table:
+                    params.append(clip_geojson)
+                cursor.execute(sql, params)
                 for row in cursor.fetchall():
                     if not row or not row[0]:
                         continue

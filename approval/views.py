@@ -9,7 +9,7 @@ from .page_config import landing_page_config
 from .qml_style_builder import load_manifest, load_svg_index
 from .work_adjacent import (
     collect_adjacent_roots,
-    count_adjacent_features,
+    count_adjacent_features_by_source,
     format_adjacent_roots_message,
 )
 from .work_layers import (
@@ -66,14 +66,15 @@ def landing(request):
     adjacent_v_roots: list[str] = []
     if selected_approve is not None:
         adjacent_n_roots, adjacent_v_roots = collect_adjacent_roots(selected_approve)
-        adjacent_n_count, adjacent_v_count = count_adjacent_features(
+        adjacent_counts = count_adjacent_features_by_source(
             adjacent_n_roots,
             adjacent_v_roots,
         )
-        adjacent_groups = build_adjacent_layer_groups(adjacent_n_count, adjacent_v_count)
+        adjacent_n_count = sum(int(bucket.get("n", 0) or 0) for bucket in adjacent_counts.values())
+        adjacent_v_count = sum(int(bucket.get("v", 0) or 0) for bucket in adjacent_counts.values())
+        adjacent_groups = build_adjacent_layer_groups(adjacent_counts)
         if adjacent_groups:
             layer_groups = layer_groups + adjacent_groups
-
         # Reference layers always listed when an approve is selected (counts fill in as they load).
         layer_groups = layer_groups + build_reference_layer_groups()
 

@@ -43,20 +43,27 @@
     let layerStackOrder = [];
     const adjacentFeatureRegistry = {};
     let activeAdjacentNRoot = '';
+    let measureModeActive = false;
+    let measurePoints = [];
+    let measureGroup = null;
+    let measureBtnEl = null;
     const ADJACENT_ACTIVE_STROKE_SOFT = '#fde68a';
     const ADJACENT_ACTIVE_STROKE_STRONG = '#ca8a04';
     const ADJACENT_ACTIVE_WEIGHT = 4;
+    const ADJACENT_ACTIVE_FILL_OPACITY_SOFT = 0.25;
+    const ADJACENT_ACTIVE_FILL_OPACITY_STRONG = 0.55;
     const ADJACENT_PULSE_PERIOD_MS = 2800;
-    /** Temporarily disable adjacent passport Leaflet popup (change owner / create event). */
-    const ADJACENT_INSPECTOR_POPUP_ENABLED = false;
     let adjacentPulseRaf = null;
     let adjacentPulseStart = 0;
     const MM_MARKER_SIZE_SCALE = 1;
     const CIRCLE_MARKER_SIZE_SCALE = 1.5;
-    /** Visual multiplier for MapUnit markers (zoom scaling preserved). */
-    const MAP_UNIT_VISUAL_SCALE = 2;
-    const MAP_UNIT_MARKER_MIN_PX = 20;
-    const MAP_UNIT_MARKER_MAX_PX = 128;
+    /**
+     * QGIS MapUnit = meters on ground (no artificial screen boost).
+     * Hide when on-screen size drops below fontMinPixelSize-like threshold.
+     */
+    const MAP_UNIT_VISUAL_SCALE = 1;
+    const MAP_UNIT_HIDE_BELOW_PX = 3;
+    const MAP_UNIT_MARKER_MAX_PX = 10000;
     let mapUnitMarkers = [];
     let signalTapeRenderer = null;
 
@@ -327,31 +334,50 @@
 
     function estimateMetersToPixels(meters, lat, zoom) {
         if (!map || !Number.isFinite(Number(meters))) {
-            return MAP_UNIT_MARKER_MIN_PX;
+            return 0;
         }
         const latitude = Number.isFinite(Number(lat)) ? Number(lat) : map.getCenter().lat;
         const z = Number.isFinite(Number(zoom)) ? Number(zoom) : map.getZoom();
         const metersPerPixel =
             (156543.03392 * Math.cos((latitude * Math.PI) / 180)) / Math.pow(2, z);
         if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) {
-            return MAP_UNIT_MARKER_MIN_PX;
+            return 0;
         }
         const px = Number(meters) / metersPerPixel;
-        return Number.isFinite(px) ? px : MAP_UNIT_MARKER_MIN_PX;
+        return Number.isFinite(px) ? px : 0;
     }
 
     function resolveMarkerPixelSize(latlng, sizeValue, sizeUnit, zoom) {
         const raw = Number(sizeValue);
         if (sizeUnit === 'MapUnit') {
             const meters = Number.isFinite(raw) && raw > 0 ? raw : 14;
-            // Mercator zoom formula at every zoom level — avoids mid-animation layer
-            // projection drift that made markers look off-center.
+            // True QGIS MapUnit → screen px (Mercator). No min floor — tiny sizes hide.
             const scaled =
                 estimateMetersToPixels(meters, latlng && latlng.lat, zoom) * MAP_UNIT_VISUAL_SCALE;
-            return Math.round(clampNumber(scaled, MAP_UNIT_MARKER_MIN_PX, MAP_UNIT_MARKER_MAX_PX));
+            if (!Number.isFinite(scaled) || scaled <= 0) {
+                return 0;
+            }
+            return Math.round(clampNumber(scaled, 0, MAP_UNIT_MARKER_MAX_PX));
         }
         const screenPx = (Number.isFinite(raw) && raw > 0 ? raw : 18) * MM_MARKER_SIZE_SCALE;
         return Math.round(clampNumber(screenPx, 10, 64));
+    }
+
+    function isMapUnitVisible(sizePx) {
+        return Number(sizePx) >= MAP_UNIT_HIDE_BELOW_PX;
+    }
+
+    function setLeafletMarkerOpacity(marker, opacity) {
+        if (!marker) {
+            return;
+        }
+        if (typeof marker.setOpacity === 'function') {
+            marker.setOpacity(opacity);
+            return;
+        }
+        if (typeof marker.setStyle === 'function') {
+            marker.setStyle({ opacity: opacity, fillOpacity: opacity });
+        }
     }
 
     function clampFraction(value, fallback) {
@@ -469,8 +495,8 @@
 
     function anchorPixelsFromFractions(size, fx, fy) {
         const safeSize = Math.max(
-            MAP_UNIT_MARKER_MIN_PX,
-            Math.round(Number.isFinite(size) && size > 0 ? size : MAP_UNIT_MARKER_MIN_PX)
+            1,
+            Math.round(Number.isFinite(size) && size > 0 ? size : 1)
         );
         return {
             size: safeSize,
@@ -489,48 +515,59 @@
     }
 
     function applySvgMarkerSize(entry, size) {
-        if (!entry || !entry.marker || entry.lastSize === size) {
+        if (!entry || !entry.marker) {
             return;
         }
-        entry.lastSize = size;
+        const visible = isMapUnitVisible(size);
+        const renderSize = visible ? Math.max(1, size) : 1;
+        if (entry.lastSize === renderSize && entry.lastVisible === visible) {
+            return;
+        }
+        entry.lastSize = renderSize;
+        entry.lastVisible = visible;
         const fx = entry.anchorFx != null ? entry.anchorFx : 0.5;
         const fy = entry.anchorFy != null ? entry.anchorFy : 1;
-        const anchored = anchorPixelsFromFractions(size, fx, fy);
+        const anchored = anchorPixelsFromFractions(renderSize, fx, fy);
         const ax = anchored.ax;
         const ay = anchored.ay;
         const icon = entry.marker.options && entry.marker.options.icon;
         if (icon && icon.options) {
-            icon.options.iconSize = [size, size];
+            icon.options.iconSize = [renderSize, renderSize];
             icon.options.iconAnchor = [ax, ay];
         }
         const el = entry.marker._icon;
         if (el) {
-            el.style.width = size + 'px';
-            el.style.height = size + 'px';
+            el.style.width = renderSize + 'px';
+            el.style.height = renderSize + 'px';
             el.style.marginLeft = -ax + 'px';
             el.style.marginTop = -ay + 'px';
             if (typeof entry.marker.update === 'function' && entry.marker._map) {
                 entry.marker.update();
             }
-        } else {
-            entry.marker.setIcon(buildSvgIcon(entry.iconUrl, size, fx, fy));
+        } else if (visible) {
+            entry.marker.setIcon(buildSvgIcon(entry.iconUrl, renderSize, fx, fy));
         }
+        setLeafletMarkerOpacity(entry.marker, visible ? 1 : 0);
     }
 
     function createSvgMarker(latlng, iconUrl, size, feature, mapUnitMeters, anchorFx, anchorFy) {
         const fx = clampFraction(anchorFx, 0.5);
         const fy = clampFraction(anchorFy, 1);
+        const visible = mapUnitMeters != null ? isMapUnitVisible(size) : true;
+        const renderSize = visible ? Math.max(1, size) : 1;
         const marker = L.marker(latlng, {
-            icon: buildSvgIcon(iconUrl, size, fx, fy),
+            icon: buildSvgIcon(iconUrl, renderSize, fx, fy),
+            opacity: visible ? 1 : 0,
             zIndexOffset: 600,
-        }).bindTooltip(featureTooltip(feature), { sticky: true });
+        }).bindPopup(featurePopupHtml(feature));
         if (mapUnitMeters != null && Number.isFinite(Number(mapUnitMeters))) {
             mapUnitMarkers.push({
                 kind: 'svg',
                 marker: marker,
                 iconUrl: iconUrl,
                 meters: Number(mapUnitMeters),
-                lastSize: size,
+                lastSize: renderSize,
+                lastVisible: visible,
                 anchorFx: fx,
                 anchorFy: fy,
             });
@@ -560,10 +597,20 @@
             }
             if (entry.kind === 'circle' && typeof entry.marker.setRadius === 'function') {
                 const diameterPx = resolveMarkerPixelSize(latlng, entry.meters, 'MapUnit', zoom);
-                const radius = Math.max(2, Math.round(diameterPx / 2));
-                if (entry.lastSize !== radius) {
+                const visible = isMapUnitVisible(diameterPx);
+                const radius = visible ? Math.max(0.5, diameterPx / 2) : 0;
+                if (entry.lastSize !== radius || entry.lastVisible !== visible) {
                     entry.lastSize = radius;
+                    entry.lastVisible = visible;
                     entry.marker.setRadius(radius);
+                    entry.marker.setStyle({
+                        opacity: visible ? (entry.strokeOpacity != null ? entry.strokeOpacity : 1) : 0,
+                        fillOpacity: visible
+                            ? entry.fillOpacity != null
+                                ? entry.fillOpacity
+                                : 0.85
+                            : 0,
+                    });
                 }
             }
         });
@@ -672,6 +719,36 @@
 
     function isReferenceLayerKey(layerKey) {
         return Boolean(REFERENCE_LAYER_STYLES[layerKey]);
+    }
+
+    function syncReferencePanelVisibility() {
+        Object.keys(REFERENCE_LAYER_STYLES).forEach(function (layerKey) {
+            const input = document.querySelector('input[data-layer-key="' + layerKey + '"]');
+            const row = input && input.closest ? input.closest('.approval-layer-row') : null;
+            if (!row) {
+                return;
+            }
+            const countEl = row.querySelector('.approval-layer-row__count');
+            const raw = countEl
+                ? parseInt(String(countEl.textContent || '').replace(/[^\d]/g, ''), 10)
+                : 0;
+            const count = Number.isFinite(raw) ? raw : 0;
+            row.hidden = count <= 0;
+        });
+        const groupInput = document.querySelector('input[data-layer-group="reference"]');
+        const group = groupInput && groupInput.closest ? groupInput.closest('.approval-layer-group') : null;
+        if (!group) {
+            return;
+        }
+        const rows = group.querySelectorAll('.approval-layer-row');
+        let anyVisible = false;
+        for (let i = 0; i < rows.length; i += 1) {
+            if (!rows[i].hidden) {
+                anyVisible = true;
+                break;
+            }
+        }
+        group.hidden = !anyVisible;
     }
 
     function escapeHtml(value) {
@@ -858,14 +935,43 @@
         }
     }
 
+    function adjacentSourceLabel(sourceTable) {
+        const table = String(sourceTable || '').trim();
+        if (table === 'YardPoly') {
+            return 'ДТ';
+        }
+        if (table === 'OdhPoly') {
+            return 'ОДХ';
+        }
+        if (table === 'OznPoly') {
+            return 'ОО';
+        }
+        return table || null;
+    }
+
+    function adjacentBaseKey(layerKey) {
+        const key = String(layerKey || '');
+        if (key.indexOf('adjacent_approval') === 0) {
+            return 'adjacent_approval';
+        }
+        if (key.indexOf('adjacent_objects') === 0) {
+            return 'adjacent_objects';
+        }
+        return '';
+    }
+
     function adjacentLayerLabel(layerKey) {
-        if (layerKey === 'adjacent_approval') {
-            return 'Смежный объект для согласования';
+        const base = adjacentBaseKey(layerKey);
+        if (!base) {
+            return null;
         }
-        if (layerKey === 'adjacent_objects') {
-            return 'Смежные объекты';
-        }
-        return null;
+        const parts = String(layerKey || '').split(':');
+        const sourceLabel = adjacentSourceLabel(parts[1] || '');
+        const title =
+            base === 'adjacent_approval'
+                ? 'Смежный объект для согласования'
+                : 'Смежные объекты';
+        return sourceLabel ? title + ' · ' + sourceLabel : title;
     }
 
     function isAdjacentFeature(props) {
@@ -875,7 +981,7 @@
         if (props.adjacentRootKind) {
             return true;
         }
-        return props.layerKey === 'adjacent_approval' || props.layerKey === 'adjacent_objects';
+        return Boolean(adjacentBaseKey(props.layerKey));
     }
 
     function adjacentFeatureKey(props) {
@@ -888,16 +994,26 @@
         );
     }
 
-    function adjacentLayerForRoot(rootId, kind, activeNRoot) {
+    function adjacentLayerKey(base, sourceTable) {
+        const table = String(sourceTable || '').trim();
+        if (!table) {
+            return base;
+        }
+        return base + ':' + table;
+    }
+
+    function adjacentLayerForRoot(rootId, kind, activeNRoot, sourceTable) {
         const active = String(activeNRoot || '').trim();
         const normalizedRoot = String(rootId || '').trim();
+        let base;
         if (!active) {
-            return kind === 'n' ? 'adjacent_approval' : 'adjacent_objects';
+            base = kind === 'n' ? 'adjacent_approval' : 'adjacent_objects';
+        } else if (normalizedRoot === active) {
+            base = 'adjacent_approval';
+        } else {
+            base = 'adjacent_objects';
         }
-        if (normalizedRoot === active) {
-            return 'adjacent_approval';
-        }
-        return 'adjacent_objects';
+        return adjacentLayerKey(base, sourceTable);
     }
 
     function isAdjacentRootHighlighted(rootId, kind, activeNRoot) {
@@ -962,16 +1078,19 @@
         return 0.5 - 0.5 * Math.cos(2 * Math.PI * t);
     }
 
-    function setAdjacentHighlightStroke(entry, color) {
+    function setAdjacentHighlightStyle(entry, color, fillOpacity) {
         const layer = entry && entry.leafletLayer;
         if (!layer || typeof layer.setStyle !== 'function') {
             return;
         }
         const base = entry.baseStyle || {};
+        const opacity =
+            fillOpacity == null ? ADJACENT_ACTIVE_FILL_OPACITY_SOFT : fillOpacity;
         layer.setStyle(
             Object.assign({}, base, {
                 color: color,
                 weight: ADJACENT_ACTIVE_WEIGHT,
+                fillOpacity: opacity,
             })
         );
     }
@@ -997,17 +1116,21 @@
             stopAdjacentHighlightPulse();
             return;
         }
+        const phase = adjacentPulsePhase(nowMs);
         const color = lerpHexColor(
             ADJACENT_ACTIVE_STROKE_SOFT,
             ADJACENT_ACTIVE_STROKE_STRONG,
-            adjacentPulsePhase(nowMs)
+            phase
         );
+        const fillOpacity =
+            ADJACENT_ACTIVE_FILL_OPACITY_SOFT +
+            (ADJACENT_ACTIVE_FILL_OPACITY_STRONG - ADJACENT_ACTIVE_FILL_OPACITY_SOFT) * phase;
         Object.keys(adjacentFeatureRegistry).forEach(function (key) {
             const entry = adjacentFeatureRegistry[key];
             if (!entry || !entry._adjacentHighlighted) {
                 return;
             }
-            setAdjacentHighlightStroke(entry, color);
+            setAdjacentHighlightStyle(entry, color, fillOpacity);
         });
         adjacentPulseRaf = window.requestAnimationFrame(tickAdjacentHighlightPulse);
     }
@@ -1039,7 +1162,11 @@
         const base = entry.baseStyle || {};
         if (isActive) {
             entry._adjacentHighlighted = true;
-            setAdjacentHighlightStroke(entry, ADJACENT_ACTIVE_STROKE_SOFT);
+            setAdjacentHighlightStyle(
+                entry,
+                ADJACENT_ACTIVE_STROKE_SOFT,
+                ADJACENT_ACTIVE_FILL_OPACITY_SOFT
+            );
             return;
         }
         entry._adjacentHighlighted = false;
@@ -1073,11 +1200,14 @@
 
     function registerAdjacentLeafletLayer(props, leafletLayer) {
         const key = adjacentFeatureKey(props);
-        const kind = props.adjacentRootKind || (props.layerKey === 'adjacent_approval' ? 'n' : 'v');
+        const kind =
+            props.adjacentRootKind ||
+            (adjacentBaseKey(props.layerKey) === 'adjacent_approval' ? 'n' : 'v');
         adjacentFeatureRegistry[key] = {
             leafletLayer: leafletLayer,
             rootId: props.RootId || '',
             kind: kind,
+            sourceTable: props.sourceTable || '',
             baseStyle: adjacentBaseStyle(leafletLayer, props),
         };
         leafletLayer._adjacentFeatureKey = key;
@@ -1096,7 +1226,8 @@
             const targetKey = adjacentLayerForRoot(
                 entry.rootId,
                 entry.kind,
-                activeAdjacentNRoot
+                activeAdjacentNRoot,
+                entry.sourceTable
             );
             moveLeafletLayerToGroup(entry.leafletLayer, targetKey);
             applyAdjacentFeatureStyle(
@@ -1132,7 +1263,7 @@
         return leafletPathStyle(resolveRuleStyle(styleKey, props), fallbackKey, geometryType || 'polygon');
     }
 
-    function featureTooltip(feature) {
+    function featurePopupHtml(feature) {
         const props = feature.properties || {};
         const parts = [];
         const panelLayerKey = props.layerKey;
@@ -1158,14 +1289,15 @@
         if (props.caseTitle) {
             parts.push(props.caseTitle);
         }
-        if (props.fid !== undefined && props.fid !== null && props.fid !== '') {
-            parts.push('fid: ' + props.fid);
-        }
-        return parts.join(' · ') || 'объект';
+        const text = parts.join(' · ') || 'объект';
+        return (
+            '<div class="approval-feature-popup">' + escapeHtml(text) + '</div>'
+        );
     }
 
     function buildTextLabelIcon(textHtml, fontPx, color, rotationDeg) {
-        const size = Math.max(12, Math.round(fontPx * 1.4));
+        const fontSize = Math.max(1, Math.round(fontPx));
+        const size = Math.max(2, Math.round(fontSize * 1.4));
         const half = Math.round(size / 2);
         const rotate =
             Number.isFinite(rotationDeg) && rotationDeg !== 0
@@ -1177,7 +1309,7 @@
                 '<div style="color:' +
                 color +
                 ';font-size:' +
-                fontPx +
+                fontSize +
                 'px;font-weight:500;line-height:1.1;white-space:pre;text-align:center;' +
                 'pointer-events:none;user-select:none;' +
                 rotate +
@@ -1190,14 +1322,22 @@
     }
 
     function applyTextLabelSize(entry, fontPx) {
-        const size = Math.max(8, Math.round(fontPx));
-        if (entry.lastSize === size) {
+        if (!entry || !entry.marker) {
+            return;
+        }
+        const visible = isMapUnitVisible(fontPx);
+        const size = visible ? Math.max(1, Math.round(fontPx)) : 1;
+        if (entry.lastSize === size && entry.lastVisible === visible) {
             return;
         }
         entry.lastSize = size;
+        entry.lastVisible = visible;
         const color = entry.color || '#000000';
         const rotationDeg = entry.rotationDeg;
-        entry.marker.setIcon(buildTextLabelIcon(entry.textHtml, size, color, rotationDeg));
+        if (visible) {
+            entry.marker.setIcon(buildTextLabelIcon(entry.textHtml, size, color, rotationDeg));
+        }
+        setLeafletMarkerOpacity(entry.marker, visible ? 1 : 0);
     }
 
     function createTextLabelMarker(latlng, feature, labeling) {
@@ -1236,13 +1376,17 @@
         }
 
         const textHtml = escapeHtml(text).replace(/\n/g, '<br>');
+        const mapUnit = sizeUnit === 'MapUnit';
+        const visible = mapUnit ? isMapUnitVisible(fontPx) : true;
+        const renderPx = mapUnit ? (visible ? Math.max(1, Math.round(fontPx)) : 1) : fontPx;
         const marker = L.marker(latlng, {
-            icon: buildTextLabelIcon(textHtml, fontPx, color, rotationDeg),
+            icon: buildTextLabelIcon(textHtml, renderPx, color, rotationDeg),
+            opacity: visible ? 1 : 0,
             interactive: true,
             zIndexOffset: 500,
-        }).bindTooltip(featureTooltip(feature), { sticky: true });
+        }).bindPopup(featurePopupHtml(feature));
 
-        if (sizeUnit === 'MapUnit') {
+        if (mapUnit) {
             mapUnitMarkers.push({
                 kind: 'text',
                 marker: marker,
@@ -1250,7 +1394,8 @@
                 textHtml: textHtml,
                 color: color,
                 rotationDeg: rotationDeg,
-                lastSize: Math.round(fontPx),
+                lastSize: renderPx,
+                lastVisible: visible,
             });
         }
         return marker;
@@ -1399,33 +1544,47 @@
             return invisiblePointMarker(latlng);
         }
         let radius;
+        let mapMetersForCircle = null;
         if (sizeUnit === 'MapUnit') {
             // QGIS SimpleMarker size is diameter; prefer iconSize when radius is a tiny halo.
-            const mapMeters =
+            mapMetersForCircle =
                 Number(baseRadius) > 0.5
                     ? Number(baseRadius)
                     : Number(ruleStyle && ruleStyle.iconSize) > 0.5
                       ? Number(ruleStyle.iconSize)
                       : 14;
-            const diameterPx = resolveMarkerPixelSize(latlng, mapMeters, 'MapUnit');
-            radius = Math.max(2, Math.round(diameterPx / 2));
+            const diameterPx = resolveMarkerPixelSize(latlng, mapMetersForCircle, 'MapUnit');
+            if (!isMapUnitVisible(diameterPx)) {
+                radius = 0;
+            } else {
+                radius = Math.max(0.5, diameterPx / 2);
+            }
         } else {
             radius = Math.round(baseRadius * CIRCLE_MARKER_SIZE_SCALE);
         }
+        const circleVisible = sizeUnit !== 'MapUnit' || radius > 0;
         const circle = L.circleMarker(latlng, {
             radius: radius,
             color: stroke,
             weight: 2,
-            opacity: Number.isFinite(strokeOpacity) ? strokeOpacity : 1,
+            opacity: circleVisible ? (Number.isFinite(strokeOpacity) ? strokeOpacity : 1) : 0,
             fillColor: fill,
-            fillOpacity: Number.isFinite(fillOpacity) ? fillOpacity : 0.85,
+            fillOpacity: circleVisible
+                ? Number.isFinite(fillOpacity)
+                    ? fillOpacity
+                    : 0.85
+                : 0,
             pane: 'markerPane',
-        }).bindTooltip(featureTooltip(feature), { sticky: true });
-        if (sizeUnit === 'MapUnit') {
+        }).bindPopup(featurePopupHtml(feature));
+        if (sizeUnit === 'MapUnit' && mapMetersForCircle != null) {
             mapUnitMarkers.push({
                 kind: 'circle',
                 marker: circle,
-                meters: Number(baseRadius) > 0.5 ? Number(baseRadius) : (ruleStyle && ruleStyle.iconSize) || 14,
+                meters: mapMetersForCircle,
+                lastSize: radius,
+                lastVisible: circleVisible,
+                strokeOpacity: Number.isFinite(strokeOpacity) ? strokeOpacity : 1,
+                fillOpacity: Number.isFinite(fillOpacity) ? fillOpacity : 0.85,
             });
         }
         return circle;
@@ -1582,6 +1741,16 @@
         };
     }
 
+    function pendingGeometryHighlightStyle() {
+        return {
+            color: '#5b21b6',
+            weight: 5,
+            dashArray: null,
+            fillColor: '#7c3aed',
+            fillOpacity: 0.4,
+        };
+    }
+
     function applyStyleToGeometryLayer(layer, layerKey, isActive) {
         const style =
             layerKey === PENDING_LAYER_KEY
@@ -1596,6 +1765,49 @@
             } else if (typeof child.setStyle === 'function') {
                 child.setStyle(style);
             }
+        });
+    }
+
+    function applyStyleToPendingChild(child, isHighlighted) {
+        if (!child || typeof child.setStyle !== 'function') {
+            return;
+        }
+        const style = isHighlighted
+            ? pendingGeometryHighlightStyle()
+            : pendingGeometryStyle();
+        child.setStyle(style);
+        if (typeof child.setRadius === 'function') {
+            child.setRadius(isHighlighted ? 9 : 7);
+        }
+        if (isHighlighted && typeof child.bringToFront === 'function') {
+            child.bringToFront();
+        }
+    }
+
+    function highlightPendingGeometry(index) {
+        const layer = geometryLayerByKey[PENDING_LAYER_KEY];
+        if (!layer) {
+            return;
+        }
+        const targetIndex = Number(index);
+        layer.eachLayer(function (child) {
+            const props =
+                (child.feature && child.feature.properties) || {};
+            const childIndex = Number(props.pendingIndex);
+            applyStyleToPendingChild(
+                child,
+                !Number.isNaN(targetIndex) && childIndex === targetIndex
+            );
+        });
+    }
+
+    function clearPendingGeometryHighlight() {
+        const layer = geometryLayerByKey[PENDING_LAYER_KEY];
+        if (!layer) {
+            return;
+        }
+        layer.eachLayer(function (child) {
+            applyStyleToPendingChild(child, false);
         });
     }
 
@@ -1626,12 +1838,13 @@
             return;
         }
         pendingGeometryGeoJson = items.length === 1 ? items[0] : items;
-        const features = items.map(function (geometry) {
+        const features = items.map(function (geometry, index) {
             return {
                 type: 'Feature',
                 geometry: geometry,
                 properties: {
                     layerKey: PENDING_LAYER_KEY,
+                    pendingIndex: index,
                 },
             };
         });
@@ -1641,7 +1854,11 @@
                 style: function () {
                     return pendingGeometryStyle();
                 },
-                pointToLayer: function (_feat, latlng) {
+                pointToLayer: function (feat, latlng) {
+                    const index =
+                        feat && feat.properties
+                            ? Number(feat.properties.pendingIndex) + 1
+                            : 1;
                     return L.circleMarker(latlng, {
                         radius: 7,
                         color: '#7c3aed',
@@ -1649,10 +1866,14 @@
                         dashArray: '8 6',
                         fillColor: 'rgba(124, 58, 237, 0.35)',
                         fillOpacity: 0.9,
-                    }).bindTooltip('Черновик геометрии', { sticky: true });
+                    }).bindTooltip('Объект ' + index, { sticky: true });
                 },
-                onEachFeature: function (_feat, lyr) {
-                    lyr.bindTooltip('Черновик геометрии', { sticky: true });
+                onEachFeature: function (feat, lyr) {
+                    const index =
+                        feat && feat.properties
+                            ? Number(feat.properties.pendingIndex) + 1
+                            : 1;
+                    lyr.bindTooltip('Объект ' + index, { sticky: true });
                 },
             }
         );
@@ -1889,6 +2110,267 @@
         fitGeometryLayers(keys);
     }
 
+    function formatMeasureMeters(meters) {
+        if (!Number.isFinite(meters) || meters < 0) {
+            return '0 м';
+        }
+        if (meters < 10) {
+            return String(Math.round(meters * 10) / 10) + ' м';
+        }
+        return Math.round(meters) + ' м';
+    }
+
+    function isMeasureUiTarget(target) {
+        if (!target || typeof target.closest !== 'function') {
+            return false;
+        }
+        return Boolean(
+            target.closest(
+                '.leaflet-control, .approval-map-tools, .approval-draw-toolbar, .approval-map-notice'
+            )
+        );
+    }
+
+    function clearMeasureGraphics() {
+        if (measureGroup && map) {
+            map.removeLayer(measureGroup);
+        }
+        measureGroup = null;
+        measurePoints = [];
+    }
+
+    function rebuildMeasureGraphics() {
+        if (!map) {
+            return;
+        }
+        if (!measureGroup) {
+            measureGroup = L.featureGroup().addTo(map);
+        } else {
+            measureGroup.clearLayers();
+        }
+        if (!measurePoints.length) {
+            return;
+        }
+
+        measurePoints.forEach(function (latlng) {
+            L.circleMarker(latlng, {
+                radius: 4,
+                color: '#9a3412',
+                weight: 2,
+                fillColor: '#fff',
+                fillOpacity: 1,
+                interactive: false,
+            }).addTo(measureGroup);
+        });
+
+        if (measurePoints.length < 2) {
+            return;
+        }
+
+        L.polyline(measurePoints, {
+            color: '#ea580c',
+            weight: 3,
+            dashArray: '6 4',
+            interactive: false,
+        }).addTo(measureGroup);
+
+        let total = 0;
+        for (let i = 1; i < measurePoints.length; i += 1) {
+            const prev = measurePoints[i - 1];
+            const next = measurePoints[i];
+            const segment = prev.distanceTo(next);
+            total += segment;
+            const mid = L.latLng((prev.lat + next.lat) / 2, (prev.lng + next.lng) / 2);
+            L.marker(mid, {
+                interactive: false,
+                keyboard: false,
+                icon: L.divIcon({
+                    className: 'approval-measure-label',
+                    html: '<span>' + formatMeasureMeters(segment) + '</span>',
+                    iconSize: null,
+                }),
+            }).addTo(measureGroup);
+        }
+
+        L.marker(measurePoints[measurePoints.length - 1], {
+            interactive: false,
+            keyboard: false,
+            icon: L.divIcon({
+                className: 'approval-measure-label approval-measure-label--total',
+                html: '<span>Σ ' + formatMeasureMeters(total) + '</span>',
+                iconSize: null,
+            }),
+        }).addTo(measureGroup);
+    }
+
+    function syncMeasureButtonState() {
+        if (!measureBtnEl) {
+            return;
+        }
+        measureBtnEl.classList.toggle('is-active', measureModeActive);
+        measureBtnEl.setAttribute('aria-pressed', measureModeActive ? 'true' : 'false');
+        measureBtnEl.title = measureModeActive
+            ? 'Выключить линейку (Esc)'
+            : 'Линейка (метры)';
+    }
+
+    function onMeasureCaptureClick(domEvent) {
+        if (!measureModeActive || !map) {
+            return;
+        }
+        if (domEvent.button != null && domEvent.button !== 0) {
+            return;
+        }
+        if (isMeasureUiTarget(domEvent.target)) {
+            return;
+        }
+        const latlng = map.mouseEventToLatLng(domEvent);
+        if (!latlng) {
+            return;
+        }
+        L.DomEvent.stop(domEvent);
+        map.closePopup();
+        measurePoints.push(latlng);
+        rebuildMeasureGraphics();
+    }
+
+    function onMeasureKeyDown(event) {
+        if (!measureModeActive) {
+            return;
+        }
+        if (event.key === 'Escape') {
+            stopMeasureMode();
+        }
+    }
+
+    function stopMeasureMode() {
+        if (!measureModeActive && !measurePoints.length) {
+            syncMeasureButtonState();
+            return;
+        }
+        measureModeActive = false;
+        if (map) {
+            map.getContainer().removeEventListener('click', onMeasureCaptureClick, true);
+            map.doubleClickZoom.enable();
+            if (
+                !(
+                    window.ApprovalEventDraw &&
+                    typeof window.ApprovalEventDraw.isDrawMode === 'function' &&
+                    window.ApprovalEventDraw.isDrawMode()
+                )
+            ) {
+                map.getContainer().style.cursor = '';
+            }
+        }
+        document.removeEventListener('keydown', onMeasureKeyDown);
+        clearMeasureGraphics();
+        syncMeasureButtonState();
+    }
+
+    function startMeasureMode() {
+        if (!map) {
+            return;
+        }
+        if (
+            window.ApprovalEventDraw &&
+            typeof window.ApprovalEventDraw.stopDrawMode === 'function'
+        ) {
+            window.ApprovalEventDraw.stopDrawMode();
+        }
+        if (measureModeActive) {
+            return;
+        }
+        measureModeActive = true;
+        clearMeasureGraphics();
+        measureGroup = L.featureGroup().addTo(map);
+        map.closePopup();
+        map.doubleClickZoom.disable();
+        map.getContainer().style.cursor = 'crosshair';
+        // Capture phase: clicks on features never reach layer popups,
+        // and still register measure points (unlike pointer-events:none).
+        map.getContainer().addEventListener('click', onMeasureCaptureClick, true);
+        document.addEventListener('keydown', onMeasureKeyDown);
+        syncMeasureButtonState();
+    }
+
+    function toggleMeasureMode() {
+        if (measureModeActive) {
+            stopMeasureMode();
+        } else {
+            startMeasureMode();
+        }
+    }
+
+    function openCurrentViewInYandexMaps() {
+        if (!map) {
+            return;
+        }
+        const center = map.getCenter();
+        const zoom = Math.max(1, Math.min(21, Math.round(map.getZoom())));
+        const url =
+            'https://yandex.ru/maps/?ll=' +
+            center.lng.toFixed(6) +
+            ',' +
+            center.lat.toFixed(6) +
+            '&z=' +
+            zoom;
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
+
+    function attachMapUtilityControls(targetMap) {
+        if (!targetMap || typeof L === 'undefined') {
+            return;
+        }
+        const control = L.control({ position: 'bottomright' });
+        control.onAdd = function () {
+            const container = L.DomUtil.create('div', 'approval-map-tools leaflet-bar');
+            L.DomEvent.disableClickPropagation(container);
+            L.DomEvent.disableScrollPropagation(container);
+
+            const measureBtn = L.DomUtil.create(
+                'button',
+                'approval-map-tools__btn approval-map-tools__btn--measure',
+                container
+            );
+            measureBtn.type = 'button';
+            measureBtn.title = 'Линейка (метры)';
+            measureBtn.setAttribute('aria-label', 'Линейка в метрах');
+            measureBtn.setAttribute('aria-pressed', 'false');
+            measureBtn.innerHTML =
+                '<span class="approval-map-tools__icon" aria-hidden="true">' +
+                '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                '<path d="M3 12h18"/><path d="M6 9v6"/><path d="M10 10v4"/><path d="M14 9v6"/><path d="M18 10v4"/>' +
+                '</svg></span><span class="approval-map-tools__caption">м</span>';
+            measureBtnEl = measureBtn;
+            L.DomEvent.on(measureBtn, 'click', function (event) {
+                L.DomEvent.stop(event);
+                toggleMeasureMode();
+            });
+
+            const yandexBtn = L.DomUtil.create(
+                'button',
+                'approval-map-tools__btn approval-map-tools__btn--yandex',
+                container
+            );
+            yandexBtn.type = 'button';
+            yandexBtn.title = 'Открыть это место в Яндекс.Картах';
+            yandexBtn.setAttribute('aria-label', 'Открыть в Яндекс.Картах');
+            yandexBtn.innerHTML =
+                '<span class="approval-map-tools__icon" aria-hidden="true">' +
+                '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">' +
+                '<path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5c-1.4 0-2.5-1.1-2.5-2.5S10.6 6.5 12 6.5s2.5 1.1 2.5 2.5S13.4 11.5 12 11.5z"/>' +
+                '</svg></span><span class="approval-map-tools__caption">Я</span>';
+            L.DomEvent.on(yandexBtn, 'click', function (event) {
+                L.DomEvent.stop(event);
+                openCurrentViewInYandexMaps();
+            });
+
+            return container;
+        };
+        control.addTo(targetMap);
+        syncMeasureButtonState();
+    }
+
     function initMap() {
         const config = readJsonScript('page-config') || {};
         const mapGeojson = readJsonScript('approval-map-geojson');
@@ -1929,10 +2411,11 @@
         if (window.PassViewer && typeof window.PassViewer.attachBasemapControl === 'function') {
             window.PassViewer.attachBasemapControl(map, {
                 defaultMode: 'none',
-                position: 'bottomright',
+                position: 'topright',
                 scopeRoot: mapEl.parentElement,
             });
         }
+        attachMapUtilityControls(map);
 
         managedLayers = {};
         mapUnitMarkers = [];
@@ -1989,15 +2472,10 @@
         }
 
         function bindAdjacentInspectorPopup(layer, feature) {
-            if (!ADJACENT_INSPECTOR_POPUP_ENABLED) {
-                return;
-            }
             const props = feature.properties || {};
-            const isApprovalAdjacent =
-                props.layerKey === 'adjacent_approval' || props.adjacentRootKind === 'n';
             const isObjectsAdjacent =
                 props.layerKey === 'adjacent_objects' || props.adjacentRootKind === 'v';
-            if (!isApprovalAdjacent && !isObjectsAdjacent) {
+            if (!isObjectsAdjacent) {
                 return;
             }
 
@@ -2007,8 +2485,6 @@
             const geomEncoded = feature.geometry
                 ? encodeURIComponent(JSON.stringify(feature.geometry))
                 : '';
-            const action = isApprovalAdjacent ? 'change-owner' : 'create-event';
-            const buttonLabel = isApprovalAdjacent ? 'Сменить владельца' : 'Добавить событие';
             const rootLine = rootId
                 ? '<p class="approval-adjacent-popup__root">Паспорт ' + escapeHtml(rootId) + '</p>'
                 : '';
@@ -2018,9 +2494,7 @@
                 rootLine +
                 nameLine +
                 '<button type="button" class="approval-adjacent-popup__action"' +
-                ' data-action="' +
-                action +
-                '"' +
+                ' data-action="create-event"' +
                 ' data-root-id="' +
                 escapeHtml(rootId) +
                 '"' +
@@ -2032,13 +2506,11 @@
                 '"' +
                 ' data-geometry="' +
                 geomEncoded +
-                '">' +
-                escapeHtml(buttonLabel) +
-                '</button></div>';
+                '">Добавить событие</button></div>';
 
             layer.bindPopup(html);
             layer.on('popupopen', function () {
-                if (isDrawModeActive()) {
+                if (isDrawModeActive() || measureModeActive) {
                     layer.closePopup();
                     return;
                 }
@@ -2059,13 +2531,6 @@
                     }
                     const eventsApi = window.ApprovalEvents || {};
                     const root = btn.getAttribute('data-root-id') || '';
-                    if (btn.getAttribute('data-action') === 'change-owner') {
-                        if (typeof eventsApi.openChangeOwnerForRootId === 'function') {
-                            eventsApi.openChangeOwnerForRootId(root);
-                        }
-                        layer.closePopup();
-                        return;
-                    }
                     let geometry = null;
                     const encoded = btn.getAttribute('data-geometry') || '';
                     if (encoded) {
@@ -2095,30 +2560,19 @@
                 bindReferenceLayerPopup(layer, feature, layerKey);
                 attachSignalTapeHatching(layer, layerKey);
             } else {
-                layer.bindTooltip(featureTooltip(feature), { sticky: true });
+                layer.bindPopup(featurePopupHtml(feature));
+                layer.on('popupopen', function () {
+                    if (isDrawModeActive() || measureModeActive) {
+                        layer.closePopup();
+                    }
+                });
             }
             if (!isInspectorForSelectedApprove()) {
                 return;
             }
             if (isAdjacentFeature(props)) {
                 bindAdjacentInspectorPopup(layer, feature);
-                return;
             }
-            if (isReferenceLayerKey(layerKey)) {
-                return;
-            }
-            layer.on('click', function () {
-                if (isDrawModeActive()) {
-                    return;
-                }
-                const taskGuid = props.taskGuid || props.TaskGUID;
-                if (
-                    window.ApprovalEvents &&
-                    typeof window.ApprovalEvents.openChangeOwnerForTaskGuid === 'function'
-                ) {
-                    window.ApprovalEvents.openChangeOwnerForTaskGuid(taskGuid);
-                }
-            });
         }
 
         function addMapFeatures(features) {
@@ -2185,7 +2639,12 @@
                 next = (Number.isFinite(current) ? current : 0) + count;
             }
             countEl.textContent = '(' + next + ')';
+            if (isReferenceLayerKey(layerKey)) {
+                syncReferencePanelVisibility();
+            }
         }
+
+        syncReferencePanelVisibility();
 
         if (mapGeojson && Array.isArray(mapGeojson.features)) {
             addMapFeatures(mapGeojson.features);
@@ -2291,6 +2750,17 @@
                 try {
                     const features = await fetchMapLayerFeatures(url, approveId, layerKey);
                     const added = addMapFeatures(features);
+                    if (isReferenceLayerKey(layerKey) && !added) {
+                        const row = document.querySelector('input[data-layer-key="' + layerKey + '"]');
+                        const countEl =
+                            row &&
+                            row.parentElement &&
+                            row.parentElement.querySelector('.approval-layer-row__count');
+                        if (countEl) {
+                            countEl.textContent = '(0)';
+                        }
+                        syncReferencePanelVisibility();
+                    }
                     if (added) {
                         loadedCount += 1;
                         reorderMapLayers();
@@ -2376,7 +2846,13 @@
         setPendingMessageGeometry: setPendingMessageGeometry,
         setPendingMessageGeometries: setPendingMessageGeometries,
         clearPendingMessageGeometry: clearPendingMessageGeometry,
+        highlightPendingGeometry: highlightPendingGeometry,
+        clearPendingGeometryHighlight: clearPendingGeometryHighlight,
         getPendingMessageGeometry: getPendingMessageGeometry,
+        stopMeasureMode: stopMeasureMode,
+        isMeasureMode: function () {
+            return measureModeActive;
+        },
         invalidateMapSize: invalidateMapSize,
         getConfig: function () {
             return readJsonScript('page-config') || {};

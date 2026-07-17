@@ -354,6 +354,7 @@ def serialize_case_summary(
     inspector_required = bool(inspector_login)
     inspector_approved = _inspector_approved(case)
     current_user_is_inspector = bool(inspector_login) and current_login == inspector_login
+    current_user_is_owner = bool(owner_id) and str(owner_id).strip() in required_owners
     current_inspector_approved = current_user_is_inspector and inspector_approved
     current_user_approved = current_inspector_approved or current_owner_approved
 
@@ -371,6 +372,7 @@ def serialize_case_summary(
         "current_owner_approved": current_owner_approved,
         "current_user_approved": current_user_approved,
         "current_user_is_inspector": current_user_is_inspector,
+        "current_user_is_owner": current_user_is_owner,
         "can_manage_participants": current_user_is_inspector and not case.approved,
         "inspector_login": inspector_login,
         "inspector_required": inspector_required,
@@ -445,23 +447,68 @@ def serialize_message(message: CaseMessage, *, current_login: str, request=None)
     }
 
 
+def compute_message_reaction_stats(messages) -> dict:
+    unprocessed = 0
+    in_progress = 0
+    done = 0
+    accepted = 0
+    rejected = 0
+    for message in messages:
+        kinds = {reaction.kind for reaction in message.reactions.all()}
+        has_target = _message_has_geometry_or_file(message)
+        if has_target and CaseMessageReaction.KIND_IN_PROGRESS not in kinds and CaseMessageReaction.KIND_DONE not in kinds:
+            unprocessed += 1
+        if CaseMessageReaction.KIND_IN_PROGRESS in kinds:
+            in_progress += 1
+        if CaseMessageReaction.KIND_DONE in kinds:
+            done += 1
+        if CaseMessageReaction.KIND_ACCEPTED in kinds:
+            accepted += 1
+        if CaseMessageReaction.KIND_REJECTED in kinds:
+            rejected += 1
+    return {
+        "unprocessed": unprocessed,
+        "in_progress": in_progress,
+        "done": done,
+        "accepted": accepted,
+        "rejected": rejected,
+    }
+
+
 def serialize_case_detail(case: Case, *, current_login: str, owner_id: str | None, request=None) -> dict:
     data = serialize_case_summary(case, current_login=current_login, owner_id=owner_id)
-    data["messages"] = [
-        serialize_message(message, current_login=current_login, request=request)
-        for message in case.messages.select_related("parent").prefetch_related(
+    messages = list(
+        case.messages.select_related("parent").prefetch_related(
             "attachments",
             "geometries",
             "reactions",
         ).all()
+    )
+    data["messages"] = [
+        serialize_message(message, current_login=current_login, request=request)
+        for message in messages
     ]
+    data["message_reaction_stats"] = compute_message_reaction_stats(messages)
     return data
 
 
-REACTION_KINDS = {
+INSPECTOR_REACTION_KINDS = {
     CaseMessageReaction.KIND_IN_PROGRESS,
     CaseMessageReaction.KIND_DONE,
 }
+OWNER_VERDICT_KINDS = {
+    CaseMessageReaction.KIND_ACCEPTED,
+    CaseMessageReaction.KIND_REJECTED,
+}
+REACTION_KINDS = INSPECTOR_REACTION_KINDS | OWNER_VERDICT_KINDS
+
+
+def _message_has_geometry_or_file(message: CaseMessage) -> bool:
+    if hasattr(message, "_prefetched_objects_cache"):
+        cache = message._prefetched_objects_cache
+        if "attachments" in cache and "geometries" in cache:
+            return bool(message.attachments.all()) or bool(message.geometries.all())
+    return message.attachments.exists() or message.geometries.exists()
 
 
 @transaction.atomic
@@ -470,21 +517,44 @@ def upsert_message_reaction(
     message: CaseMessage,
     username: str,
     kind: str,
+    owner_id: str | None = None,
 ) -> CaseMessage:
     login = (username or "").strip()
     if not login:
         raise ValueError("Не найден пользователь.")
-    if message.author_login == login:
-        raise ValueError("Нельзя поставить реакцию на своё сообщение.")
     if message.case.approved:
         raise ValueError("Событие уже согласовано. Реакции недоступны.")
     if kind not in REACTION_KINDS:
         raise ValueError("Некорректный тип реакции.")
 
+    case = message.case
+    if kind in INSPECTOR_REACTION_KINDS:
+        if not is_inspector_for_approve(login, case.approve):
+            raise ValueError("Реакции «В работе» и «Выполнено» доступны только инспектору.")
+        if message.author_login == login:
+            raise ValueError("Нельзя поставить реакцию на своё сообщение.")
+        if not _message_has_geometry_or_file(message):
+            raise ValueError("Реакцию можно поставить только на сообщение с геометрией или файлом.")
+    else:
+        owner_text = str(owner_id or "").strip()
+        if not owner_text or owner_text not in _normalized_case_owners(case):
+            raise ValueError("Реакции «Принято» и «Отклонено» доступны только владельцу события.")
+        if not CaseMessageReaction.objects.filter(
+            message=message,
+            kind=CaseMessageReaction.KIND_DONE,
+        ).exists():
+            raise ValueError("Сначала инспектор должен отметить сообщение как «Выполнено».")
+
     existing = CaseMessageReaction.objects.filter(message=message, reactor_login=login).first()
+    removed_done = False
     if existing and existing.kind == kind:
+        removed_done = existing.kind == CaseMessageReaction.KIND_DONE
         existing.delete()
     elif existing:
+        removed_done = (
+            existing.kind == CaseMessageReaction.KIND_DONE
+            and kind != CaseMessageReaction.KIND_DONE
+        )
         existing.kind = kind
         existing.save(update_fields=["kind"])
     else:
@@ -493,6 +563,16 @@ def upsert_message_reaction(
             reactor_login=login,
             kind=kind,
         )
+
+    if removed_done and not CaseMessageReaction.objects.filter(
+        message=message,
+        kind=CaseMessageReaction.KIND_DONE,
+    ).exists():
+        CaseMessageReaction.objects.filter(
+            message=message,
+            kind__in=OWNER_VERDICT_KINDS,
+        ).delete()
+
     return message
 
 

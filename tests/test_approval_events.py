@@ -468,7 +468,7 @@ def test_foreign_owner_cannot_access_case(client, owner_a, approve_with_primary_
 def test_landing_page_has_events_shell(client, owner_a, approve_with_primary_owner):
     with patch("approval.views.count_features_by_table", return_value={}):
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
-            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={}):
                 _login(client, "owner_a")
                 response = client.get(reverse("approval:landing"))
     assert response.status_code == 200
@@ -478,25 +478,34 @@ def test_landing_page_has_events_shell(client, owner_a, approve_with_primary_own
     assert "approval-chat-geometry-btn" in content
     assert "approval-chat-approve-btn" in content
     assert "approval-chat-confirm-dialog" in content
+    assert "approval-message-stats" in content
     assert "Прикрепить файл" in content
     assert "Досъём участка №142" not in content
 
 
+def _message_with_attachment(case, *, author_login="owner_a", body="Нужна правка"):
+    message = CaseMessage.objects.create(case=case, author_login=author_login, body=body)
+    CaseMessageAttachment.objects.create(
+        message=message,
+        stored_name="file.png",
+        original_name="file.png",
+        content_type="image/png",
+        size_bytes=10,
+    )
+    return message
+
+
 @pytest.mark.django_db
-def test_message_reaction_set_switch_and_toggle_off(
+def test_message_reaction_inspector_set_switch_and_toggle_off(
     client,
     owner_a,
-    owner_b_user,
+    inspector_user,
     approve_with_primary_owner,
 ):
     event = _event_case(approve=approve_with_primary_owner)
-    message = CaseMessage.objects.create(
-        case=event,
-        author_login="owner_a",
-        body="Нужна правка",
-    )
+    message = _message_with_attachment(event)
 
-    _login(client, "owner_b")
+    _login(client, "inspector_user")
     url = reverse("approval:api_message_reaction", kwargs={"message_id": message.id})
 
     set_response = client.post(
@@ -509,7 +518,9 @@ def test_message_reaction_set_switch_and_toggle_off(
     assert payload["ok"] is True
     assert payload["message"]["my_reaction"] == "in_progress"
     assert len(payload["message"]["reactions"]) == 1
-    assert CaseMessageReaction.objects.filter(message=message, reactor_login="owner_b", kind="in_progress").exists()
+    assert CaseMessageReaction.objects.filter(
+        message=message, reactor_login="inspector_user", kind="in_progress"
+    ).exists()
 
     switch_response = client.post(
         url,
@@ -519,8 +530,8 @@ def test_message_reaction_set_switch_and_toggle_off(
     assert switch_response.status_code == 200
     switch_payload = switch_response.json()
     assert switch_payload["message"]["my_reaction"] == "done"
-    assert CaseMessageReaction.objects.filter(message=message, reactor_login="owner_b").count() == 1
-    assert CaseMessageReaction.objects.get(message=message, reactor_login="owner_b").kind == "done"
+    assert CaseMessageReaction.objects.filter(message=message, reactor_login="inspector_user").count() == 1
+    assert CaseMessageReaction.objects.get(message=message, reactor_login="inspector_user").kind == "done"
 
     toggle_response = client.post(
         url,
@@ -535,17 +546,44 @@ def test_message_reaction_set_switch_and_toggle_off(
 
 
 @pytest.mark.django_db
-def test_message_reaction_rejects_own_message_and_closed_case(
+def test_message_reaction_owner_cannot_set_inspector_kinds(
     client,
     owner_a,
     owner_b_user,
     approve_with_primary_owner,
 ):
     event = _event_case(approve=approve_with_primary_owner)
-    own_message = CaseMessage.objects.create(case=event, author_login="owner_a", body="Моё")
-    other_message = CaseMessage.objects.create(case=event, author_login="owner_b", body="Чужое")
+    message = _message_with_attachment(event, author_login="owner_a")
 
-    _login(client, "owner_a")
+    _login(client, "owner_b")
+    response = client.post(
+        reverse("approval:api_message_reaction", kwargs={"message_id": message.id}),
+        data=json.dumps({"kind": "in_progress"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert not CaseMessageReaction.objects.filter(message=message).exists()
+
+
+@pytest.mark.django_db
+def test_message_reaction_inspector_rejects_text_only_and_own_message(
+    client,
+    owner_a,
+    inspector_user,
+    approve_with_primary_owner,
+):
+    event = _event_case(approve=approve_with_primary_owner)
+    text_message = CaseMessage.objects.create(case=event, author_login="owner_a", body="Только текст")
+    own_message = _message_with_attachment(event, author_login="inspector_user", body="Моё")
+
+    _login(client, "inspector_user")
+    text_response = client.post(
+        reverse("approval:api_message_reaction", kwargs={"message_id": text_message.id}),
+        data=json.dumps({"kind": "done"}),
+        content_type="application/json",
+    )
+    assert text_response.status_code == 400
+
     own_response = client.post(
         reverse("approval:api_message_reaction", kwargs={"message_id": own_message.id}),
         data=json.dumps({"kind": "done"}),
@@ -553,16 +591,205 @@ def test_message_reaction_rejects_own_message_and_closed_case(
     )
     assert own_response.status_code == 400
 
+
+@pytest.mark.django_db
+def test_message_reaction_rejects_closed_case(
+    client,
+    owner_a,
+    inspector_user,
+    approve_with_primary_owner,
+):
+    event = _event_case(approve=approve_with_primary_owner)
+    message = _message_with_attachment(event, author_login="owner_a")
     event.approved = True
     event.status = "согласовано"
     event.save(update_fields=["approved", "status"])
 
+    _login(client, "inspector_user")
     closed_response = client.post(
-        reverse("approval:api_message_reaction", kwargs={"message_id": other_message.id}),
+        reverse("approval:api_message_reaction", kwargs={"message_id": message.id}),
         data=json.dumps({"kind": "in_progress"}),
         content_type="application/json",
     )
     assert closed_response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_message_reaction_owner_verdict_after_done(
+    client,
+    owner_a,
+    inspector_user,
+    approve_with_primary_owner,
+):
+    event = _event_case(approve=approve_with_primary_owner)
+    message = _message_with_attachment(event, author_login="owner_a")
+    url = reverse("approval:api_message_reaction", kwargs={"message_id": message.id})
+
+    _login(client, "owner_a")
+    before_done = client.post(
+        url,
+        data=json.dumps({"kind": "accepted"}),
+        content_type="application/json",
+    )
+    assert before_done.status_code == 400
+
+    _login(client, "inspector_user")
+    done_response = client.post(
+        url,
+        data=json.dumps({"kind": "done"}),
+        content_type="application/json",
+    )
+    assert done_response.status_code == 200
+
+    _login(client, "owner_a")
+    accepted_response = client.post(
+        url,
+        data=json.dumps({"kind": "accepted"}),
+        content_type="application/json",
+    )
+    assert accepted_response.status_code == 200
+    accepted_payload = accepted_response.json()
+    assert accepted_payload["message"]["my_reaction"] == "accepted"
+    assert CaseMessageReaction.objects.filter(
+        message=message, reactor_login="owner_a", kind="accepted"
+    ).exists()
+
+    rejected_response = client.post(
+        url,
+        data=json.dumps({"kind": "rejected"}),
+        content_type="application/json",
+    )
+    assert rejected_response.status_code == 200
+    assert CaseMessageReaction.objects.get(message=message, reactor_login="owner_a").kind == "rejected"
+
+
+@pytest.mark.django_db
+def test_message_reaction_removing_done_clears_owner_verdicts(
+    client,
+    owner_a,
+    inspector_user,
+    approve_with_primary_owner,
+):
+    event = _event_case(approve=approve_with_primary_owner)
+    message = _message_with_attachment(event, author_login="owner_a")
+    url = reverse("approval:api_message_reaction", kwargs={"message_id": message.id})
+
+    _login(client, "inspector_user")
+    assert (
+        client.post(url, data=json.dumps({"kind": "done"}), content_type="application/json").status_code
+        == 200
+    )
+
+    _login(client, "owner_a")
+    assert (
+        client.post(url, data=json.dumps({"kind": "accepted"}), content_type="application/json").status_code
+        == 200
+    )
+    assert CaseMessageReaction.objects.filter(message=message, kind="accepted").exists()
+
+    _login(client, "inspector_user")
+    toggle_response = client.post(
+        url,
+        data=json.dumps({"kind": "done"}),
+        content_type="application/json",
+    )
+    assert toggle_response.status_code == 200
+    assert not CaseMessageReaction.objects.filter(message=message).exists()
+
+
+@pytest.mark.django_db
+def test_message_reaction_owner_can_verdict_own_message_with_done(
+    client,
+    owner_a,
+    inspector_user,
+    approve_with_primary_owner,
+):
+    event = _event_case(approve=approve_with_primary_owner)
+    message = _message_with_attachment(event, author_login="owner_a")
+    url = reverse("approval:api_message_reaction", kwargs={"message_id": message.id})
+
+    _login(client, "inspector_user")
+    assert (
+        client.post(url, data=json.dumps({"kind": "done"}), content_type="application/json").status_code
+        == 200
+    )
+
+    _login(client, "owner_a")
+    response = client.post(
+        url,
+        data=json.dumps({"kind": "accepted"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["message"]["my_reaction"] == "accepted"
+    assert payload["case"]["current_user_is_owner"] is True
+    assert CaseMessageReaction.objects.filter(
+        message=message, reactor_login="owner_a", kind="accepted"
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_case_detail_message_reaction_stats(
+    client,
+    owner_a,
+    inspector_user,
+    approve_with_primary_owner,
+):
+    event = _event_case(approve=approve_with_primary_owner)
+    unprocessed = _message_with_attachment(event, author_login="owner_a", body="Без реакции")
+    in_progress_msg = _message_with_attachment(event, author_login="owner_a", body="В работе")
+    done_accepted = _message_with_attachment(event, author_login="owner_a", body="Выполнено и принято")
+    done_rejected = _message_with_attachment(event, author_login="owner_a", body="Выполнено и отклонено")
+    CaseMessage.objects.create(case=event, author_login="owner_a", body="Только текст")
+
+    CaseMessageReaction.objects.create(
+        message=in_progress_msg,
+        reactor_login="inspector_user",
+        kind="in_progress",
+    )
+    CaseMessageReaction.objects.create(
+        message=done_accepted,
+        reactor_login="inspector_user",
+        kind="done",
+    )
+    CaseMessageReaction.objects.create(
+        message=done_accepted,
+        reactor_login="owner_a",
+        kind="accepted",
+    )
+    CaseMessageReaction.objects.create(
+        message=done_rejected,
+        reactor_login="inspector_user",
+        kind="done",
+    )
+    CaseMessageReaction.objects.create(
+        message=done_rejected,
+        reactor_login="owner_a",
+        kind="rejected",
+    )
+
+    _login(client, "inspector_user")
+    response = client.get(reverse("approval:api_case_detail", kwargs={"case_id": event.id}))
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["case"]["current_user_is_inspector"] is True
+    assert payload["case"]["message_reaction_stats"] == {
+        "unprocessed": 1,
+        "in_progress": 1,
+        "done": 2,
+        "accepted": 1,
+        "rejected": 1,
+    }
+    assert unprocessed.id in {item["id"] for item in payload["case"]["messages"]}
+
+    _login(client, "owner_a")
+    owner_response = client.get(reverse("approval:api_case_detail", kwargs={"case_id": event.id}))
+    assert owner_response.status_code == 200
+    owner_payload = owner_response.json()
+    assert owner_payload["case"]["current_user_is_inspector"] is False
+    assert owner_payload["case"]["message_reaction_stats"]["unprocessed"] == 1
 
 
 @pytest.mark.django_db

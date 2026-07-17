@@ -132,9 +132,13 @@ class CaseMessageAttachment(models.Model):
 class CaseMessageReaction(models.Model):
     KIND_IN_PROGRESS = "in_progress"
     KIND_DONE = "done"
+    KIND_ACCEPTED = "accepted"
+    KIND_REJECTED = "rejected"
     KIND_CHOICES = (
         (KIND_IN_PROGRESS, "В работе"),
         (KIND_DONE, "Выполнено"),
+        (KIND_ACCEPTED, "Принято"),
+        (KIND_REJECTED, "Отклонено"),
     )
 
     message = models.ForeignKey(

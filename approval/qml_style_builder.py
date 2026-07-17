@@ -19,8 +19,12 @@ TABLE_QML_ALIASES: dict[str, str] = {
 }
 
 # topopassport CAD topo tables → TopographyLayers_*.qml filenames
-TOPOGRAPHY_TABLE_QML: dict[str, str] = {
-    "topolines": "TopographyLayers_lines.qml",
+# topolines: polylines (detailed colors) first, then lines (fallback categories)
+TOPOGRAPHY_TABLE_QML: dict[str, str | list[str]] = {
+    "topolines": [
+        "TopographyLayers_polylines.qml",
+        "TopographyLayers_lines.qml",
+    ],
     "topopoint": "TopographyLayers_inserts.qml",
     "topotext": "TopographyLayers_texts.qml",
 }
@@ -615,13 +619,15 @@ def parse_labeling(root: ET.Element) -> dict[str, Any] | None:
     return labeling
 
 
-def resolve_qml_path(table_name: str, qml_dir: Path | None = None) -> Path | None:
+def resolve_qml_paths(table_name: str, qml_dir: Path | None = None) -> list[Path]:
+    """Resolve one or more QML sources for a table (topography may list several)."""
     directory = qml_dir or _qml_dir()
-    topo_file = TOPOGRAPHY_TABLE_QML.get(table_name)
-    if topo_file:
-        topo_path = directory / topo_file
-        if topo_path.is_file():
-            return topo_path
+    topo_entry = TOPOGRAPHY_TABLE_QML.get(table_name)
+    if topo_entry:
+        names = [topo_entry] if isinstance(topo_entry, str) else list(topo_entry)
+        paths = [directory / name for name in names if (directory / name).is_file()]
+        if paths:
+            return paths
     candidates = [table_name, TABLE_QML_ALIASES.get(table_name, "")]
     for base in candidates:
         if not base:
@@ -629,8 +635,78 @@ def resolve_qml_path(table_name: str, qml_dir: Path | None = None) -> Path | Non
         for prefix in ("WorkLayers_", "MasterLayers_"):
             path = directory / f"{prefix}{base}.qml"
             if path.is_file():
-                return path
-    return None
+                return [path]
+    return []
+
+
+def resolve_qml_path(table_name: str, qml_dir: Path | None = None) -> Path | None:
+    paths = resolve_qml_paths(table_name, qml_dir)
+    return paths[0] if paths else None
+
+
+def _is_else_rule(rule: dict[str, Any]) -> bool:
+    filt = rule.get("filter")
+    return bool(isinstance(filt, dict) and filt.get("type") == "else")
+
+
+def merge_parsed_qml_tables(parsed_list: list[dict[str, Any]]) -> dict[str, Any]:
+    """Merge multiple parse_qml_file results: earlier rules win on the client."""
+    if not parsed_list:
+        raise ValueError("parsed_list must not be empty")
+    if len(parsed_list) == 1:
+        return dict(parsed_list[0])
+
+    rules: list[dict[str, Any]] = []
+    else_rule: dict[str, Any] | None = None
+    fields: set[str] = set()
+    qml_files: list[str] = []
+    geometry: str | None = None
+    labeling: dict[str, Any] | None = None
+
+    for parsed in parsed_list:
+        qml_file = parsed.get("qmlFile")
+        if qml_file:
+            qml_files.append(str(qml_file))
+        if geometry is None and parsed.get("geometry"):
+            geometry = str(parsed["geometry"])
+        if labeling is None and parsed.get("labeling"):
+            labeling = dict(parsed["labeling"])
+        for field in parsed.get("fields") or []:
+            fields.add(str(field))
+        for rule in parsed.get("rules") or []:
+            if _is_else_rule(rule):
+                else_rule = rule
+                continue
+            rules.append(rule)
+
+    default_rule_index: int | None = None
+    if else_rule is not None:
+        rules.append(else_rule)
+        default_rule_index = len(rules) - 1
+    else:
+        for index, rule in enumerate(rules):
+            lower_label = (rule.get("label") or "").lower()
+            filt = rule.get("filter")
+            if (
+                "нет данных" in lower_label
+                or "прочие" in lower_label
+                or (isinstance(filt, dict) and filt.get("type") in {"null", "else"})
+            ):
+                default_rule_index = index
+                break
+        if default_rule_index is None and rules:
+            default_rule_index = len(rules) - 1
+
+    result: dict[str, Any] = {
+        "geometry": geometry or "polygon",
+        "rules": rules,
+        "fields": sorted(fields),
+        "defaultRule": default_rule_index,
+        "qmlFile": "+".join(qml_files),
+    }
+    if labeling:
+        result["labeling"] = labeling
+    return result
 
 
 def parse_qml_file(path: Path) -> dict[str, Any]:
@@ -756,10 +832,11 @@ def build_manifest(*, tables: list[str] | None = None) -> dict[str, Any]:
     target_tables = tables or collect_table_names()
 
     for table_name in target_tables:
-        qml_path = resolve_qml_path(table_name, qml_dir)
-        if not qml_path:
+        qml_paths = resolve_qml_paths(table_name, qml_dir)
+        if not qml_paths:
             continue
-        parsed = parse_qml_file(qml_path)
+        parsed_list = [parse_qml_file(path) for path in qml_paths]
+        parsed = merge_parsed_qml_tables(parsed_list)
         parsed["label"] = work_layer_label(table_name)
         manifest_tables[table_name] = parsed
 

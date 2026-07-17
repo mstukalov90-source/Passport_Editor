@@ -9,10 +9,12 @@ from approval.qml_style_builder import (
     build_manifest,
     build_svg_index,
     collect_table_names,
+    merge_parsed_qml_tables,
     parse_filter,
     parse_qgis_color,
     parse_qml_file,
     resolve_qml_path,
+    resolve_qml_paths,
     sync_svg_static_tree,
 )
 from django.conf import settings
@@ -76,9 +78,19 @@ def test_parse_filter_topography_compound_expressions():
 
 def test_resolve_qml_path_topography_tables():
     qml_dir = Path(settings.APPROVAL_LAYER_STYLES_QML_DIR)
-    assert resolve_qml_path("topolines", qml_dir).name == "TopographyLayers_lines.qml"
+    assert resolve_qml_path("topolines", qml_dir).name == "TopographyLayers_polylines.qml"
     assert resolve_qml_path("topopoint", qml_dir).name == "TopographyLayers_inserts.qml"
     assert resolve_qml_path("topotext", qml_dir).name == "TopographyLayers_texts.qml"
+
+
+def test_resolve_qml_paths_topolines_merges_both_files():
+    qml_dir = Path(settings.APPROVAL_LAYER_STYLES_QML_DIR)
+    paths = resolve_qml_paths("topolines", qml_dir)
+    assert [p.name for p in paths] == [
+        "TopographyLayers_polylines.qml",
+        "TopographyLayers_lines.qml",
+    ]
+    assert resolve_qml_paths("topotext", qml_dir)[0].name == "TopographyLayers_texts.qml"
 
 
 def test_build_manifest_includes_topography_tables():
@@ -86,15 +98,55 @@ def test_build_manifest_includes_topography_tables():
 
     load_work_layer_labels.cache_clear()
     manifest = build_manifest(tables=["topolines", "topopoint", "topotext"])
-    assert manifest["tables"]["topolines"]["label"] == "Линии топоосновы"
-    assert manifest["tables"]["topolines"]["geometry"] == "line"
-    assert len(manifest["tables"]["topolines"]["rules"]) >= 20
-    assert "layer" in manifest["tables"]["topolines"]["fields"]
-    assert "olinetype" in manifest["tables"]["topolines"]["fields"]
+    topolines = manifest["tables"]["topolines"]
+    assert topolines["label"] == "Линии топоосновы"
+    assert topolines["geometry"] == "line"
+    assert len(topolines["rules"]) >= 50
+    assert "TopographyLayers_polylines.qml" in topolines["qmlFile"]
+    assert "TopographyLayers_lines.qml" in topolines["qmlFile"]
+    assert "layer" in topolines["fields"]
+    assert "olinetype" in topolines["fields"]
+    hydro = next(r for r in topolines["rules"] if r.get("label") == "Гидрография")
+    assert hydro["style"]["color"] == "#007fff"
+    assert hydro["style"]["color"] != "#232323"
+    assert any(r.get("label") == "Борта" for r in topolines["rules"])
     assert manifest["tables"]["topopoint"]["label"] == "Точки топоосновы"
     assert manifest["tables"]["topopoint"]["geometry"] == "point"
-    assert manifest["tables"]["topotext"]["label"] == "Тексты топоосновы"
-    assert "text" in manifest["tables"]["topotext"]["fields"]
+    topotext = manifest["tables"]["topotext"]
+    assert topotext["label"] == "Тексты топоосновы"
+    assert topotext["qmlFile"] == "TopographyLayers_texts.qml"
+    assert "text" in topotext["fields"]
+    assert topotext["labeling"]["field"] == "text"
+    assert topotext["labeling"]["rotationField"] == "angle"
+
+
+def test_merge_parsed_qml_tables_orders_rules_and_keeps_one_else():
+    merged = merge_parsed_qml_tables(
+        [
+            {
+                "geometry": "line",
+                "rules": [
+                    {"label": "A", "style": {"kind": "line", "color": "#00ff00"}, "filter": {"type": "eq", "field": "layer", "value": "a"}},
+                    {"label": "ELSE poly", "style": {"kind": "line", "color": "#ff0000"}, "filter": {"type": "else"}},
+                ],
+                "fields": ["layer"],
+                "qmlFile": "poly.qml",
+            },
+            {
+                "geometry": "line",
+                "rules": [
+                    {"label": "B", "style": {"kind": "line", "color": "#232323"}, "filter": {"type": "eq", "field": "layer", "value": "b"}},
+                    {"label": "ELSE lines", "style": {"kind": "line", "color": "#000000"}, "filter": {"type": "else"}},
+                ],
+                "fields": ["olinetype"],
+                "qmlFile": "lines.qml",
+            },
+        ]
+    )
+    assert [r["label"] for r in merged["rules"]] == ["A", "B", "ELSE lines"]
+    assert merged["qmlFile"] == "poly.qml+lines.qml"
+    assert merged["fields"] == ["layer", "olinetype"]
+    assert merged["defaultRule"] == 2
 
 
 def test_parse_topography_texts_labeling():

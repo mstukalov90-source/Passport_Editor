@@ -389,6 +389,7 @@ def api_message_reaction(request, message_id):
             message=message,
             username=actor["username"],
             kind=kind,
+            owner_id=actor["owner_id"],
         )
     except ValueError as exc:
         return _json_error(str(exc))

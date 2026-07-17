@@ -12,10 +12,12 @@ from approval.work_adjacent import (
     LAYER_KEY_APPROVAL,
     LAYER_KEY_OBJECTS,
     _adjacent_select_sql,
+    _finalize_adjacent_feature,
+    adjacent_layer_key,
     adjacent_root_ids,
     build_adjacent_features,
     collect_adjacent_roots,
-    count_adjacent_features,
+    count_adjacent_features_by_source,
     format_adjacent_roots_message,
 )
 from approval.work_layers import build_adjacent_layer_groups
@@ -42,22 +44,47 @@ def test_adjacent_root_ids_empty_when_no_values():
 
 
 def test_build_adjacent_layer_groups_names_and_counts():
-    groups = build_adjacent_layer_groups(2, 3)
+    groups = build_adjacent_layer_groups(
+        {
+            "YardPoly": {"n": 2, "v": 0},
+            "OdhPoly": {"n": 0, "v": 3},
+        }
+    )
     assert len(groups) == 1
     assert groups[0]["key"] == "adjacent"
     assert groups[0]["title"] == "Смежные паспорта"
     layers = {layer["key"]: layer for layer in groups[0]["layers"]}
-    assert layers["adjacent_approval"]["name"] == "Смежный объект для согласования"
-    assert layers["adjacent_approval"]["count"] == 2
-    assert layers["adjacent_objects"]["name"] == "Смежные объекты"
-    assert layers["adjacent_objects"]["count"] == 3
+    assert layers["adjacent_approval:YardPoly"]["name"] == "Смежный объект для согласования · ДТ"
+    assert layers["adjacent_approval:YardPoly"]["count"] == 2
+    assert layers["adjacent_objects:OdhPoly"]["name"] == "Смежные объекты · ОДХ"
+    assert layers["adjacent_objects:OdhPoly"]["count"] == 3
+    keys = [layer["key"] for layer in groups[0]["layers"]]
+    assert keys == ["adjacent_approval:YardPoly", "adjacent_objects:OdhPoly"]
 
 
 def test_build_adjacent_layer_groups_skips_zero_counts():
-    assert build_adjacent_layer_groups(0, 0) == []
-    groups = build_adjacent_layer_groups(1, 0)
+    assert build_adjacent_layer_groups({}) == []
+    groups = build_adjacent_layer_groups({"OznPoly": {"n": 1, "v": 0}})
     assert len(groups[0]["layers"]) == 1
-    assert groups[0]["layers"][0]["key"] == "adjacent_approval"
+    assert groups[0]["layers"][0]["key"] == "adjacent_approval:OznPoly"
+    assert groups[0]["layers"][0]["name"] == "Смежный объект для согласования · ОО"
+
+
+def test_finalize_adjacent_feature_sets_layer_key_with_source_table():
+    feature = {
+        "type": "Feature",
+        "properties": {"RootId": "09811", "sourceTable": "YardPoly"},
+    }
+    _finalize_adjacent_feature(feature, {"09811"})
+    assert feature["properties"]["layerKey"] == adjacent_layer_key(LAYER_KEY_APPROVAL, "YardPoly")
+    assert feature["properties"]["adjacentRootKind"] == "n"
+
+    other = {
+        "type": "Feature",
+        "properties": {"RootId": "10482", "sourceTable": "OdhPoly"},
+    }
+    _finalize_adjacent_feature(other, {"09811"})
+    assert other["properties"]["layerKey"] == adjacent_layer_key(LAYER_KEY_OBJECTS, "OdhPoly")
 
 
 @patch("approval.work_adjacent.connections")
@@ -73,8 +100,15 @@ def test_count_adjacent_features(mock_connections):
     cursor.fetchone.side_effect = [(1,), (2,), (0,), (1,), (0,), (0,)]
 
     with patch("approval.work_adjacent._resolve_rootid_column", return_value="RootId"):
-        n_count, v_count = count_adjacent_features("09811", ["10482", "09811"])
+        by_source = count_adjacent_features_by_source("09811", ["10482", "09811"])
 
+    n_count = sum(int(bucket.get("n", 0) or 0) for bucket in by_source.values())
+    v_count = sum(int(bucket.get("v", 0) or 0) for bucket in by_source.values())
+
+    assert by_source["YardPoly"]["n"] == 1
+    assert by_source["OdhPoly"]["n"] == 2
+    assert "OznPoly" not in by_source or by_source["OznPoly"].get("n", 0) == 0
+    assert by_source["YardPoly"]["v"] == 1
     assert n_count == 3
     assert v_count == 1
 
@@ -176,9 +210,9 @@ def test_build_adjacent_features_assigns_layer_keys(mock_connections):
     assert len(features) == 2
     by_root = {feature["properties"]["RootId"]: feature["properties"] for feature in features}
     assert by_root["09811"]["adjacentRootKind"] == "n"
-    assert by_root["09811"]["layerKey"] == LAYER_KEY_APPROVAL
+    assert by_root["09811"]["layerKey"] == adjacent_layer_key(LAYER_KEY_APPROVAL, "YardPoly")
     assert by_root["10482"]["adjacentRootKind"] == "v"
-    assert by_root["10482"]["layerKey"] == LAYER_KEY_OBJECTS
+    assert by_root["10482"]["layerKey"] == adjacent_layer_key(LAYER_KEY_OBJECTS, "YardPoly")
 
 
 @patch("approval.work_adjacent.connections")
@@ -226,8 +260,8 @@ def test_build_adjacent_features_active_case_moves_single_n_root(mock_connection
 
     assert error is None
     by_root = {feature["properties"]["RootId"]: feature["properties"] for feature in features}
-    assert by_root["10001"]["layerKey"] == LAYER_KEY_OBJECTS
-    assert by_root["10002"]["layerKey"] == LAYER_KEY_APPROVAL
+    assert by_root["10001"]["layerKey"] == adjacent_layer_key(LAYER_KEY_OBJECTS, "YardPoly")
+    assert by_root["10002"]["layerKey"] == adjacent_layer_key(LAYER_KEY_APPROVAL, "YardPoly")
 
 
 @pytest.mark.django_db
@@ -308,7 +342,7 @@ def test_landing_with_case_only_n_roots():
 
     with patch("approval.views.count_features_by_table", return_value={}):
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
-            with patch("approval.views.count_adjacent_features", return_value=(1, 1)):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={"YardPoly": {"n": 1, "v": 1}}):
                 with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
                     with patch("approval.views.load_svg_index", return_value={}):
                         with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
@@ -341,7 +375,7 @@ def test_landing_with_adjacent_layers():
 
     with patch("approval.views.count_features_by_table", return_value={}):
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
-            with patch("approval.views.count_adjacent_features", return_value=(1, 1)):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={"YardPoly": {"n": 1, "v": 1}}):
                 with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
                     with patch("approval.views.load_svg_index", return_value={}):
                         with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
@@ -351,12 +385,12 @@ def test_landing_with_adjacent_layers():
     context = mock_render.call_args[0][2]
     layer_groups = context["layer_groups"]
     assert any(
-        layer["name"] == "Смежный объект для согласования"
+        layer["name"] == "Смежный объект для согласования · ДТ"
         for group in layer_groups
         for layer in group["layers"]
     )
     assert any(
-        layer["name"] == "Смежные объекты"
+        layer["name"] == "Смежные объекты · ДТ"
         for group in layer_groups
         for layer in group["layers"]
     )
@@ -372,7 +406,7 @@ def test_landing_without_owner_shows_message_unchanged():
 
     with patch("approval.views.count_features_by_table", return_value={}):
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
-            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={}):
                 with patch("approval.views.landing_page_config", return_value={}):
                     with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
                         response = landing(request)
@@ -461,7 +495,7 @@ def test_landing_scopes_work_to_selected_approve():
 
     with patch("approval.views.count_features_by_table", return_value={}) as mock_counts:
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
-            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={}):
                 with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
                     with patch("approval.views.load_svg_index", return_value={}):
                         with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
@@ -499,7 +533,7 @@ def test_landing_inspector_adjacent_roots_from_cases():
 
     with patch("approval.views.count_features_by_table", return_value={}):
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
-            with patch("approval.views.count_adjacent_features", return_value=(1, 1)):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={"YardPoly": {"n": 1, "v": 1}}):
                 with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
                     with patch("approval.views.load_svg_index", return_value={}):
                         with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:
@@ -531,7 +565,7 @@ def test_landing_adjacent_message_when_roots_but_no_features():
 
     with patch("approval.views.count_features_by_table", return_value={}):
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
-            with patch("approval.views.count_adjacent_features", return_value=(0, 0)):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={}):
                 with patch("approval.views.load_manifest", return_value={"version": 1, "tables": {}}):
                     with patch("approval.views.load_svg_index", return_value={}):
                         with patch("approval.views.render", return_value=HttpResponse("ok")) as mock_render:

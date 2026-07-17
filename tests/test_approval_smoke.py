@@ -22,7 +22,7 @@ def test_anonymous_approval_landing_redirects_to_login(client):
 def test_approval_landing_loads_for_authenticated_user(client, e2e_credentials):
     with patch('approval.views.count_features_by_table', return_value={}):
         with patch('approval.views.count_topopassport_features_by_table', return_value={}):
-            with patch('approval.views.count_adjacent_features', return_value=(0, 0)):
+            with patch('approval.views.count_adjacent_features_by_source', return_value={}):
                 client.post(
                     reverse('login'),
                     {
@@ -169,3 +169,7 @@ def test_home_contains_notifications_dropdown(client, e2e_credentials):
     assert 'approval-notifications-panel' in content
     assert 'Уведомления' in content
     assert 'approval-notifications-empty' in content
+    assert 'id="approval-ods-sync-section"' in content
+    assert 'id="approval-ods-sync-list"' in content
+    assert 'home-workflow-ods-sync-block' not in content
+    assert 'home-workflow-ods-sync-list' not in content

@@ -7,9 +7,13 @@
     let brushDrawing = false;
     let brushLatLngs = [];
     let brushPreview = null;
+    let brushLastPoint = null;
     let geometryCompleteCallback = null;
+    let brushEventsBound = false;
 
     const EVENT_COLOR = '#7c3aed';
+    const BRUSH_MIN_PIXEL_DISTANCE = 3;
+    const BRUSH_POINTER_PANES = ['.leaflet-overlay-pane', '.leaflet-marker-pane'];
 
     function getMap() {
         return window.ApprovalMap && window.ApprovalMap.getMap();
@@ -20,6 +24,20 @@
             activeDrawer.disable();
             activeDrawer = null;
         }
+    }
+
+    function setBrushPointerEvents(enabled) {
+        const map = getMap();
+        if (!map) {
+            return;
+        }
+        const container = map.getContainer();
+        BRUSH_POINTER_PANES.forEach(function (selector) {
+            const pane = container.querySelector(selector);
+            if (pane) {
+                pane.style.pointerEvents = enabled ? '' : 'none';
+            }
+        });
     }
 
     function removeBrushPreviewLayer() {
@@ -33,7 +51,9 @@
     function clearBrushPreview() {
         removeBrushPreviewLayer();
         brushLatLngs = [];
+        brushLastPoint = null;
         brushDrawing = false;
+        setBrushPointerEvents(true);
     }
 
     function stopDrawMode() {
@@ -124,11 +144,62 @@
         }
     }
 
-    function bindMapDrawEvents() {
-        const map = getMap();
-        if (!map) {
+    function eventToContainerPoint(map, domEvent) {
+        const rect = map.getContainer().getBoundingClientRect();
+        return L.point(domEvent.clientX - rect.left, domEvent.clientY - rect.top);
+    }
+
+    function eventToLatLng(map, domEvent) {
+        return map.containerPointToLatLng(eventToContainerPoint(map, domEvent));
+    }
+
+    function shouldAppendBrushPoint(map, latlng) {
+        if (!brushLastPoint) {
+            return true;
+        }
+        const prev = map.latLngToContainerPoint(brushLastPoint);
+        const next = map.latLngToContainerPoint(latlng);
+        const dx = next.x - prev.x;
+        const dy = next.y - prev.y;
+        return Math.sqrt(dx * dx + dy * dy) >= BRUSH_MIN_PIXEL_DISTANCE;
+    }
+
+    function finishBrushStroke() {
+        if (!drawMode || !brushMode || !brushDrawing) {
             return;
         }
+        brushDrawing = false;
+        setBrushPointerEvents(true);
+        const mapRef = getMap();
+        if (mapRef) {
+            mapRef.dragging.enable();
+        }
+        if (brushLatLngs.length < 2) {
+            clearBrushPreview();
+            return;
+        }
+
+        let geometry = null;
+        if (brushMode === 'fill' && brushLatLngs.length >= 3) {
+            geometry = L.polygon(brushLatLngs, {
+                color: EVENT_COLOR,
+                fillColor: EVENT_COLOR,
+                fillOpacity: 0.35,
+            }).toGeoJSON().geometry;
+        } else {
+            geometry = L.polyline(brushLatLngs, { color: EVENT_COLOR }).toGeoJSON().geometry;
+        }
+        clearBrushPreview();
+        finishGeometry(geometry);
+    }
+
+    function bindMapDrawEvents() {
+        const map = getMap();
+        if (!map || brushEventsBound) {
+            return;
+        }
+        brushEventsBound = true;
+        const container = map.getContainer();
 
         map.on(L.Draw.Event.CREATED, function (event) {
             if (!drawMode) {
@@ -141,57 +212,47 @@
             finishGeometry(geometry);
         });
 
-        map.on('mousedown', function (event) {
-            if (!drawMode || !brushMode) {
+        container.addEventListener('mousedown', function (domEvent) {
+            if (!drawMode || !brushMode || domEvent.button !== 0) {
                 return;
             }
+            domEvent.preventDefault();
             removeBrushPreviewLayer();
             brushDrawing = true;
-            brushLatLngs = [event.latlng];
+            setBrushPointerEvents(false);
+            const latlng = eventToLatLng(map, domEvent);
+            brushLatLngs = [latlng];
+            brushLastPoint = latlng;
             brushPreview = L.polyline(brushLatLngs, {
                 color: EVENT_COLOR,
                 weight: 3,
                 opacity: 0.9,
+                interactive: false,
             }).addTo(map);
             map.dragging.disable();
         });
 
-        map.on('mousemove', function (event) {
+        container.addEventListener('mousemove', function (domEvent) {
             if (!drawMode || !brushMode || !brushDrawing) {
                 return;
             }
-            brushLatLngs.push(event.latlng);
+            const latlng = eventToLatLng(map, domEvent);
+            if (!shouldAppendBrushPoint(map, latlng)) {
+                return;
+            }
+            brushLatLngs.push(latlng);
+            brushLastPoint = latlng;
             if (brushPreview) {
                 brushPreview.setLatLngs(brushLatLngs);
             }
         });
 
-        map.on('mouseup', function () {
-            if (!drawMode || !brushMode || !brushDrawing) {
-                return;
-            }
-            brushDrawing = false;
-            const mapRef = getMap();
-            if (mapRef) {
-                mapRef.dragging.enable();
-            }
-            if (brushLatLngs.length < 2) {
-                clearBrushPreview();
-                return;
-            }
+        container.addEventListener('mouseup', function () {
+            finishBrushStroke();
+        });
 
-            let geometry = null;
-            if (brushMode === 'fill' && brushLatLngs.length >= 3) {
-                geometry = L.polygon(brushLatLngs, {
-                    color: EVENT_COLOR,
-                    fillColor: EVENT_COLOR,
-                    fillOpacity: 0.35,
-                }).toGeoJSON().geometry;
-            } else {
-                geometry = L.polyline(brushLatLngs, { color: EVENT_COLOR }).toGeoJSON().geometry;
-            }
-            clearBrushPreview();
-            finishGeometry(geometry);
+        container.addEventListener('mouseleave', function () {
+            finishBrushStroke();
         });
     }
 
@@ -199,6 +260,12 @@
         const map = getMap();
         if (!map) {
             return;
+        }
+        if (
+            window.ApprovalMap &&
+            typeof window.ApprovalMap.stopMeasureMode === 'function'
+        ) {
+            window.ApprovalMap.stopMeasureMode();
         }
         geometryCompleteCallback = onComplete;
         drawMode = true;
