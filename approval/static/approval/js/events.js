@@ -842,6 +842,8 @@
     }
 
     function renderActiveCase(caseItem, options) {
+        const infoBtn = el('approval-active-info-btn');
+        const infoDialog = el('approval-active-info-dialog');
         if (!caseItem) {
             stopChatPolling();
             state.chatPollFingerprint = '';
@@ -861,6 +863,12 @@
             mapApi().updateAdjacentLayers('');
             clearPendingMessageGeometry();
             clearReplyTarget();
+            if (infoBtn) {
+                infoBtn.disabled = true;
+            }
+            if (infoDialog && typeof infoDialog.close === 'function' && infoDialog.open) {
+                infoDialog.close();
+            }
             return;
         }
 
@@ -898,6 +906,9 @@
         const fitMap = !options || options.fitMap !== false;
         if (fitMap) {
             mapApi().fitCaseGeometry(caseItem.id);
+        }
+        if (infoBtn) {
+            infoBtn.disabled = false;
         }
         updateComposerState(caseItem);
     }
@@ -949,10 +960,26 @@
         );
     }
 
-    function bindEventCardClicks(root) {
+    function setSecondaryChatsCollapsed(collapsed) {
+        const section = document.querySelector('.approval-events__section--secondary');
+        const toggle = el('approval-events-list-toggle');
+        if (!section || !toggle) {
+            return;
+        }
+        section.classList.toggle('is-collapsed', !!collapsed);
+        toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        toggle.title = collapsed ? 'Развернуть чаты событий' : 'Свернуть чаты событий';
+    }
+
+    function collapseSecondaryChats() {
+        setSecondaryChatsCollapsed(true);
+    }
+
+    function bindEventCardClicks(root, options) {
         if (!root) {
             return;
         }
+        const opts = options || {};
         root.querySelectorAll('.approval-event-card__add-participant').forEach(function (button) {
             button.addEventListener('click', function (event) {
                 event.stopPropagation();
@@ -960,13 +987,16 @@
             });
         });
         root.querySelectorAll('.approval-event-card').forEach(function (card) {
-            card.addEventListener('click', function (event) {
+            card.addEventListener('click', async function (event) {
                 if (event.target.closest('.approval-event-card__add-participant')) {
                     return;
                 }
                 const caseId = card.dataset.caseId;
                 if (caseId) {
-                    openCase(caseId, { fitMap: false });
+                    await openCase(caseId, { fitMap: false });
+                    if (opts.collapseOnSelect) {
+                        collapseSecondaryChats();
+                    }
                 }
             });
         });
@@ -987,7 +1017,7 @@
             titleOverride: 'Основное событие',
             extraClass: ' approval-event-card--primary',
         });
-        bindEventCardClicks(slot);
+        bindEventCardClicks(slot, { collapseOnSelect: true });
     }
 
     function renderSecondaryList(secondaryCases) {
@@ -1012,7 +1042,7 @@
             })
             .join('');
 
-        bindEventCardClicks(list);
+        bindEventCardClicks(list, { collapseOnSelect: true });
     }
 
     function renderEventNav(split) {
@@ -1337,9 +1367,7 @@
         }
 
         toggle.addEventListener('click', function () {
-            const collapsed = section.classList.toggle('is-collapsed');
-            toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-            toggle.title = collapsed ? 'Развернуть чаты событий' : 'Свернуть чаты событий';
+            setSecondaryChatsCollapsed(!section.classList.contains('is-collapsed'));
         });
     }
 
@@ -1356,6 +1384,34 @@
             toggle.title = state.messageStatsCollapsed
                 ? 'Развернуть статистику сообщений'
                 : 'Свернуть статистику сообщений';
+        });
+    }
+
+    function initActiveInfoDialog() {
+        const trigger = el('approval-active-info-btn');
+        const dialog = el('approval-active-info-dialog');
+        const closeBtn = el('approval-active-info-close');
+        if (!trigger || !dialog) {
+            return;
+        }
+        trigger.disabled = true;
+        trigger.addEventListener('click', function () {
+            if (!state.activeCaseId || typeof dialog.showModal !== 'function') {
+                return;
+            }
+            dialog.showModal();
+        });
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function () {
+                if (typeof dialog.close === 'function') {
+                    dialog.close();
+                }
+            });
+        }
+        dialog.addEventListener('click', function (event) {
+            if (event.target === dialog && typeof dialog.close === 'function') {
+                dialog.close();
+            }
         });
     }
 
@@ -1566,6 +1622,7 @@
         }
         initEventsListToggle();
         initMessageStatsToggle();
+        initActiveInfoDialog();
         bindParticipantDialogs();
         if (approveBtn) {
             approveBtn.addEventListener('click', function () {
