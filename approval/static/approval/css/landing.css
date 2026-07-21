@@ -45,7 +45,7 @@ main.container.container--approval {
     min-height: 0;
     max-height: 100%;
     display: grid;
-    grid-template-columns: minmax(0, 301fr) minmax(0, 601fr) minmax(0, 278fr);
+    grid-template-columns: minmax(300px, 20fr) minmax(0, 55fr) minmax(320px, 25fr);
     grid-template-rows: minmax(0, 1fr);
     gap: 10px;
     align-items: stretch;
@@ -54,7 +54,7 @@ main.container.container--approval {
 
 .approval-workspace:has(.approval-panel--layers.is-collapsed),
 .approval-workspace.approval-workspace--layers-collapsed {
-    grid-template-columns: 44px minmax(0, 601fr) minmax(0, 278fr);
+    grid-template-columns: 44px minmax(0, 69fr) minmax(0, 31fr);
 }
 
 .approval-panel {
@@ -424,6 +424,39 @@ main.container.container--approval {
 
 .approval-events__event-meta .approval-events__section-title {
     margin: 0;
+}
+
+.approval-events__event-meta-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.approval-events__info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: 1px solid #cbd5e1;
+    border-radius: 50%;
+    background: #fff;
+    color: #334155;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.approval-events__info-btn:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+}
+
+.approval-events__info-btn:focus-visible {
+    outline: 2px solid #93c5fd;
+    outline-offset: 1px;
 }
 
 .approval-events__event-name {
@@ -1419,6 +1452,42 @@ main.container.container--approval {
     margin: 0;
     font-size: 13px;
     color: #475569;
+}
+
+.approval-active-info-dialog {
+    max-width: 460px;
+}
+
+.approval-active-info-dialog__content {
+    display: grid;
+    gap: 10px;
+}
+
+.approval-active-info-dialog__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.approval-active-info-dialog__header .approval-event-dialog__title {
+    margin: 0;
+}
+
+.approval-active-info-dialog__close {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    background: #e5e7eb;
+    color: #111827;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.approval-active-info-dialog__close:hover {
+    background: #d1d5db;
 }
 
 .approval-event-dialog__error {

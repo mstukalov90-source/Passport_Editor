@@ -23,28 +23,20 @@
     <section class="approval-events__section approval-events__section--primary">
         <div class="approval-events__event-meta">
             <h3 class="approval-events__section-title">Чат события</h3>
-            <span class="approval-events__status approval-events__status--active" id="approval-active-status"></span>
-        </div>
-        <p class="approval-events__event-name" id="approval-active-title"></p>
-        <p class="approval-events__event-subtitle" id="approval-active-subtitle" hidden></p>
-        <div class="approval-events__participants" id="approval-active-participants" hidden></div>
-        <div class="approval-events__approval-progress" id="approval-approval-progress" hidden></div>
-        <div class="approval-events__message-stats" id="approval-message-stats" hidden>
-            <div class="approval-events__message-stats-header">
-                <span class="approval-events__message-stats-title">Статистика сообщений</span>
+            <div class="approval-events__event-meta-actions">
                 <button
                     type="button"
-                    class="approval-events__message-stats-toggle"
-                    id="approval-message-stats-toggle"
-                    aria-expanded="true"
-                    aria-controls="approval-message-stats-list"
-                    title="Свернуть статистику сообщений"
+                    class="approval-events__info-btn"
+                    id="approval-active-info-btn"
+                    aria-label="Информация о чате"
+                    title="Открыть информацию о чате"
                 >
-                    <span class="approval-events__message-stats-toggle-icon" aria-hidden="true"></span>
+                    i
                 </button>
+                <span class="approval-events__status approval-events__status--active" id="approval-active-status"></span>
             </div>
-            <ul class="approval-events__message-stats-list" id="approval-message-stats-list"></ul>
         </div>
+        <p class="approval-events__event-name" id="approval-active-title"></p>
         <div class="approval-events__closed-banner" id="approval-closed-banner" hidden>Событие согласовано.</div>
         <div class="approval-events__chat-area" id="approval-primary-chat">
             <div class="approval-chat-thread" id="approval-chat-thread"></div>
@@ -94,6 +86,42 @@
             <button type="submit" value="confirm" class="approval-event-dialog__submit" id="approval-chat-confirm-submit">Подтвердить</button>
         </div>
     </form>
+</dialog>
+
+<dialog id="approval-active-info-dialog" class="approval-event-dialog approval-active-info-dialog" aria-labelledby="approval-active-info-title">
+    <div class="approval-event-dialog__form approval-active-info-dialog__content">
+        <div class="approval-active-info-dialog__header">
+            <h3 class="approval-event-dialog__title" id="approval-active-info-title">Информация о чате</h3>
+            <button
+                type="button"
+                class="approval-active-info-dialog__close"
+                id="approval-active-info-close"
+                aria-label="Закрыть информацию о чате"
+                title="Закрыть"
+            >
+                &times;
+            </button>
+        </div>
+        <p class="approval-events__event-subtitle" id="approval-active-subtitle" hidden></p>
+        <div class="approval-events__participants" id="approval-active-participants" hidden></div>
+        <div class="approval-events__approval-progress" id="approval-approval-progress" hidden></div>
+        <div class="approval-events__message-stats" id="approval-message-stats" hidden>
+            <div class="approval-events__message-stats-header">
+                <span class="approval-events__message-stats-title">Статистика сообщений</span>
+                <button
+                    type="button"
+                    class="approval-events__message-stats-toggle"
+                    id="approval-message-stats-toggle"
+                    aria-expanded="true"
+                    aria-controls="approval-message-stats-list"
+                    title="Свернуть статистику сообщений"
+                >
+                    <span class="approval-events__message-stats-toggle-icon" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="approval-events__message-stats-list" id="approval-message-stats-list"></ul>
+        </div>
+    </div>
 </dialog>
 
 <dialog id="approval-chat-image-lightbox" class="approval-chat-lightbox" aria-label="Просмотр изображения">
