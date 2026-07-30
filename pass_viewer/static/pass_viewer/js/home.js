@@ -230,6 +230,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const checkDgiModal = document.getElementById('check-dgi-modal');
         const checkDgiModalBody = document.getElementById('check-dgi-modal-body');
         const checkDgiModalClose = document.getElementById('check-dgi-modal-close');
+        const checkDgiAsuOdsLink = document.getElementById('check-dgi-asu-ods-link');
         const checkDgiUrl = (cfg.urls && cfg.urls.checkDgi) || '';
         const listTabButtons = Array.from(document.querySelectorAll('.owned-list-tab-btn'));
         const listPanels = Array.from(document.querySelectorAll('.owned-list-panel'));
@@ -245,10 +246,25 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             return input && input.value ? input.value : '';
         }
 
+        function setCheckDgiAsuOdsLink(url) {
+            if (!checkDgiAsuOdsLink) {
+                return;
+            }
+            const href = String(url || '').trim();
+            if (!href) {
+                checkDgiAsuOdsLink.href = '#';
+                checkDgiAsuOdsLink.style.display = 'none';
+                return;
+            }
+            checkDgiAsuOdsLink.href = href;
+            checkDgiAsuOdsLink.style.display = '';
+        }
+
         function closeCheckDgiModal() {
             if (checkDgiModal) {
                 checkDgiModal.style.display = 'none';
             }
+            setCheckDgiAsuOdsLink(null);
         }
 
         function openCheckDgiModalShell(bodyText) {
@@ -257,6 +273,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (bodyText != null) {
                 checkDgiModalBody.textContent = bodyText;
+                setCheckDgiAsuOdsLink(null);
             }
             checkDgiModal.style.display = 'flex';
         }
@@ -266,21 +283,15 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 return;
             }
             if (data.intersects) {
-                checkDgiModalBody.innerHTML =
-                    '<div>ДГИ (г. Москва и Н/Д) с арендой: ' + (data.percent_moscow_rent ?? 0) + '% от площади</div>' +
-                    '<div>ДГИ (г. Москва и Н/Д) без аренды: ' + (data.percent_moscow_no_rent ?? 0) + '% от площади</div>' +
-                    '<div>ДГИ (Частная собственность) с арендой: ' + (data.percent_private_rent ?? 0) + '% от площади</div>' +
-                    '<div>ДГИ (Частная собственность) без аренды: ' + (data.percent_private_no_rent ?? 0) + '% от площади</div>' +
-                    '<div>Реновация: ' + (data.percent_renew ?? 0) + '% от площади</div>' +
-                    '<div>ООЗТ: ' + (data.percent_oozt ?? 0) + '% от площади</div>' +
-                    '<div>Полосы отвода ЖД: ' + (data.percent_rzd ?? 0) + '% от площади</div>';
+                checkDgiModalBody.innerHTML = PV.buildCheckDgiModalHtml(data);
             } else {
                 checkDgiModalBody.textContent = 'Пересечений с объектами ДГИ и инфоресурсами не обнаружено.';
             }
+            setCheckDgiAsuOdsLink(data && data.asu_ods_url);
             openCheckDgiModalShell();
         }
 
-        async function checkOwnedFeatureDgiIntersections(geometry, triggerBtn) {
+        async function checkOwnedFeatureDgiIntersections(geometry, triggerBtn, meta) {
             if (!checkDgiUrl) {
                 openCheckDgiModalShell('URL проверки пересечений с ДГИ не настроен.');
                 return;
@@ -294,6 +305,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 triggerBtn.disabled = true;
             }
             openCheckDgiModalShell('Проверяем пересечения…');
+            const rootid = String((meta && meta.rootid) || '').trim();
+            const sourceLabel = String((meta && meta.source_label) || '').trim();
             try {
                 const response = await fetch(checkDgiUrl, {
                     method: 'POST',
@@ -302,7 +315,11 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                         'X-CSRFToken': getCsrfToken(),
                     },
                     credentials: 'same-origin',
-                    body: JSON.stringify({ geometry: geometryNorm }),
+                    body: JSON.stringify({
+                        geometry: geometryNorm,
+                        rootid,
+                        source_label: sourceLabel,
+                    }),
                 });
                 const data = typeof PV.parseJsonResponse === 'function'
                     ? await PV.parseJsonResponse(response)
@@ -377,7 +394,11 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 if (featureLayer.closePopup) {
                     featureLayer.closePopup();
                 }
-                void checkOwnedFeatureDgiIntersections(geometry, btn);
+                const props = (feature && feature.properties) || {};
+                void checkOwnedFeatureDgiIntersections(geometry, btn, {
+                    rootid: props.rootid || '',
+                    source_label: props.source_label || props.source || 'ДТ',
+                });
             };
             if (typeof L !== 'undefined' && L.DomEvent) {
                 L.DomEvent.on(btn, 'click', onClick);
