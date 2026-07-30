@@ -13,6 +13,7 @@ from .qml_style_builder import load_manifest
 from .work_geojson import _column_exists, _max_features, _style_fields_for_table
 from .work_layers import (
     _quote_ident,
+    geom_to_wgs84_sql,
     work_geom_column,
     work_schema_name,
 )
@@ -221,7 +222,7 @@ def _adjacent_select_sql(
     return f"""
         SELECT json_build_object(
             'type', 'Feature',
-            'geometry', ST_AsGeoJSON(ST_Transform(t.{quoted_geom}, 4326))::json,
+            'geometry', ST_AsGeoJSON({geom_to_wgs84_sql(f't.{quoted_geom}')})::json,
             'properties', json_build_object(
                 {props_sql}
             )

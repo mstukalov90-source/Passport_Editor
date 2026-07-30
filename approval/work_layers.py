@@ -58,6 +58,38 @@ def work_source_srid() -> int:
     return int(getattr(settings, "APPROVAL_WORK_SOURCE_SRID", 980077))
 
 
+def work_source_proj4_sql() -> str:
+    """
+    SQL expression returning proj4text for APPROVAL_WORK_SOURCE_SRID.
+
+    PostGIS 3 / PROJ 6+ prefers spatial_ref_sys.srtext over proj4text when
+    transforming by SRID. For 980077 those disagree (~5 m). QGIS uses proj4,
+    so we force the same definition via an explicit proj4 pipeline.
+    """
+    srid = work_source_srid()
+    return f"(SELECT proj4text FROM public.spatial_ref_sys WHERE srid = {int(srid)})"
+
+
+_WGS84_PROJ4 = "+proj=longlat +datum=WGS84 +no_defs"
+
+
+def geom_to_wgs84_sql(geom_expr: str) -> str:
+    """Reproject MSC-77 geometry to WGS-84 using spatial_ref_sys.proj4text for source SRID."""
+    return (
+        f"ST_Transform({geom_expr}, {work_source_proj4_sql()}, '{_WGS84_PROJ4}')"
+    )
+
+
+def wgs84_to_work_sql(geojson_param: str = "%s") -> str:
+    """Reproject WGS-84 GeoJSON param to work MSC-77 via spatial_ref_sys.proj4text."""
+    return (
+        f"ST_Transform("
+        f"ST_SetSRID(ST_GeomFromGeoJSON({geojson_param}), 4326), "
+        f"'{_WGS84_PROJ4}', "
+        f"{work_source_proj4_sql()})"
+    )
+
+
 def work_owner_column() -> str:
     return getattr(settings, "GIS_OBJECT_OWNER_FIELD", "OwnerLegalPersonId")
 
@@ -319,10 +351,7 @@ def count_features_by_table(
                     clip_sql = f"""
                       AND ST_Intersects(
                         t.{_quote_ident(geom_col)},
-                        ST_Transform(
-                          ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326),
-                          ST_SRID(t.{_quote_ident(geom_col)})
-                        )
+                        {wgs84_to_work_sql()}
                       )
                     """
                     params.append(clip_geojson)

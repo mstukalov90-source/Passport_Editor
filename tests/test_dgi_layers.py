@@ -1,9 +1,12 @@
-"""Tests for DGI sub-layer classification (moscow vs private)."""
+"""Tests for DGI sub-layer classification (moscow vs private) and rent."""
 
 from pass_viewer.dgi_layers import (
+    DGI_LAYER_KEYS,
+    DGI_LAYER_SPECS,
     DGI_MOSCOW_MARKER_CITY,
     DGI_MOSCOW_MARKER_NO_DATA,
     build_dgi_ownership_extra_sql,
+    build_dgi_rent_extra_sql,
     classify_dgi_ownership,
     normalize_dgi_aprove_payload,
 )
@@ -29,6 +32,24 @@ def test_build_sql_fragments():
     assert "ILIKE" in moscow_sql
     assert DGI_MOSCOW_MARKER_CITY in moscow_sql
     assert "IS NULL" in private_sql
+
+
+def test_build_rent_sql_fragments():
+    col = 't."rent"'
+    with_rent = build_dgi_rent_extra_sql(col, True)
+    without_rent = build_dgi_rent_extra_sql(col, False)
+    assert "IS TRUE" in with_rent
+    assert "IS NOT TRUE" in without_rent
+    assert with_rent.startswith(" AND ")
+    assert without_rent.startswith(" AND ")
+
+
+def test_dgi_layer_specs_cover_ownership_and_rent():
+    assert set(DGI_LAYER_KEYS) == set(DGI_LAYER_SPECS)
+    assert DGI_LAYER_SPECS["dgi_moscow_rent"] == {"ownership": "moscow", "with_rent": True}
+    assert DGI_LAYER_SPECS["dgi_moscow_no_rent"] == {"ownership": "moscow", "with_rent": False}
+    assert DGI_LAYER_SPECS["dgi_private_rent"] == {"ownership": "private", "with_rent": True}
+    assert DGI_LAYER_SPECS["dgi_private_no_rent"] == {"ownership": "private", "with_rent": False}
 
 
 def test_normalize_dgi_aprove_private_over_10():

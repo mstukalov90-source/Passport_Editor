@@ -1,11 +1,11 @@
 # Graph Report - GeoDjango/approval  (2026-07-30)
 
 ## Corpus Check
-- 38 files · ~659,104 words
+- 38 files · ~659,039 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 569 nodes · 1645 edges · 29 communities (19 shown, 10 thin omitted)
+- 567 nodes · 1642 edges · 29 communities (19 shown, 10 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 35 edges (avg confidence: 0.58)
 - Token cost: 0 input · 0 output
 
@@ -50,10 +50,10 @@
 10. `load_manifest()` - 14 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `api_map_layer()` --calls--> `get_owner_id_for_username()`  [EXTRACTED]
-  GeoDjango/approval/views.py → GeoDjango/approval/access.py
-- `landing()` --calls--> `get_owner_id_for_username()`  [EXTRACTED]
-  GeoDjango/approval/views.py → GeoDjango/approval/access.py
+- `_actor_context()` --calls--> `get_owner_id_for_username()`  [EXTRACTED]
+  GeoDjango/approval/api_views.py → GeoDjango/approval/access.py
+- `_qgis_actor()` --calls--> `get_owner_id_for_username()`  [EXTRACTED]
+  GeoDjango/approval/qgis_api_views.py → GeoDjango/approval/access.py
 - `serialize_approve_option()` --calls--> `is_inspector_for_approve()`  [EXTRACTED]
   GeoDjango/approval/events_service.py → GeoDjango/approval/access.py
 - `landing()` --calls--> `get_accessible_approves()`  [EXTRACTED]
@@ -68,7 +68,7 @@
 
 ### Community 0 - "work_adjacent.py"
 Cohesion: 0.05
-Nodes (101): serialize_approve_option(), build_map_layer_load_order(), Progressive map layer loading for the approval landing page., Ordered specs for sequential client-side loading., Return GeoJSON features for one progressive load chunk., resolve_map_layer_features(), landing_page_config(), Page bootstrap config for approval templates (json_script). (+93 more)
+Nodes (100): get_owner_id_for_username(), serialize_approve_option(), build_map_layer_load_order(), Progressive map layer loading for the approval landing page., Ordered specs for sequential client-side loading., Return GeoJSON features for one progressive load chunk., resolve_map_layer_features(), landing_page_config() (+92 more)
 
 ### Community 1 - "landing.js"
 Cohesion: 0.25
@@ -80,7 +80,7 @@ Nodes (72): Any, BaseCommand, Element, Command, Match, build_manifest(), build_s
 
 ### Community 3 - "events_service.py"
 Cohesion: 0.05
-Nodes (116): get_accessible_approve(), get_accessible_approves(), get_accessible_cases_queryset(), get_owner_id_for_username(), is_inspector_for_approve(), _normalized_participant_logins(), Access control for approval workflows., user_can_access_case() (+108 more)
+Nodes (115): get_accessible_approve(), get_accessible_approves(), get_accessible_cases_queryset(), is_inspector_for_approve(), _normalized_participant_logins(), Access control for approval workflows., user_can_access_case(), _actor_context() (+107 more)
 
 ### Community 4 - "events.js"
 Cohesion: 0.09

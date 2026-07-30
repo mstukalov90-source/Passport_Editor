@@ -63,7 +63,17 @@ def test_check_dgi_intersections_for_export_success(client):
     geometry = {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]}
     with patch(
         "pass_viewer.views._get_dgi_intersection_percents_split",
-        return_value={"moscow": 0.0, "private": 12.34},
+        return_value={
+            "moscow": 0.0,
+            "private": 12.34,
+            "dgi_moscow_rent": 0.0,
+            "dgi_moscow_no_rent": 0.0,
+            "dgi_private_rent": 0.0,
+            "dgi_private_no_rent": 12.34,
+            "renew": 0.0,
+            "oozt": 0.0,
+            "rzd": 0.0,
+        },
     ):
         response = client.post(
             "/add-object/check-dgi-intersections/",

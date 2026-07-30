@@ -95,8 +95,10 @@ def test_add_recap_ods_with_geometry(client):
     with patch("pass_viewer.views._get_current_user_owner_id", return_value="OWNER_A"), patch(
         "pass_viewer.views._get_owned_ods_request_for_recap", return_value=selected
     ), patch("pass_viewer.views._get_reference_layers", return_value={
-        "dgi_moscow": None,
-        "dgi_private": None,
+        "dgi_moscow_rent": None,
+        "dgi_moscow_no_rent": None,
+        "dgi_private_rent": None,
+        "dgi_private_no_rent": None,
         "odh": None,
         "ozn": None,
         "renew": None,

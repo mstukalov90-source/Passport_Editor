@@ -10,6 +10,7 @@ from django.db import connections
 
 from .work_layers import (
     _quote_ident,
+    geom_to_wgs84_sql,
     work_geom_column,
     work_schema_name,
     work_taskguid_column,
@@ -50,10 +51,7 @@ def load_work_anchor_geometry(task_guid: str) -> dict | None:
                 cursor.execute(
                     f"""
                     SELECT ST_AsGeoJSON(
-                        ST_Transform(
-                            ST_UnaryUnion(ST_Collect(t.{quoted_geom})),
-                            4326
-                        )
+                        {geom_to_wgs84_sql(f'ST_UnaryUnion(ST_Collect(t.{quoted_geom}))')}
                     )::text
                     FROM {quoted_schema}.{quoted_table} t
                     WHERE t.{quoted_task} = %s::uuid

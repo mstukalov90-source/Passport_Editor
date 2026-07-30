@@ -227,10 +227,175 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const ownedMapEl = document.getElementById('owned-passports-map');
         const ownedGeoDataEl = document.getElementById('owned-passports-geojson-data');
         const hoodWorkAreaGeoEl = document.getElementById('hood-work-area-geojson-data');
+        const checkDgiModal = document.getElementById('check-dgi-modal');
+        const checkDgiModalBody = document.getElementById('check-dgi-modal-body');
+        const checkDgiModalClose = document.getElementById('check-dgi-modal-close');
+        const checkDgiUrl = (cfg.urls && cfg.urls.checkDgi) || '';
         const listTabButtons = Array.from(document.querySelectorAll('.owned-list-tab-btn'));
         const listPanels = Array.from(document.querySelectorAll('.owned-list-panel'));
         const sourceFilterButtons = Array.from(document.querySelectorAll('.owned-source-filter-btn'));
         let applyOwnedMapSourceFilters = null;
+
+        function getCsrfToken() {
+            const fromCookie = getCookie('csrftoken') || '';
+            if (fromCookie) {
+                return fromCookie;
+            }
+            const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+            return input && input.value ? input.value : '';
+        }
+
+        function closeCheckDgiModal() {
+            if (checkDgiModal) {
+                checkDgiModal.style.display = 'none';
+            }
+        }
+
+        function openCheckDgiModalShell(bodyText) {
+            if (!checkDgiModal || !checkDgiModalBody) {
+                return;
+            }
+            if (bodyText != null) {
+                checkDgiModalBody.textContent = bodyText;
+            }
+            checkDgiModal.style.display = 'flex';
+        }
+
+        function showCheckDgiModal(data) {
+            if (!checkDgiModal || !checkDgiModalBody) {
+                return;
+            }
+            if (data.intersects) {
+                checkDgiModalBody.innerHTML =
+                    '<div>ДГИ (г. Москва и Н/Д) с арендой: ' + (data.percent_moscow_rent ?? 0) + '% от площади</div>' +
+                    '<div>ДГИ (г. Москва и Н/Д) без аренды: ' + (data.percent_moscow_no_rent ?? 0) + '% от площади</div>' +
+                    '<div>ДГИ (Частная собственность) с арендой: ' + (data.percent_private_rent ?? 0) + '% от площади</div>' +
+                    '<div>ДГИ (Частная собственность) без аренды: ' + (data.percent_private_no_rent ?? 0) + '% от площади</div>' +
+                    '<div>Реновация: ' + (data.percent_renew ?? 0) + '% от площади</div>' +
+                    '<div>ООЗТ: ' + (data.percent_oozt ?? 0) + '% от площади</div>' +
+                    '<div>Полосы отвода ЖД: ' + (data.percent_rzd ?? 0) + '% от площади</div>';
+            } else {
+                checkDgiModalBody.textContent = 'Пересечений с объектами ДГИ и инфоресурсами не обнаружено.';
+            }
+            openCheckDgiModalShell();
+        }
+
+        async function checkOwnedFeatureDgiIntersections(geometry, triggerBtn) {
+            if (!checkDgiUrl) {
+                openCheckDgiModalShell('URL проверки пересечений с ДГИ не настроен.');
+                return;
+            }
+            const geometryNorm = normalizeOwnedCheckGeometry(geometry);
+            if (!geometryNorm) {
+                openCheckDgiModalShell('Геометрия объекта недоступна для проверки.');
+                return;
+            }
+            if (triggerBtn) {
+                triggerBtn.disabled = true;
+            }
+            openCheckDgiModalShell('Проверяем пересечения…');
+            try {
+                const response = await fetch(checkDgiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ geometry: geometryNorm }),
+                });
+                const data = typeof PV.parseJsonResponse === 'function'
+                    ? await PV.parseJsonResponse(response)
+                    : await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Ошибка проверки пересечений с ДГИ.');
+                }
+                showCheckDgiModal(data);
+            } catch (error) {
+                openCheckDgiModalShell(error.message || 'Не удалось проверить пересечения с ДГИ.');
+            } finally {
+                if (triggerBtn) {
+                    triggerBtn.disabled = false;
+                }
+            }
+        }
+        function normalizeOwnedCheckGeometry(geometry) {
+            if (!geometry || typeof geometry !== 'object') {
+                return null;
+            }
+            if (geometry.type === 'Feature') {
+                return geometry.geometry || null;
+            }
+            if (geometry.type === 'FeatureCollection') {
+                const features = Array.isArray(geometry.features) ? geometry.features : [];
+                const geoms = features
+                    .map((f) => (f && f.geometry) || null)
+                    .filter(Boolean);
+                if (!geoms.length) {
+                    return null;
+                }
+                if (geoms.length === 1) {
+                    return geoms[0];
+                }
+                return { type: 'GeometryCollection', geometries: geoms };
+            }
+            if (geometry.type) {
+                return geometry;
+            }
+            return null;
+        }
+
+        function bindOwnedCheckDgiButton(featureLayer, feature) {
+            const popup = featureLayer.getPopup && featureLayer.getPopup();
+            const popupEl = popup && typeof popup.getElement === 'function' ? popup.getElement() : null;
+            const btn = popupEl && popupEl.querySelector('.owned-check-dgi-btn');
+            if (!btn || btn.dataset.boundCheckDgi === '1') {
+                return;
+            }
+            btn.dataset.boundCheckDgi = '1';
+            if (typeof L !== 'undefined' && L.DomEvent) {
+                L.DomEvent.disableClickPropagation(btn);
+                L.DomEvent.disableScrollPropagation(btn);
+            }
+            const onClick = (event) => {
+                if (event && typeof event.preventDefault === 'function') {
+                    event.preventDefault();
+                }
+                if (event && typeof event.stopPropagation === 'function') {
+                    event.stopPropagation();
+                }
+                if (event && typeof event.stopImmediatePropagation === 'function') {
+                    event.stopImmediatePropagation();
+                }
+                if (typeof L !== 'undefined' && L.DomEvent && event) {
+                    L.DomEvent.stop(event);
+                }
+                let geometry = feature && feature.geometry ? feature.geometry : null;
+                if (!geometry && typeof featureLayer.toGeoJSON === 'function') {
+                    geometry = featureLayer.toGeoJSON();
+                }
+                if (featureLayer.closePopup) {
+                    featureLayer.closePopup();
+                }
+                void checkOwnedFeatureDgiIntersections(geometry, btn);
+            };
+            if (typeof L !== 'undefined' && L.DomEvent) {
+                L.DomEvent.on(btn, 'click', onClick);
+                L.DomEvent.on(btn, 'mousedown', L.DomEvent.stopPropagation);
+                L.DomEvent.on(btn, 'pointerdown', L.DomEvent.stopPropagation);
+            } else {
+                btn.addEventListener('click', onClick);
+            }
+        }
+
+        if (checkDgiModalClose) {
+            checkDgiModalClose.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                closeCheckDgiModal();
+            });
+        }
+        // Close only via OK — backdrop click closes the same gesture that opened the modal.
 
         function normalizeOwnedSourceLabel(value) {
             const source = String(value || 'ДТ').trim().toUpperCase();
@@ -542,8 +707,22 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                             escapeHtml(props.matched_source_label) +
                             '</div>';
                     }
-                    popupHtml += buildPopupMetaFieldsHtml(props) + '</div>';
+                    popupHtml += buildPopupMetaFieldsHtml(props);
+                    popupHtml +=
+                        '<div style="margin-top:10px;padding-top:8px;border-top:1px solid #e5e7eb;">' +
+                        '<button type="button" class="map-toolbar-btn map-toolbar-btn--primary owned-check-dgi-btn" style="font-size:12px;padding:6px 10px;width:100%;">' +
+                        'Проверка пересечений с объектами ДГИ' +
+                        '</button>' +
+                        '</div></div>';
                     featureLayer.bindPopup(popupHtml);
+                    featureLayer.off('popupopen');
+                    featureLayer.on('popupopen', () => {
+                        // Defer until Leaflet inserts popup DOM; click must use DomEvent
+                        // so the map does not swallow the button press.
+                        window.setTimeout(() => {
+                            bindOwnedCheckDgiButton(featureLayer, feature);
+                        }, 0);
+                    });
                 },
             }).addTo(map);
 

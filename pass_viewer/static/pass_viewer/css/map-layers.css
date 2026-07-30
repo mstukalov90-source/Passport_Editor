@@ -17,8 +17,8 @@
 }
 .layer-management-panel__grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(280px, 1fr));
-    min-width: 840px;
+    grid-template-columns: repeat(4, minmax(240px, 1fr));
+    min-width: 960px;
 }
 .layer-management-panel__column {
     padding: 10px 12px 12px;

@@ -18,7 +18,14 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_POST
 from osgeo import gdal, ogr, osr
 
-from .dgi_layers import build_dgi_ownership_extra_sql, finalize_dgi_aprove_record, normalize_dgi_aprove_payload
+from .dgi_layers import (
+    DGI_LAYER_KEYS,
+    DGI_LAYER_SPECS,
+    build_dgi_ownership_extra_sql,
+    build_dgi_rent_extra_sql,
+    finalize_dgi_aprove_record,
+    normalize_dgi_aprove_payload,
+)
 from .forms import EntryPointForm
 from .hood_scope import (
     geometry_intersects_allowed_hood,
@@ -687,8 +694,10 @@ MAP_DEFERRED_LAYER_KEYS = frozenset(
         "request_objects_odh",
         "request_objects_ozn",
         "request_objects_top",
-        "dgi_moscow",
-        "dgi_private",
+        "dgi_moscow_rent",
+        "dgi_moscow_no_rent",
+        "dgi_private_rent",
+        "dgi_private_no_rent",
         "odh",
         "ozn",
         "renew",
@@ -704,28 +713,17 @@ def _get_single_reference_layer(layer_key, geometry, distance_meters=None, reque
     if distance_meters is None:
         distance_meters = _adjacent_nearby_meters()
     dgi_table = getattr(settings, "GIS_DGI_TABLE", "dgi")
-    if layer_key == "dgi_moscow":
+    if layer_key in DGI_LAYER_SPECS:
         with connection.cursor() as cursor:
-            moscow_where = _sql_dgi_ownership_filter(cursor, dgi_table, "moscow")
+            extra_where = _sql_dgi_layer_filter(cursor, dgi_table, layer_key)
         value = _get_reference_layer_geojson(
             dgi_table,
             "ДГИ",
             geometry=geometry,
             distance_meters=distance_meters,
-            extra_where_sql=moscow_where,
+            extra_where_sql=extra_where,
         )
-        return {"dgi_moscow": value}
-    if layer_key == "dgi_private":
-        with connection.cursor() as cursor:
-            private_where = _sql_dgi_ownership_filter(cursor, dgi_table, "private")
-        value = _get_reference_layer_geojson(
-            dgi_table,
-            "ДГИ",
-            geometry=geometry,
-            distance_meters=distance_meters,
-            extra_where_sql=private_where,
-        )
-        return {"dgi_private": value}
+        return {layer_key: value}
     if layer_key == "odh":
         return {
             "odh": _get_reference_layer_geojson(
@@ -2861,8 +2859,10 @@ def _get_new_object_relations(geometry, source_label="ДТ", request_id_filter=N
         "touches": None,
         "nearby": nearby_row[0] if nearby_row else None,
         "request_objects": request_objects_row[0] if request_objects_row else None,
-        "dgi_moscow": ref_layers["dgi_moscow"],
-        "dgi_private": ref_layers["dgi_private"],
+        "dgi_moscow_rent": ref_layers["dgi_moscow_rent"],
+        "dgi_moscow_no_rent": ref_layers["dgi_moscow_no_rent"],
+        "dgi_private_rent": ref_layers["dgi_private_rent"],
+        "dgi_private_no_rent": ref_layers["dgi_private_no_rent"],
         "odh": ref_layers["odh"],
         "ozn": ref_layers["ozn"],
         "renew": ref_layers["renew"],
@@ -2875,48 +2875,94 @@ def _get_new_object_relations(geometry, source_label="ДТ", request_id_filter=N
     }
 
 
-def _get_dgi_intersection_percent(geometry, extra_where_sql: str = ""):
-    dgi_table = getattr(settings, "GIS_DGI_TABLE", "dgi")
+def _get_layer_intersection_percent(geometry, table_name, extra_where_sql: str = "", *, table_alias: str = "d"):
+    """Overlap percent of ``geometry`` with rows from ``table_name`` (optional SQL AND-filter)."""
+    geometry_norm = _to_intersection_geometry(geometry)
+    if not geometry_norm or not table_name:
+        return 0.0
     geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
-    geometry_json = json.dumps(geometry)
-    with connection.cursor() as cursor:
-        geom_field = _resolve_column_name(cursor, dgi_table, geom_field_pref)
-        hood_suf, hood_params = get_hood_intersects_sql_suffix(f"d.{_quote_ident(geom_field)}")
-        query = (
-            "WITH input AS ("
-            f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
-            "), input_area AS ("
-            " SELECT ST_Area(geom::geography) AS total_area FROM input"
-            "), dgi_intersections AS ("
-            f" SELECT ST_Intersection(d.{_quote_ident(geom_field)}, i.geom) AS geom"
-            f" FROM {_quote_ident(dgi_table)} d, input i"
-            f" WHERE ST_Intersects(d.{_quote_ident(geom_field)}, i.geom)"
-            f"{hood_suf}"
-            f"{extra_where_sql}"
-            "), overlap AS ("
-            " SELECT ST_Area(COALESCE(ST_UnaryUnion(ST_Collect(geom)), ST_GeomFromText('POLYGON EMPTY', 4326))::geography) AS overlap_area"
-            " FROM dgi_intersections"
-            ") "
-            "SELECT CASE "
-            "  WHEN ia.total_area IS NULL OR ia.total_area = 0 THEN 0 "
-            "  ELSE LEAST(100.0, (COALESCE(o.overlap_area, 0) * 100.0) / ia.total_area) "
-            "END AS overlap_percent "
-            "FROM input_area ia CROSS JOIN overlap o"
+    geometry_json = json.dumps(geometry_norm)
+    alias = table_alias or "d"
+    try:
+        with connection.cursor() as cursor:
+            if not _table_exists(cursor, table_name):
+                return 0.0
+            if not _column_exists(cursor, table_name, geom_field_pref):
+                return 0.0
+            geom_field = _resolve_column_name(cursor, table_name, geom_field_pref)
+            raw_geom = f"{alias}.{_quote_ident(geom_field)}"
+            # Invalid source rows (esp. rzd) raise TopologyException on ST_Intersects
+            # unless repaired; bbox prefilter stays on the raw column for index use.
+            geom_expr = f"ST_MakeValid({raw_geom})"
+            hood_suf, hood_params = get_hood_intersects_sql_suffix(geom_expr)
+            query = (
+                "WITH input AS ("
+                f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+                "), input_area AS ("
+                " SELECT ST_Area(geom::geography) AS total_area FROM input"
+                "), layer_intersections AS ("
+                f" SELECT ST_CollectionExtract(ST_MakeValid(ST_Intersection({geom_expr}, i.geom)), 3) AS geom"
+                f" FROM {_quote_ident(table_name)} {alias}, input i"
+                f" WHERE {raw_geom} && i.geom"
+                f" AND ST_Intersects({geom_expr}, i.geom)"
+                f"{hood_suf}"
+                f"{extra_where_sql}"
+                "), overlap AS ("
+                " SELECT ST_Area(COALESCE(ST_UnaryUnion(ST_Collect(geom)), ST_GeomFromText('POLYGON EMPTY', 4326))::geography) AS overlap_area"
+                " FROM layer_intersections"
+                " WHERE geom IS NOT NULL AND NOT ST_IsEmpty(geom)"
+                ") "
+                "SELECT CASE "
+                "  WHEN ia.total_area IS NULL OR ia.total_area = 0 THEN 0 "
+                "  ELSE LEAST(100.0, (COALESCE(o.overlap_area, 0) * 100.0) / ia.total_area) "
+                "END AS overlap_percent "
+                "FROM input_area ia CROSS JOIN overlap o"
+            )
+            cursor.execute(query, [geometry_json] + hood_params)
+            row = cursor.fetchone()
+            return float(row[0]) if row and row[0] is not None else 0.0
+    except Exception:
+        logger.exception(
+            "_get_layer_intersection_percent failed for table=%s",
+            table_name,
         )
-        cursor.execute(query, [geometry_json] + hood_params)
-        row = cursor.fetchone()
-        return float(row[0]) if row and row[0] is not None else 0.0
+        return 0.0
+
+
+def _get_dgi_intersection_percent(geometry, extra_where_sql: str = ""):
+    return _get_layer_intersection_percent(
+        geometry,
+        getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        extra_where_sql,
+        table_alias="d",
+    )
 
 
 def _get_dgi_intersection_percents_split(geometry):
+    geometry_norm = _to_intersection_geometry(geometry)
+    if not geometry_norm:
+        raise ValueError("Unsupported geometry payload for DGI intersection percent.")
     dgi_table = getattr(settings, "GIS_DGI_TABLE", "dgi")
+    renew_table = getattr(settings, "GIS_RENEW_TABLE", "renew")
+    oozt_table = getattr(settings, "GIS_OOZT_TABLE", "oozt")
+    rzd_table = getattr(settings, "GIS_RZD_TABLE", "rzd")
     with connection.cursor() as cursor:
         moscow_where = _sql_dgi_ownership_filter(cursor, dgi_table, "moscow", table_alias="d")
         private_where = _sql_dgi_ownership_filter(cursor, dgi_table, "private", table_alias="d")
-    return {
-        "moscow": _get_dgi_intersection_percent(geometry, moscow_where),
-        "private": _get_dgi_intersection_percent(geometry, private_where),
+        layer_filters = {
+            layer_key: _sql_dgi_layer_filter(cursor, dgi_table, layer_key, table_alias="d")
+            for layer_key in DGI_LAYER_KEYS
+        }
+    result = {
+        "moscow": _get_layer_intersection_percent(geometry_norm, dgi_table, moscow_where),
+        "private": _get_layer_intersection_percent(geometry_norm, dgi_table, private_where),
+        "renew": _get_layer_intersection_percent(geometry_norm, renew_table),
+        "oozt": _get_layer_intersection_percent(geometry_norm, oozt_table),
+        "rzd": _get_layer_intersection_percent(geometry_norm, rzd_table),
     }
+    for layer_key, extra_where in layer_filters.items():
+        result[layer_key] = _get_layer_intersection_percent(geometry_norm, dgi_table, extra_where)
+    return result
 
 
 def _is_meaningful_gis_rootid(rootid):
@@ -3018,10 +3064,36 @@ def _remove_intersections_from_geometry(
         return None, 0.0
 
     source_tokens = {str(value).strip().lower() for value in (selected_sources or []) if str(value).strip()}
-    allowed_tokens = {"dt", "odh", "ozn", "top", "requests", "dgi_moscow", "dgi_private", "renew", "oozt", "rzd"}
+    allowed_tokens = {
+        "dt",
+        "odh",
+        "ozn",
+        "top",
+        "requests",
+        "dgi_moscow_rent",
+        "dgi_moscow_no_rent",
+        "dgi_private_rent",
+        "dgi_private_no_rent",
+        "renew",
+        "oozt",
+        "rzd",
+    }
     requested_tokens = [
         token
-        for token in ("dt", "odh", "ozn", "top", "requests", "dgi_moscow", "dgi_private", "renew", "oozt", "rzd")
+        for token in (
+            "dt",
+            "odh",
+            "ozn",
+            "top",
+            "requests",
+            "dgi_moscow_rent",
+            "dgi_moscow_no_rent",
+            "dgi_private_rent",
+            "dgi_private_no_rent",
+            "renew",
+            "oozt",
+            "rzd",
+        )
         if token in source_tokens and token in allowed_tokens
     ]
     if not requested_tokens:
@@ -3039,8 +3111,10 @@ def _remove_intersections_from_geometry(
         "dt": settings.GIS_OBJECT_TABLE,
         "odh": getattr(settings, "GIS_ODH_TABLE", "odh"),
         "ozn": getattr(settings, "GIS_OZN_TABLE", "ozn"),
-        "dgi_moscow": getattr(settings, "GIS_DGI_TABLE", "dgi"),
-        "dgi_private": getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        "dgi_moscow_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        "dgi_moscow_no_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        "dgi_private_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        "dgi_private_no_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
         "renew": getattr(settings, "GIS_RENEW_TABLE", "renew"),
         "oozt": getattr(settings, "GIS_OOZT_TABLE", "oozt"),
         "rzd": getattr(settings, "GIS_RZD_TABLE", "rzd"),
@@ -3083,10 +3157,8 @@ def _remove_intersections_from_geometry(
             table_name = token_to_table.get(token)
             table_source_label = _token_to_municipal_source_label(token)
             extra_where = ""
-            if token == "dgi_moscow":
-                extra_where = _sql_dgi_ownership_filter(cursor, table_name, "moscow")
-            elif token == "dgi_private":
-                extra_where = _sql_dgi_ownership_filter(cursor, table_name, "private")
+            if token in DGI_LAYER_SPECS:
+                extra_where = _sql_dgi_layer_filter(cursor, table_name, token)
             _append_intersection_mask_union_part(
                 cursor,
                 table_name,
@@ -3167,10 +3239,36 @@ def _normalize_auto_remove_page_type(value):
 
 def _auto_remove_source_tokens(selected_sources):
     source_tokens = {str(value).strip().lower() for value in (selected_sources or []) if str(value).strip()}
-    allowed_tokens = {"dt", "odh", "ozn", "top", "requests", "dgi_moscow", "dgi_private", "renew", "oozt", "rzd"}
+    allowed_tokens = {
+        "dt",
+        "odh",
+        "ozn",
+        "top",
+        "requests",
+        "dgi_moscow_rent",
+        "dgi_moscow_no_rent",
+        "dgi_private_rent",
+        "dgi_private_no_rent",
+        "renew",
+        "oozt",
+        "rzd",
+    }
     return [
         token
-        for token in ("dt", "odh", "ozn", "top", "requests", "dgi_moscow", "dgi_private", "renew", "oozt", "rzd")
+        for token in (
+            "dt",
+            "odh",
+            "ozn",
+            "top",
+            "requests",
+            "dgi_moscow_rent",
+            "dgi_moscow_no_rent",
+            "dgi_private_rent",
+            "dgi_private_no_rent",
+            "renew",
+            "oozt",
+            "rzd",
+        )
         if token in source_tokens and token in allowed_tokens
     ]
 
@@ -3215,8 +3313,10 @@ def _append_auto_remove_mask_parts(
         "dt": settings.GIS_OBJECT_TABLE,
         "odh": getattr(settings, "GIS_ODH_TABLE", "odh"),
         "ozn": getattr(settings, "GIS_OZN_TABLE", "ozn"),
-        "dgi_moscow": getattr(settings, "GIS_DGI_TABLE", "dgi"),
-        "dgi_private": getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        "dgi_moscow_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        "dgi_moscow_no_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        "dgi_private_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        "dgi_private_no_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
         "renew": getattr(settings, "GIS_RENEW_TABLE", "renew"),
         "oozt": getattr(settings, "GIS_OOZT_TABLE", "oozt"),
         "rzd": getattr(settings, "GIS_RZD_TABLE", "rzd"),
@@ -3247,10 +3347,8 @@ def _append_auto_remove_mask_parts(
         table_name = token_to_table.get(token)
         table_source_label = _token_to_municipal_source_label(token)
         extra_where = ""
-        if token == "dgi_moscow":
-            extra_where = _sql_dgi_ownership_filter(cursor, table_name, "moscow")
-        elif token == "dgi_private":
-            extra_where = _sql_dgi_ownership_filter(cursor, table_name, "private")
+        if token in DGI_LAYER_SPECS:
+            extra_where = _sql_dgi_layer_filter(cursor, table_name, token)
         _append_intersection_mask_union_part(
             cursor,
             table_name,
@@ -3411,7 +3509,7 @@ def _measure_auto_remove_squares_m2(
         "ozn": ({"ozn", "requests"}, {ozn_table}),
         "top": ({"top", "requests"}, {top_table}),
         "oozt": ({"oozt"}, None),
-        "dgi": ({"dgi_moscow", "dgi_private"}, None),
+        "dgi": (set(DGI_LAYER_KEYS), None),
         "renew": ({"renew"}, None),
         "rzd": ({"rzd"}, None),
     }
@@ -3862,6 +3960,26 @@ def _sql_dgi_ownership_filter(cursor, table_name: str, ownership: str, *, table_
     col_name = _resolve_column_name(cursor, table_name, "short_sobstv_rr")
     col_expr = f"{table_alias}.{_quote_ident(col_name)}"
     return build_dgi_ownership_extra_sql(col_expr, ownership)
+
+
+def _sql_dgi_rent_filter(cursor, table_name: str, with_rent: bool, *, table_alias: str = "t") -> str:
+    """Filter on ``rent``: True → rent IS TRUE; False → rent IS NOT TRUE."""
+    if not _column_exists(cursor, table_name, "rent"):
+        return " AND FALSE" if with_rent else ""
+    col_name = _resolve_column_name(cursor, table_name, "rent")
+    col_expr = f"{table_alias}.{_quote_ident(col_name)}"
+    return build_dgi_rent_extra_sql(col_expr, with_rent)
+
+
+def _sql_dgi_layer_filter(cursor, table_name: str, layer_key: str, *, table_alias: str = "t") -> str:
+    """Combined ownership + rent filter for a DGI panel layer key."""
+    spec = DGI_LAYER_SPECS.get(layer_key)
+    if not spec:
+        return " AND FALSE"
+    return (
+        _sql_dgi_ownership_filter(cursor, table_name, spec["ownership"], table_alias=table_alias)
+        + _sql_dgi_rent_filter(cursor, table_name, spec["with_rent"], table_alias=table_alias)
+    )
 
 
 def _sql_within_meters_where(
@@ -4420,8 +4538,10 @@ def _get_reference_layers(geometry=None, distance_meters=None, request_id_filter
         distance_meters = _adjacent_nearby_meters()
     dgi_table = getattr(settings, "GIS_DGI_TABLE", "dgi")
     layers = {
-        "dgi_moscow": None,
-        "dgi_private": None,
+        "dgi_moscow_rent": None,
+        "dgi_moscow_no_rent": None,
+        "dgi_private_rent": None,
+        "dgi_private_no_rent": None,
         "odh": None,
         "ozn": None,
         "renew": None,
@@ -4431,27 +4551,22 @@ def _get_reference_layers(geometry=None, distance_meters=None, request_id_filter
         "top": None,
     }
     try:
+        layer_filters = {}
         with connection.cursor() as cursor:
-            moscow_where = _sql_dgi_ownership_filter(cursor, dgi_table, "moscow")
-            private_where = _sql_dgi_ownership_filter(cursor, dgi_table, "private")
-        layers["dgi_moscow"] = _get_reference_layer_geojson(
-            dgi_table,
-            "ДГИ",
-            geometry=geometry,
-            distance_meters=distance_meters,
-            extra_where_sql=moscow_where,
-        )
-        layers["dgi_private"] = _get_reference_layer_geojson(
-            dgi_table,
-            "ДГИ",
-            geometry=geometry,
-            distance_meters=distance_meters,
-            extra_where_sql=private_where,
-        )
+            for layer_key in DGI_LAYER_KEYS:
+                layer_filters[layer_key] = _sql_dgi_layer_filter(cursor, dgi_table, layer_key)
+        for layer_key in DGI_LAYER_KEYS:
+            layers[layer_key] = _get_reference_layer_geojson(
+                dgi_table,
+                "ДГИ",
+                geometry=geometry,
+                distance_meters=distance_meters,
+                extra_where_sql=layer_filters[layer_key],
+            )
     except Exception:
-        logger.exception("Failed to load DGI reference layers (dgi_moscow / dgi_private)")
-        layers["dgi_moscow"] = None
-        layers["dgi_private"] = None
+        logger.exception("Failed to load DGI reference layers (%s)", ", ".join(DGI_LAYER_KEYS))
+        for layer_key in DGI_LAYER_KEYS:
+            layers[layer_key] = None
     try:
         layers["odh"] = _get_reference_layer_geojson("odh", "ОДХ", geometry=geometry, distance_meters=distance_meters)
     except Exception:
@@ -4660,8 +4775,10 @@ def main(request):
 
     reference_layers = (
         {
-            "dgi_moscow": None,
-            "dgi_private": None,
+            "dgi_moscow_rent": None,
+            "dgi_moscow_no_rent": None,
+            "dgi_private_rent": None,
+            "dgi_private_no_rent": None,
             "odh": None,
             "ozn": None,
             "renew": None,
@@ -4706,8 +4823,10 @@ def main(request):
             "touches_geometry_json": layers["touches"] if layers else None,
             "nearby_geometry_json": layers["nearby"] if layers else None,
             "request_objects_geometry_json": layers["request_objects"] if layers else None,
-            "dgi_moscow_geometry_json": reference_layers["dgi_moscow"],
-            "dgi_private_geometry_json": reference_layers["dgi_private"],
+            "dgi_moscow_rent_geometry_json": reference_layers["dgi_moscow_rent"],
+            "dgi_moscow_no_rent_geometry_json": reference_layers["dgi_moscow_no_rent"],
+            "dgi_private_rent_geometry_json": reference_layers["dgi_private_rent"],
+            "dgi_private_no_rent_geometry_json": reference_layers["dgi_private_no_rent"],
             "odh_geometry_json": reference_layers["odh"],
             "ozn_geometry_json": reference_layers["ozn"],
             "renew_geometry_json": reference_layers["renew"],
@@ -5323,8 +5442,10 @@ def add_object(request):
         request,
         "pass_viewer/add_object.html",
         {
-            "dgi_moscow_geometry_json": None,
-            "dgi_private_geometry_json": None,
+            "dgi_moscow_rent_geometry_json": None,
+            "dgi_moscow_no_rent_geometry_json": None,
+            "dgi_private_rent_geometry_json": None,
+            "dgi_private_no_rent_geometry_json": None,
             "odh_geometry_json": None,
             "ozn_geometry_json": None,
             "renew_geometry_json": None,
@@ -5400,8 +5521,10 @@ def add_recap(request):
             "touches_geometry_json": initial_relations.get("touches"),
             "nearby_geometry_json": initial_relations.get("nearby"),
             "request_objects_geometry_json": initial_relations.get("request_objects"),
-            "dgi_moscow_geometry_json": reference_layers["dgi_moscow"],
-            "dgi_private_geometry_json": reference_layers["dgi_private"],
+            "dgi_moscow_rent_geometry_json": reference_layers["dgi_moscow_rent"],
+            "dgi_moscow_no_rent_geometry_json": reference_layers["dgi_moscow_no_rent"],
+            "dgi_private_rent_geometry_json": reference_layers["dgi_private_rent"],
+            "dgi_private_no_rent_geometry_json": reference_layers["dgi_private_no_rent"],
             "odh_geometry_json": reference_layers["odh"],
             "ozn_geometry_json": reference_layers["ozn"],
             "renew_geometry_json": reference_layers["renew"],
@@ -5624,8 +5747,8 @@ def check_dgi_intersections(request):
     except json.JSONDecodeError:
         return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
 
-    geometry = payload.get("geometry")
-    if not isinstance(geometry, dict):
+    geometry = _to_intersection_geometry(payload.get("geometry"))
+    if not geometry:
         return JsonResponse({"ok": False, "error": "Геометрия не передана."}, status=400)
 
     for_export = bool(payload.get("for_export"))
@@ -5641,15 +5764,30 @@ def check_dgi_intersections(request):
             status=500,
         )
 
-    percent_moscow = round(percents["moscow"], 2)
-    percent_private = round(percents["private"], 2)
+    percent_moscow = round(float(percents.get("moscow") or 0), 2)
+    percent_private = round(float(percents.get("private") or 0), 2)
+    percent_moscow_rent = round(float(percents.get("dgi_moscow_rent") or 0), 2)
+    percent_moscow_no_rent = round(float(percents.get("dgi_moscow_no_rent") or 0), 2)
+    percent_private_rent = round(float(percents.get("dgi_private_rent") or 0), 2)
+    percent_private_no_rent = round(float(percents.get("dgi_private_no_rent") or 0), 2)
+    percent_renew = round(float(percents.get("renew") or 0), 2)
+    percent_oozt = round(float(percents.get("oozt") or 0), 2)
+    percent_rzd = round(float(percents.get("rzd") or 0), 2)
     intersects_moscow = percent_moscow > 0
     intersects_private = percent_private > 0
+    intersects_info = percent_renew > 0 or percent_oozt > 0 or percent_rzd > 0
     response = {
         "ok": True,
-        "intersects": intersects_moscow or intersects_private,
+        "intersects": intersects_moscow or intersects_private or intersects_info,
         "percent_moscow": percent_moscow,
         "percent_private": percent_private,
+        "percent_moscow_rent": percent_moscow_rent,
+        "percent_moscow_no_rent": percent_moscow_no_rent,
+        "percent_private_rent": percent_private_rent,
+        "percent_private_no_rent": percent_private_no_rent,
+        "percent_renew": percent_renew,
+        "percent_oozt": percent_oozt,
+        "percent_rzd": percent_rzd,
         "intersects_moscow": intersects_moscow,
         "intersects_private": intersects_private,
     }
