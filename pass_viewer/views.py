@@ -10,7 +10,7 @@ from approval.access import get_accessible_approves
 from approval.events_service import serialize_approve_option
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.db import connection
+from django.db import connection, connections
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -5739,6 +5739,111 @@ def check_new_object_relations(request):
     )
 
 
+_ASU_ODS_LINK_PREFIX = "https://reestr-ogh.mos.ru/ogh/"
+_ASU_ODS_SUFFIX_BY_SOURCE = {
+    "ДТ": "38",
+    "ОДХ": "01",
+    "ОЗН": "40",
+}
+
+
+def _resolve_asu_ods_object_id_geodb(table_name, rootid):
+    rootid_text = str(rootid or "").strip()
+    if not rootid_text or not table_name:
+        return None
+    rootid_field = getattr(settings, "GIS_OBJECT_ROOTID_FIELD", "rootid")
+    with connection.cursor() as cursor:
+        if not _table_exists(cursor, table_name):
+            return None
+        rootid_col = _resolve_column_name(cursor, table_name, rootid_field)
+        objectid_col = _resolve_column_name(cursor, table_name, "objectid")
+        if not _column_exists(cursor, table_name, objectid_col):
+            return None
+        cursor.execute(
+            (
+                f"SELECT t.{_quote_ident(objectid_col)} "
+                f"FROM {_quote_ident(table_name)} t "
+                f"WHERE lower(t.{_quote_ident(rootid_col)}::text) = lower(%s) "
+                f"AND t.{_quote_ident(objectid_col)} IS NOT NULL "
+                f"LIMIT 1"
+            ),
+            [rootid_text],
+        )
+        row = cursor.fetchone()
+    if not row or row[0] is None:
+        return None
+    try:
+        return int(row[0])
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_asu_ods_object_id_ozn(rootid):
+    rootid_text = str(rootid or "").strip()
+    if not rootid_text:
+        return None
+    schema = getattr(settings, "APPROVAL_ADJACENT_SCHEMA", "master")
+    table_name = "OznPoly"
+    rootid_col = getattr(settings, "APPROVAL_WORK_ROOTID_COLUMN", "RootId")
+    try:
+        with connections["qgis"].cursor() as cursor:
+            cursor.execute(
+                (
+                    f"SELECT t.{_quote_ident('ObjectId')} "
+                    f"FROM {_quote_ident(schema)}.{_quote_ident(table_name)} t "
+                    f"WHERE lower(t.{_quote_ident(rootid_col)}::text) = lower(%s) "
+                    f"AND t.{_quote_ident('ObjectId')} IS NOT NULL "
+                    f"LIMIT 1"
+                ),
+                [rootid_text],
+            )
+            row = cursor.fetchone()
+    except Exception:
+        logger.exception(
+            "asu_ods_url: failed to resolve ObjectId from %s.%s for rootid=%s",
+            schema,
+            table_name,
+            rootid_text,
+        )
+        return None
+    if not row or row[0] is None:
+        return None
+    try:
+        return int(row[0])
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_asu_ods_object_id(source_label, rootid):
+    normalized = _normalize_source_label(source_label)
+    if normalized == "ОЗН":
+        return _resolve_asu_ods_object_id_ozn(rootid)
+    if normalized == "ОДХ":
+        return _resolve_asu_ods_object_id_geodb(
+            getattr(settings, "GIS_ODH_TABLE", "odh"),
+            rootid,
+        )
+    if normalized == "ДТ":
+        return _resolve_asu_ods_object_id_geodb(settings.GIS_OBJECT_TABLE, rootid)
+    return None
+
+
+def _build_asu_ods_url(source_label, rootid):
+    raw = str(source_label or "").strip().upper()
+    ods_label = str(getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС") or "ОДС").strip().upper()
+    top_label = _top_source_label().upper()
+    if raw in {ods_label, "ОДС"} or raw in {top_label, "TOP"}:
+        return None
+    normalized = _normalize_source_label(source_label)
+    suffix = _ASU_ODS_SUFFIX_BY_SOURCE.get(normalized)
+    if not suffix:
+        return None
+    object_id = _resolve_asu_ods_object_id(normalized, rootid)
+    if object_id is None:
+        return None
+    return f"{_ASU_ODS_LINK_PREFIX}{object_id}000{suffix}"
+
+
 @login_required
 @require_POST
 def check_dgi_intersections(request):
@@ -5793,6 +5898,13 @@ def check_dgi_intersections(request):
     }
     if for_export:
         response["available"] = True
+    else:
+        asu_ods_url = _build_asu_ods_url(
+            payload.get("source_label"),
+            payload.get("rootid"),
+        )
+        if asu_ods_url:
+            response["asu_ods_url"] = asu_ods_url
     return JsonResponse(response)
 
 

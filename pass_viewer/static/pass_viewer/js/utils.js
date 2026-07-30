@@ -267,4 +267,75 @@
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
     };
+
+    function _dgiPctNumber(value) {
+        const n = Number(value);
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    function _dgiFormatPct(value) {
+        const n = Math.round(_dgiPctNumber(value) * 100) / 100;
+        if (Object.is(n, -0) || n === 0) {
+            return '0';
+        }
+        return String(n);
+    }
+
+    function _dgiPctClass(value) {
+        const n = _dgiPctNumber(value);
+        if (n === 0) {
+            return 'dgi-pct--ok';
+        }
+        if (n <= 10) {
+            return 'dgi-pct--warn';
+        }
+        return 'dgi-pct--danger';
+    }
+
+    function _dgiCheckRow(label, value, options) {
+        const opts = options || {};
+        const pct = _dgiFormatPct(value);
+        const rowClass = opts.rowClass ? ` class="${opts.rowClass}"` : '';
+        const colorValue = opts.colorValue != null ? opts.colorValue : value;
+        const pctClass = opts.pctClass || _dgiPctClass(colorValue);
+        return (
+            `<tr${rowClass}>` +
+            `<td>${PassViewer.escapeHtml(label)}</td>` +
+            `<td class="dgi-pct ${pctClass}">${PassViewer.escapeHtml(pct)}%</td>` +
+            '</tr>'
+        );
+    }
+
+    PassViewer.buildCheckDgiModalHtml = function buildCheckDgiModalHtml(data) {
+        const src = data || {};
+        const moscowRent = _dgiPctNumber(src.percent_moscow_rent);
+        const moscowNoRent = _dgiPctNumber(src.percent_moscow_no_rent);
+        const privateRent = _dgiPctNumber(src.percent_private_rent);
+        const privateNoRent = _dgiPctNumber(src.percent_private_no_rent);
+        const dgiSum = moscowRent + moscowNoRent + privateRent + privateNoRent;
+        // «З/У г. Москва без аренды» не влияет на цвет суммы — только на отображаемое значение.
+        const dgiSumForColor = moscowRent + privateRent + privateNoRent;
+
+        const rows =
+            _dgiCheckRow('З/У г. Москва с арендой', moscowRent) +
+            _dgiCheckRow('З/У г. Москва без аренды', moscowNoRent, {
+                pctClass: 'dgi-pct--ok',
+            }) +
+            _dgiCheckRow('З/У Частная или федеральная собственность с арендой', privateRent) +
+            _dgiCheckRow('З/У Частная или федеральная собственность без аренды', privateNoRent) +
+            _dgiCheckRow('Суммарное пересечение', dgiSum, {
+                rowClass: 'dgi-check-table__sum',
+                colorValue: dgiSumForColor,
+            }) +
+            _dgiCheckRow('Реновация', src.percent_renew) +
+            _dgiCheckRow('ООЗТ', src.percent_oozt) +
+            _dgiCheckRow('Полосы отвода ЖД', src.percent_rzd);
+
+        return (
+            '<table class="dgi-check-table">' +
+            '<thead><tr><th>Слой</th><th>Пересечение</th></tr></thead>' +
+            `<tbody>${rows}</tbody>` +
+            '</table>'
+        );
+    };
 })(typeof window !== 'undefined' ? window : global);

@@ -636,7 +636,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 }
                 return patternId;
             };
-            const isDgi = sourceLabel === 'ДГИ';
+            const isDgi = sourceLabel === 'ДГИ' || String(sourceLabel || '').startsWith('З/У');
             const isOozt = sourceLabel === 'ООЗТ';
             const isRzd = sourceLabel === 'РЖД';
             const isRenew = sourceLabel === 'Реновация';
@@ -708,7 +708,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                         const sobstvRrText = String(sobstvRrDisplay ?? '').trim();
                         layer.bindPopup(
                             '<div style="min-width: 220px;">' +
-                            '<div><strong>ДГИ</strong></div>' +
+                            '<div><strong>' + escapeHtml(sourceLabel) + '</strong></div>' +
                             (!descrText || ['null', 'none', '-'].includes(descrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Кадастровый номер:</strong> ' + escapeHtml(descr) + '</div>')) +
                             (!addressText || ['null', 'none', '-'].includes(addressText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Адрес:</strong> ' + escapeHtml(address) + '</div>')) +
                             (!vriText || ['null', 'none', '-'].includes(vriText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Назначение:</strong> ' + escapeHtml(vri) + '</div>')) +
@@ -805,10 +805,10 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             }).addTo(targetGroup);
         }
         function renderReferenceSignalLayers(dgiMoscowRentGeo, dgiMoscowNoRentGeo, dgiPrivateRentGeo, dgiPrivateNoRentGeo, odhGeo, oznGeo) {
-            addSignalTapeLayer(dgiMoscowRentSignalGroup, dgiMoscowRentGeo, 'ДГИ');
-            addSignalTapeLayer(dgiMoscowNoRentSignalGroup, dgiMoscowNoRentGeo, 'ДГИ');
-            addSignalTapeLayer(dgiPrivateRentSignalGroup, dgiPrivateRentGeo, 'ДГИ');
-            addSignalTapeLayer(dgiPrivateNoRentSignalGroup, dgiPrivateNoRentGeo, 'ДГИ');
+            addSignalTapeLayer(dgiMoscowRentSignalGroup, dgiMoscowRentGeo, 'З/У г. Москва с арендой');
+            addSignalTapeLayer(dgiMoscowNoRentSignalGroup, dgiMoscowNoRentGeo, 'З/У г. Москва без аренды');
+            addSignalTapeLayer(dgiPrivateRentSignalGroup, dgiPrivateRentGeo, 'З/У Частная или федеральная собственность с арендой');
+            addSignalTapeLayer(dgiPrivateNoRentSignalGroup, dgiPrivateNoRentGeo, 'З/У Частная или федеральная собственность без аренды');
             addSignalTapeLayer(odhSignalGroup, filterPassportOnlyGeoJson(odhGeo), 'ОДХ');
             addSignalTapeLayer(oznSignalGroup, filterPassportOnlyGeoJson(oznGeo), 'ОЗН');
         }
@@ -1595,14 +1595,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 return;
             }
             if (data.intersects) {
-                checkDgiModalBody.innerHTML =
-                    '<div>ДГИ (г. Москва и Н/Д) с арендой: ' + (data.percent_moscow_rent ?? 0) + '% от площади</div>' +
-                    '<div>ДГИ (г. Москва и Н/Д) без аренды: ' + (data.percent_moscow_no_rent ?? 0) + '% от площади</div>' +
-                    '<div>ДГИ (Частная собственность) с арендой: ' + (data.percent_private_rent ?? 0) + '% от площади</div>' +
-                    '<div>ДГИ (Частная собственность) без аренды: ' + (data.percent_private_no_rent ?? 0) + '% от площади</div>' +
-                    '<div>Реновация: ' + (data.percent_renew ?? 0) + '% от площади</div>' +
-                    '<div>ООЗТ: ' + (data.percent_oozt ?? 0) + '% от площади</div>' +
-                    '<div>Полосы отвода ЖД: ' + (data.percent_rzd ?? 0) + '% от площади</div>';
+                checkDgiModalBody.innerHTML = PV.buildCheckDgiModalHtml(data);
             } else {
                 checkDgiModalBody.textContent = 'Пересечений с объектами ДГИ и инфоресурсами не обнаружено.';
             }
