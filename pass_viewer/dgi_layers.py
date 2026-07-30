@@ -1,9 +1,24 @@
-"""DGI sub-layer classification by short_sobstv_rr (moscow vs private ownership)."""
+"""DGI sub-layer classification by short_sobstv_rr (moscow vs private) and rent."""
 
 from __future__ import annotations
 
 DGI_MOSCOW_MARKER_CITY = "город Москва"
 DGI_MOSCOW_MARKER_NO_DATA = "Нет данных о правообладателе"
+
+# Map panel / auto-remove / deferred load keys: ownership × rent.
+DGI_LAYER_KEYS = (
+    "dgi_moscow_rent",
+    "dgi_moscow_no_rent",
+    "dgi_private_rent",
+    "dgi_private_no_rent",
+)
+
+DGI_LAYER_SPECS = {
+    "dgi_moscow_rent": {"ownership": "moscow", "with_rent": True},
+    "dgi_moscow_no_rent": {"ownership": "moscow", "with_rent": False},
+    "dgi_private_rent": {"ownership": "private", "with_rent": True},
+    "dgi_private_no_rent": {"ownership": "private", "with_rent": False},
+}
 
 
 def _sql_ilike_contains_fragment(literal: str) -> str:
@@ -23,6 +38,16 @@ def build_dgi_ownership_extra_sql(short_sobstv_col_expr: str, ownership: str) ->
     if ownership == "moscow":
         return f" AND ({short_sobstv_col_expr} IS NOT NULL AND ({moscow_match}))"
     return f" AND ({short_sobstv_col_expr} IS NULL OR NOT ({moscow_match}))"
+
+
+def build_dgi_rent_extra_sql(rent_col_expr: str, with_rent: bool) -> str:
+    """
+    SQL fragment starting with `` AND `` for rent column expression, e.g. ``t."rent"``.
+    with_rent True → rent IS TRUE; False → rent IS NOT TRUE (false or null).
+    """
+    if with_rent:
+        return f" AND ({rent_col_expr} IS TRUE)"
+    return f" AND ({rent_col_expr} IS NOT TRUE)"
 
 
 def normalize_dgi_aprove_payload(raw, username: str) -> dict | None:

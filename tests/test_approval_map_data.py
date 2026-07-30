@@ -14,8 +14,12 @@ from approval.work_layers import (
     build_layer_groups,
     count_features_by_table,
     format_survey_page_title,
+    geom_to_wgs84_sql,
     layer_stack_order,
     resolve_task_survey_title,
+    wgs84_to_work_sql,
+    work_source_proj4_sql,
+    work_source_srid,
 )
 from django.http import HttpResponse
 from django.test import RequestFactory
@@ -292,6 +296,19 @@ def test_schema_taskguid_column_uses_guid_for_topopassport():
     assert schema_taskguid_column("topopassport") == "guid"
 
 
+def test_work_source_srid_transform_helpers_use_980077():
+    assert work_source_srid() == 980077
+    assert "spatial_ref_sys WHERE srid = 980077" in work_source_proj4_sql()
+    to_wgs = geom_to_wgs84_sql('t."Geometry"')
+    assert to_wgs.startswith('ST_Transform(t."Geometry",')
+    assert "proj4text FROM public.spatial_ref_sys WHERE srid = 980077" in to_wgs
+    assert "+proj=longlat +datum=WGS84 +no_defs" in to_wgs
+    assert "ST_SetSRID" not in to_wgs
+    from_wgs = wgs84_to_work_sql()
+    assert "ST_GeomFromGeoJSON(%s)" in from_wgs
+    assert "proj4text FROM public.spatial_ref_sys WHERE srid = 980077" in from_wgs
+
+
 def test_topopassport_feature_select_sql_uses_guid_column():
     from unittest.mock import MagicMock
 
@@ -308,6 +325,8 @@ def test_topopassport_feature_select_sql_uses_guid_column():
     assert '"topopassport"."SomePoly"' in sql
     assert '"guid"' in sql
     assert "TaskGUID" not in sql
+    assert "proj4text FROM public.spatial_ref_sys WHERE srid = 980077" in sql
+    assert 'ST_Transform(t."Geometry"' in sql
 
 
 def test_topotext_feature_select_sql_clips_to_work_boundary():
@@ -329,6 +348,8 @@ def test_topotext_feature_select_sql_clips_to_work_boundary():
     assert "ANY(%s::uuid[])" in sql
     # Guids placeholder comes before boundary GeoJSON.
     assert sql.index("ANY(%s::uuid[])") < sql.index("ST_GeomFromGeoJSON(%s)")
+    assert "proj4text FROM public.spatial_ref_sys WHERE srid = 980077" in sql
+    assert "ST_SRID(" not in sql
 
 
 def test_should_clip_only_topotext_in_topopassport():

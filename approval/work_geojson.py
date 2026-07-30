@@ -12,12 +12,14 @@ from .qml_style_builder import load_manifest
 from .reference_layers import load_work_anchor_geometry
 from .work_layers import (
     _quote_ident,
+    geom_to_wgs84_sql,
     list_schema_layer_tables,
     list_topopassport_layer_tables,
     list_work_layer_tables,
     schema_taskguid_column,
     topo_layer_key,
     topopassport_schema_name,
+    wgs84_to_work_sql,
     work_geom_column,
     work_schema_name,
 )
@@ -126,17 +128,14 @@ def _feature_select_sql(
         clip_sql = f"""
           AND ST_Intersects(
             t.{quoted_geom},
-            ST_Transform(
-              ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326),
-              ST_SRID(t.{quoted_geom})
-            )
+            {wgs84_to_work_sql()}
           )
         """
 
     return f"""
         SELECT json_build_object(
             'type', 'Feature',
-            'geometry', ST_AsGeoJSON(ST_Transform(t.{quoted_geom}, 4326))::json,
+            'geometry', ST_AsGeoJSON({geom_to_wgs84_sql(f't.{quoted_geom}')})::json,
             'properties', json_build_object(
                 {props_sql}
             )
