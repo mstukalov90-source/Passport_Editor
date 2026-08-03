@@ -101,7 +101,7 @@ def landing(request):
     # GeoJSON loads progressively via api_map_layer.
     map_geojson = {"type": "FeatureCollection", "features": []}
 
-    page_title = "Согласование"
+    page_title = "Согласование границ ОГХ"
     if selected_approve is not None:
         page_title = resolve_task_survey_title(selected_approve.incoming_guid)
 

@@ -34,9 +34,9 @@ def test_approval_landing_loads_for_authenticated_user(client, e2e_credentials):
     assert response.status_code == 200
     content = response.content.decode('utf-8')
     assert 'approval-map' in content
-    assert 'Согласование' in content
+    assert 'Согласование границ ОГХ' in content
     assert 'Чат события' in content
-    assert 'Чаты событий' in content
+    assert 'Процесс согласования границ' in content
     assert 'Управление слоями' in content
     assert 'approval-map-geojson' in content
     assert 'approval-create-event-btn' not in content

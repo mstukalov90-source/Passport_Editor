@@ -72,6 +72,11 @@ urlpatterns = [
         api_views.api_message_reaction,
         name="api_message_reaction",
     ),
+    path(
+        "api/messages/<int:message_id>/",
+        api_views.api_delete_message,
+        name="api_delete_message",
+    ),
     path("api/attachments/<int:attachment_id>/", api_views.api_download_attachment, name="api_download_attachment"),
     path("approves/delete/", api_views.delete_approve, name="delete_approve"),
 ]

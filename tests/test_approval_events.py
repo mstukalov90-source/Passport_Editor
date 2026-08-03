@@ -849,3 +849,251 @@ def test_revoke_case_approval_reopens_primary(
     assert primary.approved is True
     approve_with_primary_owner.refresh_from_db()
     assert approve_with_primary_owner.approved is True
+
+
+@pytest.mark.django_db
+def test_case_detail_marks_overdue_after_one_month(client, owner_a, approve_with_primary_owner):
+    from datetime import timedelta
+
+    from approval.models import CaseServiceEvent
+    from django.utils import timezone
+
+    primary = _primary_case(approve_with_primary_owner)
+    Case.objects.filter(pk=primary.pk).update(created_at=timezone.now() - timedelta(days=32))
+
+    _login(client, "owner_a")
+    response = client.get(reverse("approval:api_case_detail", kwargs={"case_id": primary.id}))
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["case"]["status"] == "Просрочено"
+    assert payload["case"]["status_class"] == "overdue"
+    assert payload["case"]["created_at_date"]
+
+    overdue_events = CaseServiceEvent.objects.filter(
+        case=primary, kind=CaseServiceEvent.KIND_CLOSED_OVERDUE
+    )
+    assert overdue_events.count() == 1
+    overdue_items = [
+        item
+        for item in payload["case"]["messages"]
+        if item.get("kind") == "service_closed_overdue"
+    ]
+    assert len(overdue_items) == 1
+    assert overdue_items[0]["text"] == "Событие закрыто по истечению срока"
+
+    response2 = client.get(reverse("approval:api_case_detail", kwargs={"case_id": primary.id}))
+    assert response2.status_code == 200
+    assert (
+        CaseServiceEvent.objects.filter(
+            case=primary, kind=CaseServiceEvent.KIND_CLOSED_OVERDUE
+        ).count()
+        == 1
+    )
+    overdue_items2 = [
+        item
+        for item in response2.json()["case"]["messages"]
+        if item.get("kind") == "service_closed_overdue"
+    ]
+    assert len(overdue_items2) == 1
+
+
+@pytest.mark.django_db
+def test_full_approval_creates_closed_service_event(
+    client,
+    owner_a,
+    inspector_user,
+    approve_with_primary_owner,
+):
+    from approval.models import CaseServiceEvent
+
+    primary = _primary_case(approve_with_primary_owner)
+
+    _login(client, "owner_a")
+    client.post(
+        reverse("approval:api_approve_case", kwargs={"case_id": primary.id}),
+        data="{}",
+        content_type="application/json",
+    )
+    _login(client, "inspector_user")
+    response = client.post(
+        reverse("approval:api_approve_case", kwargs={"case_id": primary.id}),
+        data="{}",
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    primary.refresh_from_db()
+    assert primary.approved is True
+
+    closed = CaseServiceEvent.objects.filter(
+        case=primary, kind=CaseServiceEvent.KIND_CLOSED
+    )
+    assert closed.count() == 1
+
+    detail = client.get(reverse("approval:api_case_detail", kwargs={"case_id": primary.id}))
+    assert detail.status_code == 200
+    closed_items = [
+        item for item in detail.json()["case"]["messages"] if item.get("kind") == "service_closed"
+    ]
+    assert len(closed_items) == 1
+    assert closed_items[0]["text"] == "Событие закрыто"
+
+
+@pytest.mark.django_db
+def test_approve_creates_service_event(client, owner_a, approve_with_primary_owner):
+    from approval.models import CaseServiceEvent
+
+    primary = _primary_case(approve_with_primary_owner)
+    before_messages = CaseMessage.objects.filter(case=primary).count()
+    before_events = CaseServiceEvent.objects.filter(case=primary).count()
+
+    _login(client, "owner_a")
+    response = client.post(
+        reverse("approval:api_approve_case", kwargs={"case_id": primary.id}),
+        data="{}",
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    assert CaseMessage.objects.filter(case=primary).count() == before_messages
+    assert CaseServiceEvent.objects.filter(case=primary).count() == before_events + 1
+    event = CaseServiceEvent.objects.filter(case=primary).latest("id")
+    assert event.kind == CaseServiceEvent.KIND_APPROVED
+    assert event.actor_login == "owner_a"
+
+    detail = client.get(reverse("approval:api_case_detail", kwargs={"case_id": primary.id}))
+    assert detail.status_code == 200
+    service_items = [
+        item for item in detail.json()["case"]["messages"] if item.get("kind") == "service_approved"
+    ]
+    assert len(service_items) == 1
+    assert service_items[0]["is_service"] is True
+    assert service_items[0]["can_delete"] is False
+    assert "согласовал" in service_items[0]["text"]
+
+
+@pytest.mark.django_db
+def test_revoke_creates_service_event(
+    client,
+    owner_a,
+    inspector_user,
+    approve_with_primary_owner,
+):
+    from approval.models import CaseServiceEvent
+
+    primary = _primary_case(approve_with_primary_owner)
+
+    _login(client, "owner_a")
+    client.post(
+        reverse("approval:api_approve_case", kwargs={"case_id": primary.id}),
+        data="{}",
+        content_type="application/json",
+    )
+    _login(client, "inspector_user")
+    client.post(
+        reverse("approval:api_approve_case", kwargs={"case_id": primary.id}),
+        data="{}",
+        content_type="application/json",
+    )
+
+    revoke = client.post(
+        reverse("approval:api_revoke_case", kwargs={"case_id": primary.id}),
+        data="{}",
+        content_type="application/json",
+    )
+    assert revoke.status_code == 200
+    revoked = CaseServiceEvent.objects.filter(
+        case=primary, kind=CaseServiceEvent.KIND_REVOKED
+    ).latest("id")
+    assert revoked.actor_login == "inspector_user"
+
+    detail = client.get(reverse("approval:api_case_detail", kwargs={"case_id": primary.id}))
+    assert detail.status_code == 200
+    service_items = [
+        item for item in detail.json()["case"]["messages"] if item.get("kind") == "service_revoked"
+    ]
+    assert len(service_items) >= 1
+    assert "отменил согласование" in service_items[-1]["text"]
+
+
+@pytest.mark.django_db
+def test_inspector_can_delete_own_message(
+    client,
+    owner_a,
+    inspector_user,
+    approve_with_primary_owner,
+    settings,
+    tmp_path,
+):
+    from approval.models import CaseMessageDeleted
+
+    settings.MEDIA_ROOT = tmp_path
+    primary = _primary_case(approve_with_primary_owner)
+
+    _login(client, "inspector_user")
+    create_response = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data={"body": "Сообщение инспектора"},
+    )
+    assert create_response.status_code == 200
+    message_id = create_response.json()["message"]["id"]
+    assert create_response.json()["message"]["can_delete"] is True
+
+    delete_response = client.delete(
+        reverse("approval:api_delete_message", kwargs={"message_id": message_id})
+    )
+    assert delete_response.status_code == 200
+    assert delete_response.json()["ok"] is True
+    assert not CaseMessage.objects.filter(pk=message_id).exists()
+    archived = CaseMessageDeleted.objects.get(original_message_id=message_id)
+    assert archived.body == "Сообщение инспектора"
+    assert archived.deleted_by_login == "inspector_user"
+    assert archived.author_login == "inspector_user"
+
+
+@pytest.mark.django_db
+def test_inspector_cannot_delete_foreign_message(
+    client,
+    owner_a,
+    inspector_user,
+    approve_with_primary_owner,
+):
+    primary = _primary_case(approve_with_primary_owner)
+
+    _login(client, "owner_a")
+    create_response = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data={"body": "Сообщение владельца"},
+    )
+    assert create_response.status_code == 200
+    message_id = create_response.json()["message"]["id"]
+    assert create_response.json()["message"]["can_delete"] is False
+
+    _login(client, "inspector_user")
+    delete_response = client.delete(
+        reverse("approval:api_delete_message", kwargs={"message_id": message_id})
+    )
+    assert delete_response.status_code == 403
+    assert CaseMessage.objects.filter(pk=message_id).exists()
+
+
+@pytest.mark.django_db
+def test_owner_cannot_delete_own_message(
+    client,
+    owner_a,
+    approve_with_primary_owner,
+):
+    primary = _primary_case(approve_with_primary_owner)
+
+    _login(client, "owner_a")
+    create_response = client.post(
+        reverse("approval:api_post_message", kwargs={"case_id": primary.id}),
+        data={"body": "Сообщение владельца"},
+    )
+    assert create_response.status_code == 200
+    message_id = create_response.json()["message"]["id"]
+
+    delete_response = client.delete(
+        reverse("approval:api_delete_message", kwargs={"message_id": message_id})
+    )
+    assert delete_response.status_code == 403
+    assert CaseMessage.objects.filter(pk=message_id).exists()

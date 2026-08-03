@@ -307,6 +307,9 @@ def test_work_source_srid_transform_helpers_use_980077():
     from_wgs = wgs84_to_work_sql()
     assert "ST_GeomFromGeoJSON(%s)" in from_wgs
     assert "proj4text FROM public.spatial_ref_sys WHERE srid = 980077" in from_wgs
+    # Outer ST_SetSRID tags proj4-transform result (otherwise SRID 0) for ST_Intersects.
+    assert from_wgs.startswith("ST_SetSRID(")
+    assert from_wgs.endswith("980077)")
 
 
 def test_topopassport_feature_select_sql_uses_guid_column():
@@ -349,8 +352,32 @@ def test_topotext_feature_select_sql_clips_to_work_boundary():
     # Guids placeholder comes before boundary GeoJSON.
     assert sql.index("ANY(%s::uuid[])") < sql.index("ST_GeomFromGeoJSON(%s)")
     assert "proj4text FROM public.spatial_ref_sys WHERE srid = 980077" in sql
+    assert "ST_SetSRID(" in sql
+    assert "980077)" in sql
     assert "ST_SRID(" not in sql
 
+
+@patch("approval.work_layers.connections")
+def test_count_features_by_table_keeps_prior_counts_on_table_error(mock_connections):
+    cursor = MagicMock()
+    mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+
+    def execute_side_effect(sql, params=None):
+        if "topotext" in sql:
+            raise RuntimeError("mixed SRID")
+        return None
+
+    cursor.execute.side_effect = execute_side_effect
+    cursor.fetchone.side_effect = [(10,), (5,)]
+
+    with patch("approval.work_layers._TOPO_CLIP_TO_WORK_TABLES", frozenset()):
+        counts = count_features_by_table(
+            ["2e333940-831b-48f5-9751-acd0c2880974"],
+            schema="topopassport",
+            tables=["topolines", "topopoint", "topotext"],
+        )
+
+    assert counts == {"topolines": 10, "topopoint": 5}
 
 def test_should_clip_only_topotext_in_topopassport():
     from approval.work_geojson import _should_clip_table_to_work
@@ -488,12 +515,12 @@ def test_list_topopassport_tables_looks_for_guid_column(mock_connections):
 def test_format_survey_page_title_full_and_fallback():
     assert (
         format_survey_page_title("Павла Андреева ул. 28", "46998")
-        == "Согласование Павла Андреева ул. 28 по заявке 46998."
+        == "Согласование границ ОГХ Павла Андреева ул. 28 по заявке 46998."
     )
-    assert format_survey_page_title("", "46998") == "Согласование"
-    assert format_survey_page_title("Street", "") == "Согласование"
-    assert format_survey_page_title(None, None) == "Согласование"
-    assert format_survey_page_title("  ", "  ") == "Согласование"
+    assert format_survey_page_title("", "46998") == "Согласование границ ОГХ"
+    assert format_survey_page_title("Street", "") == "Согласование границ ОГХ"
+    assert format_survey_page_title(None, None) == "Согласование границ ОГХ"
+    assert format_survey_page_title("  ", "  ") == "Согласование границ ОГХ"
 
 
 @patch("approval.work_layers.connections")
@@ -512,7 +539,7 @@ def test_resolve_task_survey_title_uses_first_matching_table(mock_connections):
 
     title = resolve_task_survey_title("23f956bf-f000-4668-91f2-45274c453122")
 
-    assert title == "Согласование Шаболовка ул. 23 по заявке 24976."
+    assert title == "Согласование границ ОГХ Шаболовка ул. 23 по заявке 24976."
     select_calls = [
         call_args
         for call_args in cursor.execute.call_args_list
@@ -543,8 +570,8 @@ def test_resolve_task_survey_title_falls_back_when_empty(mock_connections):
         None,  # OdhPoly row
     ]
 
-    assert resolve_task_survey_title("00000000-0000-0000-0000-000000000001") == "Согласование"
-    assert resolve_task_survey_title("") == "Согласование"
+    assert resolve_task_survey_title("00000000-0000-0000-0000-000000000001") == "Согласование границ ОГХ"
+    assert resolve_task_survey_title("") == "Согласование границ ОГХ"
 
 
 @pytest.mark.django_db
@@ -557,7 +584,7 @@ def test_landing_passes_resolved_page_title():
     primary.owners = [owner_id]
     primary.save(update_fields=["owners", "updated_at"])
 
-    expected = "Согласование Павла Андреева ул. 28 к.6, 28 к.7 по заявке 46998."
+    expected = "Согласование границ ОГХ Павла Андреева ул. 28 к.6, 28 к.7 по заявке 46998."
 
     with patch("approval.views.count_features_by_table", return_value={}):
         with patch("approval.views.count_topopassport_features_by_table", return_value={}):
