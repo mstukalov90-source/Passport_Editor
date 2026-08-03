@@ -1,11 +1,11 @@
 # Graph Report - GeoDjango/approval  (2026-08-03)
 
 ## Corpus Check
-- 41 files · ~660,484 words
+- 41 files · ~661,083 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 594 nodes · 1715 edges · 36 communities (23 shown, 13 thin omitted)
+- 602 nodes · 1769 edges · 36 communities (23 shown, 13 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 40 edges (avg confidence: 0.57)
 - Token cost: 0 input · 0 output
 
@@ -50,23 +50,23 @@
 3. `Approve` - 24 edges
 4. `serialize_case_summary()` - 22 edges
 5. `bindUi()` - 21 edges
-6. `landing()` - 18 edges
-7. `mapApi()` - 17 edges
-8. `openCase()` - 17 edges
-9. `pointToLayer()` - 15 edges
-10. `_actor_context()` - 14 edges
+6. `_qgis_actor()` - 20 edges
+7. `_json_error()` - 19 edges
+8. `landing()` - 18 edges
+9. `mapApi()` - 17 edges
+10. `openCase()` - 17 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `api_qgis_upsert_approve()` --indirect_call--> `ApproveAlreadyApprovedError`  [INFERRED]
   GeoDjango/approval/qgis_api_views.py → GeoDjango/approval/events_service.py
 - `api_qgis_upsert_approve()` --indirect_call--> `ApproveUserConflictError`  [INFERRED]
   GeoDjango/approval/qgis_api_views.py → GeoDjango/approval/events_service.py
+- `build_topopassport_feature_collection()` --indirect_call--> `topo_layer_key()`  [INFERRED]
+  GeoDjango/approval/work_geojson.py → GeoDjango/approval/work_layers.py
 - `_actor_context()` --calls--> `get_owner_id_for_username()`  [EXTRACTED]
   GeoDjango/approval/api_views.py → GeoDjango/approval/access.py
 - `_qgis_actor()` --calls--> `get_owner_id_for_username()`  [EXTRACTED]
   GeoDjango/approval/qgis_api_views.py → GeoDjango/approval/access.py
-- `serialize_approve_option()` --calls--> `is_inspector_for_approve()`  [EXTRACTED]
-  GeoDjango/approval/events_service.py → GeoDjango/approval/access.py
 
 ## Import Cycles
 - None detected.
@@ -74,8 +74,8 @@
 ## Communities (36 total, 13 thin omitted)
 
 ### Community 0 - "work_adjacent.py"
-Cohesion: 0.15
-Nodes (29): _adjacent_layer_for_root(), adjacent_layer_key(), adjacent_poly_tables(), adjacent_primary_schema_name(), _adjacent_property_pairs(), adjacent_root_ids(), adjacent_schema_name(), _adjacent_select_sql() (+21 more)
+Cohesion: 0.16
+Nodes (27): _adjacent_layer_for_root(), adjacent_layer_key(), adjacent_poly_tables(), adjacent_primary_schema_name(), _adjacent_property_pairs(), adjacent_root_ids(), adjacent_schema_name(), _adjacent_select_sql() (+19 more)
 
 ### Community 1 - "landing.js"
 Cohesion: 0.25
@@ -83,19 +83,19 @@ Nodes (8): addGeometryLayer(), clearEventGeometries(), clearSavedGeometries(), e
 
 ### Community 2 - "qml_style_builder.py"
 Cohesion: 0.07
-Nodes (68): Any, BaseCommand, Element, Command, Match, build_manifest(), build_svg_index(), _collect_svg_references() (+60 more)
+Nodes (71): Any, BaseCommand, Element, Command, Match, build_manifest(), build_svg_index(), _collect_svg_references() (+63 more)
 
 ### Community 3 - "events_service.py"
 Cohesion: 0.06
-Nodes (96): is_inspector_for_approve(), user_can_access_case(), _actor_context(), api_add_case_participant(), api_approve_case(), api_case_detail(), api_change_case_owner(), api_create_adjacent_event() (+88 more)
+Nodes (98): is_inspector_for_approve(), user_can_access_case(), _actor_context(), api_add_case_participant(), api_approve_case(), api_case_detail(), api_change_case_owner(), api_create_adjacent_event() (+90 more)
 
 ### Community 4 - "events.js"
 Cohesion: 0.09
 Nodes (81): addPendingMessageGeometry(), applySoftCaseDetail(), approveCase(), attachmentDownloadUrl(), bindAttachmentClicks(), bindEventCardClicks(), bindMessageDeleteClicks(), bindMessageGeometryClicks() (+73 more)
 
 ### Community 5 - "api_views.py"
-Cohesion: 0.17
-Nodes (29): get_accessible_cases_queryset(), get_cases_queryset(), Short approve payload for QGIS list/detail headers., serialize_approve_qgis_summary(), qgis_api_host_allowed(), Access rules for the QGIS approval API (internal host only)., request_host_name(), api_qgis_approve_by_guid() (+21 more)
+Cohesion: 0.16
+Nodes (35): get_accessible_cases_queryset(), get_cases_queryset(), qgis_api_host_allowed(), Access rules for the QGIS approval API (internal host only)., request_host_name(), api_qgis_add_case_participant(), api_qgis_approve_by_guid(), api_qgis_approve_case() (+27 more)
 
 ### Community 6 - "event_draw.js"
 Cohesion: 0.33
@@ -139,19 +139,19 @@ Nodes (8): enumAnchorToFraction(), getSvgHotspots(), hotspotBasenameFromIconUrl(
 
 ### Community 29 - "work_layers.py"
 Cohesion: 0.13
-Nodes (30): _column_exists(), count_features_by_table(), count_topopassport_features_by_table(), format_survey_page_title(), _is_bottom_polygon_key(), _layer_stack_sort_key(), list_schema_layer_tables(), list_topopassport_layer_tables() (+22 more)
+Nodes (25): work_layer_label(), build_layer_groups(), build_topopassport_layer_groups(), _column_exists(), format_survey_page_title(), _is_bottom_polygon_key(), _layer_panel_sort_key(), _layer_stack_sort_key() (+17 more)
 
 ### Community 30 - "views.py"
-Cohesion: 0.17
-Nodes (19): get_accessible_approve(), get_accessible_approves(), get_owner_id_for_username(), _normalized_participant_logins(), Access control for approval workflows., api_bootstrap(), serialize_approve_option(), landing_page_config() (+11 more)
+Cohesion: 0.13
+Nodes (23): get_accessible_approve(), get_accessible_approves(), get_owner_id_for_username(), _normalized_participant_logins(), Access control for approval workflows., api_bootstrap(), serialize_approve_option(), build_map_layer_load_order() (+15 more)
 
 ### Community 31 - "map_load.py"
-Cohesion: 0.14
-Nodes (18): build_map_layer_load_order(), Progressive map layer loading for the approval landing page., Ordered specs for sequential client-side loading., build_reference_layer_features(), _features_from_geojson_payload(), load_work_anchor_geometry(), Reference map layers (dgi/oozt/renew/rzd) near the approval survey object., Load dgi / oozt / renew / rzd features within APPROVAL_REFERENCE_BUFFER_METERS (+10 more)
+Cohesion: 0.27
+Nodes (10): build_reference_layer_features(), _features_from_geojson_payload(), load_work_anchor_geometry(), Reference map layers (dgi/oozt/renew/rzd) near the approval survey object., Load dgi / oozt / renew / rzd features within APPROVAL_REFERENCE_BUFFER_METERS, Return survey polygon GeoJSON (dict) for TaskGUID from work YardPoly → OznPoly →, reference_buffer_meters(), geom_to_wgs84_sql() (+2 more)
 
 ### Community 32 - "work_geojson.py"
-Cohesion: 0.21
-Nodes (15): Return GeoJSON features for one progressive load chunk., resolve_map_layer_features(), build_schema_feature_collection(), build_topopassport_feature_collection(), build_work_feature_collection(), _feature_select_sql(), _max_features(), Load approval map features from mggt_asu.work / topopassport schemas. (+7 more)
+Cohesion: 0.19
+Nodes (23): load_manifest(), build_schema_feature_collection(), build_topopassport_feature_collection(), build_work_feature_collection(), _feature_select_sql(), _max_features(), Load approval map features from mggt_asu.work / topopassport schemas., Return actual column name matching preferred_name case-insensitively, or None. (+15 more)
 
 ## Knowledge Gaps
 - **14 isolated node(s):** `Migration`, `Migration`, `Migration`, `Migration`, `Migration` (+9 more)
@@ -162,11 +162,11 @@ Nodes (15): Return GeoJSON features for one progressive load chunk., resolve_map
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Case` connect `events_service.py` to `work_adjacent.py`, `api_views.py`, `views.py`?**
-  _High betweenness centrality (0.025) - this node is a cross-community bridge._
-- **Why does `Approve` connect `events_service.py` to `work_geojson.py`, `work_adjacent.py`, `api_views.py`, `views.py`, `map_load.py`?**
+  _High betweenness centrality (0.026) - this node is a cross-community bridge._
+- **Why does `Approve` connect `events_service.py` to `work_adjacent.py`, `api_views.py`, `views.py`?**
   _High betweenness centrality (0.024) - this node is a cross-community bridge._
-- **Why does `merge_parsed_qml_tables()` connect `qml_style_builder.py` to `events_service.py`?**
-  _High betweenness centrality (0.008) - this node is a cross-community bridge._
+- **Why does `load_manifest()` connect `work_geojson.py` to `work_adjacent.py`, `qml_style_builder.py`, `work_layers.py`, `views.py`?**
+  _High betweenness centrality (0.010) - this node is a cross-community bridge._
 - **Are the 3 inferred relationships involving `Case` (e.g. with `ApprovalConfig` and `ApproveAlreadyApprovedError`) actually correct?**
   _`Case` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 4 inferred relationships involving `Approve` (e.g. with `ApprovalConfig` and `.ready()`) actually correct?**

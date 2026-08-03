@@ -8,7 +8,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db.models import Count
-from django.http import JsonResponse
+from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
@@ -18,13 +18,19 @@ from .access import (
     get_accessible_approves,
     get_accessible_cases_queryset,
     get_owner_id_for_username,
+    is_inspector_for_approve,
     user_can_access_case,
 )
 from .events_service import (
     ApproveAlreadyApprovedError,
     ApproveUserConflictError,
+    add_case_participant,
     attach_geometry_to_message,
     build_geometries_feature_collection,
+    change_case_owner,
+    create_event_from_adjacent,
+    delete_approve_for_inspector,
+    delete_inspector_own_message,
     get_cases_queryset,
     parse_geometry_payload,
     record_case_approval,
@@ -34,6 +40,7 @@ from .events_service import (
     serialize_case_summary,
     serialize_message,
     upsert_approve_from_qgis,
+    upsert_message_reaction,
     validate_attachment_file,
 )
 from .models import ApprovalGeometry, Approve, Case, CaseMessage, CaseMessageAttachment
@@ -112,6 +119,17 @@ def _serialize_case_detail(case, *, request, actor):
         current_login=actor["username"],
         owner_id=actor["owner_id"],
         request=request,
+        attachment_url_mode="qgis",
+    )
+
+
+def _serialize_message(message, *, request, actor, case=None):
+    return serialize_message(
+        message,
+        current_login=actor["username"],
+        request=request,
+        case=case,
+        attachment_url_mode="qgis",
     )
 
 
@@ -433,7 +451,7 @@ def api_qgis_post_message(request, case_id):
     return JsonResponse(
         {
             "ok": True,
-            "message": serialize_message(message, current_login=actor["username"], request=request),
+            "message": _serialize_message(message, request=request, actor=actor, case=case),
             "case": _serialize_case(case, actor=actor),
             "current_user": actor["username"],
         }
@@ -510,6 +528,252 @@ def api_qgis_revoke_case(request, case_id):
         {
             "ok": True,
             "case": _serialize_case(case, actor=actor),
+            "current_user": actor["username"],
+        }
+    )
+
+
+@csrf_exempt
+@require_GET
+def api_qgis_download_attachment(request, attachment_id):
+    actor, error = _qgis_actor(request)
+    if error:
+        return error
+
+    attachment = get_object_or_404(
+        CaseMessageAttachment.objects.select_related("message__case__approve"),
+        pk=attachment_id,
+    )
+    case = attachment.message.case
+    if not user_can_access_case(case, actor["owner_id"], username=actor["username"]):
+        return _json_error("Вложение не найдено или недоступно.", status=404)
+
+    file_path = Path(settings.MEDIA_ROOT) / "approval" / "attachments" / str(case.id) / attachment.stored_name
+    if not file_path.is_file():
+        return _json_error("Файл не найден на сервере.", status=404)
+
+    content_type = attachment.content_type or "application/octet-stream"
+    force_download = request.GET.get("download") in ("1", "true", "yes")
+    is_image = content_type.startswith("image/")
+    as_attachment = force_download or not is_image
+
+    response = FileResponse(
+        file_path.open("rb"),
+        as_attachment=as_attachment,
+        filename=attachment.original_name,
+    )
+    response["Content-Type"] = content_type
+    return response
+
+
+@csrf_exempt
+@require_POST
+def api_qgis_message_reaction(request, message_id):
+    payload = _parse_json_body(request)
+    if payload is None:
+        return _json_error("Некорректный JSON.")
+
+    actor, error = _qgis_actor(request, payload=payload)
+    if error:
+        return error
+
+    message = get_object_or_404(
+        CaseMessage.objects.select_related("case__approve", "parent").prefetch_related(
+            "attachments",
+            "geometries",
+            "reactions",
+        ),
+        pk=message_id,
+    )
+    case = message.case
+    if not user_can_access_case(case, actor["owner_id"], username=actor["username"]):
+        return _json_error("Сообщение не найдено или недоступно.", status=404)
+
+    kind = (payload.get("kind") or "").strip()
+    try:
+        upsert_message_reaction(
+            message=message,
+            username=actor["username"],
+            kind=kind,
+            owner_id=actor["owner_id"],
+        )
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    message = CaseMessage.objects.select_related("parent", "case__approve").prefetch_related(
+        "attachments",
+        "geometries",
+        "reactions",
+    ).get(pk=message.pk)
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "message": _serialize_message(message, request=request, actor=actor, case=case),
+            "case": _serialize_case(case, actor=actor),
+            "current_user": actor["username"],
+        }
+    )
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def api_qgis_delete_message(request, message_id):
+    actor, error = _qgis_actor(request)
+    if error:
+        return error
+
+    message = get_object_or_404(
+        CaseMessage.objects.select_related("case__approve").prefetch_related("attachments"),
+        pk=message_id,
+    )
+    case = message.case
+    if not user_can_access_case(case, actor["owner_id"], username=actor["username"]):
+        return _json_error("Сообщение не найдено или недоступно.", status=404)
+
+    try:
+        case = delete_inspector_own_message(message=message, username=actor["username"])
+    except ValueError as exc:
+        return _json_error(str(exc), status=403)
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "case": _serialize_case_detail(case, request=request, actor=actor),
+            "current_user": actor["username"],
+        }
+    )
+
+
+@csrf_exempt
+@require_POST
+def api_qgis_change_case_owner(request, case_id):
+    payload = _parse_json_body(request)
+    if payload is None:
+        return _json_error("Некорректный JSON.")
+
+    actor, error = _qgis_actor(request, payload=payload)
+    if error:
+        return error
+
+    case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
+    if error:
+        return error
+
+    try:
+        case = change_case_owner(
+            case=case,
+            old_owner=payload.get("old_owner") or "",
+            new_owner=payload.get("new_owner") or "",
+            username=actor["username"],
+        )
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "case": _serialize_case(case, actor=actor),
+            "current_user": actor["username"],
+        }
+    )
+
+
+@csrf_exempt
+@require_POST
+def api_qgis_add_case_participant(request, case_id):
+    payload = _parse_json_body(request)
+    if payload is None:
+        return _json_error("Некорректный JSON.")
+
+    actor, error = _qgis_actor(request, payload=payload)
+    if error:
+        return error
+
+    case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
+    if error:
+        return error
+
+    try:
+        case = add_case_participant(
+            case=case,
+            kind=payload.get("kind") or "",
+            value=payload.get("value") or "",
+            username=actor["username"],
+        )
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "case": _serialize_case(case, actor=actor),
+            "current_user": actor["username"],
+        }
+    )
+
+
+@csrf_exempt
+@require_POST
+def api_qgis_create_adjacent_event(request, approve_id):
+    payload = _parse_json_body(request)
+    if payload is None:
+        return _json_error("Некорректный JSON.")
+
+    actor, error = _qgis_actor(request, payload=payload)
+    if error:
+        return error
+
+    approve = get_accessible_approve(approve_id, actor["owner_id"], username=actor["username"])
+    if approve is None:
+        return _json_error("Согласование не найдено или недоступно.", status=404)
+    if not is_inspector_for_approve(actor["username"], approve):
+        return _json_error("Создание события доступно только инспектору этого согласования.", status=403)
+
+    geometry_payload = payload.get("geometry")
+    if geometry_payload is None:
+        return _json_error("Укажите geometry.")
+
+    try:
+        case = create_event_from_adjacent(
+            approve=approve,
+            n_root=payload.get("n_root") or "",
+            geometry_payload=geometry_payload,
+            neighbor_owner=payload.get("owner") or "",
+            username=actor["username"],
+            title=payload.get("title"),
+        )
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "case": _serialize_case(case, actor=actor),
+            "current_user": actor["username"],
+        }
+    )
+
+
+@csrf_exempt
+@require_POST
+def api_qgis_delete_approve(request, approve_id):
+    payload = _parse_json_body(request)
+    if payload is None:
+        return _json_error("Некорректный JSON.")
+
+    actor, error = _qgis_actor(request, payload=payload)
+    if error:
+        return error
+
+    try:
+        delete_approve_for_inspector(approve_id=approve_id, username=actor["username"])
+    except ValueError as exc:
+        return _json_error(str(exc), status=403)
+
+    return JsonResponse(
+        {
+            "ok": True,
             "current_user": actor["username"],
         }
     )

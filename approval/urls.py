@@ -45,6 +45,41 @@ urlpatterns = [
         qgis_api_views.api_qgis_revoke_case,
         name="api_qgis_revoke_case",
     ),
+    path(
+        "api/qgis/cases/<uuid:case_id>/change-owner/",
+        qgis_api_views.api_qgis_change_case_owner,
+        name="api_qgis_change_case_owner",
+    ),
+    path(
+        "api/qgis/cases/<uuid:case_id>/participants/",
+        qgis_api_views.api_qgis_add_case_participant,
+        name="api_qgis_add_case_participant",
+    ),
+    path(
+        "api/qgis/approves/<uuid:approve_id>/adjacent-events/",
+        qgis_api_views.api_qgis_create_adjacent_event,
+        name="api_qgis_create_adjacent_event",
+    ),
+    path(
+        "api/qgis/approves/<uuid:approve_id>/delete/",
+        qgis_api_views.api_qgis_delete_approve,
+        name="api_qgis_delete_approve",
+    ),
+    path(
+        "api/qgis/messages/<int:message_id>/reactions/",
+        qgis_api_views.api_qgis_message_reaction,
+        name="api_qgis_message_reaction",
+    ),
+    path(
+        "api/qgis/messages/<int:message_id>/",
+        qgis_api_views.api_qgis_delete_message,
+        name="api_qgis_delete_message",
+    ),
+    path(
+        "api/qgis/attachments/<int:attachment_id>/",
+        qgis_api_views.api_qgis_download_attachment,
+        name="api_qgis_download_attachment",
+    ),
     # Web session API
     path("api/bootstrap/", api_views.api_bootstrap, name="api_bootstrap"),
     path("api/cases/", api_views.api_create_case, name="api_create_case"),
