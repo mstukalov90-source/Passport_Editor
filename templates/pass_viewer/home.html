@@ -483,6 +483,35 @@
         </div>
     </div>
 
+    <div
+        id="owned-view-object-modal"
+        class="owned-view-object-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="owned-view-object-modal-title"
+        style="display: none;"
+    >
+        <div class="owned-view-object-modal__card">
+            <div class="owned-view-object-modal__header">
+                <h3 id="owned-view-object-modal-title">Просмотр объекта</h3>
+                <button type="button" id="owned-view-object-close-btn" class="owned-view-object-modal__close" aria-label="Закрыть">&#10005;</button>
+            </div>
+            <p id="owned-view-object-status" class="note owned-view-object-modal__status"></p>
+            <div class="owned-view-object-modal__body">
+                <div id="owned-view-object-loading" class="owned-view-object-modal__loading" hidden>
+                    <div class="owned-view-object-modal__spinner" aria-hidden="true"></div>
+                    <span>Загрузка карты и слоёв…</span>
+                </div>
+                <iframe
+                    id="owned-view-object-frame"
+                    class="owned-view-object-modal__frame"
+                    title="Просмотр объекта"
+                    src="about:blank"
+                ></iframe>
+            </div>
+        </div>
+    </div>
+
     <form id="form-confirm-pending" method="post" action="{% url 'confirm_entry_request_id' %}" style="display: none;">
         {% csrf_token %}
         <input type="hidden" name="request_id" id="confirm-pending-request-id" value="" />

@@ -70,6 +70,7 @@ def home_page_config(*, need_entry_request_id, ods_source_label, owner_id=None):
             "exportRecap": reverse("export_recap_geometry"),
             "deleteRecap": reverse("delete_recap_object"),
             "checkDgi": reverse("check_dgi_intersections"),
+            "openOwned": reverse("open_owned_object"),
         },
         needEntryRequestId=bool(need_entry_request_id),
         odsSourceLabel=ods_source_label or "ОДС",
@@ -106,6 +107,7 @@ def main_page_config(
     selected_datesurvey="",
     selected_createtype="",
     selected_source_label="ДТ",
+    view_only=False,
 ):
     return build_page_config(
         "main",
@@ -126,7 +128,8 @@ def main_page_config(
         features={
             "pdf": True,
             "selectedGeometry": True,
-            "deferredMapContextLayers": _defer_map_context_layers_for_page(),
+            "deferredMapContextLayers": bool(view_only) or _defer_map_context_layers_for_page(),
+            "viewOnly": bool(view_only),
         },
         mapLayerLoadOrder=map_deferred_layer_specs(),
     )

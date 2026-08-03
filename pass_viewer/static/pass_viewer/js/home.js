@@ -232,6 +232,12 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const checkDgiModalClose = document.getElementById('check-dgi-modal-close');
         const checkDgiAsuOdsLink = document.getElementById('check-dgi-asu-ods-link');
         const checkDgiUrl = (cfg.urls && cfg.urls.checkDgi) || '';
+        const openOwnedUrl = (cfg.urls && cfg.urls.openOwned) || '';
+        const viewObjectModal = document.getElementById('owned-view-object-modal');
+        const viewObjectFrame = document.getElementById('owned-view-object-frame');
+        const viewObjectStatus = document.getElementById('owned-view-object-status');
+        const viewObjectCloseBtn = document.getElementById('owned-view-object-close-btn');
+        const viewObjectLoading = document.getElementById('owned-view-object-loading');
         const listTabButtons = Array.from(document.querySelectorAll('.owned-list-tab-btn'));
         const listPanels = Array.from(document.querySelectorAll('.owned-list-panel'));
         const sourceFilterButtons = Array.from(document.querySelectorAll('.owned-source-filter-btn'));
@@ -245,6 +251,138 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
             return input && input.value ? input.value : '';
         }
+
+        function setOwnedViewObjectLoading(isLoading, message) {
+            if (viewObjectLoading) {
+                if (isLoading) {
+                    viewObjectLoading.hidden = false;
+                    const label = viewObjectLoading.querySelector('span');
+                    if (label && message) {
+                        label.textContent = message;
+                    }
+                } else {
+                    viewObjectLoading.hidden = true;
+                }
+            }
+            if (viewObjectStatus) {
+                viewObjectStatus.textContent = isLoading ? (message || 'Загрузка карты…') : '';
+            }
+        }
+
+        function closeOwnedViewObjectModal() {
+            if (viewObjectModal) {
+                viewObjectModal.classList.remove('is-open');
+                viewObjectModal.style.display = 'none';
+            }
+            if (viewObjectFrame) {
+                viewObjectFrame.src = 'about:blank';
+            }
+            setOwnedViewObjectLoading(false);
+        }
+
+        function openOwnedViewObjectModal(url) {
+            if (!viewObjectModal || !viewObjectFrame) {
+                return;
+            }
+            setOwnedViewObjectLoading(true, 'Загрузка карты и слоёв…');
+            viewObjectModal.style.display = 'flex';
+            viewObjectModal.classList.add('is-open');
+            viewObjectFrame.onload = () => {
+                setOwnedViewObjectLoading(false);
+                // Leaflet in iframe needs a size refresh after the frame paints.
+                try {
+                    const childWin = viewObjectFrame.contentWindow;
+                    if (childWin) {
+                        childWin.dispatchEvent(new Event('resize'));
+                    }
+                } catch (e) {
+                    // cross-origin should not happen for same-origin main
+                }
+            };
+            viewObjectFrame.src = url;
+        }
+
+        async function openOwnedObjectForView(props) {
+            if (!openOwnedUrl) {
+                if (viewObjectStatus) {
+                    viewObjectStatus.textContent = 'URL открытия объекта не настроен.';
+                }
+                return;
+            }
+            const rootid = String((props && props.rootid) || '').trim();
+            const requestId = String((props && props.request_id) || '').trim();
+            const name = String((props && props.name) || '').trim();
+            const sourceLabel = String(
+                (props && (props.source_label || props.source)) || 'ДТ'
+            ).trim() || 'ДТ';
+            if (!rootid && !requestId && !name) {
+                window.alert('Не удалось определить объект для просмотра.');
+                return;
+            }
+            const body = new URLSearchParams();
+            body.set('rootid', rootid);
+            body.set('request_id', requestId);
+            body.set('name', name);
+            body.set('source_label', sourceLabel);
+            body.set('geometry_detail_mode', rootid ? 'simplified' : 'full');
+            body.set('view_only', '1');
+            body.set('format', 'json');
+            if (viewObjectModal) {
+                viewObjectModal.style.display = 'flex';
+                viewObjectModal.classList.add('is-open');
+            }
+            setOwnedViewObjectLoading(true, 'Подготовка просмотра…');
+            try {
+                const response = await fetch(openOwnedUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': getCsrfToken(),
+                    },
+                    body: body.toString(),
+                    credentials: 'same-origin',
+                });
+                const data = await response.json().catch(() => null);
+                if (!response.ok || !data || !data.ok || !data.url) {
+                    const err =
+                        (data && data.error) ||
+                        'Не удалось открыть объект для просмотра.';
+                    setOwnedViewObjectLoading(false);
+                    if (viewObjectStatus) {
+                        viewObjectStatus.textContent = err;
+                    }
+                    return;
+                }
+                openOwnedViewObjectModal(data.url);
+            } catch (err) {
+                setOwnedViewObjectLoading(false);
+                if (viewObjectStatus) {
+                    viewObjectStatus.textContent =
+                        'Ошибка сети при открытии просмотра.';
+                }
+            }
+        }
+
+        if (viewObjectCloseBtn) {
+            viewObjectCloseBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                closeOwnedViewObjectModal();
+            });
+        }
+        if (viewObjectModal) {
+            viewObjectModal.addEventListener('click', (event) => {
+                if (event.target === viewObjectModal) {
+                    closeOwnedViewObjectModal();
+                }
+            });
+        }
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && viewObjectModal && viewObjectModal.classList.contains('is-open')) {
+                closeOwnedViewObjectModal();
+            }
+        });
 
         function setCheckDgiAsuOdsLink(url) {
             if (!checkDgiAsuOdsLink) {
@@ -399,6 +537,46 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     rootid: props.rootid || '',
                     source_label: props.source_label || props.source || 'ДТ',
                 });
+            };
+            if (typeof L !== 'undefined' && L.DomEvent) {
+                L.DomEvent.on(btn, 'click', onClick);
+                L.DomEvent.on(btn, 'mousedown', L.DomEvent.stopPropagation);
+                L.DomEvent.on(btn, 'pointerdown', L.DomEvent.stopPropagation);
+            } else {
+                btn.addEventListener('click', onClick);
+            }
+        }
+
+        function bindOwnedViewObjectButton(featureLayer, feature) {
+            const popup = featureLayer.getPopup && featureLayer.getPopup();
+            const popupEl = popup && typeof popup.getElement === 'function' ? popup.getElement() : null;
+            const btn = popupEl && popupEl.querySelector('.owned-view-object-btn');
+            if (!btn || btn.dataset.boundViewObject === '1') {
+                return;
+            }
+            btn.dataset.boundViewObject = '1';
+            if (typeof L !== 'undefined' && L.DomEvent) {
+                L.DomEvent.disableClickPropagation(btn);
+                L.DomEvent.disableScrollPropagation(btn);
+            }
+            const onClick = (event) => {
+                if (event && typeof event.preventDefault === 'function') {
+                    event.preventDefault();
+                }
+                if (event && typeof event.stopPropagation === 'function') {
+                    event.stopPropagation();
+                }
+                if (event && typeof event.stopImmediatePropagation === 'function') {
+                    event.stopImmediatePropagation();
+                }
+                if (typeof L !== 'undefined' && L.DomEvent && event) {
+                    L.DomEvent.stop(event);
+                }
+                if (featureLayer.closePopup) {
+                    featureLayer.closePopup();
+                }
+                const props = (feature && feature.properties) || {};
+                void openOwnedObjectForView(props);
             };
             if (typeof L !== 'undefined' && L.DomEvent) {
                 L.DomEvent.on(btn, 'click', onClick);
@@ -734,6 +912,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                         '<button type="button" class="map-toolbar-btn map-toolbar-btn--primary owned-check-dgi-btn" style="font-size:12px;padding:6px 10px;width:100%;">' +
                         'Проверка пересечений с объектами ДГИ' +
                         '</button>' +
+                        '<button type="button" class="map-toolbar-btn map-toolbar-btn--primary owned-view-object-btn" style="font-size:12px;padding:6px 10px;width:100%;margin-top:8px;">' +
+                        'Просмотр объекта' +
+                        '</button>' +
                         '</div></div>';
                     featureLayer.bindPopup(popupHtml);
                     featureLayer.off('popupopen');
@@ -742,6 +923,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                         // so the map does not swallow the button press.
                         window.setTimeout(() => {
                             bindOwnedCheckDgiButton(featureLayer, feature);
+                            bindOwnedViewObjectButton(featureLayer, feature);
                         }, 0);
                     });
                 },
