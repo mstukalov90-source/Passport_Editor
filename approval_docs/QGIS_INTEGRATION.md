@@ -13,6 +13,13 @@ GET  http://172.21.197.77/approval/api/qgis/approves/?user=<login>
 GET  http://172.21.197.77/approval/api/qgis/approves/<approve_id>/geometries/?user=<login>
 GET  http://172.21.197.77/approval/api/qgis/cases/<case_id>/?user=<login>
 POST http://172.21.197.77/approval/api/qgis/cases/<case_id>/messages/
+GET  http://172.21.197.77/approval/api/qgis/attachments/<id>/?user=<login>
+POST http://172.21.197.77/approval/api/qgis/messages/<id>/reactions/
+DELETE http://172.21.197.77/approval/api/qgis/messages/<id>/?user=<login>
+POST http://172.21.197.77/approval/api/qgis/cases/<case_id>/change-owner/
+POST http://172.21.197.77/approval/api/qgis/cases/<case_id>/participants/
+POST http://172.21.197.77/approval/api/qgis/approves/<approve_id>/adjacent-events/
+POST http://172.21.197.77/approval/api/qgis/approves/<approve_id>/delete/
 ```
 
 Публичный домен `https://border-ogh.mggt.ru` для этого API **не используется** — запросы через reverse-proxy отклоняются (HTTP 403). Альтернатива для ingest — прямая запись в БД `geodb` на `172.21.197.77` (разделы 4–5 ниже).
@@ -21,8 +28,9 @@ POST http://172.21.197.77/approval/api/qgis/cases/<case_id>/messages/
 
 1. Пользователь логинится в модуле QGIS (auth на стороне плагина).
 2. Модуль вызывает `GET .../approves/?user=<login>` — список доступных согласований.
-3. Для карты: `GET .../approves/<id>/geometries/?user=<login>` (FeatureCollection).
-4. Для чата: `GET .../cases/<case_id>/?user=<login>`; ответы — `POST .../messages/` с `user`, `body`, опционально `geometry`.
+3. Для карты approval-геометрий: `GET .../approves/<id>/geometries/?user=<login>` (FeatureCollection). Слои съёмки — из `mggt_asu` напрямую.
+4. Для чата: `GET .../cases/<case_id>/?user=<login>`; ответы — `POST .../messages/` с `user`, `body`, опционально `geometry`/файлы.
+5. Вложения — по `attachments[].url` (QGIS-путь с `?user=`). Реакции, участники, смежные события, удаление — см. [QGIS_API.md](QGIS_API.md).
 
 Детали полей и кодов ответа — в [QGIS_API.md](QGIS_API.md).
 

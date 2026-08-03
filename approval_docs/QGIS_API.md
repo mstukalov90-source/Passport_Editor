@@ -21,12 +21,21 @@
 | GET | `approves/<approve_id>/?user=` | Деталь согласования + доступные cases |
 | GET | `approves/by-guid/<incoming_guid>/?user=` | То же по `incoming_guid` |
 | GET | `approves/<approve_id>/geometries/?user=` | GeoJSON FeatureCollection геометрий |
+| POST | `approves/<approve_id>/adjacent-events/` | Создать событие по смежному объекту (инспектор) |
+| POST | `approves/<approve_id>/delete/` | Удалить согласование (инспектор) |
 | GET | `cases/<case_id>/?user=` | Чат события: сообщения, вложения, геометрии |
 | POST | `cases/<case_id>/messages/` | Новое сообщение (+ geometry / files) |
 | POST | `cases/<case_id>/approve/` | Согласовать событие от имени `user` |
 | POST | `cases/<case_id>/revoke/` | Снять своё согласование |
+| POST | `cases/<case_id>/change-owner/` | Заменить владельца в событии (инспектор) |
+| POST | `cases/<case_id>/participants/` | Добавить участника owner/login (инспектор) |
+| POST | `messages/<message_id>/reactions/` | Реакция на сообщение |
+| DELETE | `messages/<message_id>/?user=` | Удалить своё сообщение (инспектор) |
+| GET | `attachments/<attachment_id>/?user=` | Скачать вложение |
 
 Content-Type для JSON: `application/json`. Django session **не** используется.
+
+Слои съёмки (`work` / `topopassport`) через этот API **не** отдаются — плагин читает `mggt_asu` напрямую.
 
 ---
 
@@ -283,7 +292,7 @@ GET /approval/api/qgis/cases/<case_id>/?user=asidorov
 | `text` | текст |
 | `time` | время (локальный формат) |
 | `parent_id` | ответ на сообщение |
-| `attachments` | файлы (`url` для скачивания через веб-путь attachments) |
+| `attachments` | файлы; `url` ведёт на `…/api/qgis/attachments/<id>/?user=<login>` |
 | `geometry` / `geometries` | GeoJSON геометрии(й) сообщения |
 | `reactions` | реакции `in_progress` / `done` |
 
@@ -325,6 +334,98 @@ POST /approval/api/qgis/cases/<case_id>/revoke/
 ```
 
 Логика та же, что в вебе: инспектор пишет в `case_approvals` по `approver_login`; владелец — по `owner_legal_person_id`. Событие закрывается, когда собраны все требуемые стороны (+ инспектор при наличии).
+
+---
+
+## 8. Вложение
+
+```
+GET /approval/api/qgis/attachments/<attachment_id>/?user=asidorov
+GET /approval/api/qgis/attachments/<attachment_id>/?user=asidorov&download=1
+```
+
+- Изображения отдаются inline; `download=1` или не-image → `Content-Disposition: attachment`
+- В `messages[].attachments[].url` из case detail / post message уже абсолютный QGIS-URL с `?user=`
+
+---
+
+## 9. Реакция на сообщение
+
+```
+POST /approval/api/qgis/messages/<message_id>/reactions/
+```
+
+```json
+{ "user": "asidorov", "kind": "in_progress" }
+```
+
+`kind`: `in_progress` / `done` (инспектор); `accepted` / `rejected` (владелец после `done`). Повтор того же `kind` снимает реакцию. Правила как в веб-API.
+
+---
+
+## 10. Удаление сообщения
+
+```
+DELETE /approval/api/qgis/messages/<message_id>/?user=asidorov
+```
+
+Только свои сообщения инспектора, пока событие не согласовано. Ответ: `case` (detail).
+
+---
+
+## 11. Участники события
+
+```
+POST /approval/api/qgis/cases/<case_id>/change-owner/
+```
+
+```json
+{ "user": "asidorov", "old_owner": "9000022", "new_owner": "OWNER_NEW" }
+```
+
+```
+POST /approval/api/qgis/cases/<case_id>/participants/
+```
+
+```json
+{ "user": "asidorov", "kind": "login", "value": "extra_login" }
+```
+
+`kind`: `owner` или `login` (login должен существовать в `users`). Только инспектор.
+
+---
+
+## 12. Смежное событие
+
+```
+POST /approval/api/qgis/approves/<approve_id>/adjacent-events/
+```
+
+```json
+{
+  "user": "asidorov",
+  "n_root": "20004567",
+  "owner": "OWNER_B",
+  "title": "Смежный объект",
+  "geometry": { "type": "Point", "coordinates": [37.618, 55.720] }
+}
+```
+
+Только инспектор согласования. `n_root` обычно из `v_root` согласования.
+
+---
+
+## 13. Удаление согласования
+
+```
+POST /approval/api/qgis/approves/<approve_id>/delete/
+```
+
+```json
+{ "user": "asidorov" }
+```
+
+Только инспектор (`approves.user`). Удаляет согласование, cases, geometry и файлы вложений. Ответ: `{ "ok": true, "current_user": "…" }`.
 
 ---
 

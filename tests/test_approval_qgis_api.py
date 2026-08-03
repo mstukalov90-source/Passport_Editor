@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 import pytest
 from approval.events_service import parse_geometry_payload, upsert_approve_from_qgis
-from approval.models import ApprovalGeometry, Approve, Case
+from approval.models import ApprovalGeometry, Approve, Case, CaseMessage
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from pass_viewer.models import ExternalUser
 
@@ -654,3 +655,271 @@ def test_qgis_case_detail_forbidden_for_stranger(client):
 
     response = _qgis_get(client, "api_qgis_case_detail", user="stranger", case_id=case_id)
     assert response.status_code == 404
+
+
+# --- QGIS parity with web inspector ---
+
+PNG_BYTES = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+    b"\x00\x00\x05\x00\x01\r\n-\xdb\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+ADJACENT_GEOMETRY = {
+    "type": "Point",
+    "coordinates": [37.618173936455285, 55.720464618162595],
+}
+
+
+def _qgis_delete(client, name, *, user, host="172.21.197.77", **kwargs):
+    return client.delete(
+        reverse(f"approval:{name}", kwargs=kwargs) + f"?user={user}",
+        HTTP_HOST=host,
+    )
+
+
+def _ensure_inspector():
+    ExternalUser.objects.get_or_create(
+        login="asidorov",
+        defaults={"password": "pass", "owner_legal_person_id": None},
+    )
+
+
+@pytest.mark.django_db
+def test_qgis_attachment_download_and_urls(client, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    create = _post_qgis_approve(client, _valid_payload())
+    case_id = create.json()["events"][0]["case_id"]
+    _ensure_inspector()
+
+    upload = SimpleUploadedFile("shot.png", PNG_BYTES, content_type="image/png")
+    post = client.post(
+        reverse("approval:api_qgis_post_message", kwargs={"case_id": case_id}),
+        data={"user": "asidorov", "body": "Фото", "files": upload},
+        HTTP_HOST="172.21.197.77",
+    )
+    assert post.status_code == 200
+    message_payload = post.json()["message"]
+    assert message_payload["attachments"]
+    att_url = message_payload["attachments"][0]["url"]
+    assert "/approval/api/qgis/attachments/" in att_url
+    assert "user=asidorov" in att_url
+
+    attachment_id = message_payload["attachments"][0]["id"]
+    inline = _qgis_get(client, "api_qgis_download_attachment", user="asidorov", attachment_id=attachment_id)
+    assert inline.status_code == 200
+    assert "attachment" not in (inline.get("Content-Disposition") or "").lower()
+
+    forced = client.get(
+        reverse("approval:api_qgis_download_attachment", kwargs={"attachment_id": attachment_id}),
+        {"user": "asidorov", "download": "1"},
+        HTTP_HOST="172.21.197.77",
+    )
+    assert forced.status_code == 200
+    assert "attachment" in (forced.get("Content-Disposition") or "").lower()
+
+    forbidden_host = _qgis_get(
+        client,
+        "api_qgis_download_attachment",
+        user="asidorov",
+        host="border-ogh.mggt.ru",
+        attachment_id=attachment_id,
+    )
+    assert forbidden_host.status_code == 403
+
+    ExternalUser.objects.create(login="stranger", password="pass", owner_legal_person_id="OTHER")
+    stranger = _qgis_get(
+        client,
+        "api_qgis_download_attachment",
+        user="stranger",
+        attachment_id=attachment_id,
+    )
+    assert stranger.status_code == 404
+
+
+@pytest.mark.django_db
+def test_qgis_message_reaction(client, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    create = _post_qgis_approve(client, _valid_payload())
+    case_id = create.json()["events"][0]["case_id"]
+    _ensure_inspector()
+    ExternalUser.objects.create(login="owner_task", password="pass", owner_legal_person_id=TASK_OWNER)
+
+    upload = SimpleUploadedFile("doc.png", PNG_BYTES, content_type="image/png")
+    owner_post = client.post(
+        reverse("approval:api_qgis_post_message", kwargs={"case_id": case_id}),
+        data={"user": "owner_task", "body": "Нужна правка", "files": upload},
+        HTTP_HOST="172.21.197.77",
+    )
+    assert owner_post.status_code == 200
+    message_id = owner_post.json()["message"]["id"]
+
+    reaction = _qgis_post_json(
+        client,
+        "api_qgis_message_reaction",
+        {"user": "asidorov", "kind": "in_progress"},
+        message_id=message_id,
+    )
+    assert reaction.status_code == 200
+    assert reaction.json()["message"]["my_reaction"] == "in_progress"
+
+    stranger = ExternalUser.objects.create(login="stranger", password="pass", owner_legal_person_id="OTHER")
+    assert stranger.login == "stranger"
+    denied = _qgis_post_json(
+        client,
+        "api_qgis_message_reaction",
+        {"user": "stranger", "kind": "in_progress"},
+        message_id=message_id,
+    )
+    assert denied.status_code == 404
+
+
+@pytest.mark.django_db
+def test_qgis_delete_own_message(client):
+    create = _post_qgis_approve(client, _valid_payload())
+    case_id = create.json()["events"][0]["case_id"]
+    _ensure_inspector()
+
+    post = _qgis_post_json(
+        client,
+        "api_qgis_post_message",
+        {"user": "asidorov", "body": "Можно удалить"},
+        case_id=case_id,
+    )
+    assert post.status_code == 200
+    message_id = post.json()["message"]["id"]
+
+    deleted = _qgis_delete(client, "api_qgis_delete_message", user="asidorov", message_id=message_id)
+    assert deleted.status_code == 200
+    assert deleted.json()["ok"] is True
+    assert not CaseMessage.objects.filter(pk=message_id).exists()
+
+    ExternalUser.objects.create(login="stranger", password="pass", owner_legal_person_id="OTHER")
+    post2 = _qgis_post_json(
+        client,
+        "api_qgis_post_message",
+        {"user": "asidorov", "body": "Ещё раз"},
+        case_id=case_id,
+    )
+    message_id2 = post2.json()["message"]["id"]
+    stranger_delete = _qgis_delete(
+        client,
+        "api_qgis_delete_message",
+        user="stranger",
+        message_id=message_id2,
+    )
+    assert stranger_delete.status_code == 404
+
+
+@pytest.mark.django_db
+def test_qgis_change_owner_and_add_participant(client):
+    create = _post_qgis_approve(client, _valid_payload())
+    case_id = create.json()["events"][0]["case_id"]
+    _ensure_inspector()
+
+    change = _qgis_post_json(
+        client,
+        "api_qgis_change_case_owner",
+        {"user": "asidorov", "old_owner": "9000022", "new_owner": "OWNER_NEW"},
+        case_id=case_id,
+    )
+    assert change.status_code == 200
+    assert "OWNER_NEW" in change.json()["case"]["owners"]
+    assert "9000022" not in change.json()["case"]["owners"]
+
+    ExternalUser.objects.create(login="extra_login", password="pass", owner_legal_person_id=None)
+    add_login = _qgis_post_json(
+        client,
+        "api_qgis_add_case_participant",
+        {"user": "asidorov", "kind": "login", "value": "extra_login"},
+        case_id=case_id,
+    )
+    assert add_login.status_code == 200
+    assert "extra_login" in add_login.json()["case"]["participant_logins"]
+
+    ExternalUser.objects.create(login="owner_task", password="pass", owner_legal_person_id=TASK_OWNER)
+    owner_denied = _qgis_post_json(
+        client,
+        "api_qgis_add_case_participant",
+        {"user": "owner_task", "kind": "login", "value": "nope"},
+        case_id=case_id,
+    )
+    assert owner_denied.status_code == 400
+
+
+@pytest.mark.django_db
+def test_qgis_create_adjacent_event(client):
+    create = _post_qgis_approve(client, _valid_payload())
+    approve_id = create.json()["approve_id"]
+    approve = Approve.objects.get(pk=approve_id)
+    approve.v_root = list(approve.v_root or []) + ["20004567"]
+    approve.save(update_fields=["v_root", "updated_at"])
+    _ensure_inspector()
+
+    response = _qgis_post_json(
+        client,
+        "api_qgis_create_adjacent_event",
+        {
+            "user": "asidorov",
+            "n_root": "20004567",
+            "geometry": ADJACENT_GEOMETRY,
+            "title": "Смежный 20004567",
+            "owner": "OWNER_B",
+        },
+        approve_id=approve_id,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["case"]["n_root"] == "20004567"
+    assert "OWNER_B" in payload["case"]["owners"]
+
+    ExternalUser.objects.create(login="owner_task", password="pass", owner_legal_person_id=TASK_OWNER)
+    owner_denied = _qgis_post_json(
+        client,
+        "api_qgis_create_adjacent_event",
+        {
+            "user": "owner_task",
+            "n_root": "20009999",
+            "geometry": ADJACENT_GEOMETRY,
+            "owner": "OWNER_C",
+        },
+        approve_id=approve_id,
+    )
+    assert owner_denied.status_code == 403
+
+
+@pytest.mark.django_db
+def test_qgis_delete_approve(client):
+    create = _post_qgis_approve(client, _valid_payload())
+    approve_id = create.json()["approve_id"]
+    _ensure_inspector()
+
+    ExternalUser.objects.create(login="stranger", password="pass", owner_legal_person_id="OTHER")
+    stranger = _qgis_post_json(
+        client,
+        "api_qgis_delete_approve",
+        {"user": "stranger"},
+        approve_id=approve_id,
+    )
+    assert stranger.status_code == 403
+    assert Approve.objects.filter(pk=approve_id).exists()
+
+    deleted = _qgis_post_json(
+        client,
+        "api_qgis_delete_approve",
+        {"user": "asidorov"},
+        approve_id=approve_id,
+    )
+    assert deleted.status_code == 200
+    assert deleted.json()["ok"] is True
+    assert not Approve.objects.filter(pk=approve_id).exists()
+
+    host_denied = _qgis_post_json(
+        client,
+        "api_qgis_delete_approve",
+        {"user": "asidorov"},
+        host="border-ogh.mggt.ru",
+        approve_id=approve_id,
+    )
+    assert host_denied.status_code == 403

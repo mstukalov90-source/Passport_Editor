@@ -447,10 +447,17 @@ def serialize_message(
     current_login: str,
     request=None,
     case: Case | None = None,
+    attachment_url_mode: str = "web",
 ) -> dict:
     attachments = []
+    login = (current_login or "").strip()
     for attachment in message.attachments.all():
-        url = f"/approval/api/attachments/{attachment.id}/"
+        if attachment_url_mode == "qgis":
+            url = f"/approval/api/qgis/attachments/{attachment.id}/"
+            if login:
+                url = f"{url}?user={login}"
+        else:
+            url = f"/approval/api/attachments/{attachment.id}/"
         if request is not None:
             url = request.build_absolute_uri(url)
         attachments.append(
@@ -585,7 +592,14 @@ def compute_message_reaction_stats(messages) -> dict:
     }
 
 
-def serialize_case_detail(case: Case, *, current_login: str, owner_id: str | None, request=None) -> dict:
+def serialize_case_detail(
+    case: Case,
+    *,
+    current_login: str,
+    owner_id: str | None,
+    request=None,
+    attachment_url_mode: str = "web",
+) -> dict:
     data = serialize_case_summary(case, current_login=current_login, owner_id=owner_id)
     messages = list(
         case.messages.select_related("parent").prefetch_related(
@@ -595,7 +609,13 @@ def serialize_case_detail(case: Case, *, current_login: str, owner_id: str | Non
         ).all()
     )
     chat_payload = [
-        serialize_message(message, current_login=current_login, request=request, case=case)
+        serialize_message(
+            message,
+            current_login=current_login,
+            request=request,
+            case=case,
+            attachment_url_mode=attachment_url_mode,
+        )
         for message in messages
     ]
     service_payload = [
