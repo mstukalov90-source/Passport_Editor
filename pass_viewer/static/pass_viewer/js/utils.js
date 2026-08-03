@@ -312,22 +312,22 @@
         const moscowNoRent = _dgiPctNumber(src.percent_moscow_no_rent);
         const privateRent = _dgiPctNumber(src.percent_private_rent);
         const privateNoRent = _dgiPctNumber(src.percent_private_no_rent);
-        const dgiSum = moscowRent + moscowNoRent + privateRent + privateNoRent;
-        // «З/У г. Москва без аренды» не влияет на цвет суммы — только на отображаемое значение.
-        const dgiSumForColor = moscowRent + privateRent + privateNoRent;
+        // «З/У г. Москва без аренды» не входит в сумму и не влияет на её цвет.
+        const dgiSum = moscowRent + privateRent + privateNoRent;
 
         const rows =
             _dgiCheckRow('З/У г. Москва с арендой', moscowRent) +
-            _dgiCheckRow('З/У г. Москва без аренды', moscowNoRent, {
-                pctClass: 'dgi-pct--ok',
-            }) +
             _dgiCheckRow('З/У Частная или федеральная собственность с арендой', privateRent) +
             _dgiCheckRow('З/У Частная или федеральная собственность без аренды', privateNoRent) +
             _dgiCheckRow('Суммарное пересечение', dgiSum, {
                 rowClass: 'dgi-check-table__sum',
-                colorValue: dgiSumForColor,
             }) +
-            _dgiCheckRow('Реновация', src.percent_renew) +
+            _dgiCheckRow('З/У г. Москва без аренды', moscowNoRent, {
+                pctClass: 'dgi-pct--ok',
+            }) +
+            _dgiCheckRow('Реновация', src.percent_renew, {
+                pctClass: 'dgi-pct--ok',
+            }) +
             _dgiCheckRow('ООЗТ', src.percent_oozt) +
             _dgiCheckRow('Полосы отвода ЖД', src.percent_rzd);
 

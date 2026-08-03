@@ -13,6 +13,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import connection, connections
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_POST
@@ -4732,10 +4733,12 @@ def main(request):
     if not entry_point:
         return redirect("home")
 
+    view_only = str(request.GET.get("view_only") or "").strip().lower() in {"1", "true", "yes"}
     layers = None
     query_error = None
 
-    defer_context_layers = _defer_map_context_layers()
+    # View-only iframe: always defer context layers so the shell + selected object paint first.
+    defer_context_layers = True if view_only else _defer_map_context_layers()
     try:
         layers = _get_map_layers(entry_point, include_adjacent_layers=not defer_context_layers)
     except Exception:
@@ -4835,6 +4838,7 @@ def main(request):
             "rzd_geometry_json": reference_layers["rzd"],
             "top_geometry_json": reference_layers["top"],
             "query_error": query_error,
+            "view_only": view_only,
             "page_config": main_page_config(
                 selected_rootid=layers["selected_rootid"] if layers else "",
                 selected_name=layers["selected_name"] if layers else "",
@@ -4855,6 +4859,7 @@ def main(request):
                     if layers
                     else _normalize_source_label(entry_point.get("source_label"))
                 ),
+                view_only=view_only,
             ),
         },
     )
@@ -5258,6 +5263,17 @@ def delete_recap_object(request):
     return JsonResponse({"ok": True, "recap_id": str(row[0])})
 
 
+def _request_wants_json(request):
+    accept = request.headers.get("Accept", "")
+    if "application/json" in accept:
+        return True
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return True
+    if str(request.POST.get("format") or request.GET.get("format") or "").strip().lower() == "json":
+        return True
+    return False
+
+
 @login_required
 @require_POST
 def open_owned_object(request):
@@ -5267,6 +5283,8 @@ def open_owned_object(request):
     if rootid.lower() in {"none", "null"}:
         rootid = ""
     if not rootid and not name and not request_id:
+        if _request_wants_json(request):
+            return JsonResponse({"ok": False, "error": "Не указан объект."}, status=400)
         return redirect("home")
 
     geometry_detail_mode = str(request.POST.get("geometry_detail_mode") or "").strip().lower()
@@ -5283,7 +5301,11 @@ def open_owned_object(request):
     redirect_to = str(request.POST.get("redirect_to") or "").strip().lower()
     if redirect_to == "split_object" and rootid:
         return redirect("split_object")
-    return redirect("main")
+    view_only = str(request.POST.get("view_only") or "").strip().lower() in {"1", "true", "yes"}
+    main_url = reverse("main") + ("?view_only=1" if view_only else "")
+    if view_only and _request_wants_json(request):
+        return JsonResponse({"ok": True, "url": main_url})
+    return redirect(main_url)
 
 
 @login_required

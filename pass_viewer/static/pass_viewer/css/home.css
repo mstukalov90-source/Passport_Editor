@@ -935,3 +935,101 @@ body.home--merge-passports #add-object-entry-btn {
     line-height: 1.45;
     color: #334155;
 }
+
+/* View-object modal (iframe of main view-only) */
+.owned-view-object-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1003;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: rgba(15, 23, 42, 0.5);
+}
+.owned-view-object-modal.is-open {
+    display: flex;
+}
+.owned-view-object-modal__card {
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e3e6ec;
+    width: min(96vw, 1400px);
+    height: min(92vh, 900px);
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+.owned-view-object-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0;
+}
+.owned-view-object-modal__header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+.owned-view-object-modal__close {
+    background: #e5e7eb;
+    color: #111;
+    border: none;
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+}
+.owned-view-object-modal__status {
+    margin: 0;
+    padding: 8px 14px 0;
+    flex-shrink: 0;
+    min-height: 1.2em;
+}
+.owned-view-object-modal__body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.owned-view-object-modal__loading {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(248, 250, 252, 0.92);
+    color: #334155;
+    font-size: 14px;
+}
+.owned-view-object-modal__loading[hidden] {
+    display: none;
+}
+.owned-view-object-modal__spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid #cbd5e1;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: owned-view-object-spin 0.8s linear infinite;
+}
+@keyframes owned-view-object-spin {
+    to { transform: rotate(360deg); }
+}
+.owned-view-object-modal__frame {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border: 0;
+    background: #f8fafc;
+}

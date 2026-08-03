@@ -20,6 +20,7 @@
     const formatAdjacentRelationsSearchStatus = PV.formatAdjacentRelationsSearchStatus.bind(PV);
     const parseJsonResponse = PV.parseJsonResponse.bind(PV);
     const mergeMapLayerPayload = PV.mergeMapLayerPayload.bind(PV);
+    const viewOnly = !!(cfg.features && cfg.features.viewOnly);
 
 function formatDgiShortSobstvRr(value) {
             const raw = String(value ?? '').trim();
@@ -165,6 +166,21 @@ function formatDgiShortSobstvRr(value) {
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
+
+        function refreshMapSizeForViewOnly() {
+            if (!viewOnly) {
+                return;
+            }
+            window.requestAnimationFrame(() => {
+                map.invalidateSize(false);
+                window.setTimeout(() => map.invalidateSize(false), 100);
+                window.setTimeout(() => map.invalidateSize(false), 400);
+            });
+        }
+        if (viewOnly) {
+            refreshMapSizeForViewOnly();
+            window.addEventListener('resize', refreshMapSizeForViewOnly);
+        }
         let popupHighlightLayer = null;
         const POPUP_HIGHLIGHT_WEIGHT_DELTA = 3;
 
@@ -998,11 +1014,13 @@ function formatDgiShortSobstvRr(value) {
             );
             bindPopupToLayer(selectedLayer, popupHtml);
             map.fitBounds(selectedLayer.getBounds(), {padding: [30, 30], maxZoom: 30});
+            refreshMapSizeForViewOnly();
         } else {
             statusEl.textContent = '\u0412\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0439 \u043e\u0431\u044a\u0435\u043a\u0442 \u043d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0442\u0440\u0438\u0441\u043e\u0432\u0430\u0442\u044c \u043d\u0430 \u043a\u0430\u0440\u0442\u0435.';
         }
         refreshObjectLayersControl();
         loadCommentPointsForMap();
+        refreshMapSizeForViewOnly();
 
         function askSnapRadiusMeters(currentValue) {
             const raw = window.prompt('Введите радиус прилипания в метрах:', String(currentValue));
@@ -2230,6 +2248,9 @@ function formatDgiShortSobstvRr(value) {
         map.on('draw:editvertex', () => attachPromptSnapHandlers(0));
 
         function setEditMode(enabled) {
+            if (viewOnly) {
+                enabled = false;
+            }
             isEditing = enabled;
             mapEl.classList.toggle('edit-mode', enabled);
             editableAreaInfoEl.style.display = enabled ? 'block' : 'none';
@@ -2428,6 +2449,9 @@ function formatDgiShortSobstvRr(value) {
         }
 
         editButton.addEventListener('click', () => {
+            if (viewOnly) {
+                return;
+            }
             if (!selectedLayer) {
                 statusEl.textContent = '\u041d\u0435\u0442 \u043e\u0431\u044a\u0435\u043a\u0442\u0430 \u0434\u043b\u044f \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f.';
                 return;
@@ -3274,5 +3298,6 @@ function formatDgiShortSobstvRr(value) {
 
         updateRelationsButtonState();
         loadInitialMapContextLayers();
+        refreshMapSizeForViewOnly();
 
 })();

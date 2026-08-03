@@ -62,6 +62,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "pass_map.urls"
 
+# Allow same-origin iframes (e.g. home «Просмотр объекта» modal embedding /main/).
+X_FRAME_OPTIONS = "SAMEORIGIN"
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
