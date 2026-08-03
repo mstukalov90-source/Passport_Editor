@@ -298,6 +298,7 @@
                 if (
                     event.target.closest('.approval-chat-message__reaction-btn') ||
                     event.target.closest('.approval-chat-message__reply-btn') ||
+                    event.target.closest('.approval-chat-message__delete-btn') ||
                     event.target.closest('.approval-chat-attachment')
                 ) {
                     return;
@@ -453,7 +454,51 @@
         );
     }
 
+    function renderDeleteButton(message, caseClosed) {
+        if (caseClosed || !message.can_delete) {
+            return '';
+        }
+        return (
+            '<button type="button" class="approval-chat-message__delete-btn" data-message-id="' +
+            escapeHtml(message.id) +
+            '">Удалить</button>'
+        );
+    }
+
+    function renderServiceStrip(message) {
+        const kind = message.kind || '';
+        let toneClass = ' approval-chat-service--approved';
+        if (kind === 'service_revoked') {
+            toneClass = ' approval-chat-service--revoked';
+        } else if (kind === 'service_closed') {
+            toneClass = ' approval-chat-service--closed';
+        } else if (kind === 'service_closed_overdue') {
+            toneClass = ' approval-chat-service--closed-overdue';
+        }
+        return (
+            '<div class="approval-chat-service' +
+            toneClass +
+            '" data-message-id="' +
+            escapeHtml(message.id) +
+            '">' +
+            '<span class="approval-chat-service__text">' +
+            escapeHtml(message.text || '') +
+            '</span>' +
+            '<time class="approval-chat-service__time">' +
+            escapeHtml(message.time || '') +
+            '</time>' +
+            '</div>'
+        );
+    }
+
+    function isServiceMessage(message) {
+        return !!(message && (message.is_service || String(message.kind || '').indexOf('service_') === 0));
+    }
+
     function renderMessageArticle(message, caseClosed, options) {
+        if (isServiceMessage(message)) {
+            return renderServiceStrip(message);
+        }
         const opts = options || {};
         const geometries = messageGeometries(message);
         const ownClass = message.is_own ? ' approval-chat-message--own' : '';
@@ -506,6 +551,7 @@
             '<div class="approval-chat-message__footer">' +
             renderReactionActions(message, caseClosed) +
             renderReplyButton(message, caseClosed) +
+            renderDeleteButton(message, caseClosed) +
             '</div>' +
             '</article>'
         );
@@ -608,6 +654,24 @@
         });
     }
 
+    function bindMessageDeleteClicks() {
+        const thread = el('approval-chat-thread');
+        if (!thread) {
+            return;
+        }
+        thread.querySelectorAll('.approval-chat-message__delete-btn').forEach(function (button) {
+            button.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                const messageId = button.dataset.messageId;
+                if (!messageId) {
+                    return;
+                }
+                deleteMessage(messageId).catch(showError);
+            });
+        });
+    }
+
     function renderChatMessages(messages, options) {
         const opts = options || {};
         const thread = el('approval-chat-thread');
@@ -648,6 +712,7 @@
         bindMessageGeometryClicks();
         bindMessageReactionClicks();
         bindMessageReplyClicks();
+        bindMessageDeleteClicks();
         bindAttachmentClicks();
         if (opts.autoScroll !== false) {
             thread.scrollTop = thread.scrollHeight;
@@ -922,15 +987,24 @@
             caseItem.approved || caseItem.status_class === 'closed'
                 ? ' approval-event-card--closed'
                 : '';
+        const overdueClass =
+            caseItem.status_class === 'overdue' ? ' approval-event-card--overdue' : '';
         const addParticipantHtml = caseItem.can_manage_participants
             ? '<button type="button" class="approval-event-card__add-participant" data-case-id="' +
               caseItem.id +
               '">Добавить участника</button>'
             : '';
+        const startDate = caseItem.created_at_date || '';
+        const startDateHtml = startDate
+            ? '<p class="approval-event-card__meta">Дата начала: ' +
+              escapeHtml(startDate) +
+              '</p>'
+            : '';
         return (
             '<div class="approval-event-card' +
             extraClass +
             closedClass +
+            overdueClass +
             active +
             '" data-case-id="' +
             escapeHtml(caseItem.id) +
@@ -945,11 +1019,12 @@
             escapeHtml(caseItem.status) +
             '</span>' +
             '</div>' +
+            startDateHtml +
             '<div class="approval-event-card__footer">' +
             '<span class="approval-event-card__count">' +
             caseItem.messages_count +
             ' сообщ.</span>' +
-            '<span class="approval-event-card__progress">' +
+            '<span class="approval-event-card__progress">Согласовано: ' +
             caseItem.approvals_done +
             ' / ' +
             caseItem.approvals_total +
@@ -968,18 +1043,15 @@
         }
         section.classList.toggle('is-collapsed', !!collapsed);
         toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-        toggle.title = collapsed ? 'Развернуть чаты событий' : 'Свернуть чаты событий';
+        toggle.title = collapsed
+            ? 'Развернуть процесс согласования границ'
+            : 'Свернуть процесс согласования границ';
     }
 
-    function collapseSecondaryChats() {
-        setSecondaryChatsCollapsed(true);
-    }
-
-    function bindEventCardClicks(root, options) {
+    function bindEventCardClicks(root) {
         if (!root) {
             return;
         }
-        const opts = options || {};
         root.querySelectorAll('.approval-event-card__add-participant').forEach(function (button) {
             button.addEventListener('click', function (event) {
                 event.stopPropagation();
@@ -994,9 +1066,6 @@
                 const caseId = card.dataset.caseId;
                 if (caseId) {
                     await openCase(caseId, { fitMap: false });
-                    if (opts.collapseOnSelect) {
-                        collapseSecondaryChats();
-                    }
                 }
             });
         });
@@ -1017,7 +1086,7 @@
             titleOverride: 'Основное событие',
             extraClass: ' approval-event-card--primary',
         });
-        bindEventCardClicks(slot, { collapseOnSelect: true });
+        bindEventCardClicks(slot);
     }
 
     function renderSecondaryList(secondaryCases) {
@@ -1042,12 +1111,26 @@
             })
             .join('');
 
-        bindEventCardClicks(list, { collapseOnSelect: true });
+        bindEventCardClicks(list);
+    }
+
+    function renderEventsProgress() {
+        const progress = el('approval-events-progress');
+        if (!progress) {
+            return;
+        }
+        const cases = state.cases || [];
+        const total = cases.length;
+        const done = cases.filter(function (caseItem) {
+            return !!caseItem.approved;
+        }).length;
+        progress.textContent = 'Согласовано: ' + done + ' / ' + total;
     }
 
     function renderEventNav(split) {
         renderPrimaryEventCard(split.primary);
         renderSecondaryList(split.secondary);
+        renderEventsProgress();
     }
 
     function findCase(caseId) {
@@ -1346,6 +1429,28 @@
                 body: JSON.stringify({ kind: kind }),
             }
         );
+        await openCase(state.activeCaseId, { fitMap: false });
+        return data;
+    }
+
+    async function deleteMessage(messageId) {
+        const caseItem = findCase(state.activeCaseId);
+        if (!caseItem || caseItem.approved) {
+            return;
+        }
+        if (!window.confirm('Удалить это сообщение?')) {
+            return;
+        }
+        const data = await fetchJson(
+            mapApi().apiUrl(state.config.apiUrls.deleteMessage, { messageId: messageId }),
+            { method: 'DELETE' }
+        );
+        const index = state.cases.findIndex(function (item) {
+            return item.id === state.activeCaseId;
+        });
+        if (index >= 0 && data.case) {
+            state.cases[index] = Object.assign({}, state.cases[index], data.case);
+        }
         await openCase(state.activeCaseId, { fitMap: false });
         return data;
     }

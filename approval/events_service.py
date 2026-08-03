@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 import json
 import shutil
 import uuid
@@ -20,7 +21,9 @@ from .models import (
     Case,
     CaseApproval,
     CaseMessage,
+    CaseMessageDeleted,
     CaseMessageReaction,
+    CaseServiceEvent,
 )
 from .work_layers import resolve_task_owner_legal_person_id
 
@@ -38,6 +41,45 @@ def _format_dt(value):
         return ""
     local = timezone.localtime(value)
     return local.strftime("%d.%m.%Y %H:%M")
+
+
+def _format_date(value):
+    if not value:
+        return ""
+    local = timezone.localtime(value)
+    return local.strftime("%d.%m.%Y")
+
+
+def _add_calendar_months(value, months: int = 1):
+    """Return value shifted by whole calendar months (clamped to month length)."""
+    local = timezone.localtime(value)
+    month_index = local.month - 1 + months
+    year = local.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(local.day, calendar.monthrange(year, month)[1])
+    return local.replace(year=year, month=month, day=day)
+
+
+def _case_is_overdue(case: Case) -> bool:
+    if case.approved or not case.created_at:
+        return False
+    return timezone.now() >= _add_calendar_months(case.created_at, 1)
+
+
+def _ensure_overdue_closed_event(case: Case) -> None:
+    """Lazily record a one-time closed_overdue service strip when the case becomes overdue."""
+    if not _case_is_overdue(case):
+        return
+    if case.service_events.filter(kind=CaseServiceEvent.KIND_CLOSED_OVERDUE).exists():
+        return
+    deadline = _add_calendar_months(case.created_at, 1)
+    event = CaseServiceEvent(
+        case=case,
+        actor_login="",
+        kind=CaseServiceEvent.KIND_CLOSED_OVERDUE,
+        created_at=deadline,
+    )
+    event.save()
 
 
 def serialize_approve_option(approve: Approve, *, username: str | None = None) -> dict:
@@ -143,7 +185,17 @@ def _geometry_to_geojson(geometry_row: ApprovalGeometry | None) -> dict | None:
 def _case_status_class(case: Case) -> str:
     if case.approved:
         return "closed"
+    if _case_is_overdue(case):
+        return "overdue"
     return "active"
+
+
+def _case_display_status(case: Case) -> str:
+    if case.approved:
+        return case.status or "согласовано"
+    if _case_is_overdue(case):
+        return "Просрочено"
+    return case.status or "в работе"
 
 
 def _case_preview(case: Case) -> str:
@@ -337,6 +389,7 @@ def serialize_case_summary(
     approvals_done: int | None = None,
     approvals_total: int | None = None,
 ) -> dict:
+    _ensure_overdue_closed_event(case)
     required_owners = _normalized_case_owners(case)
     if approvals_total is None or approvals_done is None:
         computed_done, computed_total = _approvals_progress(case)
@@ -361,7 +414,7 @@ def serialize_case_summary(
     return {
         "id": str(case.id),
         "title": case.title,
-        "status": case.status,
+        "status": _case_display_status(case),
         "status_class": _case_status_class(case),
         "approved": case.approved,
         "is_primary": case.is_primary,
@@ -383,10 +436,18 @@ def serialize_case_summary(
         "owners": list(case.owners or []),
         "participant_logins": _normalized_participant_logins(case),
         "created_by_login": case.created_by_login or "",
+        "created_at": _format_dt(case.created_at),
+        "created_at_date": _format_date(case.created_at),
     }
 
 
-def serialize_message(message: CaseMessage, *, current_login: str, request=None) -> dict:
+def serialize_message(
+    message: CaseMessage,
+    *,
+    current_login: str,
+    request=None,
+    case: Case | None = None,
+) -> dict:
     attachments = []
     for attachment in message.attachments.all():
         url = f"/approval/api/attachments/{attachment.id}/"
@@ -429,13 +490,26 @@ def serialize_message(message: CaseMessage, *, current_login: str, request=None)
     parent_id = parent.id if parent is not None else message.parent_id
     reply_to_author = parent.author_login if parent is not None else ""
 
+    case_obj = case if case is not None else message.case
+    inspector_login = _inspector_login_for_case(case_obj)
+    can_delete = (
+        bool(current_login)
+        and message.author_login == current_login
+        and bool(inspector_login)
+        and current_login == inspector_login
+        and not case_obj.approved
+    )
+
     return {
         "id": message.id,
+        "kind": "chat",
+        "is_service": False,
         "author": message.author_login,
         "role": message.author_role or "",
         "time": _format_dt(message.created_at),
         "text": message.body,
         "is_own": message.author_login == current_login,
+        "can_delete": can_delete,
         "parent_id": parent_id,
         "reply_to_author": reply_to_author,
         "attachments": attachments,
@@ -444,6 +518,42 @@ def serialize_message(message: CaseMessage, *, current_login: str, request=None)
         "geometries": geometries_payload,
         "reactions": reactions,
         "my_reaction": my_reaction,
+        "created_at_sort": message.created_at.isoformat() if message.created_at else "",
+    }
+
+
+def serialize_service_event(event: CaseServiceEvent, *, current_login: str) -> dict:
+    if event.kind == CaseServiceEvent.KIND_REVOKED:
+        kind = "service_revoked"
+        text = f"{event.actor_login} отменил согласование"
+    elif event.kind == CaseServiceEvent.KIND_CLOSED:
+        kind = "service_closed"
+        text = "Событие закрыто"
+    elif event.kind == CaseServiceEvent.KIND_CLOSED_OVERDUE:
+        kind = "service_closed_overdue"
+        text = "Событие закрыто по истечению срока"
+    else:
+        kind = "service_approved"
+        text = f"{event.actor_login} согласовал"
+    return {
+        "id": f"s{event.id}",
+        "kind": kind,
+        "is_service": True,
+        "author": event.actor_login,
+        "role": "",
+        "time": _format_dt(event.created_at),
+        "text": text,
+        "is_own": bool(event.actor_login) and event.actor_login == current_login,
+        "can_delete": False,
+        "parent_id": None,
+        "reply_to_author": "",
+        "attachments": [],
+        "geometry": None,
+        "geometry_id": None,
+        "geometries": [],
+        "reactions": [],
+        "my_reaction": None,
+        "created_at_sort": event.created_at.isoformat() if event.created_at else "",
     }
 
 
@@ -484,10 +594,19 @@ def serialize_case_detail(case: Case, *, current_login: str, owner_id: str | Non
             "reactions",
         ).all()
     )
-    data["messages"] = [
-        serialize_message(message, current_login=current_login, request=request)
+    chat_payload = [
+        serialize_message(message, current_login=current_login, request=request, case=case)
         for message in messages
     ]
+    service_payload = [
+        serialize_service_event(event, current_login=current_login)
+        for event in case.service_events.all()
+    ]
+    timeline = chat_payload + service_payload
+    timeline.sort(key=lambda item: (item.get("created_at_sort") or "", str(item.get("id") or "")))
+    for item in timeline:
+        item.pop("created_at_sort", None)
+    data["messages"] = timeline
     data["message_reaction_stats"] = compute_message_reaction_stats(messages)
     return data
 
@@ -1015,13 +1134,15 @@ def record_case_approval(*, case: Case, owner_id: str | None = None, username: s
     approve = case.approve
     inspector_login = (approve.user or "").strip()
     username_text = (username or "").strip()
+    approval_author = ""
 
     if username_text and inspector_login and username_text == inspector_login:
-        CaseApproval.objects.get_or_create(
+        _, created = CaseApproval.objects.get_or_create(
             case=case,
             approver_login=inspector_login,
             defaults={"owner_legal_person_id": None},
         )
+        approval_author = username_text
     elif owner_id:
         owner_text = str(owner_id).strip()
         if not owner_text:
@@ -1031,13 +1152,21 @@ def record_case_approval(*, case: Case, owner_id: str | None = None, username: s
         if owner_text not in required_owners:
             raise ValueError("У вас нет права согласовывать это событие.")
 
-        CaseApproval.objects.get_or_create(
+        _, created = CaseApproval.objects.get_or_create(
             case=case,
             owner_legal_person_id=owner_text,
             defaults={"approver_login": None},
         )
+        approval_author = username_text or owner_text
     else:
         raise ValueError("Не найден OwnerLegalPersonId для пользователя.")
+
+    if created and approval_author:
+        CaseServiceEvent.objects.create(
+            case=case,
+            actor_login=approval_author,
+            kind=CaseServiceEvent.KIND_APPROVED,
+        )
 
     if _case_is_fully_approved(case):
         case.approved = True
@@ -1045,6 +1174,11 @@ def record_case_approval(*, case: Case, owner_id: str | None = None, username: s
         case.closed_at = timezone.now()
         case.save(update_fields=["approved", "status", "closed_at", "updated_at"])
         _sync_approve_status_after_case_approval(approve, case)
+        CaseServiceEvent.objects.get_or_create(
+            case=case,
+            kind=CaseServiceEvent.KIND_CLOSED,
+            defaults={"actor_login": approval_author or ""},
+        )
     return case
 
 
@@ -1061,9 +1195,11 @@ def revoke_case_approval(*, case: Case, owner_id: str | None = None, username: s
     inspector_login = (approve.user or "").strip()
     username_text = (username or "").strip()
     deleted = 0
+    revoke_author = ""
 
     if username_text and inspector_login and username_text == inspector_login:
         deleted, _ = CaseApproval.objects.filter(case=case, approver_login=inspector_login).delete()
+        revoke_author = username_text
     elif owner_id:
         owner_text = str(owner_id).strip()
         if not owner_text:
@@ -1072,11 +1208,19 @@ def revoke_case_approval(*, case: Case, owner_id: str | None = None, username: s
         if owner_text not in required_owners:
             raise ValueError("У вас нет права отзывать согласование этого события.")
         deleted, _ = CaseApproval.objects.filter(case=case, owner_legal_person_id=owner_text).delete()
+        revoke_author = username_text or owner_text
     else:
         raise ValueError("Не найден OwnerLegalPersonId для пользователя.")
 
     if not deleted:
         raise ValueError("У вас нет активного согласования для отзыва.")
+
+    if revoke_author:
+        CaseServiceEvent.objects.create(
+            case=case,
+            actor_login=revoke_author,
+            kind=CaseServiceEvent.KIND_REVOKED,
+        )
 
     if case.approved and not _case_is_fully_approved(case):
         case.approved = False
@@ -1084,6 +1228,54 @@ def revoke_case_approval(*, case: Case, owner_id: str | None = None, username: s
         case.closed_at = None
         case.save(update_fields=["approved", "status", "closed_at", "updated_at"])
         _sync_approve_status_after_case_revoke(approve, case)
+    return case
+
+
+@transaction.atomic
+def delete_inspector_own_message(*, message: CaseMessage, username: str | None) -> Case:
+    username_text = (username or "").strip()
+    if not username_text:
+        raise ValueError("Не указан пользователь.")
+
+    case = message.case
+    approve = case.approve
+    if not is_inspector_for_approve(username_text, approve):
+        raise ValueError("Удаление сообщений доступно только инспектору этого согласования.")
+    if message.author_login != username_text:
+        raise ValueError("Можно удалять только свои сообщения.")
+    if case.approved:
+        raise ValueError("Нельзя удалять сообщения в согласованном событии.")
+
+    attachments_snapshot = [
+        {
+            "id": attachment.id,
+            "original_name": attachment.original_name,
+            "content_type": attachment.content_type,
+            "size_bytes": attachment.size_bytes,
+            "stored_name": attachment.stored_name,
+        }
+        for attachment in message.attachments.all()
+    ]
+
+    CaseMessageDeleted.objects.create(
+        original_message_id=message.id,
+        case_id=case.id,
+        author_login=message.author_login,
+        author_role=message.author_role or "",
+        body=message.body,
+        parent_id=message.parent_id,
+        created_at=message.created_at,
+        deleted_by_login=username_text,
+        attachments_json=attachments_snapshot or None,
+    )
+
+    storage_dir = Path(settings.MEDIA_ROOT) / "approval" / "attachments" / str(case.id)
+    for attachment in message.attachments.all():
+        target = storage_dir / attachment.stored_name
+        if target.is_file():
+            target.unlink(missing_ok=True)
+
+    message.delete()
     return case
 
 

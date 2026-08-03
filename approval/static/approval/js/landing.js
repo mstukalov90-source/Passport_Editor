@@ -2340,7 +2340,7 @@
                 '<span class="approval-map-tools__icon" aria-hidden="true">' +
                 '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
                 '<path d="M3 12h18"/><path d="M6 9v6"/><path d="M10 10v4"/><path d="M14 9v6"/><path d="M18 10v4"/>' +
-                '</svg></span><span class="approval-map-tools__caption">м</span>';
+                '</svg></span><span class="approval-map-tools__caption">Линейка</span>';
             measureBtnEl = measureBtn;
             L.DomEvent.on(measureBtn, 'click', function (event) {
                 L.DomEvent.stop(event);
@@ -2357,9 +2357,10 @@
             yandexBtn.setAttribute('aria-label', 'Открыть в Яндекс.Картах');
             yandexBtn.innerHTML =
                 '<span class="approval-map-tools__icon" aria-hidden="true">' +
-                '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">' +
-                '<path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5c-1.4 0-2.5-1.1-2.5-2.5S10.6 6.5 12 6.5s2.5 1.1 2.5 2.5S13.4 11.5 12 11.5z"/>' +
-                '</svg></span><span class="approval-map-tools__caption">Я</span>';
+                '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">' +
+                '<rect width="24" height="24" rx="5" fill="#FC3F1D"/>' +
+                '<text x="12" y="17" text-anchor="middle" fill="#fff" font-size="14" font-weight="700" font-family="YS Text, Arial, sans-serif">Я</text>' +
+                '</svg></span><span class="approval-map-tools__caption">Я.Карты</span>';
             L.DomEvent.on(yandexBtn, 'click', function (event) {
                 L.DomEvent.stop(event);
                 openCurrentViewInYandexMaps();

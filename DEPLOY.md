@@ -300,39 +300,46 @@ sudo docker exec passport_db psql -U postgres -d geodb -c \
 
 Только веб (без сброса сессий): `sudo docker restart passport_web`.
 
-## Ежедневное обновление `ods_request` (12:00 МСК)
+## Ежедневная синхронизация geodb из mggt_asu (07:00 МСК)
 
-Выгрузка ОДС приходит как `ods_request.json`. Раз в сутки cron проверяет файл в контейнере; если он есть — таблица `ods_request` перезаписывается, файл удаляется. Если файла нет — запуск завершается без ошибки (БД не трогается).
+Раз в сутки cron читает **только** `mggt_asu` (alias `qgis`, read-only) и обновляет `geodb`:
+
+| geodb | источник | ключ |
+|-------|----------|------|
+| `pass_objects` | `master."YardPoly"` | `rootid` |
+| `odh` | `master."OdhPoly"` | `rootid` |
+| `ozn` | `master."OznPoly"` | `rootid` (`OwnerLegalPersonId` → `ownerlegalpersonalid`) |
+| `dgi` | `gis.dgi` | `descr` (+ пересчёт `rent`) |
+| `oozt` | `gis.oozt` | `nomer1` |
+| `rzd` | `gis.railroadline` | полная перезаливка |
+| `ods_request` | `master.bidregistry` | `"BrId"` (фильтр статуса/даты/причины) |
+
+Строки `pass_objects` / `odh` / `ozn` с `rootid IS NULL` и непустым `request_id` **не удаляются**. Геометрия перепроецируется по `spatial_ref_sys.proj4text` для SRID **980077**.
 
 **Команда (внутри контейнера или локально):**
 
 ```bash
-python manage.py sync_ods_request_if_present
-python manage.py sync_ods_request_if_present --dry-run   # только подсчёт строк
-```
-
-**Положить файл на сервер перед 12:00** (путь в контейнере — `/app/ods_request.json`):
-
-```bash
-sudo docker cp /path/on/host/ods_request.json passport_web:/app/ods_request.json
+python manage.py sync_geodb_from_mggt
+python manage.py sync_geodb_from_mggt --dry-run
+python manage.py sync_geodb_from_mggt --table dgi
 ```
 
 **Cron на хосте** (`crontab -e` у `root`):
 
 ```cron
-0 12 * * * TZ=Europe/Moscow /opt/passport_editor_new/scripts/sync_ods_request_daily.sh >> /var/log/ods_request_sync.log 2>&1
+0 7 * * * TZ=Europe/Moscow /opt/passport_editor_new/scripts/sync_geodb_from_mggt_daily.sh >> /var/log/geodb_mggt_sync.log 2>&1
 ```
 
-Обёртка: `scripts/sync_ods_request_daily.sh` (вызов `docker exec passport_web …`). После деплоя кода: `chmod +x /opt/passport_editor_new/scripts/sync_ods_request_daily.sh`.
+Обёртка: `scripts/sync_geodb_from_mggt_daily.sh`. После деплоя: `chmod +x /opt/passport_editor_new/scripts/sync_geodb_from_mggt_daily.sh`.
 
 **Проверка вручную:**
 
 ```bash
-/opt/passport_editor_new/scripts/sync_ods_request_daily.sh
-tail -20 /var/log/ods_request_sync.log
+/opt/passport_editor_new/scripts/sync_geodb_from_mggt_daily.sh
+tail -20 /var/log/geodb_mggt_sync.log
 ```
 
-При ошибке импорта (битый JSON) файл **не** удаляется; транзакция откатывает изменения в БД.
+Прежний cron на 12:00 для `ods_request.json` (`sync_ods_request_if_present`) **заменён** этой задачей. Команда JSON-импорта остаётся как ручной fallback.
 
 ## Ночная уборка (04:20 МСК)
 

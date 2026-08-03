@@ -81,12 +81,19 @@ def geom_to_wgs84_sql(geom_expr: str) -> str:
 
 
 def wgs84_to_work_sql(geojson_param: str = "%s") -> str:
-    """Reproject WGS-84 GeoJSON param to work MSC-77 via spatial_ref_sys.proj4text."""
+    """Reproject WGS-84 GeoJSON param to work MSC-77 via spatial_ref_sys.proj4text.
+
+    ST_Transform with explicit proj4 strings leaves SRID 0; tag the result with
+    work_source_srid() so ST_Intersects matches layer geometries (980077).
+    """
     return (
+        f"ST_SetSRID("
         f"ST_Transform("
         f"ST_SetSRID(ST_GeomFromGeoJSON({geojson_param}), 4326), "
         f"'{_WGS84_PROJ4}', "
-        f"{work_source_proj4_sql()})"
+        f"{work_source_proj4_sql()}"
+        f"), "
+        f"{work_source_srid()})"
     )
 
 
@@ -112,7 +119,7 @@ def style_table_name_for_layer_key(layer_key: str) -> str:
 
 _OWNER_LOOKUP_PRIORITY_TABLES = ("YardPoly", "OznPoly", "OdhPoly")
 _SURVEY_TITLE_TABLES = ("YardPoly", "OznPoly", "OdhPoly")
-_DEFAULT_SURVEY_TITLE = "Согласование"
+_DEFAULT_SURVEY_TITLE = "Согласование границ ОГХ"
 _SURVEY_NAME_COLUMN = "Name"
 _SURVEY_BRID_COLUMN = "PassBrId"
 
@@ -201,7 +208,7 @@ def resolve_task_survey_title(task_guid: str) -> str:
     Return landing page title from work YardPoly → OznPoly → OdhPoly for TaskGUID.
 
     Uses the first table that has a matching row with both Name and PassBrId.
-    Falls back to «Согласование» when nothing is found or the query fails.
+    Falls back to «Согласование границ ОГХ» when nothing is found or the query fails.
     """
     task_guid_text = str(task_guid or "").strip()
     if not task_guid_text:
@@ -355,23 +362,30 @@ def count_features_by_table(
                       )
                     """
                     params.append(clip_geojson)
-                cursor.execute(
-                    f"""
-                    SELECT COUNT(*)
-                    FROM {_quote_ident(schema_name)}.{_quote_ident(table)} t
-                    WHERE t.{_quote_ident(task_col)} = ANY(%s::uuid[])
-                      AND t.{_quote_ident(geom_col)} IS NOT NULL
-                      AND NOT ST_IsEmpty(t.{_quote_ident(geom_col)})
-                      {clip_sql}
-                    """,
-                    params,
-                )
-                count = int(cursor.fetchone()[0] or 0)
-                if count:
-                    counts[table] = count
+                try:
+                    cursor.execute(
+                        f"""
+                        SELECT COUNT(*)
+                        FROM {_quote_ident(schema_name)}.{_quote_ident(table)} t
+                        WHERE t.{_quote_ident(task_col)} = ANY(%s::uuid[])
+                          AND t.{_quote_ident(geom_col)} IS NOT NULL
+                          AND NOT ST_IsEmpty(t.{_quote_ident(geom_col)})
+                          {clip_sql}
+                        """,
+                        params,
+                    )
+                    count = int(cursor.fetchone()[0] or 0)
+                    if count:
+                        counts[table] = count
+                except Exception:
+                    logger.exception(
+                        "count_features_by_table: qgis query failed schema=%s table=%s",
+                        schema_name,
+                        table,
+                    )
     except Exception:
         logger.exception("count_features_by_table: qgis query failed schema=%s", schema_name)
-        return {}
+        return counts
 
     return counts
 

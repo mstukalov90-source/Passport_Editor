@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from .events_service import (
     add_case_participant,
@@ -18,6 +18,7 @@ from .events_service import (
     change_case_owner,
     create_event_from_adjacent,
     delete_approve_for_inspector,
+    delete_inspector_own_message,
     get_cases_queryset,
     parse_geometry_payload,
     record_case_approval,
@@ -290,7 +291,12 @@ def api_post_message(request, case_id):
     return JsonResponse(
         {
             "ok": True,
-            "message": serialize_message(message, current_login=actor["username"], request=request),
+            "message": serialize_message(
+                message,
+                current_login=actor["username"],
+                request=request,
+                case=case,
+            ),
             "case": _serialize_case(case, request=request, actor=actor),
         }
     )
@@ -394,7 +400,7 @@ def api_message_reaction(request, message_id):
     except ValueError as exc:
         return _json_error(str(exc))
 
-    message = CaseMessage.objects.select_related("parent").prefetch_related(
+    message = CaseMessage.objects.select_related("parent", "case__approve").prefetch_related(
         "attachments",
         "geometries",
         "reactions",
@@ -403,8 +409,41 @@ def api_message_reaction(request, message_id):
     return JsonResponse(
         {
             "ok": True,
-            "message": serialize_message(message, current_login=actor["username"], request=request),
+            "message": serialize_message(
+                message,
+                current_login=actor["username"],
+                request=request,
+                case=case,
+            ),
             "case": _serialize_case(case, request=request, actor=actor),
+        }
+    )
+
+
+@login_required
+@require_http_methods(["DELETE"])
+def api_delete_message(request, message_id):
+    actor, error = _actor_context(request)
+    if error:
+        return error
+
+    message = get_object_or_404(
+        CaseMessage.objects.select_related("case__approve").prefetch_related("attachments"),
+        pk=message_id,
+    )
+    case = message.case
+    if not user_can_access_case(case, actor["owner_id"], username=actor["username"]):
+        return _json_error("Сообщение не найдено или недоступно.", status=404)
+
+    try:
+        case = delete_inspector_own_message(message=message, username=actor["username"])
+    except ValueError as exc:
+        return _json_error(str(exc), status=403)
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "case": _serialize_case_detail(case, request=request, actor=actor),
         }
     )
 

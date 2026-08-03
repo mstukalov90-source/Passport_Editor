@@ -78,6 +78,56 @@ class CaseMessage(models.Model):
         return f"{self.author_login}: {self.body[:40]}"
 
 
+class CaseServiceEvent(models.Model):
+    KIND_APPROVED = "approved"
+    KIND_REVOKED = "revoked"
+    KIND_CLOSED = "closed"
+    KIND_CLOSED_OVERDUE = "closed_overdue"
+    KIND_CHOICES = (
+        (KIND_APPROVED, "Согласовано"),
+        (KIND_REVOKED, "Отмена согласования"),
+        (KIND_CLOSED, "Событие закрыто"),
+        (KIND_CLOSED_OVERDUE, "Событие закрыто по истечению срока"),
+    )
+
+    case = models.ForeignKey(
+        Case,
+        on_delete=models.CASCADE,
+        related_name="service_events",
+        db_column="case_id",
+    )
+    actor_login = models.TextField()
+    kind = models.TextField(choices=KIND_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = '"approval"."case_service_events"'
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.kind}:{self.actor_login}:{self.case_id}"
+
+
+class CaseMessageDeleted(models.Model):
+    original_message_id = models.BigIntegerField()
+    case_id = models.UUIDField()
+    author_login = models.TextField()
+    author_role = models.TextField(blank=True, null=True)
+    body = models.TextField()
+    parent_id = models.BigIntegerField(blank=True, null=True)
+    created_at = models.DateTimeField()
+    deleted_at = models.DateTimeField(auto_now_add=True)
+    deleted_by_login = models.TextField()
+    attachments_json = models.JSONField(blank=True, null=True)
+
+    class Meta:
+        db_table = '"approval"."case_messages_deleted"'
+        ordering = ["-deleted_at"]
+
+    def __str__(self):
+        return f"deleted:{self.original_message_id}:{self.author_login}"
+
+
 class CaseApproval(models.Model):
     case = models.ForeignKey(
         Case,

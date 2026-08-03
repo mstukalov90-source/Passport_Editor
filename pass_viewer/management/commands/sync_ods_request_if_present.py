@@ -1,8 +1,9 @@
 """
-Daily sync: reload ods_request from ods_request.json if the file exists.
+Daily sync (legacy file path): reload ods_request from ods_request.json if present.
 
-Intended for cron at 12:00 Europe/Moscow. If the file is missing, exits 0 without
-touching the database. On success, deletes the JSON file.
+Deprecated for production cron: prefer ``sync_geodb_from_mggt`` which loads
+``ods_request`` directly from mggt_asu.master.bidregistry at 07:00 MSK.
+Kept as a manual fallback when a JSON dump is available.
 
 Examples:
   python manage.py sync_ods_request_if_present
