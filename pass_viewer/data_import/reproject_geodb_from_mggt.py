@@ -7,13 +7,13 @@ mggt_asu is read-only; only geodb is updated.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
-from typing import Any, Iterable, Iterator, Sequence
-
-from django.db import connections, transaction
-from psycopg2.extras import execute_values
+from typing import Any
 
 from approval.work_layers import geom_to_wgs84_sql
+from django.db import connections, transaction
+from psycopg2.extras import execute_values
 
 QGIS_ALIAS = "qgis"
 GEODB_ALIAS = "default"
