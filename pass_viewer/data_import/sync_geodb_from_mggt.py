@@ -547,47 +547,45 @@ def _resolve_bidregistry_table() -> str:
     return f"{ODS_BIDREGISTRY_SCHEMA}.{_quote_ident(row[0])}"
 
 
-def _resolve_bidregistry_columns() -> dict[str, str]:
-    """Map ODS_REQUEST_COLUMNS → actual bidregistry column names."""
-    table_sql = _resolve_bidregistry_table()
-    # Unquote for information_schema: master."BidRegistry" → BidRegistry
-    raw_name = table_sql.split(".", 1)[1].strip('"')
-    cols = _fetch_table_columns(QGIS_ALIAS, ODS_BIDREGISTRY_SCHEMA, raw_name)
-    by_lower = {c["name"].lower(): c["name"] for c in cols}
-    mapping: dict[str, str] = {}
-    missing: list[str] = []
-    for wanted in ODS_REQUEST_COLUMNS:
-        hit = by_lower.get(wanted.lower())
-        if hit is None:
-            missing.append(wanted)
-        else:
-            mapping[wanted] = hit
-    if missing:
-        raise ValueError(
-            f"bidregistry missing columns required for ods_request: {missing}"
-        )
-    return mapping
+# Canonical SELECT for ods_request (product formula). ownerid/grbsid come from cls joins.
+# DISTINCT ON: Shortname can match multiple CustomerLegalPerson rows.
+ODS_BIDREGISTRY_SELECT_SQL = f"""
+    SELECT DISTINCT ON (b."BrId")
+        b."BrId",
+        b."BrStatusName",
+        b."CreateTypeName",
+        b."ReasonName",
+        b."PassportizationTypeName",
+        b."ObjectTypeName",
+        b."OwnerName",
+        b."GrbsName",
+        b."ShortObjectId",
+        b."ShortObjectRootId",
+        b."ObjectName",
+        b."ObjectArea",
+        b."InspectionDatePlan",
+        owner."Id" AS ownerid,
+        grbs."Id" AS grbsid
+    FROM master."BidRegistry" b
+    LEFT JOIN cls."CustomerLegalPerson" owner
+        ON owner."Shortname" = b."OwnerName"
+    LEFT JOIN cls."CustomerLegalPerson" grbs
+        ON grbs."Shortname" = b."GrbsName"
+    WHERE {ODS_BIDREGISTRY_WHERE}
+      AND b."BrId" IS NOT NULL
+    ORDER BY b."BrId", owner."Id" NULLS LAST, grbs."Id" NULLS LAST
+"""
 
 
 def _ods_select_sql() -> tuple[str, list[str]]:
-    col_map = _resolve_bidregistry_columns()
-    table_sql = _resolve_bidregistry_table()
-    select_parts = [
-        f'b.{_quote_ident(col_map[c])} AS {_quote_ident(c)}' for c in ODS_REQUEST_COLUMNS
-    ]
-    sql = f"""
-        SELECT {', '.join(select_parts)}
-        FROM {table_sql} b
-        WHERE {ODS_BIDREGISTRY_WHERE}
-          AND b.{_quote_ident(col_map['BrId'])} IS NOT NULL
-    """
-    return sql, list(ODS_REQUEST_COLUMNS)
+    return ODS_BIDREGISTRY_SELECT_SQL, list(ODS_REQUEST_COLUMNS)
 
 
 def sync_ods_request_from_bidregistry(*, dry_run: bool = False) -> dict[str, int]:
     """
-    Replace geodb.ods_request with filtered master.bidregistry rows.
+    Replace geodb.ods_request with filtered master."BidRegistry" rows.
 
+    ownerid / grbsid resolved via cls."CustomerLegalPerson" Shortname joins.
     Deletes rows whose BrId is not in the filtered source set (via TRUNCATE+INSERT).
     """
     select_sql, columns = _ods_select_sql()
@@ -599,8 +597,10 @@ def sync_ods_request_from_bidregistry(*, dry_run: bool = False) -> dict[str, int
 
     if dry_run:
         with connections[GEODB_ALIAS].cursor() as cursor:
-            cursor.execute('SELECT count(*) FROM ods_request')
+            cursor.execute("SELECT count(*) FROM ods_request")
             geodb_count = int(cursor.fetchone()[0])
+            owner_filled = sum(1 for r in rows if r[columns.index("ownerid")] is not None)
+            grbs_filled = sum(1 for r in rows if r[columns.index("grbsid")] is not None)
         return {
             "source_rows": len(rows),
             "geodb_keys": geodb_count,
@@ -608,6 +608,8 @@ def sync_ods_request_from_bidregistry(*, dry_run: bool = False) -> dict[str, int
             "updated": 0,
             "deleted": geodb_count,  # full replace
             "dry_run": 1,
+            "ownerid_filled": owner_filled,
+            "grbsid_filled": grbs_filled,
         }
 
     placeholders = ", ".join(["%s"] * len(columns))
