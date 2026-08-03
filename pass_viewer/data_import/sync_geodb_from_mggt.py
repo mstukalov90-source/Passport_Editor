@@ -9,8 +9,9 @@ dgi: after attrs sync, recompute rent via set_dgi_rent.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
-from typing import Any, Iterable, Iterator
+from typing import Any
 
 from django.db import connections, transaction
 from psycopg2.extras import execute_values
@@ -505,7 +506,7 @@ def sync_keyed_table_full(
 
             # Index for join performance.
             cursor.execute(
-                f"CREATE INDEX ON sync_stage (jk)"
+                "CREATE INDEX ON sync_stage (jk)"
             )
 
         counts = _merge_from_stage(plan)
