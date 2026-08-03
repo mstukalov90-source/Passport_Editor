@@ -55,6 +55,19 @@ def test_ods_bidregistry_where_matches_product_filter():
     assert "ReasonName" in ODS_BIDREGISTRY_WHERE
 
 
+def test_ods_select_sql_joins_customer_legal_person():
+    from pass_viewer.data_import.sync_geodb_from_mggt import ODS_BIDREGISTRY_SELECT_SQL
+
+    sql = ODS_BIDREGISTRY_SELECT_SQL
+    assert 'master."BidRegistry"' in sql
+    assert 'cls."CustomerLegalPerson"' in sql
+    assert 'owner."Id" AS ownerid' in sql
+    assert 'grbs."Id" AS grbsid' in sql
+    assert 'owner."Shortname" = b."OwnerName"' in sql
+    assert 'grbs."Shortname" = b."GrbsName"' in sql
+    assert "DISTINCT ON (b.\"BrId\")" in sql
+
+
 def test_local_skip_and_preserve_null_rootid_tables():
     assert "request_id" in LOCAL_SKIP_COLUMNS
     assert "rent" in LOCAL_SKIP_COLUMNS
