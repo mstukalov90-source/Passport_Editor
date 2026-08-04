@@ -101,6 +101,34 @@ def _features_from_geojson_payload(payload, *, layer_key: str) -> list[dict]:
     return out
 
 
+def _build_dgi_split_features(geometry: dict, meters: float) -> list[dict]:
+    """Load ДГИ as four ownership×rent buckets; tag each feature with dgiSubKey."""
+    from django.db import connection
+
+    from pass_viewer.dgi_layers import DGI_LAYER_KEYS
+    from pass_viewer.views import _get_reference_layer_geojson, _sql_dgi_layer_filter
+
+    dgi_table = getattr(settings, "GIS_DGI_TABLE", "dgi")
+    layer_filters: dict[str, str] = {}
+    with connection.cursor() as cursor:
+        for sub_key in DGI_LAYER_KEYS:
+            layer_filters[sub_key] = _sql_dgi_layer_filter(cursor, dgi_table, sub_key)
+
+    features: list[dict] = []
+    for sub_key in DGI_LAYER_KEYS:
+        payload = _get_reference_layer_geojson(
+            dgi_table,
+            "ДГИ",
+            geometry=geometry,
+            distance_meters=meters,
+            extra_where_sql=layer_filters[sub_key],
+        )
+        for feature in _features_from_geojson_payload(payload, layer_key="dgi"):
+            feature["properties"]["dgiSubKey"] = sub_key
+            features.append(feature)
+    return features
+
+
 def build_reference_layer_features(layer_key: str, task_guid: str) -> tuple[list[dict], str | None]:
     """
     Load dgi / oozt / renew / rzd features within APPROVAL_REFERENCE_BUFFER_METERS
@@ -123,14 +151,8 @@ def build_reference_layer_features(layer_key: str, task_guid: str) -> tuple[list
         )
 
         if key == "dgi":
-            # Combined ДГИ layer (no ownership split) to keep one progressive chunk.
-            payload = _get_reference_layer_geojson(
-                getattr(settings, "GIS_DGI_TABLE", "dgi"),
-                "ДГИ",
-                geometry=geometry,
-                distance_meters=meters,
-            )
-        elif key == "renew":
+            return _build_dgi_split_features(geometry, meters), None
+        if key == "renew":
             payload = _get_reference_layer_geojson(
                 getattr(settings, "GIS_RENEW_TABLE", "renew"),
                 "Реновация",

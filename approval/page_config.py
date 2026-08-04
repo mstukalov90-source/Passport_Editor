@@ -53,6 +53,7 @@ def landing_page_config(
             "createAdjacentEvent": "/approval/api/approves/{approveId}/adjacent-events/",
             "messageReaction": "/approval/api/messages/{messageId}/reactions/",
             "deleteMessage": "/approval/api/messages/{messageId}/",
+            "deleteCase": "/approval/api/cases/{caseId}/",
             "attachment": "/approval/api/attachments/{attachmentId}/",
         },
         "layerStyleIconsBase": "/static/approval/icons/svg/",

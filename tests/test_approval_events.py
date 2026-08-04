@@ -122,6 +122,69 @@ def test_bootstrap_returns_primary_case(client, owner_a, approve_with_primary_ow
 
 
 @pytest.mark.django_db
+def test_bootstrap_includes_title_named_for_secondary(client, owner_a, approve_with_primary_owner):
+    _event_case(
+        approve=approve_with_primary_owner,
+        n_root="930062866",
+        title="Согласование заявок по паспортизации 24976 и паспорта 930062866",
+    )
+    _login(client, "owner_a")
+    with patch(
+        "approval.events_service.lookup_task_survey_fields",
+        return_value=("Шаболовка ул. 23", "24976"),
+    ):
+        with patch(
+            "approval.events_service.resolve_root_object_names",
+            return_value={"930062866": "ул. Шаболовка, вл. 19А"},
+        ):
+            response = client.get(
+                reverse("approval:api_bootstrap"),
+                {"approve_id": str(approve_with_primary_owner.id)},
+            )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    secondary = next(item for item in payload["cases"] if not item["is_primary"])
+    primary = next(item for item in payload["cases"] if item["is_primary"])
+    assert primary["title_named"] is None
+    assert secondary["title"] == "Согласование заявок по паспортизации 24976 и паспорта 930062866"
+    assert (
+        secondary["title_named"]
+        == "Согласование заявок по паспортизации Шаболовка ул. 23 и паспорта ул. Шаболовка, вл. 19А"
+    )
+
+
+@pytest.mark.django_db
+def test_build_case_title_named_fallbacks():
+    from approval.events_service import build_case_title_named, format_named_event_title
+
+    approve = Approve.objects.create(incoming_guid=uuid.uuid4(), owners=["OWNER_A"])
+    secondary = _event_case(
+        approve=approve,
+        n_root="930062866",
+        title="Согласование заявок по паспортизации 24976 и паспорта 930062866",
+    )
+    primary = _primary_case(approve)
+
+    assert build_case_title_named(primary, survey_name="X") is None
+    assert (
+        build_case_title_named(
+            secondary,
+            survey_name="Шаболовка ул. 23",
+            root_names={"930062866": "ул. Шаболовка, вл. 19А"},
+        )
+        == "Согласование заявок по паспортизации Шаболовка ул. 23 и паспорта ул. Шаболовка, вл. 19А"
+    )
+    assert (
+        build_case_title_named(secondary, survey_brid="24976", root_names={})
+        == "Согласование заявок по паспортизации 24976 и паспорта 930062866"
+    )
+    assert format_named_event_title(task_label="A", passport_label="B") == (
+        "Согласование заявок по паспортизации A и паспорта B"
+    )
+
+
+@pytest.mark.django_db
 def test_create_case_endpoint_disabled(client, owner_a, approve_with_primary_owner):
     _login(client, "owner_a")
     geometry = {
@@ -1097,3 +1160,88 @@ def test_owner_cannot_delete_own_message(
     )
     assert delete_response.status_code == 403
     assert CaseMessage.objects.filter(pk=message_id).exists()
+
+
+@pytest.mark.django_db
+def test_serialize_case_summary_can_delete_secondary_for_inspector(
+    inspector_user,
+    approve_with_primary_owner,
+):
+    from approval.events_service import serialize_case_summary
+
+    primary = _primary_case(approve_with_primary_owner)
+    secondary = _event_case(approve=approve_with_primary_owner)
+
+    primary_payload = serialize_case_summary(
+        primary, current_login="inspector_user", owner_id=None
+    )
+    secondary_payload = serialize_case_summary(
+        secondary, current_login="inspector_user", owner_id=None
+    )
+    owner_payload = serialize_case_summary(
+        secondary, current_login="owner_a", owner_id="OWNER_A"
+    )
+
+    assert primary_payload["can_delete"] is False
+    assert secondary_payload["can_delete"] is True
+    assert owner_payload["can_delete"] is False
+
+
+@pytest.mark.django_db
+def test_inspector_can_delete_secondary_case(
+    client,
+    owner_a,
+    inspector_user,
+    approve_with_primary_owner,
+    settings,
+    tmp_path,
+):
+    settings.MEDIA_ROOT = tmp_path
+    primary = _primary_case(approve_with_primary_owner)
+    secondary = _event_case(approve=approve_with_primary_owner)
+    secondary_id = secondary.id
+
+    _login(client, "inspector_user")
+    response = client.delete(
+        reverse("approval:api_case_detail", kwargs={"case_id": secondary_id})
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["deleted_case_id"] == str(secondary_id)
+    assert payload["primary_case_id"] == str(primary.id)
+    assert not Case.objects.filter(pk=secondary_id).exists()
+    assert Case.objects.filter(pk=primary.id).exists()
+
+
+@pytest.mark.django_db
+def test_inspector_cannot_delete_primary_case(
+    client,
+    inspector_user,
+    approve_with_primary_owner,
+):
+    primary = _primary_case(approve_with_primary_owner)
+
+    _login(client, "inspector_user")
+    response = client.delete(
+        reverse("approval:api_case_detail", kwargs={"case_id": primary.id})
+    )
+    assert response.status_code == 403
+    assert "основное" in response.json()["error"].lower()
+    assert Case.objects.filter(pk=primary.id).exists()
+
+
+@pytest.mark.django_db
+def test_owner_cannot_delete_secondary_case(
+    client,
+    owner_a,
+    approve_with_primary_owner,
+):
+    secondary = _event_case(approve=approve_with_primary_owner)
+
+    _login(client, "owner_a")
+    response = client.delete(
+        reverse("approval:api_case_detail", kwargs={"case_id": secondary.id})
+    )
+    assert response.status_code == 403
+    assert Case.objects.filter(pk=secondary.id).exists()

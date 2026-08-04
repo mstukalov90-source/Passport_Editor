@@ -30,6 +30,7 @@ from .events_service import (
     change_case_owner,
     create_event_from_adjacent,
     delete_approve_for_inspector,
+    delete_case_for_inspector,
     delete_inspector_own_message,
     get_cases_queryset,
     parse_geometry_payload,
@@ -256,7 +257,7 @@ def api_qgis_approve_by_guid(request, incoming_guid):
 
 
 @csrf_exempt
-@require_GET
+@require_http_methods(["GET", "DELETE"])
 def api_qgis_case_detail(request, case_id):
     actor, error = _qgis_actor(request)
     if error:
@@ -265,6 +266,24 @@ def api_qgis_case_detail(request, case_id):
     case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
     if error:
         return error
+
+    if request.method == "DELETE":
+        approve = case.approve
+        deleted_case_id = str(case.id)
+        try:
+            delete_case_for_inspector(case=case, username=actor["username"])
+        except ValueError as exc:
+            return _json_error(str(exc), status=403)
+
+        primary = approve.cases.filter(is_primary=True).first()
+        return JsonResponse(
+            {
+                "ok": True,
+                "deleted_case_id": deleted_case_id,
+                "primary_case_id": str(primary.id) if primary else None,
+                "current_user": actor["username"],
+            }
+        )
 
     return JsonResponse(
         {

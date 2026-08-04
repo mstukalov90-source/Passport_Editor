@@ -18,6 +18,7 @@ from .work_layers import (
     list_work_layer_tables,
     schema_taskguid_column,
     topo_layer_key,
+    topolines_excluded_layer_sql,
     topopassport_schema_name,
     wgs84_to_work_sql,
     work_geom_column,
@@ -131,6 +132,7 @@ def _feature_select_sql(
             {wgs84_to_work_sql()}
           )
         """
+    exclude_sql = topolines_excluded_layer_sql(cursor, schema, table_name)
 
     return f"""
         SELECT json_build_object(
@@ -145,6 +147,7 @@ def _feature_select_sql(
           AND t.{quoted_geom} IS NOT NULL
           AND NOT ST_IsEmpty(t.{quoted_geom})
           {clip_sql}
+          {exclude_sql}
     """
 
 

@@ -43,6 +43,23 @@
     let layerStackOrder = [];
     const adjacentFeatureRegistry = {};
     let activeAdjacentNRoot = '';
+    const dgiFeatureRegistry = [];
+    const dgiSubKeyChecked = {};
+    const DGI_SUBLAYER_SPECS = [
+        { key: 'dgi_moscow_rent', name: 'З/У г. Москва с арендой' },
+        { key: 'dgi_moscow_no_rent', name: 'З/У г. Москва без аренды' },
+        {
+            key: 'dgi_private_rent',
+            name: 'З/У Частная или федеральная собственность с арендой',
+        },
+        {
+            key: 'dgi_private_no_rent',
+            name: 'З/У Частная или федеральная собственность без аренды',
+        },
+    ];
+    DGI_SUBLAYER_SPECS.forEach(function (spec) {
+        dgiSubKeyChecked[spec.key] = true;
+    });
     let measureModeActive = false;
     let measurePoints = [];
     let measureGroup = null;
@@ -66,6 +83,8 @@
     const MAP_UNIT_MARKER_MAX_PX = 10000;
     let mapUnitMarkers = [];
     let signalTapeRenderer = null;
+    // ~1:200 at Moscow latitude (Web Mercator, 0.28 mm CSS pixel).
+    const APPROVAL_MAP_MAX_ZOOM = 20.5;
 
     function getSvgIndex() {
         if (svgIndex) {
@@ -707,10 +726,34 @@
     };
 
     const REFERENCE_SIGNAL_TAPE = {
-        dgi: { patternId: 'approval-dgi-signal-tape-pattern', stripe: '#dc2626', bg: '#ffffff', stroke: '#dc2626', title: 'ДГИ' },
-        oozt: { patternId: 'approval-oozt-signal-tape-pattern', stripe: '#16a34a', bg: '#ffffff', stroke: '#16a34a', title: 'ООЗТ' },
-        renew: { patternId: 'approval-renew-signal-tape-pattern', stripe: '#f59e0b', bg: '#ffffff', stroke: '#b45309', title: 'Реновация' },
-        rzd: { patternId: 'approval-rzd-signal-tape-pattern', stripe: '#dc2626', bg: '#16a34a', stroke: '#dc2626', title: 'РЖД' },
+        dgi: {
+            patternId: 'approval-dgi-signal-tape-pattern',
+            stripe: '#dc2626',
+            bg: '#ffffff',
+            stroke: '#dc2626',
+            title: 'Земельные участки',
+        },
+        oozt: {
+            patternId: 'approval-oozt-signal-tape-pattern',
+            stripe: '#16a34a',
+            bg: '#ffffff',
+            stroke: '#16a34a',
+            title: 'ООЗТ/ООПТ',
+        },
+        renew: {
+            patternId: 'approval-renew-signal-tape-pattern',
+            stripe: '#f59e0b',
+            bg: '#ffffff',
+            stroke: '#b45309',
+            title: 'Реновация',
+        },
+        rzd: {
+            patternId: 'approval-rzd-signal-tape-pattern',
+            stripe: '#dc2626',
+            bg: '#16a34a',
+            stroke: '#dc2626',
+            title: 'Полосы отвода ЖД',
+        },
     };
 
     function referenceLayerStyle(layerKey) {
@@ -734,6 +777,18 @@
                 : 0;
             const count = Number.isFinite(raw) ? raw : 0;
             row.hidden = count <= 0;
+            const featuresList = row.nextElementSibling;
+            if (
+                featuresList &&
+                featuresList.classList &&
+                featuresList.classList.contains('approval-layer-features')
+            ) {
+                if (row.hidden) {
+                    featuresList.hidden = true;
+                } else if (layerKey === 'dgi' && dgiFeatureRegistry.length) {
+                    featuresList.hidden = false;
+                }
+            }
         });
         const groupInput = document.querySelector('input[data-layer-group="reference"]');
         const group = groupInput && groupInput.closest ? groupInput.closest('.approval-layer-group') : null;
@@ -749,6 +804,106 @@
             }
         }
         group.hidden = !anyVisible;
+    }
+
+    function isDgiSubKeyChecked(subKey) {
+        return dgiSubKeyChecked[subKey] !== false;
+    }
+
+    function setDgiFeatureVisible(entry) {
+        if (!entry || !entry.leafletLayer || !map) {
+            return;
+        }
+        const group = ensureLayerGroup('dgi');
+        const parentCheckbox = document.querySelector('input[data-layer-key="dgi"]');
+        const parentOn = (!parentCheckbox || parentCheckbox.checked) && map.hasLayer(group);
+        const visible = isDgiSubKeyChecked(entry.dgiSubKey);
+        if (visible && parentOn) {
+            if (!group.hasLayer(entry.leafletLayer)) {
+                group.addLayer(entry.leafletLayer);
+            }
+        } else if (group.hasLayer(entry.leafletLayer)) {
+            group.removeLayer(entry.leafletLayer);
+        }
+    }
+
+    function syncDgiFeaturesInLayer() {
+        dgiFeatureRegistry.forEach(function (entry) {
+            setDgiFeatureVisible(entry);
+        });
+    }
+
+    function setDgiSubKeysChecked(checked) {
+        DGI_SUBLAYER_SPECS.forEach(function (spec) {
+            dgiSubKeyChecked[spec.key] = Boolean(checked);
+        });
+        document.querySelectorAll('input[data-dgi-sub-key]').forEach(function (checkbox) {
+            checkbox.checked = Boolean(checked);
+        });
+    }
+
+    function refreshDgiFeaturePanel() {
+        const input = document.querySelector('input[data-layer-key="dgi"]');
+        const row = input && input.closest ? input.closest('.approval-layer-row') : null;
+        if (!row) {
+            return;
+        }
+
+        const counts = {};
+        dgiFeatureRegistry.forEach(function (entry) {
+            if (!entry || !entry.dgiSubKey) {
+                return;
+            }
+            counts[entry.dgiSubKey] = (counts[entry.dgiSubKey] || 0) + 1;
+        });
+
+        let list = row.nextElementSibling;
+        if (!list || !list.classList || !list.classList.contains('approval-layer-features')) {
+            list = document.createElement('ul');
+            list.className = 'approval-layer-features';
+            row.insertAdjacentElement('afterend', list);
+        }
+        list.setAttribute('data-for-layer', 'dgi');
+
+        const items = DGI_SUBLAYER_SPECS.filter(function (spec) {
+            return (counts[spec.key] || 0) > 0;
+        });
+        if (!items.length) {
+            list.innerHTML = '';
+            list.hidden = true;
+            return;
+        }
+        list.hidden = false;
+        list.innerHTML = items
+            .map(function (spec) {
+                const checked = isDgiSubKeyChecked(spec.key) ? ' checked' : '';
+                return (
+                    '<li class="approval-layer-feature">' +
+                    '<label class="approval-layer-feature__label">' +
+                    '<input type="checkbox" data-dgi-sub-key="' +
+                    escapeHtml(spec.key) +
+                    '"' +
+                    checked +
+                    ' />' +
+                    '<span class="approval-layer-feature__name" title="' +
+                    escapeHtml(spec.name) +
+                    '">' +
+                    escapeHtml(spec.name) +
+                    '</span>' +
+                    '</label>' +
+                    '</li>'
+                );
+            })
+            .join('');
+
+        list.querySelectorAll('input[data-dgi-sub-key]').forEach(function (checkbox) {
+            checkbox.addEventListener('change', function () {
+                const subKey = checkbox.dataset.dgiSubKey;
+                dgiSubKeyChecked[subKey] = checkbox.checked;
+                syncDgiFeaturesInLayer();
+                reorderMapLayers();
+            });
+        });
     }
 
     function escapeHtml(value) {
@@ -1190,12 +1345,18 @@
         if (currentGroup && currentGroup !== targetGroup) {
             currentGroup.removeLayer(leafletLayer);
         }
-        if (!targetGroup.hasLayer(leafletLayer)) {
-            targetGroup.addLayer(leafletLayer);
+        const featureKey = leafletLayer._adjacentFeatureKey;
+        const entry = featureKey ? adjacentFeatureRegistry[featureKey] : null;
+        const featureChecked = !entry || entry.checked !== false;
+        if (featureChecked) {
+            if (!targetGroup.hasLayer(leafletLayer)) {
+                targetGroup.addLayer(leafletLayer);
+            }
+        } else if (targetGroup.hasLayer(leafletLayer)) {
+            targetGroup.removeLayer(leafletLayer);
         }
         const checkbox = document.querySelector('input[data-layer-key="' + targetKey + '"]');
-        const isVisible = !checkbox || checkbox.checked;
-        setLayerVisible(targetKey, isVisible);
+        setLayerVisible(targetKey, !checkbox || checkbox.checked);
     }
 
     function registerAdjacentLeafletLayer(props, leafletLayer) {
@@ -1203,14 +1364,168 @@
         const kind =
             props.adjacentRootKind ||
             (adjacentBaseKey(props.layerKey) === 'adjacent_approval' ? 'n' : 'v');
+        const existing = adjacentFeatureRegistry[key];
+        const layerKey = String(props.layerKey || '');
         adjacentFeatureRegistry[key] = {
             leafletLayer: leafletLayer,
             rootId: props.RootId || '',
             kind: kind,
             sourceTable: props.sourceTable || '',
+            name: props.Name || '',
+            layerKey: layerKey,
+            checked: existing && typeof existing.checked === 'boolean' ? existing.checked : true,
             baseStyle: adjacentBaseStyle(leafletLayer, props),
         };
         leafletLayer._adjacentFeatureKey = key;
+    }
+
+    function adjacentFeatureDisplayName(entry) {
+        const name = String((entry && entry.name) || '').trim();
+        if (name && !isBlankDisplayValue(name)) {
+            return name;
+        }
+        const rootId = String((entry && entry.rootId) || '').trim();
+        if (rootId) {
+            return 'Паспорт ' + rootId;
+        }
+        return 'Без названия';
+    }
+
+    function isAdjacentLayerKey(layerKey) {
+        return Boolean(adjacentBaseKey(layerKey));
+    }
+
+    function isAdjacentParentLayerChecked(layerKey) {
+        const checkbox = document.querySelector('input[data-layer-key="' + layerKey + '"]');
+        return !checkbox || checkbox.checked;
+    }
+
+    function setAdjacentFeatureVisible(featureKey, visible) {
+        const entry = adjacentFeatureRegistry[featureKey];
+        if (!entry || !entry.leafletLayer || !map) {
+            return;
+        }
+        const layerKey = entry.layerKey || '';
+        if (!layerKey) {
+            return;
+        }
+        const group = ensureLayerGroup(layerKey);
+        const parentOn = isAdjacentParentLayerChecked(layerKey) && map.hasLayer(group);
+        if (visible && parentOn) {
+            if (!group.hasLayer(entry.leafletLayer)) {
+                group.addLayer(entry.leafletLayer);
+            }
+        } else if (group.hasLayer(entry.leafletLayer)) {
+            group.removeLayer(entry.leafletLayer);
+        }
+    }
+
+    function syncAdjacentFeaturesInLayer(layerKey) {
+        if (!isAdjacentLayerKey(layerKey)) {
+            return;
+        }
+        Object.keys(adjacentFeatureRegistry).forEach(function (key) {
+            const entry = adjacentFeatureRegistry[key];
+            if (!entry || entry.layerKey !== layerKey) {
+                return;
+            }
+            setAdjacentFeatureVisible(key, entry.checked !== false);
+        });
+    }
+
+    function refreshAdjacentFeaturePanel() {
+        const groupInput = document.querySelector('input[data-layer-group="adjacent"]');
+        const group = groupInput && groupInput.closest ? groupInput.closest('.approval-layer-group') : null;
+        if (!group) {
+            return;
+        }
+
+        const byLayer = {};
+        Object.keys(adjacentFeatureRegistry).forEach(function (key) {
+            const entry = adjacentFeatureRegistry[key];
+            if (!entry || !entry.layerKey) {
+                return;
+            }
+            if (!byLayer[entry.layerKey]) {
+                byLayer[entry.layerKey] = [];
+            }
+            byLayer[entry.layerKey].push({ key: key, entry: entry });
+        });
+
+        const layerInputs = group.querySelectorAll('input[data-layer-key]');
+        layerInputs.forEach(function (input) {
+            const layerKey = input.dataset.layerKey || '';
+            if (!isAdjacentLayerKey(layerKey)) {
+                return;
+            }
+            const row = input.closest('.approval-layer-row');
+            if (!row) {
+                return;
+            }
+
+            let list = row.nextElementSibling;
+            if (!list || !list.classList || !list.classList.contains('approval-layer-features')) {
+                list = document.createElement('ul');
+                list.className = 'approval-layer-features';
+                row.insertAdjacentElement('afterend', list);
+            }
+            list.setAttribute('data-for-layer', layerKey);
+
+            const items = byLayer[layerKey] || [];
+            items.sort(function (a, b) {
+                const an = adjacentFeatureDisplayName(a.entry).toLowerCase();
+                const bn = adjacentFeatureDisplayName(b.entry).toLowerCase();
+                if (an < bn) {
+                    return -1;
+                }
+                if (an > bn) {
+                    return 1;
+                }
+                return String(a.key).localeCompare(String(b.key));
+            });
+
+            if (!items.length) {
+                list.innerHTML = '';
+                list.hidden = true;
+                return;
+            }
+            list.hidden = false;
+            list.innerHTML = items
+                .map(function (item) {
+                    const label = adjacentFeatureDisplayName(item.entry);
+                    const checked = item.entry.checked !== false ? ' checked' : '';
+                    return (
+                        '<li class="approval-layer-feature">' +
+                        '<label class="approval-layer-feature__label">' +
+                        '<input type="checkbox" data-adjacent-feature-key="' +
+                        escapeHtml(item.key) +
+                        '"' +
+                        checked +
+                        ' />' +
+                        '<span class="approval-layer-feature__name" title="' +
+                        escapeHtml(label) +
+                        '">' +
+                        escapeHtml(label) +
+                        '</span>' +
+                        '</label>' +
+                        '</li>'
+                    );
+                })
+                .join('');
+
+            list.querySelectorAll('input[data-adjacent-feature-key]').forEach(function (checkbox) {
+                checkbox.addEventListener('change', function () {
+                    const featureKey = checkbox.dataset.adjacentFeatureKey;
+                    const entry = adjacentFeatureRegistry[featureKey];
+                    if (!entry) {
+                        return;
+                    }
+                    entry.checked = checkbox.checked;
+                    setAdjacentFeatureVisible(featureKey, checkbox.checked);
+                    reorderMapLayers();
+                });
+            });
+        });
     }
 
     function updateAdjacentLayers(activeNRoot) {
@@ -1229,13 +1544,16 @@
                 activeAdjacentNRoot,
                 entry.sourceTable
             );
+            entry.layerKey = targetKey;
             moveLeafletLayerToGroup(entry.leafletLayer, targetKey);
             applyAdjacentFeatureStyle(
                 entry,
                 isAdjacentRootHighlighted(entry.rootId, entry.kind, activeAdjacentNRoot)
             );
+            setAdjacentFeatureVisible(key, entry.checked !== false);
         });
         syncAdjacentHighlightPulse();
+        refreshAdjacentFeaturePanel();
         reorderMapLayers();
     }
 
@@ -1609,6 +1927,12 @@
             if (!map.hasLayer(group)) {
                 group.addTo(map);
             }
+            if (isAdjacentLayerKey(layerKey)) {
+                syncAdjacentFeaturesInLayer(layerKey);
+            }
+            if (layerKey === 'dgi') {
+                syncDgiFeaturesInLayer();
+            }
         } else if (map.hasLayer(group)) {
             map.removeLayer(group);
         }
@@ -1648,7 +1972,7 @@
         });
         const bounds = boundsGroup.getBounds();
         if (bounds.isValid()) {
-            map.fitBounds(bounds.pad(0.12));
+            map.fitBounds(bounds.pad(0.12), { maxZoom: APPROVAL_MAP_MAX_ZOOM });
         }
     }
 
@@ -1681,7 +2005,7 @@
         if (northEast.lat === southWest.lat && northEast.lng === southWest.lng) {
             map.setView(bounds.getCenter(), Math.max(map.getZoom(), 17));
         } else {
-            map.fitBounds(bounds.pad(0.12));
+            map.fitBounds(bounds.pad(0.12), { maxZoom: APPROVAL_MAP_MAX_ZOOM });
         }
         return true;
     }
@@ -1693,7 +2017,11 @@
 
         layerCheckboxes.forEach(function (checkbox) {
             checkbox.addEventListener('change', function () {
-                setLayerVisible(checkbox.dataset.layerKey, checkbox.checked);
+                const layerKey = checkbox.dataset.layerKey;
+                if (layerKey === 'dgi') {
+                    setDgiSubKeysChecked(checkbox.checked);
+                }
+                setLayerVisible(layerKey, checkbox.checked);
             });
         });
 
@@ -1701,13 +2029,16 @@
             groupCheckbox.addEventListener('change', function () {
                 const groupKeys = layerGroupMap[groupCheckbox.dataset.layerGroup] || [];
                 groupKeys.forEach(function (layerKey) {
-                    setLayerVisible(layerKey, groupCheckbox.checked);
                     const layerCheckbox = document.querySelector(
                         'input[data-layer-key="' + layerKey + '"]'
                     );
                     if (layerCheckbox) {
                         layerCheckbox.checked = groupCheckbox.checked;
                     }
+                    if (layerKey === 'dgi') {
+                        setDgiSubKeysChecked(groupCheckbox.checked);
+                    }
+                    setLayerVisible(layerKey, groupCheckbox.checked);
                 });
             });
         });
@@ -2059,7 +2390,7 @@
             map.setView(bounds.getCenter(), Math.max(map.getZoom(), 17));
             return;
         }
-        map.fitBounds(bounds.pad(0.2));
+        map.fitBounds(bounds.pad(0.2), { maxZoom: APPROVAL_MAP_MAX_ZOOM });
     }
 
     function fitGeometryLayers(layerKeys) {
@@ -2087,7 +2418,7 @@
             map.setView(combined.getCenter(), Math.max(map.getZoom(), 17));
             return;
         }
-        map.fitBounds(combined.pad(0.2));
+        map.fitBounds(combined.pad(0.2), { maxZoom: APPROVAL_MAP_MAX_ZOOM });
     }
 
     function fitCaseGeometry(caseId) {
@@ -2395,7 +2726,7 @@
         map = L.map(mapElementId, {
             zoomControl: true,
             attributionControl: true,
-            maxZoom: 30,
+            maxZoom: APPROVAL_MAP_MAX_ZOOM,
             // Own MapUnit sizing must drive marker scale; Leaflet CSS zoom-anim
             // on markers would double-scale and look like drift.
             markerZoomAnimation: false,
@@ -2604,12 +2935,29 @@
                     L.geoJSON(feature, geoJsonOptions).eachLayer(function (layer) {
                         if (isAdjacentFeature(props)) {
                             registerAdjacentLeafletLayer(props, layer);
+                            const entry = adjacentFeatureRegistry[adjacentFeatureKey(props)];
+                            if (!entry || entry.checked !== false) {
+                                targetGroup.addLayer(layer);
+                            }
+                        } else if (layerKey === 'dgi' && props.dgiSubKey) {
+                            dgiFeatureRegistry.push({
+                                leafletLayer: layer,
+                                dgiSubKey: props.dgiSubKey,
+                            });
+                            if (isDgiSubKeyChecked(props.dgiSubKey)) {
+                                targetGroup.addLayer(layer);
+                            }
+                        } else {
+                            targetGroup.addLayer(layer);
                         }
-                        targetGroup.addLayer(layer);
                     });
 
                     if (!isVisible) {
                         setLayerVisible(layerKey, false);
+                    } else if (isAdjacentLayerKey(layerKey)) {
+                        syncAdjacentFeaturesInLayer(layerKey);
+                    } else if (layerKey === 'dgi') {
+                        syncDgiFeaturesInLayer();
                     }
                     added += 1;
                     countsByKey[layerKey] = (countsByKey[layerKey] || 0) + 1;
@@ -2622,6 +2970,12 @@
                     setLayerCount(layerKey, countsByKey[layerKey], true);
                 }
             });
+            if (Object.keys(countsByKey).some(isAdjacentLayerKey)) {
+                refreshAdjacentFeaturePanel();
+            }
+            if (countsByKey.dgi) {
+                refreshDgiFeaturePanel();
+            }
             return added;
         }
 

@@ -2,7 +2,19 @@
     <section class="approval-events__section approval-events__section--secondary is-collapsed">
         <div class="approval-events__section-header">
             <div class="approval-events__section-heading">
-                <h3 class="approval-events__section-title">Процесс согласования границ</h3>
+                <div class="approval-events__section-title-row">
+                    <h3 class="approval-events__section-title">Процесс согласования границ</h3>
+                    <label
+                        class="approval-title-mode-switch"
+                        for="approval-event-title-mode"
+                        title="Отображение заголовков событий: номера или имена объектов"
+                    >
+                        <input type="checkbox" id="approval-event-title-mode" />
+                        <span class="approval-title-mode-switch__label approval-title-mode-switch__label--left">Номера</span>
+                        <span class="approval-title-mode-switch__track" aria-hidden="true"></span>
+                        <span class="approval-title-mode-switch__label approval-title-mode-switch__label--right">Имена</span>
+                    </label>
+                </div>
                 <p class="approval-events__section-summary" id="approval-events-progress">Согласовано: 0 / 0</p>
             </div>
             <button

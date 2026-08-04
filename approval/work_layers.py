@@ -21,6 +21,8 @@ _BOTTOM_POLYGON_TABLES = frozenset({"OdhPoly", "OznPoly", "YardPoly"})
 TOPO_LAYER_KEY_PREFIX = "topo:"
 # Keep in sync with approval.work_geojson._TOPO_CLIP_TO_WORK_TABLES
 _TOPO_CLIP_TO_WORK_TABLES = frozenset({"topotext"})
+TOPOLINES_TABLE = "topolines"
+TOPOLINES_EXCLUDED_LAYER = "Границы заказа"
 
 
 def _quote_ident(identifier: str) -> str:
@@ -139,6 +141,24 @@ def _column_exists(cursor, schema: str, table_name: str, column_name: str) -> bo
     return cursor.fetchone() is not None
 
 
+def topolines_excluded_layer_sql(
+    cursor,
+    schema: str,
+    table_name: str,
+    *,
+    alias: str = "t",
+) -> str:
+    """Exclude order-boundary lines from topolines map load and counts."""
+    if str(table_name or "") != TOPOLINES_TABLE:
+        return ""
+    if not _column_exists(cursor, schema, table_name, "layer"):
+        return ""
+    excluded = TOPOLINES_EXCLUDED_LAYER.replace("'", "''")
+    return (
+        f" AND COALESCE({alias}.{_quote_ident('layer')}, '') <> '{excluded}'"
+    )
+
+
 def _owner_lookup_table_order() -> list[str]:
     seen: set[str] = set()
     ordered: list[str] = []
@@ -203,16 +223,16 @@ def format_survey_page_title(name: str | None, brid: str | None) -> str:
     return _DEFAULT_SURVEY_TITLE
 
 
-def resolve_task_survey_title(task_guid: str) -> str:
+def lookup_task_survey_fields(task_guid: str) -> tuple[str, str]:
     """
-    Return landing page title from work YardPoly → OznPoly → OdhPoly for TaskGUID.
+    Return (Name, PassBrId) from work YardPoly → OznPoly → OdhPoly for TaskGUID.
 
-    Uses the first table that has a matching row with both Name and PassBrId.
-    Falls back to «Согласование границ ОГХ» when nothing is found or the query fails.
+    Either value may be empty when no matching row is found or the query fails.
+    Prefers the first table row that has a non-empty Name (and uses its PassBrId).
     """
     task_guid_text = str(task_guid or "").strip()
     if not task_guid_text:
-        return _DEFAULT_SURVEY_TITLE
+        return "", ""
 
     schema = work_schema_name()
     task_col = work_taskguid_column()
@@ -241,14 +261,33 @@ def resolve_task_survey_title(task_guid: str) -> str:
                 row = cursor.fetchone()
                 if not row:
                     continue
-                title = format_survey_page_title(row[0], row[1])
-                if title != _DEFAULT_SURVEY_TITLE:
-                    return title
+                name_text = str(row[0] or "").strip()
+                brid_text = str(row[1] or "").strip()
+                if name_text and brid_text:
+                    return name_text, brid_text
+                if name_text or brid_text:
+                    return name_text, brid_text
     except Exception:
-        logger.exception("resolve_task_survey_title: qgis query failed")
-        return _DEFAULT_SURVEY_TITLE
+        logger.exception("lookup_task_survey_fields: qgis query failed")
+        return "", ""
 
-    return _DEFAULT_SURVEY_TITLE
+    return "", ""
+
+
+def resolve_task_survey_name(task_guid: str) -> str:
+    """Return work-layer Name for TaskGUID, or empty string when not found."""
+    return lookup_task_survey_fields(task_guid)[0]
+
+
+def resolve_task_survey_title(task_guid: str) -> str:
+    """
+    Return landing page title from work YardPoly → OznPoly → OdhPoly for TaskGUID.
+
+    Uses the first table that has a matching row with both Name and PassBrId.
+    Falls back to «Согласование границ ОГХ» when nothing is found or the query fails.
+    """
+    name_text, brid_text = lookup_task_survey_fields(task_guid)
+    return format_survey_page_title(name_text, brid_text)
 
 
 def list_schema_layer_tables(schema: str, *, force_refresh: bool = False) -> list[str]:
@@ -362,6 +401,9 @@ def count_features_by_table(
                       )
                     """
                     params.append(clip_geojson)
+                exclude_sql = topolines_excluded_layer_sql(
+                    cursor, schema_name, table
+                )
                 try:
                     cursor.execute(
                         f"""
@@ -371,6 +413,7 @@ def count_features_by_table(
                           AND t.{_quote_ident(geom_col)} IS NOT NULL
                           AND NOT ST_IsEmpty(t.{_quote_ident(geom_col)})
                           {clip_sql}
+                          {exclude_sql}
                         """,
                         params,
                     )
@@ -502,10 +545,24 @@ def build_topopassport_layer_groups(feature_counts_by_table: dict[str, int]) -> 
 
 
 REFERENCE_LAYER_SPECS = (
-    {"key": "dgi", "name": "ДГИ", "geometry": "polygon"},
-    {"key": "oozt", "name": "ООЗТ", "geometry": "line"},
+    {"key": "dgi", "name": "Земельные участки", "geometry": "polygon"},
+    {"key": "oozt", "name": "ООЗТ/ООПТ", "geometry": "line"},
     {"key": "renew", "name": "Реновация", "geometry": "polygon"},
-    {"key": "rzd", "name": "РЖД", "geometry": "line"},
+    {"key": "rzd", "name": "Полосы отвода ЖД", "geometry": "line"},
+)
+
+# Same 4 З/У buckets as pass_viewer layer panel (ownership × rent).
+DGI_SUBLAYER_SPECS = (
+    {"key": "dgi_moscow_rent", "name": "З/У г. Москва с арендой"},
+    {"key": "dgi_moscow_no_rent", "name": "З/У г. Москва без аренды"},
+    {
+        "key": "dgi_private_rent",
+        "name": "З/У Частная или федеральная собственность с арендой",
+    },
+    {
+        "key": "dgi_private_no_rent",
+        "name": "З/У Частная или федеральная собственность без аренды",
+    },
 )
 
 
