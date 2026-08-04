@@ -18,10 +18,13 @@ from .events_service import (
     change_case_owner,
     create_event_from_adjacent,
     delete_approve_for_inspector,
+    delete_case_for_inspector,
     delete_inspector_own_message,
+    enrich_cases_payload_title_named,
     get_cases_queryset,
     parse_geometry_payload,
     record_case_approval,
+    resolve_and_attach_title_named,
     revoke_case_approval,
     serialize_approve_option,
     serialize_case_detail,
@@ -71,20 +74,22 @@ def _case_or_error(case_id, *, owner_id=None, username=None):
 
 
 def _serialize_case(case, *, request, actor):
-    return serialize_case_summary(
+    payload = serialize_case_summary(
         case,
         current_login=actor["username"],
         owner_id=actor["owner_id"],
     )
+    return resolve_and_attach_title_named(payload, case)
 
 
 def _serialize_case_detail(case, *, request, actor):
-    return serialize_case_detail(
+    payload = serialize_case_detail(
         case,
         current_login=actor["username"],
         owner_id=actor["owner_id"],
         request=request,
     )
+    return resolve_and_attach_title_named(payload, case)
 
 
 @login_required
@@ -108,6 +113,7 @@ def api_bootstrap(request):
         selected = approves[0]
 
     cases_payload = []
+    cases_for_enrich: list = []
     primary_case_id = None
     if selected is not None:
         accessible_case_ids = set(
@@ -116,6 +122,7 @@ def api_bootstrap(request):
         for case in get_cases_queryset(selected.id):
             if case.id not in accessible_case_ids:
                 continue
+            cases_for_enrich.append(case)
             cases_payload.append(
                 serialize_case_summary(
                     case,
@@ -125,6 +132,11 @@ def api_bootstrap(request):
             )
             if case.is_primary and primary_case_id is None:
                 primary_case_id = str(case.id)
+        enrich_cases_payload_title_named(
+            cases_payload,
+            cases_for_enrich,
+            task_guid=str(selected.incoming_guid),
+        )
 
     return JsonResponse(
         {
@@ -148,7 +160,7 @@ def api_create_case(request):
 
 
 @login_required
-@require_GET
+@require_http_methods(["GET", "DELETE"])
 def api_case_detail(request, case_id):
     actor, error = _actor_context(request)
     if error:
@@ -157,6 +169,23 @@ def api_case_detail(request, case_id):
     case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
     if error:
         return error
+
+    if request.method == "DELETE":
+        approve = case.approve
+        deleted_case_id = str(case.id)
+        try:
+            delete_case_for_inspector(case=case, username=actor["username"])
+        except ValueError as exc:
+            return _json_error(str(exc), status=403)
+
+        primary = approve.cases.filter(is_primary=True).first()
+        return JsonResponse(
+            {
+                "ok": True,
+                "deleted_case_id": deleted_case_id,
+                "primary_case_id": str(primary.id) if primary else None,
+            }
+        )
 
     return JsonResponse(
         {

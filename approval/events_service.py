@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import calendar
 import json
+import re
 import shutil
 import uuid
 from pathlib import Path
@@ -25,7 +26,122 @@ from .models import (
     CaseMessageReaction,
     CaseServiceEvent,
 )
-from .work_layers import resolve_task_owner_legal_person_id
+from .work_adjacent import resolve_root_object_names
+from .work_layers import lookup_task_survey_fields, resolve_task_owner_legal_person_id
+
+_NAMED_EVENT_TITLE_RE = re.compile(
+    r"^Согласование заявок по паспортизации\s+(.+?)\s+и паспорта\s+(\S+)\s*$"
+)
+
+
+def format_named_event_title(*, task_label: str, passport_label: str) -> str:
+    """Build secondary-event title with object names (or number fallbacks)."""
+    return (
+        f"Согласование заявок по паспортизации {task_label} "
+        f"и паспорта {passport_label}"
+    )
+
+
+def build_case_title_named(
+    case: Case,
+    *,
+    survey_name: str = "",
+    survey_brid: str = "",
+    root_names: dict[str, str] | None = None,
+) -> str | None:
+    """
+    Named display title for a secondary case, or None when not applicable.
+
+    Uses survey Name (fallback PassBrId / number from stored title) and
+    RootId Name (fallback n_root).
+    """
+    if case.is_primary:
+        return None
+    n_root = str(case.n_root or "").strip()
+    if not n_root:
+        return None
+
+    task_part = str(survey_name or "").strip() or str(survey_brid or "").strip()
+    if not task_part:
+        match = _NAMED_EVENT_TITLE_RE.match(str(case.title or "").strip())
+        if match:
+            task_part = str(match.group(1) or "").strip()
+    if not task_part:
+        return None
+
+    names = root_names or {}
+    passport_part = str(names.get(n_root) or "").strip() or n_root
+    return format_named_event_title(task_label=task_part, passport_label=passport_part)
+
+
+def attach_title_named(
+    payload: dict,
+    case: Case,
+    *,
+    survey_name: str = "",
+    survey_brid: str = "",
+    root_names: dict[str, str] | None = None,
+) -> dict:
+    """Set title_named on a serialized case payload."""
+    payload["title_named"] = build_case_title_named(
+        case,
+        survey_name=survey_name,
+        survey_brid=survey_brid,
+        root_names=root_names,
+    )
+    return payload
+
+
+def resolve_and_attach_title_named(payload: dict, case: Case) -> dict:
+    """Resolve survey/root names for one case and attach title_named."""
+    if case.is_primary:
+        payload["title_named"] = None
+        return payload
+    approve = getattr(case, "approve", None)
+    task_guid = str(getattr(approve, "incoming_guid", "") or "")
+    survey_name, survey_brid = lookup_task_survey_fields(task_guid)
+    n_root = str(case.n_root or "").strip()
+    root_names = resolve_root_object_names([n_root]) if n_root else {}
+    return attach_title_named(
+        payload,
+        case,
+        survey_name=survey_name,
+        survey_brid=survey_brid,
+        root_names=root_names,
+    )
+
+
+def enrich_cases_payload_title_named(
+    cases_payload: list[dict],
+    cases: list[Case],
+    *,
+    task_guid: str,
+) -> list[dict]:
+    """Batch-resolve names and attach title_named to serialized case list."""
+    if not cases_payload:
+        return cases_payload
+
+    survey_name, survey_brid = lookup_task_survey_fields(task_guid)
+    root_ids = [
+        str(case.n_root or "").strip()
+        for case in cases
+        if not case.is_primary and str(case.n_root or "").strip()
+    ]
+    root_names = resolve_root_object_names(root_ids)
+    case_by_id = {str(case.id): case for case in cases}
+    for payload in cases_payload:
+        case = case_by_id.get(str(payload.get("id") or ""))
+        if case is None:
+            payload.setdefault("title_named", None)
+            continue
+        attach_title_named(
+            payload,
+            case,
+            survey_name=survey_name,
+            survey_brid=survey_brid,
+            root_names=root_names,
+        )
+    return cases_payload
 
 
 class ApproveAlreadyApprovedError(ValueError):
@@ -171,6 +287,28 @@ def delete_approve_for_inspector(*, approve_id, username: str | None) -> Approve
             shutil.rmtree(storage_dir, ignore_errors=True)
 
     return approve
+
+
+@transaction.atomic
+def delete_case_for_inspector(*, case: Case, username: str | None) -> Case:
+    username_text = (username or "").strip()
+    if not username_text:
+        raise ValueError("Не указан пользователь.")
+
+    approve = case.approve
+    if not is_inspector_for_approve(username_text, approve):
+        raise ValueError("Удаление доступно только инспектору этого согласования.")
+    if case.is_primary:
+        raise ValueError("Нельзя удалить основное событие.")
+
+    case_id = case.id
+    case.delete()
+
+    storage_dir = Path(settings.MEDIA_ROOT) / "approval" / "attachments" / str(case_id)
+    if storage_dir.is_dir():
+        shutil.rmtree(storage_dir, ignore_errors=True)
+
+    return case
 
 
 def _geometry_to_geojson(geometry_row: ApprovalGeometry | None) -> dict | None:
@@ -414,6 +552,7 @@ def serialize_case_summary(
     return {
         "id": str(case.id),
         "title": case.title,
+        "title_named": None,
         "status": _case_display_status(case),
         "status_class": _case_status_class(case),
         "approved": case.approved,
@@ -427,6 +566,7 @@ def serialize_case_summary(
         "current_user_is_inspector": current_user_is_inspector,
         "current_user_is_owner": current_user_is_owner,
         "can_manage_participants": current_user_is_inspector and not case.approved,
+        "can_delete": current_user_is_inspector and not case.is_primary,
         "inspector_login": inspector_login,
         "inspector_required": inspector_required,
         "inspector_approved": inspector_approved,

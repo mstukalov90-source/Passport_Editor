@@ -453,6 +453,71 @@ def format_adjacent_roots_message(n_roots: list[str], v_roots: list[str]) -> str
     )
 
 
+def resolve_root_object_names(root_ids: list[str] | None) -> dict[str, str]:
+    """
+    Batch-resolve object Name by RootId from adjacent poly tables.
+
+    Searches YardPoly / OdhPoly / OznPoly in work first, then master.
+    Returns a mapping of root_id → Name for roots that were found.
+    """
+    pending: list[str] = []
+    seen: set[str] = set()
+    for item in root_ids or []:
+        text = str(item or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            pending.append(text)
+    if not pending:
+        return {}
+
+    result: dict[str, str] = {}
+    tables = adjacent_poly_tables()
+    schemas = [adjacent_primary_schema_name(), adjacent_schema_name()]
+    # Deduplicate schemas when work == master
+    schema_order: list[str] = []
+    for schema in schemas:
+        schema_name = str(schema or "").strip()
+        if schema_name and schema_name not in schema_order:
+            schema_order.append(schema_name)
+
+    try:
+        with connections["qgis"].cursor() as cursor:
+            for schema in schema_order:
+                still_pending = [root for root in pending if root not in result]
+                if not still_pending:
+                    break
+                for table_name in tables:
+                    still_pending = [root for root in pending if root not in result]
+                    if not still_pending:
+                        break
+                    rootid_col = _resolve_rootid_column(cursor, schema, table_name)
+                    if not rootid_col:
+                        continue
+                    if not _column_exists(cursor, schema, table_name, "Name"):
+                        continue
+                    cursor.execute(
+                        f"""
+                        SELECT t.{_quote_ident(rootid_col)}::text,
+                               t.{_quote_ident('Name')}::text
+                        FROM {_quote_ident(schema)}.{_quote_ident(table_name)} t
+                        WHERE t.{_quote_ident(rootid_col)}::text = ANY(%s::text[])
+                          AND t.{_quote_ident('Name')} IS NOT NULL
+                          AND BTRIM(t.{_quote_ident('Name')}::text) <> ''
+                        """,
+                        [still_pending],
+                    )
+                    for row in cursor.fetchall() or []:
+                        root_id = str(row[0] or "").strip()
+                        name = str(row[1] or "").strip()
+                        if root_id and name and root_id not in result:
+                            result[root_id] = name
+    except Exception:
+        logger.exception("resolve_root_object_names: qgis query failed")
+        return result
+
+    return result
+
+
 def build_adjacent_features(
     n_root: list[str] | str | None,
     v_root: list[str] | None,

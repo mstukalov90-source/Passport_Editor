@@ -923,3 +923,50 @@ def test_qgis_delete_approve(client):
         approve_id=approve_id,
     )
     assert host_denied.status_code == 403
+
+
+@pytest.mark.django_db
+def test_qgis_delete_secondary_case(client):
+    create = _post_qgis_approve(client, _valid_payload())
+    approve_id = create.json()["approve_id"]
+    _ensure_inspector()
+    ExternalUser.objects.get_or_create(
+        login="owner_task",
+        defaults={"password": "pass", "owner_legal_person_id": TASK_OWNER},
+    )
+    approve = Approve.objects.get(pk=approve_id)
+    primary = approve.cases.get(is_primary=True)
+    secondary = approve.cases.filter(is_primary=False).first()
+    assert secondary is not None
+
+    owner_denied = _qgis_delete(
+        client,
+        "api_qgis_case_detail",
+        user="owner_task",
+        case_id=secondary.id,
+    )
+    assert owner_denied.status_code == 403
+    assert Case.objects.filter(pk=secondary.id).exists()
+
+    primary_denied = _qgis_delete(
+        client,
+        "api_qgis_case_detail",
+        user="asidorov",
+        case_id=primary.id,
+    )
+    assert primary_denied.status_code == 403
+    assert Case.objects.filter(pk=primary.id).exists()
+
+    deleted = _qgis_delete(
+        client,
+        "api_qgis_case_detail",
+        user="asidorov",
+        case_id=secondary.id,
+    )
+    assert deleted.status_code == 200
+    payload = deleted.json()
+    assert payload["ok"] is True
+    assert payload["deleted_case_id"] == str(secondary.id)
+    assert payload["primary_case_id"] == str(primary.id)
+    assert not Case.objects.filter(pk=secondary.id).exists()
+    assert Case.objects.filter(pk=primary.id).exists()

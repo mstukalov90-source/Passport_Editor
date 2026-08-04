@@ -15,9 +15,11 @@
         chatPollInFlight: false,
         chatPollFingerprint: '',
         messageStatsCollapsed: false,
+        eventTitleMode: 'numbers',
     };
 
     const CHAT_POLL_INTERVAL_MS = 2500;
+    const EVENT_TITLE_MODE_STORAGE_KEY = 'approval.eventTitleMode';
 
     const REACTION_LABELS = {
         in_progress: 'В работе',
@@ -39,6 +41,37 @@
 
     function drawApi() {
         return window.ApprovalEventDraw || {};
+    }
+
+    function readStoredEventTitleMode() {
+        try {
+            const raw = window.localStorage.getItem(EVENT_TITLE_MODE_STORAGE_KEY);
+            return raw === 'names' ? 'names' : 'numbers';
+        } catch (error) {
+            return 'numbers';
+        }
+    }
+
+    function persistEventTitleMode(mode) {
+        try {
+            window.localStorage.setItem(
+                EVENT_TITLE_MODE_STORAGE_KEY,
+                mode === 'names' ? 'names' : 'numbers'
+            );
+        } catch (error) {
+            /* ignore quota / private mode */
+        }
+    }
+
+    function eventCardTitle(caseItem) {
+        if (
+            state.eventTitleMode === 'names' &&
+            caseItem &&
+            caseItem.title_named
+        ) {
+            return caseItem.title_named;
+        }
+        return (caseItem && caseItem.title) || '';
     }
 
     async function fetchJson(url, options) {
@@ -980,7 +1013,7 @@
 
     function buildEventCardHtml(caseItem, options) {
         const opts = options || {};
-        const title = opts.titleOverride || caseItem.title;
+        const title = opts.titleOverride || eventCardTitle(caseItem);
         const extraClass = opts.extraClass || '';
         const active = caseItem.id === state.activeCaseId ? ' is-active' : '';
         const closedClass =
@@ -993,6 +1026,11 @@
             ? '<button type="button" class="approval-event-card__add-participant" data-case-id="' +
               caseItem.id +
               '">Добавить участника</button>'
+            : '';
+        const deleteHtml = caseItem.can_delete
+            ? '<button type="button" class="approval-event-card__delete" data-case-id="' +
+              caseItem.id +
+              '" title="Удалить событие">Удалить</button>'
             : '';
         const startDate = caseItem.created_at_date || '';
         const startDateHtml = startDate
@@ -1030,6 +1068,7 @@
             caseItem.approvals_total +
             '</span>' +
             addParticipantHtml +
+            deleteHtml +
             '</div>' +
             '</div>'
         );
@@ -1058,9 +1097,18 @@
                 openAddParticipantDialog(button.dataset.caseId);
             });
         });
+        root.querySelectorAll('.approval-event-card__delete').forEach(function (button) {
+            button.addEventListener('click', function (event) {
+                event.stopPropagation();
+                deleteCase(button.dataset.caseId).catch(showError);
+            });
+        });
         root.querySelectorAll('.approval-event-card').forEach(function (card) {
             card.addEventListener('click', async function (event) {
-                if (event.target.closest('.approval-event-card__add-participant')) {
+                if (
+                    event.target.closest('.approval-event-card__add-participant') ||
+                    event.target.closest('.approval-event-card__delete')
+                ) {
                     return;
                 }
                 const caseId = card.dataset.caseId;
@@ -1455,6 +1503,37 @@
         return data;
     }
 
+    async function deleteCase(caseId) {
+        const caseItem = findCase(caseId);
+        if (!caseItem || !caseItem.can_delete) {
+            return;
+        }
+        if (!window.confirm('Удалить это событие? Действие необратимо.')) {
+            return;
+        }
+        const deletedId = String(caseId);
+        const data = await fetchJson(
+            mapApi().apiUrl(state.config.apiUrls.deleteCase || state.config.apiUrls.caseDetail, {
+                caseId: caseId,
+            }),
+            { method: 'DELETE' }
+        );
+        state.cases = (state.cases || []).filter(function (item) {
+            return String(item.id) !== deletedId;
+        });
+        renderEventNav(splitCases(state.cases));
+        if (String(state.activeCaseId) === deletedId) {
+            const nextId = data.primary_case_id || (state.cases[0] && state.cases[0].id);
+            if (nextId) {
+                await openCase(nextId, { fitMap: false });
+            } else {
+                state.activeCaseId = null;
+                renderActiveCase(null);
+            }
+        }
+        return data;
+    }
+
     function resizeChatInput() {
         const input = el('approval-chat-input');
         if (!input) {
@@ -1473,6 +1552,28 @@
 
         toggle.addEventListener('click', function () {
             setSecondaryChatsCollapsed(!section.classList.contains('is-collapsed'));
+        });
+    }
+
+    function syncEventTitleModeSwitch() {
+        const input = el('approval-event-title-mode');
+        if (!input) {
+            return;
+        }
+        input.checked = state.eventTitleMode === 'names';
+    }
+
+    function initEventTitleModeSwitch() {
+        const input = el('approval-event-title-mode');
+        if (!input) {
+            return;
+        }
+        state.eventTitleMode = readStoredEventTitleMode();
+        syncEventTitleModeSwitch();
+        input.addEventListener('change', function () {
+            state.eventTitleMode = input.checked ? 'names' : 'numbers';
+            persistEventTitleMode(state.eventTitleMode);
+            renderEventNav(splitCases(state.cases));
         });
     }
 
@@ -1726,6 +1827,7 @@
             resizeChatInput();
         }
         initEventsListToggle();
+        initEventTitleModeSwitch();
         initMessageStatsToggle();
         initActiveInfoDialog();
         bindParticipantDialogs();

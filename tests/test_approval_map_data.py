@@ -16,6 +16,8 @@ from approval.work_layers import (
     format_survey_page_title,
     geom_to_wgs84_sql,
     layer_stack_order,
+    lookup_task_survey_fields,
+    resolve_task_survey_name,
     resolve_task_survey_title,
     wgs84_to_work_sql,
     work_source_proj4_sql,
@@ -357,6 +359,43 @@ def test_topotext_feature_select_sql_clips_to_work_boundary():
     assert "ST_SRID(" not in sql
 
 
+def test_topolines_feature_select_sql_excludes_order_boundary_layer():
+    from unittest.mock import MagicMock
+
+    from approval.work_geojson import _feature_select_sql
+    from approval.work_layers import TOPOLINES_EXCLUDED_LAYER
+
+    cursor = MagicMock()
+    cursor.fetchone.return_value = (1,)
+    sql = _feature_select_sql(
+        "topolines",
+        [],
+        cursor,
+        schema="topopassport",
+        layer_key="topo:topolines",
+    )
+    assert f"COALESCE(t.\"layer\", '') <> '{TOPOLINES_EXCLUDED_LAYER}'" in sql
+
+
+def test_topopoint_feature_select_sql_does_not_exclude_order_boundary_layer():
+    from unittest.mock import MagicMock
+
+    from approval.work_geojson import _feature_select_sql
+    from approval.work_layers import TOPOLINES_EXCLUDED_LAYER
+
+    cursor = MagicMock()
+    cursor.fetchone.return_value = (1,)
+    sql = _feature_select_sql(
+        "topopoint",
+        [],
+        cursor,
+        schema="topopassport",
+        layer_key="topo:topopoint",
+    )
+    assert TOPOLINES_EXCLUDED_LAYER not in sql
+    assert 't."layer"' not in sql
+
+
 @patch("approval.work_layers.connections")
 def test_count_features_by_table_keeps_prior_counts_on_table_error(mock_connections):
     cursor = MagicMock()
@@ -493,6 +532,97 @@ def test_build_reference_layer_groups_unchecked_by_default():
     assert groups[0]["checked"] is False
     assert all(layer["checked"] is False for layer in groups[0]["layers"])
     assert [layer["key"] for layer in groups[0]["layers"]] == ["dgi", "oozt", "renew", "rzd"]
+    assert [layer["name"] for layer in groups[0]["layers"]] == [
+        "Земельные участки",
+        "ООЗТ/ООПТ",
+        "Реновация",
+        "Полосы отвода ЖД",
+    ]
+
+
+@patch("approval.reference_layers.load_work_anchor_geometry")
+@patch("pass_viewer.views._sql_dgi_layer_filter")
+@patch("pass_viewer.views._get_reference_layer_geojson")
+@patch("pass_viewer.views._geojson_layer_for_response")
+@patch("django.db.connection.cursor")
+def test_build_reference_layer_features_dgi_tags_subkeys(
+    mock_cursor_cm,
+    mock_geojson_response,
+    mock_get_geojson,
+    mock_dgi_filter,
+    mock_anchor,
+):
+    from pass_viewer.dgi_layers import DGI_LAYER_KEYS
+    from approval.reference_layers import build_reference_layer_features
+
+    mock_cursor_cm.return_value.__enter__.return_value = MagicMock()
+    mock_anchor.return_value = {
+        "type": "Polygon",
+        "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]],
+    }
+    mock_dgi_filter.side_effect = lambda *_a, **_k: " AND TRUE"
+
+    payloads = []
+    for idx, _sub_key in enumerate(DGI_LAYER_KEYS):
+        payloads.append(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]],
+                        },
+                        "properties": {"descr": f"plot-{idx}"},
+                    }
+                ],
+            }
+        )
+
+    mock_get_geojson.side_effect = payloads
+    mock_geojson_response.side_effect = lambda payload: payload
+
+    features, error = build_reference_layer_features(
+        "dgi", "11111111-1111-1111-1111-111111111111"
+    )
+
+    assert error is None
+    assert len(features) == len(DGI_LAYER_KEYS)
+    assert [f["properties"]["dgiSubKey"] for f in features] == list(DGI_LAYER_KEYS)
+    assert all(f["properties"]["layerKey"] == "dgi" for f in features)
+    assert mock_get_geojson.call_count == len(DGI_LAYER_KEYS)
+
+
+@patch("approval.reference_layers.load_work_anchor_geometry")
+@patch("pass_viewer.views._get_signal_tape_layer_geojson")
+@patch("pass_viewer.views._geojson_layer_for_response")
+def test_build_reference_layer_features_oozt_has_no_dgi_subkey(
+    mock_geojson_response,
+    mock_signal,
+    mock_anchor,
+):
+    from approval.reference_layers import build_reference_layer_features
+
+    mock_anchor.return_value = {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]}
+    mock_signal.return_value = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "LineString", "coordinates": [[0, 0], [1, 1]]},
+                "properties": {},
+            }
+        ],
+    }
+    mock_geojson_response.side_effect = lambda payload: payload
+
+    features, error = build_reference_layer_features("oozt", "11111111-1111-1111-1111-111111111111")
+
+    assert error is None
+    assert len(features) == 1
+    assert features[0]["properties"]["layerKey"] == "oozt"
+    assert "dgiSubKey" not in features[0]["properties"]
 
 
 @patch("approval.work_layers.connections")
@@ -572,6 +702,67 @@ def test_resolve_task_survey_title_falls_back_when_empty(mock_connections):
 
     assert resolve_task_survey_title("00000000-0000-0000-0000-000000000001") == "Согласование границ ОГХ"
     assert resolve_task_survey_title("") == "Согласование границ ОГХ"
+
+
+@patch("approval.work_layers.connections")
+def test_resolve_task_survey_name_returns_name(mock_connections):
+    cursor = MagicMock()
+    mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+    cursor.fetchone.side_effect = [
+        (1,),  # YardPoly TaskGUID
+        (1,),  # YardPoly Name
+        (1,),  # YardPoly PassBrId
+        ("Шаболовка ул. 23", "24976"),
+    ]
+
+    assert resolve_task_survey_name("23f956bf-f000-4668-91f2-45274c453122") == "Шаболовка ул. 23"
+
+
+@patch("approval.work_layers.connections")
+def test_lookup_task_survey_fields_returns_name_and_brid(mock_connections):
+    cursor = MagicMock()
+    mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+    cursor.fetchone.side_effect = [
+        (1,),
+        (1,),
+        (1,),
+        ("Шаболовка ул. 23", "24976"),
+    ]
+
+    assert lookup_task_survey_fields("23f956bf-f000-4668-91f2-45274c453122") == (
+        "Шаболовка ул. 23",
+        "24976",
+    )
+
+
+@patch("approval.work_adjacent.connections")
+def test_resolve_root_object_names_batch_and_fallback_schema(mock_connections):
+    from approval.work_adjacent import resolve_root_object_names
+
+    cursor = MagicMock()
+    mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+
+    # work/YardPoly finds first root; master/YardPoly finds second.
+    cursor.fetchall.side_effect = [
+        [("930062866", "ул. Шаболовка, вл. 19А")],  # work YardPoly
+        [],  # work OdhPoly
+        [],  # work OznPoly
+        [("10001260", "Павла Андреева ул. 28")],  # master YardPoly
+    ]
+
+    with patch("approval.work_adjacent.adjacent_poly_tables", return_value=["YardPoly", "OdhPoly", "OznPoly"]):
+        with patch("approval.work_adjacent.adjacent_primary_schema_name", return_value="work"):
+            with patch("approval.work_adjacent.adjacent_schema_name", return_value="master"):
+                with patch("approval.work_adjacent._resolve_rootid_column", return_value="RootId"):
+                    with patch("approval.work_adjacent._column_exists", return_value=True):
+                        names = resolve_root_object_names(["930062866", "10001260"])
+
+    assert names == {
+        "930062866": "ул. Шаболовка, вл. 19А",
+        "10001260": "Павла Андреева ул. 28",
+    }
+    assert resolve_root_object_names([]) == {}
+    assert resolve_root_object_names(None) == {}
 
 
 @pytest.mark.django_db
