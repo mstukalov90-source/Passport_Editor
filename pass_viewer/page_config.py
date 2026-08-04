@@ -70,6 +70,7 @@ def home_page_config(*, need_entry_request_id, ods_source_label, owner_id=None):
             "exportRecap": reverse("export_recap_geometry"),
             "deleteRecap": reverse("delete_recap_object"),
             "checkDgi": reverse("check_dgi_intersections"),
+            "resolveAsuOdsUrl": reverse("resolve_asu_ods_url"),
             "openOwned": reverse("open_owned_object"),
         },
         needEntryRequestId=bool(need_entry_request_id),

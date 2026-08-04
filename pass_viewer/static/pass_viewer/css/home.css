@@ -971,6 +971,29 @@ body.home--merge-passports #add-object-entry-btn {
     border-bottom: 1px solid #e5e7eb;
     flex-shrink: 0;
 }
+.owned-view-object-modal__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.owned-view-object-edit-btn {
+    white-space: nowrap;
+    font-size: 13px;
+    padding: 8px 12px;
+}
+.owned-edit-choice-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+}
+.owned-edit-choice-actions__right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 .owned-view-object-modal__header h3 {
     margin: 0;
     font-size: 18px;

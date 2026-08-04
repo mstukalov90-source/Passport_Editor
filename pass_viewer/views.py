@@ -5868,6 +5868,26 @@ def _build_asu_ods_url(source_label, rootid):
 
 @login_required
 @require_POST
+def resolve_asu_ods_url(request):
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
+
+    rootid = (payload.get("rootid") or "").strip()
+    source_label = payload.get("source_label")
+    if not rootid:
+        return JsonResponse({"ok": False, "error": "Не передан rootid."}, status=400)
+
+    asu_ods_url = _build_asu_ods_url(source_label, rootid)
+    response = {"ok": True}
+    if asu_ods_url:
+        response["asu_ods_url"] = asu_ods_url
+    return JsonResponse(response)
+
+
+@login_required
+@require_POST
 def check_dgi_intersections(request):
     try:
         payload = json.loads(request.body or "{}")
