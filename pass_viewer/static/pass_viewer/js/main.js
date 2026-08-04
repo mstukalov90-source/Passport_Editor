@@ -20,6 +20,7 @@
     const formatAdjacentRelationsSearchStatus = PV.formatAdjacentRelationsSearchStatus.bind(PV);
     const parseJsonResponse = PV.parseJsonResponse.bind(PV);
     const mergeMapLayerPayload = PV.mergeMapLayerPayload.bind(PV);
+    const viewOnly = !!(cfg.features && cfg.features.viewOnly);
 
 function formatDgiShortSobstvRr(value) {
             const raw = String(value ?? '').trim();
@@ -119,8 +120,10 @@ function formatDgiShortSobstvRr(value) {
         const autoRemoveDtCheckbox = document.getElementById('auto-remove-dt');
         const autoRemoveOdhCheckbox = document.getElementById('auto-remove-odh');
         const autoRemoveOznCheckbox = document.getElementById('auto-remove-ozn');
-        const autoRemoveDgiMoscowCheckbox = document.getElementById('auto-remove-dgi-moscow');
-        const autoRemoveDgiPrivateCheckbox = document.getElementById('auto-remove-dgi-private');
+        const autoRemoveDgiMoscowRentCheckbox = document.getElementById('auto-remove-dgi-moscow-rent');
+        const autoRemoveDgiMoscowNoRentCheckbox = document.getElementById('auto-remove-dgi-moscow-no-rent');
+        const autoRemoveDgiPrivateRentCheckbox = document.getElementById('auto-remove-dgi-private-rent');
+        const autoRemoveDgiPrivateNoRentCheckbox = document.getElementById('auto-remove-dgi-private-no-rent');
         const autoRemoveRenewCheckbox = document.getElementById('auto-remove-renew');
         const autoRemoveTopCheckbox = document.getElementById('auto-remove-top');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
@@ -163,6 +166,21 @@ function formatDgiShortSobstvRr(value) {
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
+
+        function refreshMapSizeForViewOnly() {
+            if (!viewOnly) {
+                return;
+            }
+            window.requestAnimationFrame(() => {
+                map.invalidateSize(false);
+                window.setTimeout(() => map.invalidateSize(false), 100);
+                window.setTimeout(() => map.invalidateSize(false), 400);
+            });
+        }
+        if (viewOnly) {
+            refreshMapSizeForViewOnly();
+            window.addEventListener('resize', refreshMapSizeForViewOnly);
+        }
         let popupHighlightLayer = null;
         const POPUP_HIGHLIGHT_WEIGHT_DELTA = 3;
 
@@ -225,8 +243,10 @@ function formatDgiShortSobstvRr(value) {
         const selectedGroup = new L.FeatureGroup().addTo(map);
         const adjacentDtPassportsGroup = new L.FeatureGroup().addTo(map);
         const requestObjectsGroup = L.featureGroup().addTo(map);
-        const dgiMoscowSignalGroup = L.featureGroup().addTo(map);
-        const dgiPrivateSignalGroup = L.featureGroup().addTo(map);
+        const dgiMoscowRentSignalGroup = L.featureGroup().addTo(map);
+        const dgiMoscowNoRentSignalGroup = L.featureGroup().addTo(map);
+        const dgiPrivateRentSignalGroup = L.featureGroup().addTo(map);
+        const dgiPrivateNoRentSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
         const oznSignalGroup = L.featureGroup().addTo(map);
         const renewGroup = L.featureGroup().addTo(map);
@@ -484,8 +504,10 @@ function formatDgiShortSobstvRr(value) {
         const intersectsGeometry = parseGeometryData('intersects-geometry-data');
         const touchesGeometry = parseGeometryData('touches-geometry-data');
         const nearbyGeometry = parseGeometryData('nearby-geometry-data');
-        const dgiMoscowGeometry = parseGeometryData('dgi-moscow-geometry-data');
-        const dgiPrivateGeometry = parseGeometryData('dgi-private-geometry-data');
+        const dgiMoscowRentGeometry = parseGeometryData('dgi-moscow-rent-geometry-data');
+        const dgiMoscowNoRentGeometry = parseGeometryData('dgi-moscow-no-rent-geometry-data');
+        const dgiPrivateRentGeometry = parseGeometryData('dgi-private-rent-geometry-data');
+        const dgiPrivateNoRentGeometry = parseGeometryData('dgi-private-no-rent-geometry-data');
         const odhGeometry = parseGeometryData('odh-geometry-data');
         const oznGeometry = parseGeometryData('ozn-geometry-data');
         const requestObjectsGeometry = parseGeometryData('request-objects-geometry-data');
@@ -566,8 +588,10 @@ function formatDgiShortSobstvRr(value) {
             oo: oznSignalGroup,
             odh: odhSignalGroup,
             top: topSignalGroup,
-            dgi_moscow: dgiMoscowSignalGroup,
-            dgi_private: dgiPrivateSignalGroup,
+            dgi_moscow_rent: dgiMoscowRentSignalGroup,
+            dgi_moscow_no_rent: dgiMoscowNoRentSignalGroup,
+            dgi_private_rent: dgiPrivateRentSignalGroup,
+            dgi_private_no_rent: dgiPrivateNoRentSignalGroup,
             renew: renewGroup,
             oozt: ooztSignalGroup,
             rzd: rzdSignalGroup,
@@ -578,7 +602,8 @@ function formatDgiShortSobstvRr(value) {
         const layerGroups = {
             municipal: ['selected', 'dt', 'oo', 'odh', 'top'],
             requests: ['requests', 'recaps', 'comments'],
-            external: ['dgi_moscow', 'dgi_private', 'renew', 'oozt', 'rzd'],
+            dgi: ['dgi_moscow_rent', 'dgi_moscow_no_rent', 'dgi_private_rent', 'dgi_private_no_rent'],
+            external: ['renew', 'oozt', 'rzd'],
         };
 
         function setLayerVisible(layerKey, isVisible) {
@@ -620,8 +645,10 @@ function formatDgiShortSobstvRr(value) {
                 oo: countGroupFeatures(oznSignalGroup),
                 odh: countGroupFeatures(odhSignalGroup),
                 top: countGroupFeatures(topSignalGroup),
-                dgi_moscow: countGroupFeatures(dgiMoscowSignalGroup),
-                dgi_private: countGroupFeatures(dgiPrivateSignalGroup),
+                dgi_moscow_rent: countGroupFeatures(dgiMoscowRentSignalGroup),
+                dgi_moscow_no_rent: countGroupFeatures(dgiMoscowNoRentSignalGroup),
+                dgi_private_rent: countGroupFeatures(dgiPrivateRentSignalGroup),
+                dgi_private_no_rent: countGroupFeatures(dgiPrivateNoRentSignalGroup),
                 renew: countGroupFeatures(renewGroup),
                 oozt: countGroupFeatures(ooztSignalGroup),
                 rzd: countGroupFeatures(rzdSignalGroup),
@@ -704,7 +731,7 @@ function formatDgiShortSobstvRr(value) {
                 }
                 return patternId;
             };
-            const isDgi = sourceLabel === 'ДГИ';
+            const isDgi = sourceLabel === 'ДГИ' || String(sourceLabel || '').startsWith('З/У');
             const isOozt = sourceLabel === 'ООЗТ';
             const isRzd = sourceLabel === 'РЖД';
             const isRenew = sourceLabel === 'Реновация';
@@ -776,7 +803,7 @@ function formatDgiShortSobstvRr(value) {
                         const sobstvRrText = String(sobstvRrDisplay ?? '').trim();
                         layer.bindPopup(
                             '<div style="min-width: 220px;">' +
-                            '<div><strong>ДГИ</strong></div>' +
+                            '<div><strong>' + escapeHtml(sourceLabel) + '</strong></div>' +
                             (!descrText || ['null', 'none', '-'].includes(descrText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Кадастровый номер:</strong> ' + escapeHtml(descr) + '</div>')) +
                             (!addressText || ['null', 'none', '-'].includes(addressText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Адрес:</strong> ' + escapeHtml(address) + '</div>')) +
                             (!vriText || ['null', 'none', '-'].includes(vriText.toLowerCase()) ? '' : ('<div style="margin-top: 6px;"><strong>Назначение:</strong> ' + escapeHtml(vri) + '</div>')) +
@@ -872,9 +899,11 @@ function formatDgiShortSobstvRr(value) {
                 }
             }).addTo(targetGroup);
         }
-        function renderReferenceSignalLayers(dgiMoscowGeo, dgiPrivateGeo, odhGeo, oznGeo) {
-            addSignalTapeLayer(dgiMoscowSignalGroup, dgiMoscowGeo, 'ДГИ');
-            addSignalTapeLayer(dgiPrivateSignalGroup, dgiPrivateGeo, 'ДГИ');
+        function renderReferenceSignalLayers(dgiMoscowRentGeo, dgiMoscowNoRentGeo, dgiPrivateRentGeo, dgiPrivateNoRentGeo, odhGeo, oznGeo) {
+            addSignalTapeLayer(dgiMoscowRentSignalGroup, dgiMoscowRentGeo, 'З/У г. Москва с арендой');
+            addSignalTapeLayer(dgiMoscowNoRentSignalGroup, dgiMoscowNoRentGeo, 'З/У г. Москва без аренды');
+            addSignalTapeLayer(dgiPrivateRentSignalGroup, dgiPrivateRentGeo, 'З/У Частная или федеральная собственность с арендой');
+            addSignalTapeLayer(dgiPrivateNoRentSignalGroup, dgiPrivateNoRentGeo, 'З/У Частная или федеральная собственность без аренды');
             addSignalTapeLayer(odhSignalGroup, filterPassportOnlyGeoJson(odhGeo), 'ОДХ');
             addSignalTapeLayer(oznSignalGroup, filterPassportOnlyGeoJson(oznGeo), 'ОЗН');
         }
@@ -927,8 +956,10 @@ function formatDgiShortSobstvRr(value) {
             }).addTo(recapsGroup);
         }
         renderReferenceSignalLayers(
-            dgiMoscowGeometry,
-            dgiPrivateGeometry,
+            dgiMoscowRentGeometry,
+            dgiMoscowNoRentGeometry,
+            dgiPrivateRentGeometry,
+            dgiPrivateNoRentGeometry,
             filterOutSelectedRootid(odhGeometry, selectedRootid),
             filterOutSelectedRootid(oznGeometry, selectedRootid),
         );
@@ -983,11 +1014,13 @@ function formatDgiShortSobstvRr(value) {
             );
             bindPopupToLayer(selectedLayer, popupHtml);
             map.fitBounds(selectedLayer.getBounds(), {padding: [30, 30], maxZoom: 30});
+            refreshMapSizeForViewOnly();
         } else {
             statusEl.textContent = '\u0412\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0439 \u043e\u0431\u044a\u0435\u043a\u0442 \u043d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0442\u0440\u0438\u0441\u043e\u0432\u0430\u0442\u044c \u043d\u0430 \u043a\u0430\u0440\u0442\u0435.';
         }
         refreshObjectLayersControl();
         loadCommentPointsForMap();
+        refreshMapSizeForViewOnly();
 
         function askSnapRadiusMeters(currentValue) {
             const raw = window.prompt('Введите радиус прилипания в метрах:', String(currentValue));
@@ -1189,8 +1222,10 @@ function formatDgiShortSobstvRr(value) {
                 touches: normalizeGeoJson(layers.touches),
                 nearby: normalizeGeoJson(layers.nearby),
                 request_objects: normalizeGeoJson(layers.request_objects),
-                dgi_moscow: normalizeGeoJson(layers.dgi_moscow),
-                dgi_private: normalizeGeoJson(layers.dgi_private),
+                dgi_moscow_rent: normalizeGeoJson(layers.dgi_moscow_rent),
+                dgi_moscow_no_rent: normalizeGeoJson(layers.dgi_moscow_no_rent),
+                dgi_private_rent: normalizeGeoJson(layers.dgi_private_rent),
+                dgi_private_no_rent: normalizeGeoJson(layers.dgi_private_no_rent),
                 odh: normalizeGeoJson(layers.odh),
                 ozn: normalizeGeoJson(layers.ozn),
                 renew: normalizeGeoJson(layers.renew),
@@ -1222,12 +1257,14 @@ function formatDgiShortSobstvRr(value) {
             parsed.odh = excludeSelectedRootid(parsed.odh);
             parsed.ozn = excludeSelectedRootid(parsed.ozn);
             if (
-                Object.prototype.hasOwnProperty.call(layers, 'dgi_moscow')
-                || Object.prototype.hasOwnProperty.call(layers, 'dgi_private')
+                Object.prototype.hasOwnProperty.call(layers, 'dgi_moscow_rent')
+                || Object.prototype.hasOwnProperty.call(layers, 'dgi_moscow_no_rent')
+                || Object.prototype.hasOwnProperty.call(layers, 'dgi_private_rent')
+                || Object.prototype.hasOwnProperty.call(layers, 'dgi_private_no_rent')
                 || Object.prototype.hasOwnProperty.call(layers, 'odh')
                 || Object.prototype.hasOwnProperty.call(layers, 'ozn')
             ) {
-                renderReferenceSignalLayers(parsed.dgi_moscow, parsed.dgi_private, parsed.odh, parsed.ozn);
+                renderReferenceSignalLayers(parsed.dgi_moscow_rent, parsed.dgi_moscow_no_rent, parsed.dgi_private_rent, parsed.dgi_private_no_rent, parsed.odh, parsed.ozn);
             }
             if (Object.prototype.hasOwnProperty.call(layers, 'recaps')) {
                 renderRecapsLayer(parsed.recaps);
@@ -1407,11 +1444,9 @@ function formatDgiShortSobstvRr(value) {
                 return;
             }
             if (data.intersects) {
-                checkDgiModalBody.innerHTML =
-                    '<div>ДГИ (г. Москва и Нет данных): ' + data.percent_moscow + '% от площади</div>' +
-                    '<div>ДГИ (Частная собственность): ' + data.percent_private + '% от площади</div>';
+                checkDgiModalBody.innerHTML = PV.buildCheckDgiModalHtml(data);
             } else {
-                checkDgiModalBody.textContent = 'Пересечений с объектами ДГИ не обнаружено.';
+                checkDgiModalBody.textContent = 'Пересечений с объектами ДГИ и инфоресурсами не обнаружено.';
             }
             checkDgiModal.style.display = 'flex';
         }
@@ -1460,8 +1495,10 @@ function formatDgiShortSobstvRr(value) {
             ozn: oznSignalGroup,
             top: topSignalGroup,
             requests: requestObjectsGroup,
-            dgi_moscow: dgiMoscowSignalGroup,
-            dgi_private: dgiPrivateSignalGroup,
+            dgi_moscow_rent: dgiMoscowRentSignalGroup,
+            dgi_moscow_no_rent: dgiMoscowNoRentSignalGroup,
+            dgi_private_rent: dgiPrivateRentSignalGroup,
+            dgi_private_no_rent: dgiPrivateNoRentSignalGroup,
             renew: renewGroup,
             oozt: ooztSignalGroup,
             rzd: rzdSignalGroup,
@@ -1487,8 +1524,10 @@ function formatDgiShortSobstvRr(value) {
                 autoRemoveOznCheckbox,
                 autoRemoveTopCheckbox,
                 autoRemoveRequestsCheckbox,
-                autoRemoveDgiMoscowCheckbox,
-                autoRemoveDgiPrivateCheckbox,
+                autoRemoveDgiMoscowRentCheckbox,
+                autoRemoveDgiMoscowNoRentCheckbox,
+                autoRemoveDgiPrivateRentCheckbox,
+                autoRemoveDgiPrivateNoRentCheckbox,
                 autoRemoveRenewCheckbox,
                 autoRemoveOoztCheckbox,
                 autoRemoveRzdCheckbox,
@@ -1554,11 +1593,17 @@ function formatDgiShortSobstvRr(value) {
             if (autoRemoveRequestsCheckbox?.checked) {
                 sources.push('requests');
             }
-            if (autoRemoveDgiMoscowCheckbox.checked) {
-                sources.push('dgi_moscow');
+            if (autoRemoveDgiMoscowRentCheckbox?.checked) {
+                sources.push('dgi_moscow_rent');
             }
-            if (autoRemoveDgiPrivateCheckbox.checked) {
-                sources.push('dgi_private');
+            if (autoRemoveDgiMoscowNoRentCheckbox?.checked) {
+                sources.push('dgi_moscow_no_rent');
+            }
+            if (autoRemoveDgiPrivateRentCheckbox?.checked) {
+                sources.push('dgi_private_rent');
+            }
+            if (autoRemoveDgiPrivateNoRentCheckbox?.checked) {
+                sources.push('dgi_private_no_rent');
             }
             if (autoRemoveRenewCheckbox.checked) {
                 sources.push('renew');
@@ -1753,8 +1798,10 @@ function formatDgiShortSobstvRr(value) {
         function rebuildSnapGuideLines() {
             snapGuideLines = [];
             collectSnapGuideLines(selectedGeo, snapGuideLines);
-            [adjacentDtPassportsGroup, requestObjectsGroup, dgiMoscowSignalGroup,
-                dgiPrivateSignalGroup, odhSignalGroup, oznSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
+            [adjacentDtPassportsGroup, requestObjectsGroup, dgiMoscowRentSignalGroup,
+                dgiMoscowNoRentSignalGroup,
+                dgiPrivateRentSignalGroup,
+                dgiPrivateNoRentSignalGroup, odhSignalGroup, oznSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
@@ -2201,6 +2248,9 @@ function formatDgiShortSobstvRr(value) {
         map.on('draw:editvertex', () => attachPromptSnapHandlers(0));
 
         function setEditMode(enabled) {
+            if (viewOnly) {
+                enabled = false;
+            }
             isEditing = enabled;
             mapEl.classList.toggle('edit-mode', enabled);
             editableAreaInfoEl.style.display = enabled ? 'block' : 'none';
@@ -2399,6 +2449,9 @@ function formatDgiShortSobstvRr(value) {
         }
 
         editButton.addEventListener('click', () => {
+            if (viewOnly) {
+                return;
+            }
             if (!selectedLayer) {
                 statusEl.textContent = '\u041d\u0435\u0442 \u043e\u0431\u044a\u0435\u043a\u0442\u0430 \u0434\u043b\u044f \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f.';
                 return;
@@ -2886,8 +2939,10 @@ function formatDgiShortSobstvRr(value) {
                 editableGroup,
                 selectedGroup,
                 requestObjectsGroup,
-                dgiMoscowSignalGroup,
-                dgiPrivateSignalGroup,
+                dgiMoscowRentSignalGroup,
+                dgiMoscowNoRentSignalGroup,
+                dgiPrivateRentSignalGroup,
+                dgiPrivateNoRentSignalGroup,
                 renewGroup,
                 topSignalGroup,
                 ooztSignalGroup,
@@ -3243,5 +3298,6 @@ function formatDgiShortSobstvRr(value) {
 
         updateRelationsButtonState();
         loadInitialMapContextLayers();
+        refreshMapSizeForViewOnly();
 
 })();
