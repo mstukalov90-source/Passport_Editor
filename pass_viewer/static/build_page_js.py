@@ -76,7 +76,8 @@ PAGE_HEADERS: dict[str, str] = {
         + "    const PdfExport = PV.PdfExport;\n"
         + "    const formatAdjacentRelationsSearchStatus = PV.formatAdjacentRelationsSearchStatus.bind(PV);\n"
         + "    const parseJsonResponse = PV.parseJsonResponse.bind(PV);\n"
-        + "    const mergeMapLayerPayload = PV.mergeMapLayerPayload.bind(PV);\n\n"
+        + "    const mergeMapLayerPayload = PV.mergeMapLayerPayload.bind(PV);\n"
+        + "    const viewOnly = !!(cfg.features && cfg.features.viewOnly);\n\n"
     ),
     "add_object": (
         _HEADER_PREFIX
