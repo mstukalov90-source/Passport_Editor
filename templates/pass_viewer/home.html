@@ -478,7 +478,10 @@
                    target="_blank"
                    rel="noopener noreferrer"
                    style="display:none;">Объект в АСУ ОДС</a>
-                <button type="button" id="check-dgi-modal-close" class="map-toolbar-btn map-toolbar-btn--primary">OK</button>
+                <div class="check-dgi-modal-actions__right">
+                    <button type="button" id="check-dgi-view-object-btn" class="map-toolbar-btn map-toolbar-btn--primary" style="display:none;">Просмотр объекта</button>
+                    <button type="button" id="check-dgi-modal-close" class="map-toolbar-btn map-toolbar-btn--primary">OK</button>
+                </div>
             </div>
         </div>
     </div>
@@ -494,7 +497,10 @@
         <div class="owned-view-object-modal__card">
             <div class="owned-view-object-modal__header">
                 <h3 id="owned-view-object-modal-title">Просмотр объекта</h3>
-                <button type="button" id="owned-view-object-close-btn" class="owned-view-object-modal__close" aria-label="Закрыть">&#10005;</button>
+                <div class="owned-view-object-modal__header-actions">
+                    <button type="button" id="owned-view-object-edit-btn" class="map-toolbar-btn map-toolbar-btn--primary owned-view-object-edit-btn" style="display:none;">Редактировать объект</button>
+                    <button type="button" id="owned-view-object-close-btn" class="owned-view-object-modal__close" aria-label="Закрыть">&#10005;</button>
+                </div>
             </div>
             <p id="owned-view-object-status" class="note owned-view-object-modal__status"></p>
             <div class="owned-view-object-modal__body">
@@ -508,6 +514,20 @@
                     title="Просмотр объекта"
                     src="about:blank"
                 ></iframe>
+            </div>
+        </div>
+    </div>
+
+    <div id="owned-edit-choice-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card" style="max-width: 420px;">
+            <h3 style="margin: 0 0 10px;">Редактировать объект</h3>
+            <p class="note" style="margin-top: 0;">Выберите действие:</p>
+            <div class="modal-actions owned-edit-choice-actions">
+                <button type="button" id="owned-edit-choice-cancel-btn" class="map-toolbar-btn" style="background:#e5e7eb;color:#111;">Отмена</button>
+                <div class="owned-edit-choice-actions__right">
+                    <button type="button" id="owned-edit-choice-aktualize-btn" class="map-toolbar-btn map-toolbar-btn--primary">Актуализировать</button>
+                    <button type="button" id="owned-edit-choice-split-btn" class="map-toolbar-btn map-toolbar-btn--primary">Разделить</button>
+                </div>
             </div>
         </div>
     </div>

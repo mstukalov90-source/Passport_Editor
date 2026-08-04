@@ -90,6 +90,13 @@
     margin-top: 14px;
 }
 
+.check-dgi-modal-actions__right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
 .check-dgi-asu-ods-link {
     color: #1d4ed8;
     font-size: 13px;
