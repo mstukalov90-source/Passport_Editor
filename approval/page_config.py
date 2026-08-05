@@ -2,7 +2,7 @@
 
 from django.urls import reverse
 
-from .events_service import serialize_approve_option
+from .events_service import serialize_approve_options
 from .work_layers import layer_stack_order
 
 
@@ -23,10 +23,10 @@ def landing_page_config(
         for group in groups
         if group.get("key")
     }
-    approve_options = [
-        serialize_approve_option(approve, username=current_user_login)
-        for approve in approves or []
-    ]
+    approve_options = serialize_approve_options(
+        approves or [],
+        username=current_user_login,
+    )
 
     return {
         "page": "approval_landing",

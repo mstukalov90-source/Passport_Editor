@@ -313,6 +313,69 @@ def bind_hood_scope(mode: str, wkt: str | None):
     _local.bound = True
 
 
+def list_hood_districts(cursor=None) -> list[dict]:
+    """Return hood districts for SUP picker: [{gid, rayon, okrug}, ...]."""
+    hood_table = getattr(settings, "GIS_HOOD_TABLE", "hood")
+    close = False
+    if cursor is None:
+        cursor = connection.cursor()
+        close = True
+    try:
+        if not _hq_table_exists(cursor, hood_table):
+            return []
+        if not _hq_column_exists(cursor, hood_table, "gid"):
+            return []
+        gid_c = _hq_resolve_column_name(cursor, hood_table, "gid")
+        select_parts = [f"{_hq_quote_ident(gid_c)}::text AS gid"]
+        for label in ("rayon", "okrug"):
+            if _hq_column_exists(cursor, hood_table, label):
+                col = _hq_resolve_column_name(cursor, hood_table, label)
+                select_parts.append(f"COALESCE({_hq_quote_ident(col)}::text, '') AS {label}")
+            else:
+                select_parts.append(f"''::text AS {label}")
+        order_col = "rayon" if _hq_column_exists(cursor, hood_table, "rayon") else "gid"
+        order_resolved = _hq_resolve_column_name(cursor, hood_table, order_col)
+        cursor.execute(
+            f"SELECT {', '.join(select_parts)} "
+            f"FROM {_hq_quote_ident(hood_table)} "
+            f"ORDER BY {_hq_quote_ident(order_resolved)} ASC NULLS LAST, {_hq_quote_ident(gid_c)} ASC"
+        )
+        rows = cursor.fetchall()
+        return [
+            {"gid": str(row[0] or ""), "rayon": row[1] or "", "okrug": row[2] or ""}
+            for row in rows
+            if row and row[0] is not None
+        ]
+    finally:
+        if close:
+            cursor.close()
+
+
+def resolve_hood_wkt_for_gid(cursor, gid) -> dict:
+    """Return {mode, wkt} for a single hood.gid polygon."""
+    hood_table = getattr(settings, "GIS_HOOD_TABLE", "hood")
+    if not gid or not _hq_table_exists(cursor, hood_table):
+        return {"mode": "empty", "wkt": None}
+    if not _hq_column_exists(cursor, hood_table, "geom") or not _hq_column_exists(cursor, hood_table, "gid"):
+        return {"mode": "empty", "wkt": None}
+    geom_f = _hq_resolve_column_name(cursor, hood_table, "geom")
+    gid_c = _hq_resolve_column_name(cursor, hood_table, "gid")
+    cursor.execute(
+        f"""
+        SELECT ST_AsText(ST_MakeValid(ST_UnaryUnion({_hq_quote_ident(geom_f)})))
+        FROM {_hq_quote_ident(hood_table)}
+        WHERE {_hq_quote_ident(gid_c)}::text = %s
+        LIMIT 1
+        """,
+        [str(gid)],
+    )
+    row = cursor.fetchone()
+    wkt = row[0] if row else None
+    if not wkt:
+        return {"mode": "empty", "wkt": None}
+    return {"mode": "active", "wkt": wkt}
+
+
 def resolve_and_bind_hood_scope(request):
     clear_hood_scope()
     user = getattr(request, "user", None)
@@ -320,6 +383,7 @@ def resolve_and_bind_hood_scope(request):
         return
     try:
         from pass_viewer.models import ExternalUser
+        from pass_viewer.roles import ROLE_SUP, SUP_HOOD_SESSION_GID, normalize_role
     except Exception:
         return
     row = (
@@ -327,9 +391,44 @@ def resolve_and_bind_hood_scope(request):
         .only(
             "owner_legal_person_id",
             "hood_scope",
+            "role",
         )
         .first()
     )
+    role = normalize_role(getattr(row, "role", None) if row else None)
+
+    # SUP: bind selected district from session (required for spatial filters).
+    if role == ROLE_SUP:
+        _local.user_hood_scope_required = True
+        if not getattr(settings, "GIS_HOOD_ACCESS_ENABLED", True):
+            bind_hood_scope("skip", None)
+            return
+        gid = (request.session.get(SUP_HOOD_SESSION_GID) or "").strip()
+        if not gid:
+            bind_hood_scope("empty", None)
+            return
+        cache = request.session.get("hood_access_scope") or {}
+        if (
+            cache.get("sup_gid") == gid
+            and cache.get("mode")
+            and cache.get("v") == HOOD_SCOPE_SESSION_VERSION
+            and cache.get("role") == ROLE_SUP
+        ):
+            bind_hood_scope(cache["mode"], cache.get("wkt"))
+            return
+        with connection.cursor() as cursor:
+            scope = resolve_hood_wkt_for_gid(cursor, gid)
+        request.session["hood_access_scope"] = {
+            "sup_gid": gid,
+            "role": ROLE_SUP,
+            "mode": scope["mode"],
+            "wkt": scope.get("wkt"),
+            "v": HOOD_SCOPE_SESSION_VERSION,
+        }
+        request.session.modified = True
+        bind_hood_scope(scope["mode"], scope.get("wkt"))
+        return
+
     if row is not None:
         _local.user_hood_scope_required = bool(row.hood_scope)
     owner_id = row.owner_legal_person_id if row else None

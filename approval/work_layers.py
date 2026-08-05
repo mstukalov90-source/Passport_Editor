@@ -124,6 +124,18 @@ _SURVEY_TITLE_TABLES = ("YardPoly", "OznPoly", "OdhPoly")
 _DEFAULT_SURVEY_TITLE = "Согласование границ ОГХ"
 _SURVEY_NAME_COLUMN = "Name"
 _SURVEY_BRID_COLUMN = "PassBrId"
+# Home «Согласования» source badges: which work poly table owns the TaskGUID.
+_TASK_POLY_SOURCE_TABLES: tuple[tuple[str, str], ...] = (
+    ("YardPoly", "ДТ"),
+    ("OdhPoly", "ОДХ"),
+    ("OznPoly", "ОЗН"),
+    ("ImprovementObjectPoly", "ТОП"),
+)
+_EMPTY_TASK_POLY_META: dict[str, str] = {
+    "source_label": "",
+    "object_name": "",
+    "table": "",
+}
 
 
 def _column_exists(cursor, schema: str, table_name: str, column_name: str) -> bool:
@@ -277,6 +289,116 @@ def lookup_task_survey_fields(task_guid: str) -> tuple[str, str]:
 def resolve_task_survey_name(task_guid: str) -> str:
     """Return work-layer Name for TaskGUID, or empty string when not found."""
     return lookup_task_survey_fields(task_guid)[0]
+
+
+def _empty_task_poly_meta() -> dict[str, str]:
+    return dict(_EMPTY_TASK_POLY_META)
+
+
+def lookup_task_poly_meta(task_guid: str) -> dict[str, str]:
+    """
+    Resolve source_label + object Name for TaskGUID from work poly tables.
+
+    Order: YardPoly (ДТ) → OdhPoly (ОДХ) → OznPoly (ОЗН) → ImprovementObjectPoly (ТОП).
+    Only TaskGUID and Name columns are required (ImprovementObjectPoly has no PassBrId).
+    """
+    task_guid_text = str(task_guid or "").strip()
+    if not task_guid_text:
+        return _empty_task_poly_meta()
+
+    schema = work_schema_name()
+    task_col = work_taskguid_column()
+    name_col = _SURVEY_NAME_COLUMN
+
+    try:
+        with connections["qgis"].cursor() as cursor:
+            for table, source_label in _TASK_POLY_SOURCE_TABLES:
+                if not _column_exists(cursor, schema, table, task_col):
+                    continue
+                if not _column_exists(cursor, schema, table, name_col):
+                    continue
+                cursor.execute(
+                    f"""
+                    SELECT t.{_quote_ident(name_col)}::text
+                    FROM {_quote_ident(schema)}.{_quote_ident(table)} t
+                    WHERE t.{_quote_ident(task_col)} = %s::uuid
+                    LIMIT 1
+                    """,
+                    [task_guid_text],
+                )
+                row = cursor.fetchone()
+                if not row:
+                    continue
+                return {
+                    "source_label": source_label,
+                    "object_name": str(row[0] or "").strip(),
+                    "table": table,
+                }
+    except Exception:
+        logger.exception("lookup_task_poly_meta: qgis query failed")
+        return _empty_task_poly_meta()
+
+    return _empty_task_poly_meta()
+
+
+def batch_lookup_task_poly_meta(task_guids) -> dict[str, dict[str, str]]:
+    """
+    Batch-resolve source_label + Name for many TaskGUIDs (one query per poly table).
+
+    First matching table in _TASK_POLY_SOURCE_TABLES wins per guid.
+    """
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw in task_guids or []:
+        guid = str(raw or "").strip()
+        if not guid or guid in seen:
+            continue
+        seen.add(guid)
+        normalized.append(guid)
+
+    result: dict[str, dict[str, str]] = {guid: _empty_task_poly_meta() for guid in normalized}
+    if not normalized:
+        return result
+
+    schema = work_schema_name()
+    task_col = work_taskguid_column()
+    name_col = _SURVEY_NAME_COLUMN
+    unresolved = set(normalized)
+
+    try:
+        with connections["qgis"].cursor() as cursor:
+            for table, source_label in _TASK_POLY_SOURCE_TABLES:
+                if not unresolved:
+                    break
+                if not _column_exists(cursor, schema, table, task_col):
+                    continue
+                if not _column_exists(cursor, schema, table, name_col):
+                    continue
+                cursor.execute(
+                    f"""
+                    SELECT DISTINCT ON (t.{_quote_ident(task_col)})
+                           t.{_quote_ident(task_col)}::text,
+                           t.{_quote_ident(name_col)}::text
+                    FROM {_quote_ident(schema)}.{_quote_ident(table)} t
+                    WHERE t.{_quote_ident(task_col)} = ANY(%s::uuid[])
+                    """,
+                    [list(unresolved)],
+                )
+                for row in cursor.fetchall() or []:
+                    guid = str(row[0] or "").strip()
+                    if not guid or guid not in unresolved:
+                        continue
+                    result[guid] = {
+                        "source_label": source_label,
+                        "object_name": str(row[1] or "").strip(),
+                        "table": table,
+                    }
+                    unresolved.discard(guid)
+    except Exception:
+        logger.exception("batch_lookup_task_poly_meta: qgis query failed")
+        return result
+
+    return result
 
 
 def resolve_task_survey_title(task_guid: str) -> str:

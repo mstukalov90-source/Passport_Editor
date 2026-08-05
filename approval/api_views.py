@@ -26,7 +26,7 @@ from .events_service import (
     record_case_approval,
     resolve_and_attach_title_named,
     revoke_case_approval,
-    serialize_approve_option,
+    serialize_approve_options,
     serialize_case_detail,
     serialize_case_summary,
     serialize_message,
@@ -38,10 +38,10 @@ from .access import (
     get_accessible_approve,
     get_accessible_approves,
     get_accessible_cases_queryset,
-    get_owner_id_for_username,
     is_inspector_for_approve,
     user_can_access_case,
 )
+from pass_viewer.roles import resolve_user_scope
 
 
 def _json_error(message, *, status=400):
@@ -50,10 +50,22 @@ def _json_error(message, *, status=400):
 
 def _actor_context(request):
     username = (request.user.username or "").strip()
-    owner_id = get_owner_id_for_username(username)
+    scope = resolve_user_scope(username)
+    owner_id = scope.owner_id
     if not owner_id and not username:
         return None, _json_error("Не найден OwnerLegalPersonId для пользователя.", status=403)
-    return {"owner_id": owner_id, "username": username}, None
+    return {
+        "owner_id": owner_id,
+        "owner_ids": scope.owner_ids,
+        "username": username,
+        "can_write": scope.can_write,
+    }, None
+
+
+def _require_write(actor):
+    if actor and actor.get("can_write"):
+        return None
+    return _json_error("Режим только для просмотра: изменение недоступно.", status=403)
 
 
 def _parse_json_body(request):
@@ -103,7 +115,7 @@ def api_bootstrap(request):
     username = actor["username"]
 
     approves = list(get_accessible_approves(owner_id, username=username))
-    approve_options = [serialize_approve_option(item, username=username) for item in approves]
+    approve_options = serialize_approve_options(approves, username=username)
 
     selected_approve_id = request.GET.get("approve_id") or request.GET.get("approve")
     selected = None
@@ -171,6 +183,9 @@ def api_case_detail(request, case_id):
         return error
 
     if request.method == "DELETE":
+        write_error = _require_write(actor)
+        if write_error:
+            return write_error
         approve = case.approve
         deleted_case_id = str(case.id)
         try:
@@ -201,6 +216,9 @@ def api_post_message(request, case_id):
     actor, error = _actor_context(request)
     if error:
         return error
+    write_error = _require_write(actor)
+    if write_error:
+        return write_error
 
     case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
     if error:
@@ -337,6 +355,9 @@ def api_approve_case(request, case_id):
     actor, error = _actor_context(request)
     if error:
         return error
+    write_error = _require_write(actor)
+    if write_error:
+        return write_error
 
     case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
     if error:
@@ -373,6 +394,9 @@ def api_revoke_case(request, case_id):
     actor, error = _actor_context(request)
     if error:
         return error
+    write_error = _require_write(actor)
+    if write_error:
+        return write_error
 
     case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
     if error:
@@ -401,6 +425,9 @@ def api_message_reaction(request, message_id):
     actor, error = _actor_context(request)
     if error:
         return error
+    write_error = _require_write(actor)
+    if write_error:
+        return write_error
 
     message = get_object_or_404(
         CaseMessage.objects.select_related("case__approve", "parent").prefetch_related(
@@ -455,6 +482,9 @@ def api_delete_message(request, message_id):
     actor, error = _actor_context(request)
     if error:
         return error
+    write_error = _require_write(actor)
+    if write_error:
+        return write_error
 
     message = get_object_or_404(
         CaseMessage.objects.select_related("case__approve").prefetch_related("attachments"),
@@ -516,6 +546,9 @@ def api_create_adjacent_event(request, approve_id):
     actor, error = _actor_context(request)
     if error:
         return error
+    write_error = _require_write(actor)
+    if write_error:
+        return write_error
 
     approve = get_accessible_approve(approve_id, actor["owner_id"], username=actor["username"])
     if approve is None:
@@ -557,6 +590,9 @@ def api_change_case_owner(request, case_id):
     actor, error = _actor_context(request)
     if error:
         return error
+    write_error = _require_write(actor)
+    if write_error:
+        return write_error
 
     case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
     if error:
@@ -590,6 +626,9 @@ def api_add_case_participant(request, case_id):
     actor, error = _actor_context(request)
     if error:
         return error
+    write_error = _require_write(actor)
+    if write_error:
+        return write_error
 
     case, error = _case_or_error(case_id, owner_id=actor["owner_id"], username=actor["username"])
     if error:
@@ -622,6 +661,9 @@ def api_add_case_participant(request, case_id):
 def delete_approve(request):
     approve_id = (request.POST.get("approve_id") or "").strip()
     if not approve_id:
+        return redirect("home")
+
+    if not user_can_write_approvals(request.user.username):
         return redirect("home")
 
     try:

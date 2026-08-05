@@ -21,10 +21,28 @@
     <div class="owned-home-shell">
     <div class="owned-home-header">
         <h2 style="font-size: 18px; margin: 0;">
-            Объекты балансодержателя:{% if owner_id or owner_name %}
-            <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>{% endif %}
+            {% if user_role == 'SUP' %}
+                Объекты района:{% if sup_hood_label %}
+                <strong>{{ sup_hood_label }}</strong>{% endif %}
+            {% elif user_role == 'MGGT' %}
+                Заявки и согласования (МГГТ)
+            {% elif user_role == 'DEP' %}
+                Объекты департамента:{% if owner_id or owner_name %}
+                <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>{% endif %}
+            {% elif user_role == 'DEP+' %}
+                {{ display_name|default:"Объекты DEP+" }}
+            {% else %}
+                Объекты балансодержателя:{% if owner_id or owner_name %}
+                <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>{% endif %}
+            {% endif %}
         </h2>
         <div class="owned-home-header-actions">
+            {% if user_role == 'SUP' and sup_hood_gid %}
+            <form method="post" action="{% url 'clear_sup_hood' %}" style="margin: 0;">
+                {% csrf_token %}
+                <button type="submit" class="user-guide-open-btn">Сменить район</button>
+            </form>
+            {% endif %}
             <div class="approval-notifications-dropdown">
                 <button
                     type="button"
@@ -82,7 +100,35 @@
     </div>
 
     <div class="owned-home-main">
-    {% if owned_objects_error %}
+    {% if need_sup_hood_modal %}
+        <div
+            id="sup-hood-modal"
+            style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 16px;"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sup-hood-modal-title"
+        >
+            <div style="background: #fff; border-radius: 12px; max-width: 480px; width: 100%; max-height: 80vh; overflow: auto; padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.18);">
+                <h3 id="sup-hood-modal-title" style="margin: 0 0 8px; font-size: 18px;">Выберите район</h3>
+                <p class="note" style="margin: 0 0 16px;">Для роли супервайзера нужно выбрать район из справочника hood. После выбора отобразятся объекты внутри района.</p>
+                {% if hood_districts %}
+                <form method="post" action="{% url 'select_sup_hood' %}" style="display: flex; flex-direction: column; gap: 12px;">
+                    {% csrf_token %}
+                    <label for="sup-hood-gid" class="note" style="font-weight: 600;">Район</label>
+                    <select id="sup-hood-gid" name="hood_gid" required style="padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
+                        <option value="">— выберите —</option>
+                        {% for d in hood_districts %}
+                        <option value="{{ d.gid }}">{% if d.rayon %}{{ d.rayon }}{% else %}{{ d.gid }}{% endif %}{% if d.okrug %} ({{ d.okrug }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" style="align-self: flex-end;">Показать объекты</button>
+                </form>
+                {% else %}
+                <p class="note" style="color: #b42318;">Таблица районов (hood) пуста или недоступна.</p>
+                {% endif %}
+            </div>
+        </div>
+    {% elif owned_objects_error %}
         <p class="note" style="color: #b42318;">{{ owned_objects_error }}</p>
     {% elif owned_objects or approval_items %}
         <div class="owned-home-workspace">
@@ -94,8 +140,12 @@
                 </div>
                 <div class="owned-lists-panel">
                     <div class="owned-list-tabs">
-                        <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="passports">Актуальные паспорта</button>
+                        {% if show_passports_tab %}
+                        <button type="button" class="owned-list-tab-btn{% if show_passports_tab %} is-active{% endif %}" data-owned-list-tab="passports">Актуальные паспорта</button>
                         <button type="button" class="owned-list-tab-btn" data-owned-list-tab="requests">Заявки</button>
+                        {% else %}
+                        <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="requests">Заявки</button>
+                        {% endif %}
                         <button type="button" class="owned-list-tab-btn" data-owned-list-tab="approvals">Согласования</button>
                         <div id="owned-request-status-filter" class="owned-request-status-filter" hidden aria-label="Фильтр по статусу заявки"></div>
                         <div id="owned-approval-select-wrap" class="owned-approval-select-wrap" hidden aria-label="Фильтр по статусу согласования">
@@ -105,15 +155,25 @@
                                 <option value="Согласовано">Согласовано</option>
                             </select>
                         </div>
+                        {% if show_approvals_mine_all_filter %}
+                        <div id="owned-approval-scope-wrap" class="owned-approval-select-wrap" hidden aria-label="Фильтр свои/все согласования">
+                            <select id="owned-approval-scope-select" class="owned-approval-select">
+                                <option value="mine" selected>Мои</option>
+                                <option value="all">Все</option>
+                            </select>
+                        </div>
+                        {% endif %}
                     </div>
-                    <div class="owned-source-filters">
+                    <div class="owned-source-filters"{% if not show_passports_tab and user_role == 'MGGT' %} style="display:none"{% endif %}>
                         <button type="button" class="source-badge source-badge--dt owned-source-filter-btn is-active" data-source-filter="ДТ">ДТ</button>
                         <button type="button" class="source-badge source-badge--odh owned-source-filter-btn is-active" data-source-filter="ОДХ">ОДХ</button>
                         <button type="button" class="source-badge source-badge--oo owned-source-filter-btn is-active" data-source-filter="ОЗН">ОО</button>
                         <button type="button" class="source-badge source-badge--top owned-source-filter-btn is-active" data-source-filter="ТОП">ТОП</button>
+                        {% if user_role != 'MGGT' and user_role != 'SUP' %}
                         <button type="button" class="source-badge source-badge--ods owned-source-filter-btn is-active" data-source-filter="{{ ods_request_source_label|default:'ОДС' }}">{{ ods_request_source_label|default:"ОДС" }}</button>
+                        {% endif %}
                     </div>
-                <div class="owned-list-wrap owned-list-panel is-active" data-list-panel="passports">
+                <div class="owned-list-wrap owned-list-panel{% if show_passports_tab %} is-active{% endif %}" data-list-panel="passports"{% if not show_passports_tab %} hidden{% endif %}>
                     {% for item in owned_objects %}
                         {% if item.rootid %}
                             <div
@@ -169,17 +229,19 @@
                                     <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
                                     <input type="hidden" name="geometry_detail_mode" value="simplified">
                                     <input type="hidden" name="redirect_to" value="split_object">
-                                    <button type="submit" class="owned-split-btn">Разделить</button>
+                                    {% if can_write %}<button type="submit" class="owned-split-btn">Разделить</button>{% endif %}
                                 </form>
                                 <span class="source-badge owned-source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% elif item.source_label == 'ТОП' %}source-badge--top{% else %}source-badge--dt{% endif %}">
                                     {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
                                 </span>
+                                {% if can_write %}
                                 <button type="button" class="owned-confirm-open-btn">Актуализировать</button>
+                                {% endif %}
                             </div>
                         {% endif %}
                     {% endfor %}
                 </div>
-                <div class="owned-list-wrap owned-list-panel" data-list-panel="requests">
+                <div class="owned-list-wrap owned-list-panel{% if not show_passports_tab %} is-active{% endif %}" data-list-panel="requests">
                     {% for item in owned_objects %}
                         {% if not item.rootid %}
                             <div
@@ -251,6 +313,7 @@
                                             Заявок на досъём: 0
                                         </span>
                                         {% endif %}
+                                        {% if can_write %}
                                         <button
                                             type="button"
                                             class="add-recap-entry-btn"
@@ -262,6 +325,7 @@
                                         >
                                             Заявка на досъём
                                         </button>
+                                        {% endif %}
                                     {% endif %}
                                 {% else %}
                                 <input
@@ -329,6 +393,7 @@
                                         Заявок на досъём: 0
                                     </span>
                                     {% endif %}
+                                    {% if can_write %}
                                     <button
                                         type="button"
                                         class="add-recap-entry-btn"
@@ -353,6 +418,7 @@
                                             Удалить
                                         </button>
                                     </form>
+                                    {% endif %}
                                 {% endif %}
                                 {% endif %}
                             </div>
@@ -365,8 +431,10 @@
                             class="owned-list-item owned-item owned-approval-row"
                             data-approve-id="{{ item.id }}"
                             data-approval-status="{{ item.status_label }}"
+                            data-approval-mine="{% if item.is_mine %}1{% else %}0{% endif %}"
                             data-rootid="{{ item.incoming_guid|lower }}"
-                            data-name="{{ item.name|default:item.label|lower }}"
+                            data-name="{{ item.label|default:item.name|lower }}"
+                            data-source-label="{{ item.source_label|default:'' }}"
                         >
                             <a
                                 href="{% url 'approval:landing' %}?approve={{ item.id }}"
@@ -377,6 +445,11 @@
                                     {{ item.status_label }}
                                 </span>
                             </a>
+                            {% if item.source_label %}
+                            <span class="source-badge owned-source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% elif item.source_label == 'ТОП' %}source-badge--top{% else %}source-badge--dt{% endif %}">
+                                {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label }}{% endif %}
+                            </span>
+                            {% endif %}
                             {% if item.can_delete %}
                             <form method="post" action="{% url 'approval:delete_approve' %}" class="owned-approval-delete-form">
                                 {% csrf_token %}
@@ -821,6 +894,6 @@
         </div>
     </div>
 
-    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" data-ods-source-label="{{ ods_request_source_label|default:'ОДС'|escape }}" data-owner-id="{{ owner_id|default:''|escape }}" hidden></div>
+    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" data-ods-source-label="{{ ods_request_source_label|default:'ОДС'|escape }}" data-owner-id="{{ owner_id|default:''|escape }}" data-user-role="{{ user_role|default:'BD'|escape }}" data-can-write="{% if can_write %}1{% else %}0{% endif %}" data-show-passports-tab="{% if show_passports_tab %}1{% else %}0{% endif %}" data-show-approvals-mine-all="{% if show_approvals_mine_all_filter %}1{% else %}0{% endif %}" data-need-sup-hood="{% if need_sup_hood_modal %}1{% else %}0{% endif %}" hidden></div>
 
 {% endblock %}

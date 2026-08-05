@@ -60,7 +60,19 @@ def build_page_config(page, **extra):
     return config
 
 
-def home_page_config(*, need_entry_request_id, ods_source_label, owner_id=None):
+def home_page_config(
+    *,
+    need_entry_request_id,
+    ods_source_label,
+    owner_id=None,
+    user_role="BD",
+    can_write=True,
+    show_passports_tab=True,
+    show_approvals_mine_all_filter=False,
+    need_sup_hood_modal=False,
+    sup_hood_gid="",
+    sup_hood_label="",
+):
     return build_page_config(
         "home",
         urls={
@@ -72,10 +84,19 @@ def home_page_config(*, need_entry_request_id, ods_source_label, owner_id=None):
             "checkDgi": reverse("check_dgi_intersections"),
             "resolveAsuOdsUrl": reverse("resolve_asu_ods_url"),
             "openOwned": reverse("open_owned_object"),
+            "selectSupHood": reverse("select_sup_hood"),
+            "clearSupHood": reverse("clear_sup_hood"),
         },
         needEntryRequestId=bool(need_entry_request_id),
         odsSourceLabel=ods_source_label or "ОДС",
         ownerId=str(owner_id) if owner_id is not None else "",
+        userRole=str(user_role or "BD"),
+        canWrite=bool(can_write),
+        showPassportsTab=bool(show_passports_tab),
+        showApprovalsMineAllFilter=bool(show_approvals_mine_all_filter),
+        needSupHoodModal=bool(need_sup_hood_modal),
+        supHoodGid=str(sup_hood_gid or ""),
+        supHoodLabel=str(sup_hood_label or ""),
         features={
             "workflowModal": bool(getattr(settings, "HOME_WORKFLOW_MODAL_ENABLED", False)),
         },

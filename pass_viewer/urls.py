@@ -7,6 +7,7 @@ from .views import (
     cancel_pending_entry,
     check_dgi_intersections,
     check_new_object_relations,
+    clear_sup_hood,
     confirm_entry_request_id,
     cut_edited_geometry,
     delete_comment_point,
@@ -31,11 +32,14 @@ from .views import (
     save_comment_point,
     save_new_object,
     save_recap_object,
+    select_sup_hood,
     split_object,
 )
 
 urlpatterns = [
     path("", home, name="home"),
+    path("home/select-hood/", select_sup_hood, name="select_sup_hood"),
+    path("home/clear-hood/", clear_sup_hood, name="clear_sup_hood"),
     path("add-object/", add_object, name="add_object"),
     path("add-recap/", add_recap, name="add_recap"),
     path("add-object/check-relations/", check_new_object_relations, name="check_new_object_relations"),
