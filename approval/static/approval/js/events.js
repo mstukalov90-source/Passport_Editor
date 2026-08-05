@@ -1366,7 +1366,25 @@
         const split = splitCases(state.cases);
         renderEventNav(split);
 
-        const defaultCaseId = state.activeCaseId || data.primary_case_id || (split.primary && split.primary.id);
+        const requestedCaseId =
+            state.activeCaseId ||
+            (state.config && state.config.initialCaseId) ||
+            null;
+        let defaultCaseId = null;
+        if (requestedCaseId) {
+            const requested = state.cases.find(function (item) {
+                return String(item.id) === String(requestedCaseId);
+            });
+            if (requested) {
+                defaultCaseId = requested.id;
+            }
+        }
+        if (!defaultCaseId) {
+            defaultCaseId = data.primary_case_id || (split.primary && split.primary.id);
+        }
+        if (state.config) {
+            state.config.initialCaseId = null;
+        }
         if (defaultCaseId) {
             await openCase(defaultCaseId);
         } else {

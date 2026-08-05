@@ -16,6 +16,7 @@ def landing_page_config(
     default_zoom=10,
     adjacent_roots=None,
     map_layer_load_order=None,
+    initial_case_id=None,
 ):
     groups = layer_groups or []
     layer_group_map = {
@@ -37,6 +38,7 @@ def landing_page_config(
         "layerStackOrder": layer_stack_order(groups),
         "currentUser": current_user_login,
         "selectedApproveId": str(selected_approve_id) if selected_approve_id else None,
+        "initialCaseId": str(initial_case_id) if initial_case_id else None,
         "focusTaskGuid": str(focus_task_guid) if focus_task_guid else None,
         "approves": approve_options,
         "adjacentRoots": adjacent_roots or {"n_roots": [], "v_roots": []},
