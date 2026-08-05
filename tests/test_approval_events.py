@@ -607,6 +607,23 @@ def test_landing_page_has_events_shell(client, owner_a, approve_with_primary_own
     assert "Досъём участка №142" not in content
 
 
+@pytest.mark.django_db
+def test_landing_passes_initial_case_id(client, owner_a, approve_with_primary_owner):
+    primary = _primary_case(approve_with_primary_owner)
+    with patch("approval.views.count_features_by_table", return_value={}):
+        with patch("approval.views.count_topopassport_features_by_table", return_value={}):
+            with patch("approval.views.count_adjacent_features_by_source", return_value={}):
+                _login(client, "owner_a")
+                response = client.get(
+                    reverse("approval:landing"),
+                    {"approve": str(approve_with_primary_owner.id), "case": str(primary.id)},
+                )
+    assert response.status_code == 200
+    config = response.context["page_config"]
+    assert config["initialCaseId"] == str(primary.id)
+    assert config["selectedApproveId"] == str(approve_with_primary_owner.id)
+
+
 def _message_with_attachment(case, *, author_login="owner_a", body="Нужна правка"):
     message = CaseMessage.objects.create(case=case, author_login=author_login, body=body)
     CaseMessageAttachment.objects.create(

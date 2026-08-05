@@ -3,8 +3,9 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
 
-from .access import get_accessible_approve, get_accessible_approves, get_owner_id_for_username
+from .access import get_accessible_approve, get_accessible_approves, get_owner_id_for_username, user_can_access_case
 from .map_load import build_map_layer_load_order, resolve_map_layer_features
+from .models import Case
 from .page_config import landing_page_config
 from .qml_style_builder import load_manifest, load_svg_index
 from .work_adjacent import (
@@ -42,8 +43,33 @@ def landing(request):
             map_message = "Нет доступных согласований для вашей организации."
 
     selected_approve_id = request.GET.get("approve")
+    selected_case_id = (request.GET.get("case") or "").strip()
     selected_approve = None
-    if selected_approve_id:
+    initial_case_id = None
+
+    if selected_case_id:
+        try:
+            case_uuid = uuid.UUID(selected_case_id)
+        except (TypeError, ValueError):
+            case_uuid = None
+        if case_uuid is not None:
+            case = Case.objects.select_related("approve").filter(pk=case_uuid).first()
+            if case is not None and user_can_access_case(
+                case, owner_id, username=username
+            ):
+                initial_case_id = str(case.id)
+                selected_approve = next(
+                    (item for item in approves if item.id == case.approve_id),
+                    None,
+                )
+                if selected_approve is None:
+                    selected_approve = get_accessible_approve(
+                        case.approve_id, owner_id, username=username
+                    )
+                    if selected_approve is not None and selected_approve not in approves:
+                        approves = [selected_approve] + list(approves)
+
+    if selected_approve is None and selected_approve_id:
         selected_approve = next((item for item in approves if str(item.id) == selected_approve_id), None)
     if selected_approve is None and approves:
         selected_approve = approves[0]
@@ -122,6 +148,7 @@ def landing(request):
                 if selected_approve is not None
                 else None,
                 map_layer_load_order=map_layer_load_order,
+                initial_case_id=initial_case_id,
             ),
             "layer_groups": layer_groups,
             "map_geojson": map_geojson,

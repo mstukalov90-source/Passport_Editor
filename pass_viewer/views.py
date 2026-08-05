@@ -7,7 +7,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from approval.access import get_accessible_approves
-from approval.events_service import serialize_approve_options
+from approval.events_service import build_home_notifications, serialize_approve_options
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import connection, connections
@@ -4837,6 +4837,11 @@ def home(request):
     owned_objects_error = None
     ods_user_brids = []
     approval_items = []
+    home_notifications = {
+        "approve_groups": [],
+        "n_root_cases": [],
+        "open_case_count": 0,
+    }
     pending_approval_count = 0
     hood_districts = []
     need_sup_hood_modal = False
@@ -4907,7 +4912,17 @@ def home(request):
             accessible_approves,
             username=request.user.username,
         )
-        pending_approval_count = accessible_approves.filter(approved=False).count()
+        owned_rootids = [
+            (item.get("rootid") or "").strip()
+            for item in owned_objects
+            if (item.get("rootid") or "").strip()
+        ]
+        home_notifications = build_home_notifications(
+            owner_id=owner_id,
+            username=request.user.username,
+            owned_rootids=owned_rootids,
+        )
+        pending_approval_count = int(home_notifications.get("open_case_count") or 0)
     except Exception:
         owned_objects_error = (
             "Не удалось получить список объектов пользователя. Проверьте поле OwnerLegalPersonId в таблице users."
@@ -4930,6 +4945,7 @@ def home(request):
             "ods_request_source_label": getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
             "ods_user_brids": ods_user_brids,
             "approval_items": approval_items,
+            "home_notifications": home_notifications,
             "pending_approval_count": pending_approval_count,
             "user_role": scope.role,
             "display_name": scope.display_name,

@@ -140,23 +140,18 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
         function updateApprovalNotificationsBadge(odsMessageCount) {
             const btn = document.getElementById('approval-notifications-btn');
-            const panel = document.getElementById('approval-notifications-panel');
+            const modal = document.getElementById('approval-notifications-modal');
             if (!btn) {
                 return;
             }
-            const pendingApprovals = Number(panel?.dataset.pendingApprovalCount || 0) || 0;
+            const pendingApprovals = Number(modal?.dataset.pendingApprovalCount || 0) || 0;
             const total = pendingApprovals + (Number(odsMessageCount) || 0);
             let badge = btn.querySelector('.approval-notifications-badge');
             if (total > 0) {
                 if (!badge) {
                     badge = document.createElement('span');
                     badge.className = 'approval-notifications-badge';
-                    const chevron = btn.querySelector('.approval-notifications-chevron');
-                    if (chevron) {
-                        btn.insertBefore(badge, chevron);
-                    } else {
-                        btn.appendChild(badge);
-                    }
+                    btn.appendChild(badge);
                 }
                 badge.textContent = String(total);
             } else if (badge) {
@@ -2436,25 +2431,145 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const userGuideOpenBtn = document.getElementById('user-guide-open-btn');
         const userGuideCloseBtn = document.getElementById('user-guide-close-btn');
         const approvalNotificationsBtn = document.getElementById('approval-notifications-btn');
-        const approvalNotificationsPanel = document.getElementById('approval-notifications-panel');
+        const approvalNotificationsModal = document.getElementById('approval-notifications-modal');
+        const approvalNotificationsCloseBtn = document.getElementById('approval-notifications-close-btn');
+        const approvalChatPreviewModal = document.getElementById('approval-chat-preview-modal');
+        const approvalChatPreviewCloseBtn = document.getElementById('approval-chat-preview-close-btn');
+        const approvalChatPreviewTitle = document.getElementById('approval-chat-preview-title');
+        const approvalChatPreviewStatus = document.getElementById('approval-chat-preview-status');
+        const approvalChatPreviewThread = document.getElementById('approval-chat-preview-thread');
+        const approvalChatPreviewOpenLink = document.getElementById('approval-chat-preview-open-link');
+        const approvalNotificationsTitleModeInput = document.getElementById('approval-notifications-title-mode');
         let userGuidePreviousOverflow = '';
+        let notificationsPreviousOverflow = '';
+        let notificationsTitleMode = 'numbers';
+
+        function getNotificationsTitleModeStorageKey() {
+            return homeOwnerIdNorm
+                ? `home_notifications_title_mode:${homeOwnerIdNorm}`
+                : 'home_notifications_title_mode';
+        }
+
+        function readNotificationsTitleMode() {
+            try {
+                const raw = localStorage.getItem(getNotificationsTitleModeStorageKey());
+                return raw === 'names' ? 'names' : 'numbers';
+            } catch (e) {
+                return 'numbers';
+            }
+        }
+
+        function persistNotificationsTitleMode(mode) {
+            try {
+                localStorage.setItem(getNotificationsTitleModeStorageKey(), mode === 'names' ? 'names' : 'numbers');
+            } catch (e) {
+                // localStorage may be unavailable
+            }
+        }
+
+        function notificationCaseTitle(el) {
+            if (!el) {
+                return '';
+            }
+            const numbers = el.dataset.titleNumbers || '';
+            const names = el.dataset.titleNames || '';
+            if (notificationsTitleMode === 'names' && names) {
+                return names;
+            }
+            return numbers || names || el.dataset.caseTitle || '';
+        }
+
+        function applyNotificationsTitleMode() {
+            if (!approvalNotificationsModal) {
+                return;
+            }
+            approvalNotificationsModal.querySelectorAll('.approval-notifications-case').forEach((row) => {
+                const titleEl = row.querySelector('.approval-notifications-item__title');
+                if (titleEl) {
+                    titleEl.textContent = notificationCaseTitle(row);
+                }
+                const chatBtn = row.querySelector('.approval-notifications-chat-btn');
+                if (chatBtn) {
+                    chatBtn.dataset.caseTitle = notificationCaseTitle(chatBtn) || notificationCaseTitle(row);
+                }
+            });
+        }
+
+        function setNotificationsGroupCollapsed(group, collapsed) {
+            if (!group) {
+                return;
+            }
+            group.classList.toggle('is-collapsed', collapsed);
+            const toggle = group.querySelector('.approval-notifications-group__toggle');
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                toggle.title = collapsed ? 'Развернуть список событий' : 'Свернуть список событий';
+            }
+        }
+
+        function initNotificationsTitleModeSwitch() {
+            notificationsTitleMode = readNotificationsTitleMode();
+            if (approvalNotificationsTitleModeInput) {
+                approvalNotificationsTitleModeInput.checked = notificationsTitleMode === 'names';
+                approvalNotificationsTitleModeInput.addEventListener('change', () => {
+                    notificationsTitleMode = approvalNotificationsTitleModeInput.checked ? 'names' : 'numbers';
+                    persistNotificationsTitleMode(notificationsTitleMode);
+                    applyNotificationsTitleMode();
+                });
+            }
+            applyNotificationsTitleMode();
+        }
+
+        function approvalCaseUrl(approveId, caseId) {
+            const params = new URLSearchParams();
+            if (approveId) {
+                params.set('approve', String(approveId));
+            }
+            if (caseId) {
+                params.set('case', String(caseId));
+            }
+            const query = params.toString();
+            return query ? '/approval/?' + query : '/approval/';
+        }
 
         function setApprovalNotificationsOpen(isOpen) {
-            if (!approvalNotificationsBtn || !approvalNotificationsPanel) {
+            if (!approvalNotificationsBtn || !approvalNotificationsModal) {
                 return;
             }
             approvalNotificationsBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-            approvalNotificationsPanel.hidden = !isOpen;
+            approvalNotificationsModal.hidden = !isOpen;
             approvalNotificationsBtn.classList.toggle('is-open', isOpen);
+            if (isOpen) {
+                notificationsPreviousOverflow = document.body.style.overflow;
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = notificationsPreviousOverflow || '';
+            }
         }
 
-        function openApprovalFromNotifications(approveId) {
-            const normalizedApproveId = String(approveId || '').trim();
-            if (!normalizedApproveId) {
+        function setApprovalChatPreviewOpen(isOpen) {
+            if (!approvalChatPreviewModal) {
                 return;
             }
+            approvalChatPreviewModal.hidden = !isOpen;
+            if (isOpen) {
+                document.body.style.overflow = 'hidden';
+            } else if (approvalNotificationsModal && !approvalNotificationsModal.hidden) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = notificationsPreviousOverflow || '';
+            }
+        }
+
+        function openApprovalFromNotifications(approveId, caseId) {
+            const normalizedApproveId = String(approveId || '').trim();
+            const normalizedCaseId = String(caseId || '').trim();
+            if (!normalizedApproveId && !normalizedCaseId) {
+                return;
+            }
+            setApprovalChatPreviewOpen(false);
             setApprovalNotificationsOpen(false);
-            window.location.href = '/approval/?approve=' + encodeURIComponent(normalizedApproveId);
+            window.location.href = approvalCaseUrl(normalizedApproveId, normalizedCaseId);
         }
 
         function openOdsRequestFromNotifications(brid) {
@@ -2477,28 +2592,176 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
         }
 
-        if (approvalNotificationsBtn && approvalNotificationsPanel) {
+        function renderChatPreviewMessages(messages) {
+            if (!approvalChatPreviewThread) {
+                return;
+            }
+            approvalChatPreviewThread.replaceChildren();
+            if (!messages.length) {
+                const empty = document.createElement('p');
+                empty.className = 'note';
+                empty.textContent = 'В чате пока нет сообщений.';
+                approvalChatPreviewThread.appendChild(empty);
+                return;
+            }
+            messages.forEach((message) => {
+                if (message && message.is_service) {
+                    return;
+                }
+                if (message && message.kind && message.kind !== 'chat') {
+                    return;
+                }
+                const wrap = document.createElement('div');
+                wrap.className = 'approval-chat-preview-message';
+                const head = document.createElement('div');
+                head.className = 'approval-chat-preview-message__author';
+                head.textContent = message.author || '—';
+                if (message.time) {
+                    const time = document.createElement('span');
+                    time.className = 'approval-chat-preview-message__time';
+                    time.textContent = message.time;
+                    head.appendChild(time);
+                }
+                const body = document.createElement('div');
+                body.className = 'approval-chat-preview-message__body';
+                body.textContent = message.text || message.body || '';
+                wrap.appendChild(head);
+                wrap.appendChild(body);
+                approvalChatPreviewThread.appendChild(wrap);
+            });
+        }
+
+        async function openApprovalChatPreview(approveId, caseId, caseTitle) {
+            if (!approvalChatPreviewModal || !caseId) {
+                return;
+            }
+            if (approvalChatPreviewTitle) {
+                approvalChatPreviewTitle.textContent = caseTitle
+                    ? ('Превью чата: ' + caseTitle)
+                    : 'Превью чата';
+            }
+            if (approvalChatPreviewStatus) {
+                approvalChatPreviewStatus.hidden = false;
+                approvalChatPreviewStatus.textContent = 'Загрузка…';
+            }
+            if (approvalChatPreviewThread) {
+                approvalChatPreviewThread.replaceChildren();
+            }
+            if (approvalChatPreviewOpenLink) {
+                approvalChatPreviewOpenLink.href = approvalCaseUrl(approveId, caseId);
+            }
+            setApprovalChatPreviewOpen(true);
+            try {
+                const response = await fetch('/approval/api/cases/' + encodeURIComponent(caseId) + '/', {
+                    credentials: 'same-origin',
+                    headers: { Accept: 'application/json' },
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data || data.ok === false) {
+                    throw new Error((data && data.error) || 'Не удалось загрузить чат.');
+                }
+                const caseItem = data.case || {};
+                const messages = Array.isArray(caseItem.messages)
+                    ? caseItem.messages
+                    : (Array.isArray(caseItem.timeline) ? caseItem.timeline : []);
+                if (approvalChatPreviewStatus) {
+                    approvalChatPreviewStatus.hidden = true;
+                    approvalChatPreviewStatus.textContent = '';
+                }
+                renderChatPreviewMessages(messages);
+            } catch (error) {
+                if (approvalChatPreviewStatus) {
+                    approvalChatPreviewStatus.hidden = false;
+                    approvalChatPreviewStatus.textContent =
+                        (error && error.message) || 'Не удалось загрузить чат.';
+                }
+            }
+        }
+
+        if (approvalNotificationsBtn && approvalNotificationsModal) {
             approvalNotificationsBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
                 const isOpen = approvalNotificationsBtn.getAttribute('aria-expanded') === 'true';
                 setApprovalNotificationsOpen(!isOpen);
             });
-            approvalNotificationsPanel.addEventListener('click', (event) => {
-                event.stopPropagation();
+            if (approvalNotificationsCloseBtn) {
+                approvalNotificationsCloseBtn.addEventListener('click', () => {
+                    setApprovalNotificationsOpen(false);
+                });
+            }
+            approvalNotificationsModal.addEventListener('click', (event) => {
+                if (event.target === approvalNotificationsModal) {
+                    setApprovalNotificationsOpen(false);
+                    return;
+                }
+                const groupToggle = event.target.closest('.approval-notifications-group__toggle');
+                if (groupToggle) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const group = groupToggle.closest('.approval-notifications-group');
+                    const collapsed = !(group && group.classList.contains('is-collapsed'));
+                    setNotificationsGroupCollapsed(group, collapsed);
+                    return;
+                }
+                const chatBtn = event.target.closest('.approval-notifications-chat-btn');
+                if (chatBtn) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openApprovalChatPreview(
+                        chatBtn.dataset.approveId,
+                        chatBtn.dataset.caseId,
+                        notificationCaseTitle(chatBtn) || chatBtn.dataset.caseTitle
+                    );
+                    return;
+                }
                 const odsItem = event.target.closest('.approval-notifications-item[data-ods-brid]');
                 if (odsItem) {
                     openOdsRequestFromNotifications(odsItem.dataset.odsBrid);
                     return;
                 }
-                const approvalItem = event.target.closest('.approval-notifications-item[data-approve-id]');
-                if (approvalItem) {
-                    openApprovalFromNotifications(approvalItem.dataset.approveId);
+                const caseRow = event.target.closest('.approval-notifications-case[data-case-id]');
+                if (caseRow) {
+                    openApprovalFromNotifications(caseRow.dataset.approveId, caseRow.dataset.caseId);
                 }
             });
-            document.addEventListener('click', () => {
-                setApprovalNotificationsOpen(false);
+            approvalNotificationsModal.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') {
+                    return;
+                }
+                const caseRow = event.target.closest('.approval-notifications-case[data-case-id]');
+                if (!caseRow || event.target.closest('.approval-notifications-chat-btn')) {
+                    return;
+                }
+                event.preventDefault();
+                openApprovalFromNotifications(caseRow.dataset.approveId, caseRow.dataset.caseId);
+            });
+            initNotificationsTitleModeSwitch();
+        }
+
+        if (approvalChatPreviewCloseBtn) {
+            approvalChatPreviewCloseBtn.addEventListener('click', () => {
+                setApprovalChatPreviewOpen(false);
             });
         }
+        if (approvalChatPreviewModal) {
+            approvalChatPreviewModal.addEventListener('click', (event) => {
+                if (event.target === approvalChatPreviewModal) {
+                    setApprovalChatPreviewOpen(false);
+                }
+            });
+        }
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') {
+                return;
+            }
+            if (approvalChatPreviewModal && !approvalChatPreviewModal.hidden) {
+                setApprovalChatPreviewOpen(false);
+                return;
+            }
+            if (approvalNotificationsModal && !approvalNotificationsModal.hidden) {
+                setApprovalNotificationsOpen(false);
+            }
+        });
 
         function openUserGuideModal() {
             if (!userGuideModal) {

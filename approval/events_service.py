@@ -13,9 +13,16 @@ from django.conf import settings
 from django.contrib.gis.geos import GEOSGeometry
 from django.db import transaction
 from django.db.models import Count, Prefetch
+from django.db.models.functions import Lower
 from django.utils import timezone
 
-from .access import is_inspector_for_approve, matching_case_owner_id, user_can_write_approvals
+from .access import (
+    get_accessible_approves,
+    get_accessible_cases_queryset,
+    is_inspector_for_approve,
+    matching_case_owner_id,
+    user_can_write_approvals,
+)
 
 from .models import (
     ApprovalGeometry,
@@ -383,14 +390,182 @@ def _case_display_status(case: Case) -> str:
     return case.status or "в работе"
 
 
+def _case_last_message(case: Case) -> CaseMessage | None:
+    return case.messages.order_by("-created_at").first()
+
+
 def _case_preview(case: Case) -> str:
-    last = case.messages.order_by("-created_at").first()
+    last = _case_last_message(case)
     if not last:
         return ""
     body = (last.body or "").strip()
     if len(body) > 120:
         return body[:117] + "…"
     return body
+
+
+def _case_approve_until(case: Case) -> str:
+    if not case.created_at:
+        return ""
+    return _format_date(_add_calendar_months(case.created_at, 1))
+
+
+def serialize_notification_case_row(case: Case) -> dict:
+    """Compact case row for the home notifications modal."""
+    _ensure_overdue_closed_event(case)
+    last = _case_last_message(case)
+    title = (case.title or "").strip()
+    display_title = f"{title} (Основное)" if case.is_primary and title else title
+    if case.is_primary and not title:
+        display_title = "Основное событие"
+    return {
+        "id": str(case.id),
+        "approve_id": str(case.approve_id),
+        "title": title,
+        "display_title": display_title,
+        "title_named": None,
+        "display_title_named": display_title,
+        "is_primary": bool(case.is_primary),
+        "status": _case_display_status(case),
+        "status_class": _case_status_class(case),
+        "approved": bool(case.approved),
+        "created_at_date": _format_date(case.created_at),
+        "last_message_author": (last.author_login if last else "") or "",
+        "preview": _case_preview(case),
+        "approve_until": _case_approve_until(case),
+        "n_root": (case.n_root or "").strip(),
+    }
+
+
+def _finalize_notification_case_rows(
+    rows: list[dict],
+    cases: list[Case],
+    *,
+    task_guid: str,
+) -> list[dict]:
+    enrich_cases_payload_title_named(rows, cases, task_guid=task_guid)
+    for row in rows:
+        named = (row.get("title_named") or "").strip()
+        if named:
+            if row.get("is_primary"):
+                row["display_title_named"] = f"{named} (Основное)"
+            else:
+                row["display_title_named"] = named
+        else:
+            row["display_title_named"] = row.get("display_title") or row.get("title") or ""
+    return rows
+
+
+def build_home_notifications(
+    *,
+    owner_id=None,
+    username: str | None = None,
+    owned_rootids=None,
+) -> dict:
+    """
+    Build home notifications payload.
+
+    Section 1: accessible non-approved Approves with nested open Cases that are
+    not tied to the user's passport n_root (typically primary / taskguid cases).
+    Section 2: open Cases whose n_root matches the user's passport rootids.
+    """
+    login = (username or "").strip()
+    root_set = {
+        str(root).strip().lower()
+        for root in (owned_rootids or [])
+        if root is not None and str(root).strip()
+    }
+
+    approves = list(get_accessible_approves(owner_id, username=login or None))
+    open_approves = [item for item in approves if not item.approved]
+    approve_options = {
+        item["id"]: item
+        for item in serialize_approve_options(open_approves, username=login or None)
+    }
+
+    approve_groups: list[dict] = []
+    n_root_cases: list[dict] = []
+    n_root_case_objs: list[Case] = []
+    seen_n_root_ids: set[str] = set()
+    open_case_count = 0
+
+    def _is_user_n_root_case(case: Case) -> bool:
+        n_root = (case.n_root or "").strip().lower()
+        return bool(n_root and n_root in root_set)
+
+    for approve in open_approves:
+        cases_qs = list(
+            get_accessible_cases_queryset(owner_id, approve.id, username=login or None)
+            .filter(approved=False)
+            .select_related("approve")
+            .order_by("-is_primary", "-created_at")
+        )
+        nested_cases: list[Case] = []
+        nested_rows: list[dict] = []
+        for case in cases_qs:
+            if _is_user_n_root_case(case):
+                case_id = str(case.id)
+                if case_id not in seen_n_root_ids:
+                    n_root_cases.append(serialize_notification_case_row(case))
+                    n_root_case_objs.append(case)
+                    seen_n_root_ids.add(case_id)
+                    open_case_count += 1
+                continue
+            nested_cases.append(case)
+            nested_rows.append(serialize_notification_case_row(case))
+            open_case_count += 1
+        if not nested_rows:
+            continue
+        _finalize_notification_case_rows(
+            nested_rows,
+            nested_cases,
+            task_guid=str(approve.incoming_guid),
+        )
+        option = approve_options.get(str(approve.id)) or serialize_approve_option(
+            approve, username=login or None
+        )
+        approve_groups.append(
+            {
+                "approve": option,
+                "cases": nested_rows,
+            }
+        )
+
+    if root_set:
+        n_root_qs = list(
+            get_accessible_cases_queryset(owner_id, username=login or None)
+            .filter(approved=False)
+            .exclude(n_root__isnull=True)
+            .exclude(n_root="")
+            .annotate(n_root_lower=Lower("n_root"))
+            .filter(n_root_lower__in=root_set)
+            .select_related("approve")
+            .order_by("-created_at")
+        )
+        for case in n_root_qs:
+            case_id = str(case.id)
+            if case_id in seen_n_root_ids:
+                continue
+            n_root_cases.append(serialize_notification_case_row(case))
+            n_root_case_objs.append(case)
+            seen_n_root_ids.add(case_id)
+            open_case_count += 1
+
+    if n_root_cases:
+        by_guid: dict[str, list[tuple[dict, Case]]] = {}
+        for row, case in zip(n_root_cases, n_root_case_objs):
+            guid = str(getattr(case.approve, "incoming_guid", "") or "")
+            by_guid.setdefault(guid, []).append((row, case))
+        for guid, pairs in by_guid.items():
+            rows = [pair[0] for pair in pairs]
+            cases = [pair[1] for pair in pairs]
+            _finalize_notification_case_rows(rows, cases, task_guid=guid)
+
+    return {
+        "approve_groups": approve_groups,
+        "n_root_cases": n_root_cases,
+        "open_case_count": open_case_count,
+    }
 
 
 def _normalized_case_owners(case: Case) -> list[str]:

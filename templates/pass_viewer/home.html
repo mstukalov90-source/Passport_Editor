@@ -48,48 +48,12 @@
                     type="button"
                     id="approval-notifications-btn"
                     class="user-guide-open-btn approval-home-link"
-                    aria-haspopup="listbox"
+                    aria-haspopup="dialog"
                     aria-expanded="false"
-                    aria-controls="approval-notifications-panel"
+                    aria-controls="approval-notifications-modal"
                 >
                     Уведомления{% if pending_approval_count %}<span class="approval-notifications-badge">{{ pending_approval_count }}</span>{% endif %}
-                    <span class="approval-notifications-chevron" aria-hidden="true">▾</span>
                 </button>
-                <div
-                    id="approval-notifications-panel"
-                    class="approval-notifications-panel"
-                    role="listbox"
-                    aria-label="Уведомления"
-                    hidden
-                    data-pending-approval-count="{{ pending_approval_count|default:0 }}"
-                >
-                    <div class="approval-notifications-panel__header">Согласования в работе</div>
-                    {% if pending_approval_count %}
-                        <ul class="approval-notifications-list">
-                            {% for item in approval_items %}
-                                {% if not item.approved %}
-                                    <li>
-                                        <button
-                                            type="button"
-                                            class="approval-notifications-item"
-                                            data-approve-id="{{ item.id }}"
-                                            role="option"
-                                        >
-                                            <span class="approval-notifications-item__title">{{ item.label }}</span>
-                                            <span class="approval-notifications-item__status">В работе</span>
-                                        </button>
-                                    </li>
-                                {% endif %}
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="approval-notifications-empty">Нет согласований в работе</p>
-                    {% endif %}
-                    <div id="approval-ods-sync-section" class="approval-ods-sync-section" hidden>
-                        <div class="approval-notifications-panel__header">АСУ ОДС</div>
-                        <ul id="approval-ods-sync-list" class="approval-notifications-list"></ul>
-                    </div>
-                </div>
             </div>
             <button type="button" id="user-guide-open-btn" class="user-guide-open-btn">Инструкция пользования</button>
             <form method="post" action="{% url 'logout' %}" style="margin: 0;">
@@ -757,6 +721,167 @@
             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
                 <button type="button" id="entry-recap-id-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
                 <button type="button" id="entry-recap-id-submit-btn">Продолжить</button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        id="approval-notifications-modal"
+        class="approval-notifications-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="approval-notifications-modal-title"
+        hidden
+        data-pending-approval-count="{{ pending_approval_count|default:0 }}"
+    >
+        <div class="approval-notifications-modal__card">
+            <div class="approval-notifications-modal__header">
+                <h3 id="approval-notifications-modal-title">Уведомления</h3>
+                <div class="approval-notifications-modal__header-actions">
+                    <label
+                        class="approval-title-mode-switch"
+                        for="approval-notifications-title-mode"
+                        title="Отображение заголовков событий: номера или имена объектов"
+                    >
+                        <input type="checkbox" id="approval-notifications-title-mode" />
+                        <span class="approval-title-mode-switch__label approval-title-mode-switch__label--left">Номера</span>
+                        <span class="approval-title-mode-switch__track" aria-hidden="true"></span>
+                        <span class="approval-title-mode-switch__label approval-title-mode-switch__label--right">Имена</span>
+                    </label>
+                    <button type="button" id="approval-notifications-close-btn" class="approval-notifications-modal__close" aria-label="Закрыть">&#10005;</button>
+                </div>
+            </div>
+            <div class="approval-notifications-modal__body">
+                <section class="approval-notifications-section" aria-labelledby="approval-notifications-taskguid-title">
+                    <h4 id="approval-notifications-taskguid-title" class="approval-notifications-panel__header">Согласования по вашим заявкам</h4>
+                    {% if home_notifications.approve_groups %}
+                        {% for group in home_notifications.approve_groups %}
+                            <div class="approval-notifications-group">
+                                <div class="approval-notifications-group__heading">
+                                    <div class="approval-notifications-group__title">{{ group.approve.label }}</div>
+                                    <button
+                                        type="button"
+                                        class="approval-notifications-group__toggle"
+                                        aria-expanded="true"
+                                        title="Свернуть список событий"
+                                    >▾</button>
+                                </div>
+                                <ul class="approval-notifications-list">
+                                    {% for case in group.cases %}
+                                        <li>
+                                            <div
+                                                class="approval-notifications-case"
+                                                data-approve-id="{{ case.approve_id }}"
+                                                data-case-id="{{ case.id }}"
+                                                data-title-numbers="{{ case.display_title }}"
+                                                data-title-names="{{ case.display_title_named|default:case.display_title }}"
+                                                role="button"
+                                                tabindex="0"
+                                            >
+                                                <div class="approval-notifications-case__main">
+                                                    <span class="approval-notifications-item__title">{{ case.display_title }}</span>
+                                                    <span class="approval-notifications-case__meta">
+                                                        Дата создания: {{ case.created_at_date|default:"—" }}
+                                                        · Статус: {{ case.status }}
+                                                        {% if case.last_message_author %}
+                                                            · От кого последнее сообщение: {{ case.last_message_author }}
+                                                        {% endif %}
+                                                        {% if case.approve_until %}
+                                                            · Согласовать до: {{ case.approve_until }}
+                                                        {% endif %}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    class="approval-notifications-chat-btn"
+                                                    data-approve-id="{{ case.approve_id }}"
+                                                    data-case-id="{{ case.id }}"
+                                                    data-case-title="{{ case.display_title }}"
+                                                    data-title-numbers="{{ case.display_title }}"
+                                                    data-title-names="{{ case.display_title_named|default:case.display_title }}"
+                                                >Чат</button>
+                                            </div>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="approval-notifications-empty">Нет согласований в работе</p>
+                    {% endif %}
+                </section>
+
+                <section class="approval-notifications-section" aria-labelledby="approval-notifications-nroot-title">
+                    <h4 id="approval-notifications-nroot-title" class="approval-notifications-panel__header">События по вашим паспортам</h4>
+                    {% if home_notifications.n_root_cases %}
+                        <ul class="approval-notifications-list">
+                            {% for case in home_notifications.n_root_cases %}
+                                <li>
+                                    <div
+                                        class="approval-notifications-case"
+                                        data-approve-id="{{ case.approve_id }}"
+                                        data-case-id="{{ case.id }}"
+                                        data-title-numbers="{% if case.n_root %}{{ case.display_title }} · {{ case.n_root }}{% else %}{{ case.display_title }}{% endif %}"
+                                        data-title-names="{% if case.display_title_named %}{{ case.display_title_named }}{% else %}{{ case.display_title }}{% endif %}"
+                                        role="button"
+                                        tabindex="0"
+                                    >
+                                        <div class="approval-notifications-case__main">
+                                            <span class="approval-notifications-item__title">{% if case.n_root %}{{ case.display_title }} · {{ case.n_root }}{% else %}{{ case.display_title }}{% endif %}</span>
+                                            <span class="approval-notifications-case__meta">
+                                                Дата создания: {{ case.created_at_date|default:"—" }}
+                                                · Статус: {{ case.status }}
+                                                {% if case.last_message_author %}
+                                                    · От кого последнее сообщение: {{ case.last_message_author }}
+                                                {% endif %}
+                                                {% if case.approve_until %}
+                                                    · Согласовать до: {{ case.approve_until }}
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            class="approval-notifications-chat-btn"
+                                            data-approve-id="{{ case.approve_id }}"
+                                            data-case-id="{{ case.id }}"
+                                            data-case-title="{{ case.display_title }}"
+                                            data-title-numbers="{% if case.n_root %}{{ case.display_title }} · {{ case.n_root }}{% else %}{{ case.display_title }}{% endif %}"
+                                            data-title-names="{% if case.display_title_named %}{{ case.display_title_named }}{% else %}{{ case.display_title }}{% endif %}"
+                                        >Чат</button>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="approval-notifications-empty">Нет событий по паспортам</p>
+                    {% endif %}
+                </section>
+
+                <section id="approval-ods-sync-section" class="approval-notifications-section approval-ods-sync-section" hidden aria-labelledby="approval-notifications-ods-title">
+                    <h4 id="approval-notifications-ods-title" class="approval-notifications-panel__header">Уведомления по обновлению заявок из АСУ ОДС</h4>
+                    <ul id="approval-ods-sync-list" class="approval-notifications-list"></ul>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <div
+        id="approval-chat-preview-modal"
+        class="approval-notifications-modal approval-chat-preview-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="approval-chat-preview-title"
+        hidden
+    >
+        <div class="approval-notifications-modal__card approval-chat-preview-modal__card">
+            <div class="approval-notifications-modal__header">
+                <h3 id="approval-chat-preview-title">Превью чата</h3>
+                <button type="button" id="approval-chat-preview-close-btn" class="approval-notifications-modal__close" aria-label="Закрыть">&#10005;</button>
+            </div>
+            <p id="approval-chat-preview-status" class="note approval-chat-preview-status" hidden></p>
+            <div id="approval-chat-preview-thread" class="approval-chat-preview-thread"></div>
+            <div class="approval-chat-preview-actions">
+                <a id="approval-chat-preview-open-link" class="approval-chat-preview-open-link" href="#">Открыть в согласовании</a>
             </div>
         </div>
     </div>
