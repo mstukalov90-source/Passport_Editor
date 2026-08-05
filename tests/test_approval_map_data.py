@@ -11,11 +11,13 @@ from approval.models import Approve
 from approval.views import landing
 from approval.page_config import landing_page_config
 from approval.work_layers import (
+    batch_lookup_task_poly_meta,
     build_layer_groups,
     count_features_by_table,
     format_survey_page_title,
     geom_to_wgs84_sql,
     layer_stack_order,
+    lookup_task_poly_meta,
     lookup_task_survey_fields,
     resolve_task_survey_name,
     resolve_task_survey_title,
@@ -733,6 +735,100 @@ def test_lookup_task_survey_fields_returns_name_and_brid(mock_connections):
         "Шаболовка ул. 23",
         "24976",
     )
+
+
+@patch("approval.work_layers.connections")
+def test_lookup_task_poly_meta_yardpoly_is_dt(mock_connections):
+    cursor = MagicMock()
+    mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+    cursor.fetchone.side_effect = [
+        (1,),  # YardPoly TaskGUID
+        (1,),  # YardPoly Name
+        ("Шаболовка ул. 23",),
+    ]
+
+    meta = lookup_task_poly_meta("23f956bf-f000-4668-91f2-45274c453122")
+    assert meta == {
+        "source_label": "ДТ",
+        "object_name": "Шаболовка ул. 23",
+        "table": "YardPoly",
+    }
+
+
+@patch("approval.work_layers.connections")
+def test_lookup_task_poly_meta_improvement_object_is_top(mock_connections):
+    cursor = MagicMock()
+    mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+    # YardPoly / OdhPoly / OznPoly: columns exist, no row; ImprovementObjectPoly hits.
+    cursor.fetchone.side_effect = [
+        (1,),
+        (1,),
+        None,  # YardPoly SELECT
+        (1,),
+        (1,),
+        None,  # OdhPoly SELECT
+        (1,),
+        (1,),
+        None,  # OznPoly SELECT
+        (1,),
+        (1,),
+        ("Сквер у метро",),  # ImprovementObjectPoly SELECT
+    ]
+
+    meta = lookup_task_poly_meta("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+    assert meta == {
+        "source_label": "ТОП",
+        "object_name": "Сквер у метро",
+        "table": "ImprovementObjectPoly",
+    }
+    select_sqls = [
+        call_args[0][0]
+        for call_args in cursor.execute.call_args_list
+        if "SELECT t." in call_args[0][0] and "PassBrId" not in call_args[0][0]
+    ]
+    assert any('"ImprovementObjectPoly"' in sql for sql in select_sqls)
+
+
+@patch("approval.work_layers.connections")
+def test_lookup_task_poly_meta_empty_guid(mock_connections):
+    assert lookup_task_poly_meta("") == {
+        "source_label": "",
+        "object_name": "",
+        "table": "",
+    }
+    mock_connections.__getitem__.assert_not_called()
+
+
+@patch("approval.work_layers.connections")
+def test_batch_lookup_task_poly_meta_assigns_first_table(mock_connections):
+    cursor = MagicMock()
+    mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+    guid_dt = "11111111-1111-1111-1111-111111111111"
+    guid_odh = "22222222-2222-2222-2222-222222222222"
+
+    cursor.fetchone.side_effect = [
+        (1,),
+        (1,),  # YardPoly columns
+        (1,),
+        (1,),  # OdhPoly columns
+    ]
+    cursor.fetchall.side_effect = [
+        [(guid_dt, "ДТ объект")],  # YardPoly ANY
+        [(guid_odh, "ОДХ объект")],  # OdhPoly ANY
+    ]
+
+    metas = batch_lookup_task_poly_meta([guid_dt, guid_odh, guid_dt])
+    assert metas[guid_dt] == {
+        "source_label": "ДТ",
+        "object_name": "ДТ объект",
+        "table": "YardPoly",
+    }
+    assert metas[guid_odh] == {
+        "source_label": "ОДХ",
+        "object_name": "ОДХ объект",
+        "table": "OdhPoly",
+    }
+    assert batch_lookup_task_poly_meta([]) == {}
 
 
 @patch("approval.work_adjacent.connections")

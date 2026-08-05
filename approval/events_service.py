@@ -15,7 +15,8 @@ from django.db import transaction
 from django.db.models import Count, Prefetch
 from django.utils import timezone
 
-from .access import is_inspector_for_approve
+from .access import is_inspector_for_approve, matching_case_owner_id, user_can_write_approvals
+
 from .models import (
     ApprovalGeometry,
     Approve,
@@ -27,7 +28,12 @@ from .models import (
     CaseServiceEvent,
 )
 from .work_adjacent import resolve_root_object_names
-from .work_layers import lookup_task_survey_fields, resolve_task_owner_legal_person_id
+from .work_layers import (
+    batch_lookup_task_poly_meta,
+    lookup_task_poly_meta,
+    lookup_task_survey_fields,
+    resolve_task_owner_legal_person_id,
+)
 
 _NAMED_EVENT_TITLE_RE = re.compile(
     r"^Согласование заявок по паспортизации\s+(.+?)\s+и паспорта\s+(\S+)\s*$"
@@ -198,13 +204,25 @@ def _ensure_overdue_closed_event(case: Case) -> None:
     event.save()
 
 
-def serialize_approve_option(approve: Approve, *, username: str | None = None) -> dict:
+def serialize_approve_option(
+    approve: Approve,
+    *,
+    username: str | None = None,
+    poly_meta: dict | None = None,
+) -> dict:
     incoming_guid = str(approve.incoming_guid)
     name = (approve.name or "").strip()
     if name:
         label = name
     else:
         label = f"Согласование {incoming_guid[:8]}…"
+
+    meta = poly_meta if isinstance(poly_meta, dict) else lookup_task_poly_meta(incoming_guid)
+    source_label = str(meta.get("source_label") or "").strip()
+    object_name = str(meta.get("object_name") or "").strip()
+    if object_name:
+        label = f"{label} ({object_name})"
+
     return {
         "id": str(approve.id),
         "incoming_guid": incoming_guid,
@@ -212,8 +230,37 @@ def serialize_approve_option(approve: Approve, *, username: str | None = None) -
         "label": label,
         "approved": approve.approved,
         "status_label": "Согласовано" if approve.approved else "В работе",
-        "can_delete": is_inspector_for_approve(username, approve),
+        "can_delete": bool(
+            is_inspector_for_approve(username, approve) and user_can_write_approvals(username)
+        ),
+        "is_mine": bool(
+            username
+            and (approve.user or "").strip()
+            and str(username).strip() == (approve.user or "").strip()
+        ),
+        "source_label": source_label,
+        "object_name": object_name,
     }
+
+
+def serialize_approve_options(
+    approves,
+    *,
+    username: str | None = None,
+) -> list[dict]:
+    """Serialize approves with one batch poly-meta lookup for TaskGUIDs."""
+    approve_list = list(approves or [])
+    metas = batch_lookup_task_poly_meta(
+        [getattr(item, "incoming_guid", "") for item in approve_list]
+    )
+    return [
+        serialize_approve_option(
+            item,
+            username=username,
+            poly_meta=metas.get(str(item.incoming_guid), {}),
+        )
+        for item in approve_list
+    ]
 
 
 def serialize_approve_qgis_summary(approve: Approve) -> dict:
@@ -537,15 +584,17 @@ def serialize_case_summary(
             approvals_done = computed_done
 
     geometry_row = case.geometries.filter(message__isnull=True).order_by("id").first()
+    matched_owner = matching_case_owner_id(case, owner_id, username=current_login)
     current_owner_approved = False
-    if owner_id:
-        current_owner_approved = case.approvals.filter(owner_legal_person_id=str(owner_id)).exists()
+    if matched_owner:
+        current_owner_approved = case.approvals.filter(owner_legal_person_id=matched_owner).exists()
 
     inspector_login = _inspector_login_for_case(case)
     inspector_required = bool(inspector_login)
     inspector_approved = _inspector_approved(case)
-    current_user_is_inspector = bool(inspector_login) and current_login == inspector_login
-    current_user_is_owner = bool(owner_id) and str(owner_id).strip() in required_owners
+    current_user_is_inspector = is_inspector_for_approve(current_login, case.approve)
+    can_write = user_can_write_approvals(current_login)
+    current_user_is_owner = bool(matched_owner)
     current_inspector_approved = current_user_is_inspector and inspector_approved
     current_user_approved = current_inspector_approved or current_owner_approved
 
@@ -563,10 +612,10 @@ def serialize_case_summary(
         "approvals_total": approvals_total,
         "current_owner_approved": current_owner_approved,
         "current_user_approved": current_user_approved,
-        "current_user_is_inspector": current_user_is_inspector,
-        "current_user_is_owner": current_user_is_owner,
-        "can_manage_participants": current_user_is_inspector and not case.approved,
-        "can_delete": current_user_is_inspector and not case.is_primary,
+        "current_user_is_inspector": current_user_is_inspector and can_write,
+        "current_user_is_owner": current_user_is_owner and can_write,
+        "can_manage_participants": current_user_is_inspector and can_write and not case.approved,
+        "can_delete": current_user_is_inspector and can_write and not case.is_primary,
         "inspector_login": inspector_login,
         "inspector_required": inspector_required,
         "inspector_approved": inspector_approved,
@@ -1291,35 +1340,34 @@ def record_case_approval(*, case: Case, owner_id: str | None = None, username: s
     if case.approved:
         return case
 
+    if username and not user_can_write_approvals(username):
+        raise ValueError("Режим только для просмотра: согласование недоступно.")
+
     approve = case.approve
     inspector_login = (approve.user or "").strip()
     username_text = (username or "").strip()
     approval_author = ""
 
-    if username_text and inspector_login and username_text == inspector_login:
+    if username_text and is_inspector_for_approve(username_text, approve):
+        # Assigned inspector or global MGGT: fulfill the inspector approval slot.
+        slot_login = inspector_login or username_text
         _, created = CaseApproval.objects.get_or_create(
             case=case,
-            approver_login=inspector_login,
+            approver_login=slot_login,
             defaults={"owner_legal_person_id": None},
         )
         approval_author = username_text
-    elif owner_id:
-        owner_text = str(owner_id).strip()
-        if not owner_text:
-            raise ValueError("Не найден OwnerLegalPersonId для пользователя.")
-
-        required_owners = _normalized_case_owners(case)
-        if owner_text not in required_owners:
+    else:
+        matched_owner = matching_case_owner_id(case, owner_id, username=username_text)
+        if not matched_owner:
             raise ValueError("У вас нет права согласовывать это событие.")
 
         _, created = CaseApproval.objects.get_or_create(
             case=case,
-            owner_legal_person_id=owner_text,
+            owner_legal_person_id=matched_owner,
             defaults={"approver_login": None},
         )
-        approval_author = username_text or owner_text
-    else:
-        raise ValueError("Не найден OwnerLegalPersonId для пользователя.")
+        approval_author = username_text or matched_owner
 
     if created and approval_author:
         CaseServiceEvent.objects.create(
@@ -1351,26 +1399,25 @@ def _sync_approve_status_after_case_revoke(approve: Approve, case: Case) -> None
 
 @transaction.atomic
 def revoke_case_approval(*, case: Case, owner_id: str | None = None, username: str | None = None) -> Case:
+    if username and not user_can_write_approvals(username):
+        raise ValueError("Режим только для просмотра: отзыв согласования недоступен.")
+
     approve = case.approve
     inspector_login = (approve.user or "").strip()
     username_text = (username or "").strip()
     deleted = 0
     revoke_author = ""
 
-    if username_text and inspector_login and username_text == inspector_login:
-        deleted, _ = CaseApproval.objects.filter(case=case, approver_login=inspector_login).delete()
+    if username_text and is_inspector_for_approve(username_text, approve):
+        slot_login = inspector_login or username_text
+        deleted, _ = CaseApproval.objects.filter(case=case, approver_login=slot_login).delete()
         revoke_author = username_text
-    elif owner_id:
-        owner_text = str(owner_id).strip()
-        if not owner_text:
-            raise ValueError("Не найден OwnerLegalPersonId для пользователя.")
-        required_owners = _normalized_case_owners(case)
-        if owner_text not in required_owners:
-            raise ValueError("У вас нет права отзывать согласование этого события.")
-        deleted, _ = CaseApproval.objects.filter(case=case, owner_legal_person_id=owner_text).delete()
-        revoke_author = username_text or owner_text
     else:
-        raise ValueError("Не найден OwnerLegalPersonId для пользователя.")
+        matched_owner = matching_case_owner_id(case, owner_id, username=username_text)
+        if not matched_owner:
+            raise ValueError("У вас нет права отзывать согласование этого события.")
+        deleted, _ = CaseApproval.objects.filter(case=case, owner_legal_person_id=matched_owner).delete()
+        revoke_author = username_text or matched_owner
 
     if not deleted:
         raise ValueError("У вас нет активного согласования для отзыва.")

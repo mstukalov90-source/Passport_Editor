@@ -69,7 +69,11 @@ def _event_case(*, approve, n_root="09811", owners=None, title="Событие")
 
 
 @pytest.mark.django_db
-def test_serialize_approve_option_uses_name_when_present():
+@patch(
+    "approval.events_service.lookup_task_poly_meta",
+    return_value={"source_label": "", "object_name": "", "table": ""},
+)
+def test_serialize_approve_option_uses_name_when_present(_mock_poly):
     incoming_guid = uuid.uuid4()
     approve = Approve.objects.create(
         incoming_guid=incoming_guid,
@@ -81,10 +85,16 @@ def test_serialize_approve_option_uses_name_when_present():
     assert payload["name"] == "Согласование границ паспорта ДТ-10482"
     assert payload["status_label"] == "В работе"
     assert payload["can_delete"] is False
+    assert payload["source_label"] == ""
+    assert payload["object_name"] == ""
 
 
 @pytest.mark.django_db
-def test_serialize_approve_option_falls_back_to_guid_without_name():
+@patch(
+    "approval.events_service.lookup_task_poly_meta",
+    return_value={"source_label": "", "object_name": "", "table": ""},
+)
+def test_serialize_approve_option_falls_back_to_guid_without_name(_mock_poly):
     incoming_guid = uuid.UUID("2e333940-831b-48f5-9751-acd0c2880974")
     approve = Approve.objects.create(
         incoming_guid=incoming_guid,
@@ -97,7 +107,11 @@ def test_serialize_approve_option_falls_back_to_guid_without_name():
 
 
 @pytest.mark.django_db
-def test_serialize_approve_option_can_delete_for_inspector():
+@patch(
+    "approval.events_service.lookup_task_poly_meta",
+    return_value={"source_label": "", "object_name": "", "table": ""},
+)
+def test_serialize_approve_option_can_delete_for_inspector(_mock_poly):
     approve = Approve.objects.create(
         incoming_guid=uuid.uuid4(),
         owners=["OWNER_A"],
@@ -108,6 +122,53 @@ def test_serialize_approve_option_can_delete_for_inspector():
     as_owner = serialize_approve_option(approve, username="owner_a")
     assert as_inspector["can_delete"] is True
     assert as_owner["can_delete"] is False
+
+
+@pytest.mark.django_db
+def test_serialize_approve_option_appends_object_name_and_source():
+    approve = Approve.objects.create(
+        incoming_guid=uuid.uuid4(),
+        owners=["OWNER_A"],
+        name="Согласование заявки из графика паспортизации 24976",
+    )
+    payload = serialize_approve_option(
+        approve,
+        poly_meta={
+            "source_label": "ДТ",
+            "object_name": "Шаболовка ул. 23",
+            "table": "YardPoly",
+        },
+    )
+    assert payload["source_label"] == "ДТ"
+    assert payload["object_name"] == "Шаболовка ул. 23"
+    assert payload["label"] == (
+        "Согласование заявки из графика паспортизации 24976 (Шаболовка ул. 23)"
+    )
+
+
+@pytest.mark.django_db
+@patch("approval.events_service.batch_lookup_task_poly_meta")
+def test_serialize_approve_options_uses_batch_meta(mock_batch):
+    from approval.events_service import serialize_approve_options
+
+    guid = uuid.uuid4()
+    approve = Approve.objects.create(
+        incoming_guid=guid,
+        owners=["OWNER_A"],
+        name="Согласование ОДХ",
+    )
+    mock_batch.return_value = {
+        str(guid): {
+            "source_label": "ОДХ",
+            "object_name": "Дорога 1",
+            "table": "OdhPoly",
+        }
+    }
+    payloads = serialize_approve_options([approve], username="owner_a")
+    assert len(payloads) == 1
+    assert payloads[0]["source_label"] == "ОДХ"
+    assert payloads[0]["label"] == "Согласование ОДХ (Дорога 1)"
+    mock_batch.assert_called_once()
 
 
 @pytest.mark.django_db

@@ -1,11 +1,11 @@
 # Graph Report - GeoDjango  (2026-08-05)
 
 ## Corpus Check
-- 196 files · ~1,058,870 words
+- 196 files · ~1,058,856 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3122 nodes · 6794 edges · 222 communities (159 shown, 63 thin omitted)
+- 3122 nodes · 6794 edges · 223 communities (160 shown, 63 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 118 edges (avg confidence: 0.6)
 - Token cost: 0 input · 0 output
 
@@ -176,6 +176,7 @@
 - 6. Подключение к БД (сервер МГГТ)
 - svgIconUrl
 - _layer_stack_sort_key
+- _load_rows_from_xlsx
 - refreshAutoRemoveModalOptions
 - 1. Upsert согласования (ingest)
 - cancelCommentPointMode
@@ -243,7 +244,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (222 total, 63 thin omitted)
+## Communities (223 total, 63 thin omitted)
 
 ### Community 0 - "main.js"
 Cohesion: 0.02
@@ -282,20 +283,20 @@ Cohesion: 0.16
 Nodes (18): Enum, Helpers for loading seed / reference data from JSON and GeoJSON files.  Expected, build_default_registry(), _comment_points_table(), expected_file_names(), expected_filename(), expected_files_doc(), FileKind (+10 more)
 
 ### Community 9 - "views.py"
-Cohesion: 0.06
-Nodes (62): add_object(), _annotate_and_filter_ods_registry_against_gis(), _auto_remove_square_table_name(), _build_asu_ods_url(), _build_merge_allowed_sets(), _build_where_clause(), cancel_pending_entry(), _classify_ods_click_scenario() (+54 more)
+Cohesion: 0.08
+Nodes (51): add_recap(), _annotate_and_filter_ods_registry_against_gis(), _auto_remove_square_table_name(), _build_where_clause(), cancel_pending_entry(), _classify_ods_click_scenario(), clear_sup_hood(), _comment_points_table_name() (+43 more)
 
 ### Community 10 - "geojson_dynamic.py"
 Cohesion: 0.24
 Nodes (10): clearPendingRepairedGeometry(), clearSaveModalMessages(), closeSaveModal(), exportObjectFiles(), hideSaveModalFixUi(), openSaveModal(), repairPolygonFromSaveModal(), runSaveAndExportFlow() (+2 more)
 
 ### Community 11 - "test_adjacent_relations.py"
-Cohesion: 0.09
-Nodes (39): map_deferred_layer_specs(), _adjacent_layers_for_json_response(), _build_map_adjacent_dt_combined_sql(), _build_map_request_layer_branch(), _build_map_requests_sql(), _build_map_requests_sql_for_source(), _build_new_object_request_layer_branch(), _build_new_object_request_objects_sql() (+31 more)
+Cohesion: 0.10
+Nodes (36): _adjacent_layers_for_json_response(), _build_map_adjacent_dt_combined_sql(), _build_map_request_layer_branch(), _build_map_requests_sql(), _build_map_requests_sql_for_source(), _build_new_object_request_layer_branch(), _build_new_object_request_objects_sql(), _defer_map_context_layers() (+28 more)
 
 ### Community 12 - "_quote_ident"
-Cohesion: 0.10
-Nodes (57): get_hood_cte_prefix_sql(), get_hood_intersects_ha_sql(), get_hood_intersects_sql_suffix(), Returns (sql_suffix, [params]) to AND into a WHERE clause, e.g.       AND ST_Int, Leading ``WITH ha AS (...), `` fragment (comma included) and its params., ``AND ST_Intersects((SELECT g FROM ha), ...)`` when scope active/empty; empty st, _adjacent_nearby_meters(), _append_merge_table_select_parts() (+49 more)
+Cohesion: 0.11
+Nodes (51): get_hood_cte_prefix_sql(), get_hood_intersects_ha_sql(), get_hood_intersects_sql_suffix(), Returns (sql_suffix, [params]) to AND into a WHERE clause, e.g.       AND ST_Int, Leading ``WITH ha AS (...), `` fragment (comma included) and its params., ``AND ST_Intersects((SELECT g FROM ha), ...)`` when scope active/empty; empty st, _adjacent_nearby_meters(), _append_merge_table_select_parts() (+43 more)
 
 ### Community 13 - "test_owned_recaps.py"
 Cohesion: 0.13
@@ -334,8 +335,8 @@ Cohesion: 0.11
 Nodes (27): _as_text(), DgiXlsxSyncStats, _fetch_table_meta(), _flush_batches(), _insert_batch_rows(), _insert_sql(), _load_rows_from_xlsx(), _normalize_header() (+19 more)
 
 ### Community 22 - "urls.py"
-Cohesion: 0.11
-Nodes (32): _append_auto_remove_mask_parts(), _append_intersection_mask_union_part(), auto_remove_intersections(), _auto_remove_mask_context(), _auto_remove_source_tokens(), check_dgi_intersections(), check_new_object_relations(), cut_edited_geometry() (+24 more)
+Cohesion: 0.10
+Nodes (34): _append_auto_remove_mask_parts(), _append_intersection_mask_union_part(), auto_remove_intersections(), _auto_remove_mask_context(), _auto_remove_source_tokens(), check_dgi_intersections(), check_new_object_relations(), cut_edited_geometry() (+26 more)
 
 ### Community 23 - "finishDossierPolygon"
 Cohesion: 0.14
@@ -562,8 +563,8 @@ Cohesion: 0.06
 Nodes (49): build_map_layer_load_order(), Ordered specs for sequential client-side loading., landing_page_config(), _feature_select_sql(), build_layer_groups(), build_reference_layer_groups(), format_survey_page_title(), layer_stack_order() (+41 more)
 
 ### Community 87 - "page_config.py"
-Cohesion: 0.35
-Nodes (10): add_object_page_config(), add_recap_page_config(), _adjacent_nearby_meters_for_page(), build_page_config(), _defer_map_context_layers_for_page(), _editor_api_urls(), home_page_config(), main_page_config() (+2 more)
+Cohesion: 0.23
+Nodes (14): add_object_page_config(), add_recap_page_config(), _adjacent_nearby_meters_for_page(), build_page_config(), _defer_map_context_layers_for_page(), _editor_api_urls(), home_page_config(), main_page_config() (+6 more)
 
 ### Community 88 - "conftest.py"
 Cohesion: 0.40
@@ -646,8 +647,8 @@ Cohesion: 0.19
 Nodes (18): _build_import_plan(), _coerce_value(), _feature_to_row(), _fetch_columns(), _import_feature_rows(), import_geojson_dynamic(), import_geojson_dynamic_from_path(), _ImportPlan (+10 more)
 
 ### Community 177 - "work_layer_label"
-Cohesion: 0.20
-Nodes (5): delete_recap_object(), _get_recap_counts_by_request_ids(), Tests for owned recap list/export/delete API., test_delete_recap_object_success(), test_get_recap_counts_by_request_ids_includes_owner_filter()
+Cohesion: 0.17
+Nodes (6): _get_owned_recaps_for_request(), _get_recap_counts_by_request_ids(), _recaps_owner_scope_columns(), Tests for owned recap list/export/delete API., test_delete_recap_object_success(), test_get_recap_counts_by_request_ids_includes_owner_filter()
 
 ### Community 178 - "tickAdjacentHighlightPulse"
 Cohesion: 0.27
@@ -668,6 +669,10 @@ Nodes (9): encodeSvgPath(), getSvgHotspots(), getSvgIndex(), isUnknownSvgPath(),
 ### Community 182 - "_layer_stack_sort_key"
 Cohesion: 0.12
 Nodes (10): BaseCommand, Command, Remove export files under media/exports older than N days.  Intended for cron at, Command, Command, _detect_source_srid(), _pick_prop(), _text_or_none() (+2 more)
+
+### Community 183 - "_load_rows_from_xlsx"
+Cohesion: 0.14
+Nodes (19): _build_asu_ods_url(), _build_merge_allowed_sets(), _dedupe_merge_items(), main(), _merge_item_is_allowed(), _normalize_merge_items(), _normalize_source_label(), open_merged_passports() (+11 more)
 
 ### Community 184 - "refreshAutoRemoveModalOptions"
 Cohesion: 0.24
@@ -702,8 +707,8 @@ Cohesion: 0.40
 Nodes (3): Command, _default_db_failure_hint(), Verify PostGIS connectivity for default (geodb) and qgis (mggt_asu) database ali
 
 ### Community 192 - "Command"
-Cohesion: 0.26
-Nodes (8): add_recap(), _get_owned_ods_request_for_recap(), _parse_ods_request_object_key(), Tests for ODS request recap entry (add_recap from ods_request rows)., test_get_owned_ods_request_for_recap_no_geometry(), test_get_owned_ods_request_for_recap_success(), test_get_owned_ods_request_for_recap_wrong_owner(), test_parse_ods_request_object_key()
+Cohesion: 0.27
+Nodes (7): _get_owned_ods_request_for_recap(), _parse_ods_request_object_key(), Tests for ODS request recap entry (add_recap from ods_request rows)., test_get_owned_ods_request_for_recap_no_geometry(), test_get_owned_ods_request_for_recap_success(), test_get_owned_ods_request_for_recap_wrong_owner(), test_parse_ods_request_object_key()
 
 ### Community 193 - "3. Главная страница"
 Cohesion: 0.22
@@ -774,8 +779,8 @@ Cohesion: 0.50
 Nodes (4): openApprovalFromNotifications(), openOdsRequestFromNotifications(), setApprovalNotificationsOpen(), setOwnedListTab()
 
 ### Community 215 - "_create_new_object"
-Cohesion: 0.16
-Nodes (17): geometry_intersects_allowed_hood(), geometry_norm: GeoJSON geometry dict (not Feature/FC)., _comment_points_table_name(), _create_new_object(), _create_recap_object(), delete_comment_point(), _dgi_aprove_column_exists(), _ensure_request_id_column() (+9 more)
+Cohesion: 0.21
+Nodes (12): geometry_intersects_allowed_hood(), geometry_norm: GeoJSON geometry dict (not Feature/FC)., _create_new_object(), _create_recap_object(), _dgi_aprove_column_exists(), _ensure_request_id_column(), _geojson_geom_sql_for_table(), Проверка перед INSERT/UPDATE в pass_objects / odh (колонка MultiPolygon). (+4 more)
 
 ### Community 216 - "roles.py"
 Cohesion: 0.31

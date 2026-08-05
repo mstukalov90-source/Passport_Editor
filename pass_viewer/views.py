@@ -7,7 +7,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from approval.access import get_accessible_approves
-from approval.events_service import serialize_approve_option
+from approval.events_service import serialize_approve_options
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import connection, connections
@@ -34,6 +34,9 @@ from .hood_scope import (
     get_hood_cte_prefix_sql,
     get_hood_intersects_ha_sql,
     get_hood_intersects_sql_suffix,
+    list_hood_districts,
+    resolve_and_bind_hood_scope,
+    resolve_hood_wkt_for_gid,
 )
 from .models import ExternalUser
 from .page_config import (
@@ -42,6 +45,18 @@ from .page_config import (
     home_page_config,
     main_page_config,
     split_object_page_config,
+)
+from .roles import (
+    FILTER_DEPARTMENT,
+    FILTER_NONE,
+    FILTER_OWNER,
+    FILTER_OWNER_MULTI,
+    ROLE_DEP_PLUS,
+    ROLE_MGGT,
+    ROLE_SUP,
+    SUP_HOOD_SESSION_GID,
+    SUP_HOOD_SESSION_LABEL,
+    resolve_user_scope,
 )
 from .user_guide import load_user_guide_html
 
@@ -866,6 +881,73 @@ def _get_current_user_owner_id(username):
     return user.owner_legal_person_id if user else None
 
 
+def _load_home_objects_for_scope(scope, *, has_sup_hood: bool):
+    """Return (owned_objects, ods_user_brids) for home based on user role scope."""
+    ods_user_brids = []
+    owned_objects = []
+
+    if scope.role == ROLE_MGGT:
+        owned_objects = _get_owned_objects(
+            None,
+            filter_mode=FILTER_NONE,
+            site_requests_only=True,
+            apply_hood=False,
+            row_limit=1000,
+        )
+        return owned_objects, ods_user_brids
+
+    if scope.role == ROLE_SUP:
+        if not has_sup_hood:
+            return [], []
+        passports = _get_owned_objects(
+            None,
+            filter_mode=FILTER_NONE,
+            passports_only=True,
+            apply_hood=True,
+            row_limit=500,
+        )
+        requests = _get_owned_objects(
+            None,
+            filter_mode=FILTER_NONE,
+            site_requests_only=True,
+            apply_hood=False,
+            row_limit=1000,
+        )
+        owned_objects = passports + requests
+        return owned_objects, ods_user_brids
+
+    if scope.role == ROLE_DEP_PLUS:
+        if not scope.owner_ids:
+            return [], []
+        # Multi-owner lists are much larger than a single BD; default 500/table truncates.
+        owned_objects = _get_owned_objects(
+            None,
+            filter_mode=FILTER_OWNER_MULTI,
+            legal_person_ids=list(scope.owner_ids),
+            row_limit=10000,
+        )
+        if scope.include_ods:
+            for oid in scope.owner_ids:
+                ods_user_brids.extend(_get_owned_ods_brids(oid))
+                owned_objects = _merge_owned_ods_requests(owned_objects, oid)
+            ods_user_brids = list(dict.fromkeys(ods_user_brids))
+            owned_objects = _annotate_and_filter_ods_registry_against_gis(owned_objects)
+            owned_objects = _enrich_ods_interaction_and_geometry(owned_objects)
+        return owned_objects, ods_user_brids
+
+    if not scope.owner_id:
+        return [], []
+
+    filter_mode = FILTER_DEPARTMENT if scope.filter_field == FILTER_DEPARTMENT else FILTER_OWNER
+    owned_objects = _get_owned_objects(scope.owner_id, filter_mode=filter_mode)
+    if scope.include_ods:
+        ods_user_brids = _get_owned_ods_brids(scope.owner_id)
+        owned_objects = _merge_owned_ods_requests(owned_objects, scope.owner_id)
+        owned_objects = _annotate_and_filter_ods_registry_against_gis(owned_objects)
+        owned_objects = _enrich_ods_interaction_and_geometry(owned_objects)
+    return owned_objects, ods_user_brids
+
+
 def _comment_points_table_name():
     return getattr(settings, "GIS_COMMENT_POINTS_TABLE", "pass_comment_points")
 
@@ -958,10 +1040,38 @@ def _get_id_name_lookup_value(legal_person_id):
         return row[0] if row and row[0] else None
 
 
-def _get_owned_objects(owner_legal_person_id):
+def _get_owned_objects(
+    legal_person_id=None,
+    *,
+    filter_mode="owner",
+    legal_person_ids=None,
+    site_requests_only=False,
+    passports_only=False,
+    apply_hood=True,
+    row_limit=500,
+):
+    """
+    Load GIS objects for the home list.
+
+    filter_mode:
+      - ``owner``: match OwnerLegalPersonId (or source-specific owner candidates)
+      - ``owner_multi``: OwnerLegalPersonId = ANY(ids)
+      - ``department``: match DepartmentLegalPersonId
+      - ``none``: no legal-person filter (MGGT/SUP)
+    site_requests_only: rows with non-empty request_id and empty rootid (site заявки)
+    passports_only: rows with non-empty rootid
+    """
     rootid_field = settings.GIS_OBJECT_ROOTID_FIELD
     name_field = settings.GIS_OBJECT_NAME_FIELD
     request_id_field_pref = getattr(settings, "GIS_OBJECT_REQUEST_ID_FIELD", "request_id")
+    department_field_pref = getattr(settings, "GIS_OBJECT_DEPARTMENT_FIELD", "DepartmentLegalPersonId")
+
+    multi_ids = [str(x).strip() for x in (legal_person_ids or []) if str(x).strip()]
+    if filter_mode == FILTER_OWNER_MULTI:
+        if not multi_ids:
+            return []
+    elif filter_mode in ("owner", "department") and not legal_person_id:
+        return []
 
     owned_items = []
     seen_keys = set()
@@ -971,17 +1081,46 @@ def _get_owned_objects(owner_legal_person_id):
             if table in seen_tables:
                 continue
             seen_tables.add(table)
-            owner_field = None
-            for candidate in owner_field_candidates:
-                if _column_exists(cursor, table, candidate):
-                    owner_field = _resolve_column_name(cursor, table, candidate)
-                    break
-            if not owner_field:
+
+            filter_field = None
+            filter_params: list = []
+            filter_is_any = False
+            if filter_mode in ("owner", FILTER_OWNER_MULTI):
+                for candidate in owner_field_candidates:
+                    if _column_exists(cursor, table, candidate):
+                        filter_field = _resolve_column_name(cursor, table, candidate)
+                        break
+                if not filter_field:
+                    continue
+                if filter_mode == FILTER_OWNER_MULTI:
+                    filter_params = [multi_ids]
+                    filter_is_any = True
+                else:
+                    filter_params = [legal_person_id]
+            elif filter_mode == "department":
+                if not _column_exists(cursor, table, department_field_pref):
+                    continue
+                filter_field = _resolve_column_name(cursor, table, department_field_pref)
+                filter_params = [legal_person_id]
+            # filter_mode == "none": no legal-person WHERE
+
+            if not _column_exists(cursor, table, rootid_field) or not _column_exists(cursor, table, name_field):
                 continue
+            rootid_col = _resolve_column_name(cursor, table, rootid_field)
+            name_col = _resolve_column_name(cursor, table, name_field)
+
             request_id_expr = "''::text AS request_id"
+            request_id_col = None
             if _column_exists(cursor, table, request_id_field_pref):
-                request_id_field = _resolve_column_name(cursor, table, request_id_field_pref)
-                request_id_expr = f"{_quote_ident(request_id_field)}::text AS request_id"
+                request_id_col = _resolve_column_name(cursor, table, request_id_field_pref)
+                request_id_expr = f"{_quote_ident(request_id_col)}::text AS request_id"
+
+            if site_requests_only:
+                if not request_id_col:
+                    continue
+            if passports_only and site_requests_only:
+                continue
+
             geom_expr = "NULL::text AS geom_json"
             try:
                 geom_field = _resolve_column_name(cursor, table, settings.GIS_OBJECT_GEOM_FIELD)
@@ -998,24 +1137,50 @@ def _get_owned_objects(owner_legal_person_id):
                 created_col = _resolve_column_name(cursor, table, "created_at")
                 created_at_sql = f"{_quote_ident(created_col)} AS created_at"
 
-            query = (
-                f"SELECT ctid::text, {_quote_ident(rootid_field)}::text, {_quote_ident(name_field)}::text, "
-                f"{request_id_expr}, {geom_expr}, "
-                f"{start_sql}, {survey_sql}, {createtype_sql}, {created_at_sql} "
-                f"FROM {_quote_ident(table)} "
-                f"WHERE {_quote_ident(owner_field)} = %s "
-            )
-            if geom_field:
+            where_parts = []
+            params: list = []
+            if filter_field:
+                if filter_is_any:
+                    where_parts.append(f"{_quote_ident(filter_field)}::text = ANY(%s)")
+                else:
+                    where_parts.append(f"{_quote_ident(filter_field)} = %s")
+                params.extend(filter_params)
+
+            if site_requests_only:
+                where_parts.append(
+                    f"{_quote_ident(request_id_col)} IS NOT NULL "
+                    f"AND BTRIM({_quote_ident(request_id_col)}::text) <> ''"
+                )
+                where_parts.append(
+                    f"({_quote_ident(rootid_col)} IS NULL OR BTRIM({_quote_ident(rootid_col)}::text) = '')"
+                )
+            elif passports_only:
+                where_parts.append(
+                    f"{_quote_ident(rootid_col)} IS NOT NULL "
+                    f"AND BTRIM({_quote_ident(rootid_col)}::text) <> ''"
+                )
+
+            where_sql = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
+
+            if apply_hood and geom_field:
                 hood_suf, hood_suf_params = get_hood_intersects_sql_suffix(_quote_ident(geom_field))
             else:
                 hood_suf, hood_suf_params = "", []
+
+            query = (
+                f"SELECT ctid::text, {_quote_ident(rootid_col)}::text, {_quote_ident(name_col)}::text, "
+                f"{request_id_expr}, {geom_expr}, "
+                f"{start_sql}, {survey_sql}, {createtype_sql}, {created_at_sql} "
+                f"FROM {_quote_ident(table)}"
+                f"{where_sql}"
+            )
             query = (
                 query.rstrip()
                 + hood_suf
-                + f" ORDER BY {_quote_ident(name_field)} ASC NULLS LAST, {_quote_ident(rootid_field)} ASC "
-                f"LIMIT 500"
+                + f" ORDER BY {_quote_ident(name_col)} ASC NULLS LAST, {_quote_ident(rootid_col)} ASC "
+                f"LIMIT {int(row_limit)}"
             )
-            cursor.execute(query, [owner_legal_person_id] + hood_suf_params)
+            cursor.execute(query, params + hood_suf_params)
             rows = cursor.fetchall()
 
             for row in rows:
@@ -1621,7 +1786,7 @@ def _get_owned_recap_row(owner_legal_person_id, recap_id):
     }
 
 
-def _get_owned_request_object(owner_legal_person_id, object_key, source_label="ДТ"):
+def _get_owned_request_object(owner_legal_person_id, object_key, source_label="ДТ", *, filter_mode="owner"):
     if not owner_legal_person_id or not object_key:
         return None
 
@@ -1630,10 +1795,16 @@ def _get_owned_request_object(owner_legal_person_id, object_key, source_label="�
     rootid_field_pref = settings.GIS_OBJECT_ROOTID_FIELD
     name_field_pref = settings.GIS_OBJECT_NAME_FIELD
     geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
-    owner_field_pref = _owner_field_pref_for_source(normalized_source)
+    department_field_pref = getattr(settings, "GIS_OBJECT_DEPARTMENT_FIELD", "DepartmentLegalPersonId")
+    if filter_mode == FILTER_DEPARTMENT:
+        owner_field_pref = department_field_pref
+    else:
+        owner_field_pref = _owner_field_pref_for_source(normalized_source)
     request_id_field_pref = getattr(settings, "GIS_OBJECT_REQUEST_ID_FIELD", "request_id")
 
     with connection.cursor() as cursor:
+        if filter_mode == FILTER_DEPARTMENT and not _column_exists(cursor, table, department_field_pref):
+            return None
         rootid_field = _resolve_column_name(cursor, table, rootid_field_pref)
         name_field = _resolve_column_name(cursor, table, name_field_pref)
         geom_field = _resolve_column_name(cursor, table, geom_field_pref)
@@ -4657,7 +4828,8 @@ def home(request):
     else:
         form = EntryPointForm()
 
-    owner_id = None
+    scope = resolve_user_scope(request.user.username)
+    owner_id = scope.owner_id
     owner_name = None
     owned_objects = []
     owned_passports_geojson = {"type": "FeatureCollection", "features": []}
@@ -4666,33 +4838,75 @@ def home(request):
     ods_user_brids = []
     approval_items = []
     pending_approval_count = 0
+    hood_districts = []
+    need_sup_hood_modal = False
+    sup_hood_gid = (request.session.get(SUP_HOOD_SESSION_GID) or "").strip()
+    sup_hood_label = (request.session.get(SUP_HOOD_SESSION_LABEL) or "").strip()
+    has_sup_hood = bool(sup_hood_gid)
+
+    if scope.role == ROLE_SUP and not has_sup_hood:
+        need_sup_hood_modal = True
+        try:
+            hood_districts = list_hood_districts()
+        except Exception:
+            hood_districts = []
+
     try:
-        owner_id = _get_current_user_owner_id(request.user.username)
         if owner_id is not None:
-            ods_user_brids = _get_owned_ods_brids(owner_id)
             owner_name = _get_id_name_lookup_value(owner_id)
-            owned_objects = _get_owned_objects(owner_id)
-            owned_objects = _merge_owned_ods_requests(owned_objects, owner_id)
-            owned_objects = _annotate_and_filter_ods_registry_against_gis(owned_objects)
-            owned_objects = _enrich_ods_interaction_and_geometry(owned_objects)
+
+        if not need_sup_hood_modal:
+            owned_objects, ods_user_brids = _load_home_objects_for_scope(scope, has_sup_hood=has_sup_hood)
+            recap_owner = owner_id
             recap_counts = _get_recap_counts_by_request_ids(
-                owner_id,
+                recap_owner,
                 (item["request_id"] for item in owned_objects),
             )
             for item in owned_objects:
                 request_id = (item.get("request_id") or "").strip()
                 item["recap_count"] = recap_counts.get(request_id, 0)
             owned_passports_geojson = _build_owned_passports_geojson(owned_objects)
-            try:
-                with connection.cursor() as hood_cur:
-                    hood_work_area_geojson = get_hood_allowed_districts_geojson(hood_cur, owner_id)
-            except Exception:
-                hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
+            if scope.role == ROLE_SUP and has_sup_hood:
+                try:
+                    with connection.cursor() as hood_cur:
+                        scope_row = resolve_hood_wkt_for_gid(hood_cur, sup_hood_gid)
+                        if scope_row.get("mode") == "active" and scope_row.get("wkt"):
+                            hood_cur.execute(
+                                """
+                                SELECT ST_AsGeoJSON(ST_MakeValid(ST_SetSRID(ST_GeomFromText(%s), 4326)))::text
+                                """,
+                                [scope_row["wkt"]],
+                            )
+                            geo_row = hood_cur.fetchone()
+                            if geo_row and geo_row[0]:
+                                geom = json.loads(geo_row[0])
+                                hood_work_area_geojson = {
+                                    "type": "FeatureCollection",
+                                    "features": [
+                                        {
+                                            "type": "Feature",
+                                            "properties": {
+                                                "gid": sup_hood_gid,
+                                                "label": sup_hood_label,
+                                            },
+                                            "geometry": geom,
+                                        }
+                                    ],
+                                }
+                except Exception:
+                    hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
+            elif owner_id is not None:
+                try:
+                    with connection.cursor() as hood_cur:
+                        hood_work_area_geojson = get_hood_allowed_districts_geojson(hood_cur, owner_id)
+                except Exception:
+                    hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
+
         accessible_approves = get_accessible_approves(owner_id, username=request.user.username)
-        approval_items = [
-            serialize_approve_option(item, username=request.user.username)
-            for item in accessible_approves
-        ]
+        approval_items = serialize_approve_options(
+            accessible_approves,
+            username=request.user.username,
+        )
         pending_approval_count = accessible_approves.filter(approved=False).count()
     except Exception:
         owned_objects_error = (
@@ -4717,14 +4931,76 @@ def home(request):
             "ods_user_brids": ods_user_brids,
             "approval_items": approval_items,
             "pending_approval_count": pending_approval_count,
+            "user_role": scope.role,
+            "display_name": scope.display_name,
+            "can_write": scope.can_write,
+            "show_passports_tab": scope.role != ROLE_MGGT,
+            "show_approvals_mine_all_filter": scope.role == ROLE_MGGT,
+            "need_sup_hood_modal": need_sup_hood_modal,
+            "hood_districts": hood_districts,
+            "sup_hood_gid": sup_hood_gid,
+            "sup_hood_label": sup_hood_label,
             "page_config": home_page_config(
                 need_entry_request_id=need_entry_request_id,
                 ods_source_label=getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
                 owner_id=owner_id,
+                user_role=scope.role,
+                can_write=scope.can_write,
+                show_passports_tab=scope.role != ROLE_MGGT,
+                show_approvals_mine_all_filter=scope.role == ROLE_MGGT,
+                need_sup_hood_modal=need_sup_hood_modal,
+                sup_hood_gid=sup_hood_gid,
+                sup_hood_label=sup_hood_label,
             ),
             "user_guide_html": load_user_guide_html(),
         },
     )
+
+
+@login_required
+@require_POST
+def select_sup_hood(request):
+    scope = resolve_user_scope(request.user.username)
+    if scope.role != ROLE_SUP:
+        return redirect("home")
+
+    gid = (request.POST.get("hood_gid") or "").strip()
+    if not gid:
+        return redirect("home")
+
+    label = ""
+    try:
+        districts = list_hood_districts()
+        match = next((d for d in districts if str(d.get("gid")) == gid), None)
+        if match is None:
+            return redirect("home")
+        rayon = (match.get("rayon") or "").strip()
+        okrug = (match.get("okrug") or "").strip()
+        label = rayon or okrug or gid
+        if rayon and okrug:
+            label = f"{rayon} ({okrug})"
+    except Exception:
+        return redirect("home")
+
+    request.session[SUP_HOOD_SESSION_GID] = gid
+    request.session[SUP_HOOD_SESSION_LABEL] = label
+    request.session.pop("hood_access_scope", None)
+    request.session.modified = True
+    resolve_and_bind_hood_scope(request)
+    return redirect("home")
+
+
+@login_required
+@require_POST
+def clear_sup_hood(request):
+    scope = resolve_user_scope(request.user.username)
+    if scope.role != ROLE_SUP:
+        return redirect("home")
+    request.session.pop(SUP_HOOD_SESSION_GID, None)
+    request.session.pop(SUP_HOOD_SESSION_LABEL, None)
+    request.session.pop("hood_access_scope", None)
+    request.session.modified = True
+    return redirect("home")
 
 
 @login_required
@@ -5336,9 +5612,15 @@ def open_merged_passports(request):
     if owner_id is None:
         return redirect("home")
 
-    owned = _get_owned_objects(owner_id)
-    owned = _merge_owned_ods_requests(owned, owner_id)
-    owned = _enrich_ods_interaction_and_geometry(owned)
+    scope = resolve_user_scope(request.user.username)
+    if not scope.can_write:
+        return redirect("home")
+
+    filter_mode = FILTER_DEPARTMENT if scope.filter_field == FILTER_DEPARTMENT else FILTER_OWNER
+    owned = _get_owned_objects(owner_id, filter_mode=filter_mode)
+    if scope.include_ods:
+        owned = _merge_owned_ods_requests(owned, owner_id)
+        owned = _enrich_ods_interaction_and_geometry(owned)
     passport_pairs, request_keys, ods_root_pairs = _build_merge_allowed_sets(owned)
     if not all(_merge_item_is_allowed(it, passport_pairs, request_keys, ods_root_pairs) for it in merge_items):
         return redirect("home")
@@ -5387,6 +5669,9 @@ def confirm_entry_request_id(request):
 @login_required
 @require_POST
 def prepare_add_object(request):
+    scope = resolve_user_scope(request.user.username)
+    if not scope.can_write:
+        return redirect("home")
     request_id = (request.POST.get("request_id") or "").strip()
     if not request_id or not request_id.isdigit():
         return redirect("home")
@@ -5407,16 +5692,26 @@ def delete_owned_object(request):
     if not object_key:
         return redirect("home")
 
-    owner_id = _get_current_user_owner_id(request.user.username)
+    scope = resolve_user_scope(request.user.username)
+    if not scope.can_write:
+        return redirect("home")
+
+    owner_id = scope.owner_id
     if owner_id is None:
         return redirect("home")
 
     table = _get_source_table(source_label)
     rootid_field_pref = settings.GIS_OBJECT_ROOTID_FIELD
-    owner_field_pref = _owner_field_pref_for_source(source_label)
+    department_field_pref = getattr(settings, "GIS_OBJECT_DEPARTMENT_FIELD", "DepartmentLegalPersonId")
+    if scope.filter_field == FILTER_DEPARTMENT:
+        owner_field_pref = department_field_pref
+    else:
+        owner_field_pref = _owner_field_pref_for_source(source_label)
     request_id_field_pref = getattr(settings, "GIS_OBJECT_REQUEST_ID_FIELD", "request_id")
 
     with connection.cursor() as cursor:
+        if scope.filter_field == FILTER_DEPARTMENT and not _column_exists(cursor, table, department_field_pref):
+            return redirect("home")
         owner_field = _resolve_column_name(cursor, table, owner_field_pref)
         request_id_exists = _column_exists(cursor, table, request_id_field_pref)
         where_parts = [
@@ -5497,11 +5792,17 @@ def add_recap(request):
     recap_id_param = (request.GET.get("recap_id") or "").strip()
     initial_recap_id = recap_id_param if recap_id_param.isdigit() else ""
     owner_id = _get_current_user_owner_id(request.user.username)
+    scope = resolve_user_scope(request.user.username)
+    if not scope.can_write:
+        return redirect("home")
     ods_pk = _parse_ods_request_object_key(object_key)
+    filter_mode = FILTER_DEPARTMENT if scope.filter_field == FILTER_DEPARTMENT else FILTER_OWNER
     if ods_pk:
         selected_object = _get_owned_ods_request_for_recap(owner_id, object_key)
     else:
-        selected_object = _get_owned_request_object(owner_id, object_key, source_label=source_label)
+        selected_object = _get_owned_request_object(
+            owner_id, object_key, source_label=source_label, filter_mode=filter_mode
+        )
     if not selected_object:
         return redirect("home")
     if ods_pk and not selected_object.get("geometry_json"):

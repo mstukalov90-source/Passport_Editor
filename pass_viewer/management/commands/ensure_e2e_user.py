@@ -23,6 +23,7 @@ class Command(BaseCommand):
                 'password': password,
                 'owner_legal_person_id': owner_id,
                 'hood_scope': False,
+                'role': ExternalUser.ROLE_BD,
             },
         )
         verb = 'Created' if created else 'Updated'

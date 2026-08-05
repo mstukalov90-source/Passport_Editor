@@ -73,6 +73,10 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
         const odsSourceLabelNorm = (homeBootstrapEl?.dataset.odsSourceLabel || 'ОДС').trim().toUpperCase();
         const homeOwnerIdNorm = (homeBootstrapEl?.dataset.ownerId || '').trim();
+        const homeUserRole = (homeBootstrapEl?.dataset.userRole || 'BD').trim().toUpperCase();
+        const homeCanWrite = homeBootstrapEl?.dataset.canWrite !== '0';
+        const homeShowPassportsTab = homeBootstrapEl?.dataset.showPassportsTab !== '0';
+        const homeShowApprovalsMineAll = homeBootstrapEl?.dataset.showApprovalsMineAll === '1';
 
         function getHomeOdsSyncStorageKey() {
             return homeOwnerIdNorm ? `home_ods_sync_status:${homeOwnerIdNorm}` : 'home_ods_sync_status';
@@ -1042,6 +1046,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const requestStatusFilterEl = document.getElementById('owned-request-status-filter');
         const approvalSelectWrapEl = document.getElementById('owned-approval-select-wrap');
         const approvalSelectEl = document.getElementById('owned-approval-select');
+        const approvalScopeWrapEl = document.getElementById('owned-approval-scope-wrap');
+        const approvalScopeSelectEl = document.getElementById('owned-approval-scope-select');
         const sourceFiltersEl = document.querySelector('.owned-source-filters');
         let statusFilterCheckboxes = [];
         let statusDropdownTrigger = null;
@@ -1109,6 +1115,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             const show =
                 getActiveOwnedListTab() === 'approvals' && approvalRows.length > 0;
             approvalSelectWrapEl.hidden = !show;
+            if (approvalScopeWrapEl) {
+                approvalScopeWrapEl.hidden = !show || !homeShowApprovalsMineAll;
+            }
         }
 
         function syncSourceFiltersVisibility() {
@@ -1116,7 +1125,16 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 return;
             }
             const activeTab = getActiveOwnedListTab();
-            sourceFiltersEl.hidden = activeTab === 'approvals';
+            if (homeUserRole === 'MGGT') {
+                sourceFiltersEl.hidden = activeTab === 'approvals';
+            } else {
+                sourceFiltersEl.hidden = false;
+            }
+            sourceFilterButtons.forEach((btn) => {
+                const filterValue = normalizeOwnedSourceLabel(btn.dataset.sourceFilter || 'ДТ');
+                const isOds = odsSourceLabelNorm && filterValue === odsSourceLabelNorm;
+                btn.hidden = activeTab === 'approvals' && isOds;
+            });
         }
 
         function getOwnedItemTabName(item) {
@@ -1241,6 +1259,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             const selectedSources = getSelectedSourceSet();
             const selectedStatuses = getSelectedRequestStatusSet();
             const selectedApprovalStatus = (approvalSelectEl?.value || '').trim();
+            const approvalScope = (approvalScopeSelectEl?.value || 'mine').trim();
             ownedItems.forEach((item) => {
                 const rootidValue = item.dataset.rootid || '';
                 const nameValue = item.dataset.name || '';
@@ -1248,7 +1267,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 const tabName = getOwnedItemTabName(item);
                 const rootidMatch = !rootidNeedle || rootidValue.includes(rootidNeedle);
                 const nameMatch = !nameNeedle || nameValue.includes(nameNeedle);
-                const sourceMatch = activeTab === 'approvals' || selectedSources.has(sourceLabel);
+                const sourceMatch =
+                    !item.dataset.sourceLabel || selectedSources.has(sourceLabel);
                 const tabMatch = tabName === activeTab;
                 const rowStatus = (item.dataset.requestStatus || '').trim();
                 const statusMatch =
@@ -1261,8 +1281,20 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     activeTab !== 'approvals' ||
                     !selectedApprovalStatus ||
                     rowApprovalStatus === selectedApprovalStatus;
+                const isMine = (item.dataset.approvalMine || '') === '1';
+                const approvalScopeMatch =
+                    activeTab !== 'approvals' ||
+                    !homeShowApprovalsMineAll ||
+                    approvalScope === 'all' ||
+                    isMine;
                 item.style.display =
-                    rootidMatch && nameMatch && sourceMatch && tabMatch && statusMatch && approvalMatch
+                    rootidMatch &&
+                    nameMatch &&
+                    sourceMatch &&
+                    tabMatch &&
+                    statusMatch &&
+                    approvalMatch &&
+                    approvalScopeMatch
                         ? ''
                         : 'none';
             });
@@ -1328,6 +1360,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         }
         if (approvalSelectEl) {
             approvalSelectEl.addEventListener('change', applyOwnedFilters);
+        }
+        if (approvalScopeSelectEl) {
+            approvalScopeSelectEl.addEventListener('change', applyOwnedFilters);
         }
         initRequestStatusFilter();
         listTabButtons.forEach((btn) => {
