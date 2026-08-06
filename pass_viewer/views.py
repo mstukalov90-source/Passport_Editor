@@ -4902,12 +4902,21 @@ def home(request):
                         hood_work_area_geojson = get_hood_allowed_districts_geojson(hood_cur, owner_id)
                 except Exception:
                     hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
+    except Exception:
+        owned_objects_error = (
+            "Не удалось получить список объектов пользователя. Проверьте поле OwnerLegalPersonId в таблице users."
+        )
 
+    try:
         accessible_approves = get_accessible_approves(owner_id, username=request.user.username)
         approval_items = serialize_approve_options(
             accessible_approves,
             username=request.user.username,
         )
+    except Exception:
+        approval_items = []
+
+    try:
         home_notification_events = build_home_notification_events(
             owner_id=owner_id,
             username=request.user.username,
@@ -4915,9 +4924,8 @@ def home(request):
         # Badge is computed client-side from unseen localStorage ids.
         pending_approval_count = 0
     except Exception:
-        owned_objects_error = (
-            "Не удалось получить список объектов пользователя. Проверьте поле OwnerLegalPersonId в таблице users."
-        )
+        home_notification_events = []
+        pending_approval_count = 0
 
     need_entry_request_id = bool(request.session.get("pending_entry_point"))
 
@@ -4951,6 +4959,7 @@ def home(request):
                 need_entry_request_id=need_entry_request_id,
                 ods_source_label=getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
                 owner_id=owner_id,
+                username=request.user.username,
                 user_role=scope.role,
                 can_write=scope.can_write,
                 show_passports_tab=scope.role != ROLE_MGGT,
