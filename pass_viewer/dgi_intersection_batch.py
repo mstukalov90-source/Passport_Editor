@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 from django.conf import settings
 from django.db import connection, transaction
@@ -489,7 +490,7 @@ def _fetch_results(where_sql: str, params: list[Any]) -> list[dict[str, Any]]:
     with connection.cursor() as cursor:
         cursor.execute(query, params)
         columns = [col[0] for col in cursor.description]
-        return [serialize_result_row(dict(zip(columns, row))) for row in cursor.fetchall()]
+        return [serialize_result_row(dict(zip(columns, row, strict=True))) for row in cursor.fetchall()]
 
 
 def _fetch_results_matching_keys(

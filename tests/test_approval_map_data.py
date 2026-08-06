@@ -398,13 +398,16 @@ def test_topopoint_feature_select_sql_does_not_exclude_order_boundary_layer():
     assert 't."layer"' not in sql
 
 
+@patch("approval.work_layers.topolines_excluded_layer_sql", return_value="")
 @patch("approval.work_layers.connections")
-def test_count_features_by_table_keeps_prior_counts_on_table_error(mock_connections):
+def test_count_features_by_table_keeps_prior_counts_on_table_error(
+    mock_connections, _mock_excluded_sql
+):
     cursor = MagicMock()
     mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
 
     def execute_side_effect(sql, params=None):
-        if "topotext" in sql:
+        if "COUNT(*)" in sql and "topotext" in sql:
             raise RuntimeError("mixed SRID")
         return None
 
