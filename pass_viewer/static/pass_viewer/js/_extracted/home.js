@@ -77,9 +77,20 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const homeCanWrite = homeBootstrapEl?.dataset.canWrite !== '0';
         const homeShowPassportsTab = homeBootstrapEl?.dataset.showPassportsTab !== '0';
         const homeShowApprovalsMineAll = homeBootstrapEl?.dataset.showApprovalsMineAll === '1';
+        let notificationsTitleMode = 'numbers';
 
         function getHomeOdsSyncStorageKey() {
             return homeOwnerIdNorm ? `home_ods_sync_status:${homeOwnerIdNorm}` : 'home_ods_sync_status';
+        }
+
+        function getHomeOdsRequestIdsStorageKey() {
+            return homeOwnerIdNorm ? `home_ods_request_ids:${homeOwnerIdNorm}` : 'home_ods_request_ids';
+        }
+
+        function getHomeNotificationsSeenStorageKey() {
+            return homeOwnerIdNorm
+                ? `home_notifications_seen:${homeOwnerIdNorm}`
+                : 'home_notifications_seen';
         }
 
         function readOdsSyncSnapshot() {
@@ -103,6 +114,77 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
         }
 
+        function readOdsRequestIdsSnapshot() {
+            try {
+                const raw = localStorage.getItem(getHomeOdsRequestIdsStorageKey());
+                if (!raw) {
+                    return [];
+                }
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed.map((id) => String(id || '').trim()).filter(Boolean) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function writeOdsRequestIdsSnapshot(ids) {
+            try {
+                localStorage.setItem(getHomeOdsRequestIdsStorageKey(), JSON.stringify(ids));
+            } catch (e) {
+                // localStorage may be unavailable
+            }
+        }
+
+        function readNotificationsSeenState() {
+            try {
+                const raw = localStorage.getItem(getHomeNotificationsSeenStorageKey());
+                if (!raw) {
+                    return { seen: {}, baseline: false, ods_active: [] };
+                }
+                const parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== 'object') {
+                    return { seen: {}, baseline: false, ods_active: [] };
+                }
+                const seen = parsed.seen && typeof parsed.seen === 'object' ? parsed.seen : {};
+                const odsActive = Array.isArray(parsed.ods_active) ? parsed.ods_active : [];
+                return {
+                    seen,
+                    baseline: parsed.baseline === true,
+                    ods_active: odsActive,
+                };
+            } catch (e) {
+                return { seen: {}, baseline: false, ods_active: [] };
+            }
+        }
+
+        function writeNotificationsSeenState(state) {
+            try {
+                localStorage.setItem(
+                    getHomeNotificationsSeenStorageKey(),
+                    JSON.stringify({
+                        seen: state.seen || {},
+                        baseline: state.baseline === true,
+                        ods_active: Array.isArray(state.ods_active) ? state.ods_active : [],
+                    })
+                );
+            } catch (e) {
+                // localStorage may be unavailable
+            }
+        }
+
+        function loadServerNotificationEvents() {
+            const el = document.getElementById('home-notification-events');
+            if (!el) {
+                return [];
+            }
+            try {
+                const parsed = JSON.parse(el.textContent || '[]');
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
         function collectCurrentOdsSyncStatuses() {
             const out = {};
             document.querySelectorAll('.owned-request-row[data-ods-sync-status]').forEach((row) => {
@@ -121,6 +203,21 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             return out;
         }
 
+        function collectCurrentOdsRequestIds() {
+            const ids = [];
+            const seen = {};
+            document.querySelectorAll('.owned-request-row').forEach((row) => {
+                const brid = (row.dataset.requestId || '').trim();
+                if (!brid || seen[brid]) {
+                    return;
+                }
+                seen[brid] = true;
+                ids.push(brid);
+            });
+            ids.sort((a, b) => a.localeCompare(b, 'ru', { numeric: true }));
+            return ids;
+        }
+
         function buildOdsSyncChangeMessages(prev, current) {
             const messages = [];
             Object.keys(current).forEach((brid) => {
@@ -129,23 +226,129 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 }
                 const next = current[brid];
                 if (next === 'ok') {
-                    messages.push({ brid, kind: 'ok' });
+                    messages.push({
+                        id: `ods_ok:${brid}`,
+                        kind: 'ods_ok',
+                        brid,
+                        title: `Заявка № ${brid} подтверждена АСУ ОДС`,
+                        subtitle: 'Подтверждена',
+                    });
                 } else if (next === 'bad') {
-                    messages.push({ brid, kind: 'bad' });
+                    messages.push({
+                        id: `ods_bad:${brid}`,
+                        kind: 'ods_bad',
+                        brid,
+                        title: `Заявка № ${brid} не подтверждена АСУ ОДС`,
+                        subtitle: 'Не подтверждена',
+                    });
                 }
             });
             messages.sort((a, b) => a.brid.localeCompare(b.brid, 'ru', { numeric: true }));
             return messages;
         }
 
-        function updateApprovalNotificationsBadge(odsMessageCount) {
+        function buildOdsNewMessages(prevIds, currentIds) {
+            const prevSet = {};
+            (prevIds || []).forEach((id) => {
+                const brid = String(id || '').trim();
+                if (brid) {
+                    prevSet[brid] = true;
+                }
+            });
+            const messages = [];
+            (currentIds || []).forEach((id) => {
+                const brid = String(id || '').trim();
+                if (!brid || prevSet[brid]) {
+                    return;
+                }
+                messages.push({
+                    id: `ods_new:${brid}`,
+                    kind: 'ods_new',
+                    brid,
+                    title: `Новая заявка № ${brid}`,
+                    subtitle: 'Появилась в списке',
+                });
+            });
+            messages.sort((a, b) => a.brid.localeCompare(b.brid, 'ru', { numeric: true }));
+            return messages;
+        }
+
+        function odsFingerprintIds(requestIds, syncStatuses) {
+            const ids = [];
+            (requestIds || []).forEach((brid) => {
+                const normalized = String(brid || '').trim();
+                if (normalized) {
+                    ids.push(`ods_new:${normalized}`);
+                }
+            });
+            Object.keys(syncStatuses || {}).forEach((brid) => {
+                const status = syncStatuses[brid];
+                if (status === 'ok') {
+                    ids.push(`ods_ok:${brid}`);
+                } else if (status === 'bad') {
+                    ids.push(`ods_bad:${brid}`);
+                } else if (status === 'pending') {
+                    ids.push(`ods_pending:${brid}`);
+                }
+            });
+            return ids;
+        }
+
+        function notificationKindLabel(kind) {
+            switch (kind) {
+                case 'message':
+                    return 'Сообщение';
+                case 'new_approve':
+                    return 'Согласование';
+                case 'new_case':
+                    return 'Событие';
+                case 'approved':
+                    return 'Согласовано';
+                case 'ods_new':
+                    return 'Новая заявка';
+                case 'ods_ok':
+                    return 'Подтверждена';
+                case 'ods_bad':
+                    return 'Не подтверждена';
+                default:
+                    return 'Уведомление';
+            }
+        }
+
+        function markNotificationSeen(eventId) {
+            const id = String(eventId || '').trim();
+            if (!id) {
+                return;
+            }
+            const state = readNotificationsSeenState();
+            state.seen[id] = true;
+            state.ods_active = (state.ods_active || []).filter((item) => item && item.id !== id);
+            writeNotificationsSeenState(state);
+        }
+
+        function mergeActiveOdsEvents(existing, incoming) {
+            const byId = {};
+            (existing || []).forEach((item) => {
+                if (item && item.id) {
+                    byId[item.id] = item;
+                }
+            });
+            (incoming || []).forEach((item) => {
+                if (item && item.id) {
+                    byId[item.id] = item;
+                }
+            });
+            return Object.keys(byId)
+                .map((id) => byId[id])
+                .sort((a, b) => String(a.brid || '').localeCompare(String(b.brid || ''), 'ru', { numeric: true }));
+        }
+
+        function updateApprovalNotificationsBadge(totalCount) {
             const btn = document.getElementById('approval-notifications-btn');
-            const modal = document.getElementById('approval-notifications-modal');
             if (!btn) {
                 return;
             }
-            const pendingApprovals = Number(modal?.dataset.pendingApprovalCount || 0) || 0;
-            const total = pendingApprovals + (Number(odsMessageCount) || 0);
+            const total = Number(totalCount) || 0;
             let badge = btn.querySelector('.approval-notifications-badge');
             if (total > 0) {
                 if (!badge) {
@@ -159,51 +362,173 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
         }
 
-        function renderHomeWorkflowOdsSyncChanges(messages) {
-            const section = document.getElementById('approval-ods-sync-section');
-            const list = document.getElementById('approval-ods-sync-list');
-            if (!section || !list) {
-                updateApprovalNotificationsBadge(0);
-                return;
+        function eventDisplayTitle(event) {
+            if (!event) {
+                return '';
             }
-            list.replaceChildren();
-            if (!messages.length) {
-                section.hidden = true;
-                updateApprovalNotificationsBadge(0);
-                return;
+            if (notificationsTitleMode === 'names' && event.title_named) {
+                return event.title_named;
             }
-            messages.forEach((msg) => {
-                const li = document.createElement('li');
-                const item = document.createElement('button');
-                item.type = 'button';
-                item.className = msg.kind === 'ok'
-                    ? 'approval-notifications-item approval-ods-sync-item--ok'
-                    : 'approval-notifications-item approval-ods-sync-item--bad';
-                item.dataset.odsBrid = msg.brid;
-                item.setAttribute('role', 'option');
-                const title = document.createElement('span');
-                title.className = 'approval-notifications-item__title';
-                title.textContent = msg.kind === 'ok'
-                    ? `Заявка № ${msg.brid} подтверждена АСУ ОДС`
-                    : `Заявка № ${msg.brid} не подтверждена АСУ ОДС`;
-                const status = document.createElement('span');
-                status.className = 'approval-notifications-item__status';
-                status.textContent = msg.kind === 'ok' ? 'Подтверждена' : 'Не подтверждена';
-                item.appendChild(title);
-                item.appendChild(status);
-                li.appendChild(item);
-                list.appendChild(li);
-            });
-            section.hidden = false;
-            updateApprovalNotificationsBadge(messages.length);
+            return event.title || event.title_named || '';
+        }
+
+        function renderApprovalNotificationFeed(serverEvents, odsEvents) {
+            const approvalsSection = document.getElementById('approval-notifications-approvals-section');
+            const approvalsList = document.getElementById('approval-notifications-feed');
+            const odsSection = document.getElementById('approval-ods-sync-section');
+            const odsList = document.getElementById('approval-ods-sync-list');
+            const emptyEl = document.getElementById('approval-notifications-empty');
+
+            if (approvalsList) {
+                approvalsList.replaceChildren();
+                (serverEvents || []).forEach((event) => {
+                    const li = document.createElement('li');
+                    const row = document.createElement('div');
+                    row.className = 'approval-notifications-case';
+                    row.dataset.eventId = event.id || '';
+                    row.dataset.eventKind = event.kind || '';
+                    row.dataset.approveId = event.approve_id || '';
+                    row.dataset.caseId = event.case_id || '';
+                    row.dataset.titleNumbers = event.title || '';
+                    row.dataset.titleNames = event.title_named || event.title || '';
+                    row.setAttribute('role', 'button');
+                    row.tabIndex = 0;
+
+                    const main = document.createElement('div');
+                    main.className = 'approval-notifications-case__main';
+                    const kind = document.createElement('span');
+                    kind.className = 'approval-notifications-item__kind';
+                    kind.textContent = notificationKindLabel(event.kind);
+                    const title = document.createElement('span');
+                    title.className = 'approval-notifications-item__title';
+                    title.textContent = eventDisplayTitle(event);
+                    const meta = document.createElement('span');
+                    meta.className = 'approval-notifications-case__meta';
+                    const metaParts = [];
+                    if (event.subtitle) {
+                        metaParts.push(event.subtitle);
+                    }
+                    if (event.created_at) {
+                        metaParts.push(event.created_at);
+                    }
+                    meta.textContent = metaParts.join(' · ');
+                    main.appendChild(kind);
+                    main.appendChild(title);
+                    main.appendChild(meta);
+                    row.appendChild(main);
+
+                    if (event.case_id && (event.kind === 'message' || event.kind === 'new_case' || event.kind === 'approved')) {
+                        const chatBtn = document.createElement('button');
+                        chatBtn.type = 'button';
+                        chatBtn.className = 'approval-notifications-chat-btn';
+                        chatBtn.dataset.eventId = event.id || '';
+                        chatBtn.dataset.approveId = event.approve_id || '';
+                        chatBtn.dataset.caseId = event.case_id || '';
+                        chatBtn.dataset.caseTitle = eventDisplayTitle(event);
+                        chatBtn.dataset.titleNumbers = event.title || '';
+                        chatBtn.dataset.titleNames = event.title_named || event.title || '';
+                        chatBtn.textContent = 'Чат';
+                        row.appendChild(chatBtn);
+                    }
+
+                    li.appendChild(row);
+                    approvalsList.appendChild(li);
+                });
+            }
+
+            if (odsList) {
+                odsList.replaceChildren();
+                (odsEvents || []).forEach((msg) => {
+                    const li = document.createElement('li');
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = msg.kind === 'ods_ok'
+                        ? 'approval-notifications-item approval-ods-sync-item--ok'
+                        : (msg.kind === 'ods_bad'
+                            ? 'approval-notifications-item approval-ods-sync-item--bad'
+                            : 'approval-notifications-item approval-ods-sync-item--new');
+                    item.dataset.eventId = msg.id || '';
+                    item.dataset.odsBrid = msg.brid || '';
+                    item.setAttribute('role', 'option');
+                    const kind = document.createElement('span');
+                    kind.className = 'approval-notifications-item__kind';
+                    kind.textContent = notificationKindLabel(msg.kind);
+                    const title = document.createElement('span');
+                    title.className = 'approval-notifications-item__title';
+                    title.textContent = msg.title || '';
+                    const status = document.createElement('span');
+                    status.className = 'approval-notifications-item__status';
+                    status.textContent = msg.subtitle || '';
+                    item.appendChild(kind);
+                    item.appendChild(title);
+                    item.appendChild(status);
+                    li.appendChild(item);
+                    odsList.appendChild(li);
+                });
+            }
+
+            const hasApprovals = !!(serverEvents && serverEvents.length);
+            const hasOds = !!(odsEvents && odsEvents.length);
+            if (approvalsSection) {
+                approvalsSection.hidden = !hasApprovals;
+            }
+            if (odsSection) {
+                odsSection.hidden = !hasOds;
+            }
+            if (emptyEl) {
+                emptyEl.hidden = hasApprovals || hasOds;
+            }
+            updateApprovalNotificationsBadge((serverEvents || []).length + (odsEvents || []).length);
         }
 
         function applyHomeWorkflowOdsSyncNotifications() {
-            const prev = readOdsSyncSnapshot();
-            const current = collectCurrentOdsSyncStatuses();
-            const messages = buildOdsSyncChangeMessages(prev, current);
-            renderHomeWorkflowOdsSyncChanges(messages);
-            writeOdsSyncSnapshot(current);
+            const serverEvents = loadServerNotificationEvents();
+            const prevSync = readOdsSyncSnapshot();
+            const currentSync = collectCurrentOdsSyncStatuses();
+            const prevRequestIds = readOdsRequestIdsSnapshot();
+            const currentRequestIds = collectCurrentOdsRequestIds();
+            const detectedOds = [
+                ...buildOdsNewMessages(prevRequestIds, currentRequestIds),
+                ...buildOdsSyncChangeMessages(prevSync, currentSync),
+            ];
+
+            let state = readNotificationsSeenState();
+            if (!state.baseline) {
+                const seen = { ...(state.seen || {}) };
+                serverEvents.forEach((event) => {
+                    if (event && event.id) {
+                        seen[event.id] = true;
+                    }
+                });
+                odsFingerprintIds(currentRequestIds, currentSync).forEach((id) => {
+                    seen[id] = true;
+                });
+                state = { seen, baseline: true, ods_active: [] };
+                writeNotificationsSeenState(state);
+                writeOdsSyncSnapshot(currentSync);
+                writeOdsRequestIdsSnapshot(currentRequestIds);
+                renderApprovalNotificationFeed([], []);
+                return;
+            }
+
+            state.ods_active = mergeActiveOdsEvents(state.ods_active, detectedOds)
+                .filter((item) => item && item.id && !state.seen[item.id]);
+            writeNotificationsSeenState(state);
+            writeOdsSyncSnapshot(currentSync);
+            writeOdsRequestIdsSnapshot(currentRequestIds);
+
+            const unreadServer = serverEvents.filter((event) => event && event.id && !state.seen[event.id]);
+            const unreadOds = state.ods_active.slice();
+            renderApprovalNotificationFeed(unreadServer, unreadOds);
+        }
+
+        function refreshUnreadNotificationsFeed() {
+            const state = readNotificationsSeenState();
+            const unreadServer = loadServerNotificationEvents().filter(
+                (event) => event && event.id && !state.seen[event.id]
+            );
+            const unreadOds = (state.ods_active || []).filter((item) => item && item.id && !state.seen[item.id]);
+            renderApprovalNotificationFeed(unreadServer, unreadOds);
         }
         const ownedMapEl = document.getElementById('owned-passports-map');
         const ownedGeoDataEl = document.getElementById('owned-passports-geojson-data');
@@ -2442,7 +2767,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const approvalNotificationsTitleModeInput = document.getElementById('approval-notifications-title-mode');
         let userGuidePreviousOverflow = '';
         let notificationsPreviousOverflow = '';
-        let notificationsTitleMode = 'numbers';
 
         function getNotificationsTitleModeStorageKey() {
             return homeOwnerIdNorm
@@ -2493,18 +2817,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     chatBtn.dataset.caseTitle = notificationCaseTitle(chatBtn) || notificationCaseTitle(row);
                 }
             });
-        }
-
-        function setNotificationsGroupCollapsed(group, collapsed) {
-            if (!group) {
-                return;
-            }
-            group.classList.toggle('is-collapsed', collapsed);
-            const toggle = group.querySelector('.approval-notifications-group__toggle');
-            if (toggle) {
-                toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-                toggle.title = collapsed ? 'Развернуть список событий' : 'Свернуть список событий';
-            }
         }
 
         function initNotificationsTitleModeSwitch() {
@@ -2694,19 +3006,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     setApprovalNotificationsOpen(false);
                     return;
                 }
-                const groupToggle = event.target.closest('.approval-notifications-group__toggle');
-                if (groupToggle) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    const group = groupToggle.closest('.approval-notifications-group');
-                    const collapsed = !(group && group.classList.contains('is-collapsed'));
-                    setNotificationsGroupCollapsed(group, collapsed);
-                    return;
-                }
                 const chatBtn = event.target.closest('.approval-notifications-chat-btn');
                 if (chatBtn) {
                     event.preventDefault();
                     event.stopPropagation();
+                    if (chatBtn.dataset.eventId) {
+                        markNotificationSeen(chatBtn.dataset.eventId);
+                        refreshUnreadNotificationsFeed();
+                    }
                     openApprovalChatPreview(
                         chatBtn.dataset.approveId,
                         chatBtn.dataset.caseId,
@@ -2716,11 +3023,18 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 }
                 const odsItem = event.target.closest('.approval-notifications-item[data-ods-brid]');
                 if (odsItem) {
+                    if (odsItem.dataset.eventId) {
+                        markNotificationSeen(odsItem.dataset.eventId);
+                        refreshUnreadNotificationsFeed();
+                    }
                     openOdsRequestFromNotifications(odsItem.dataset.odsBrid);
                     return;
                 }
-                const caseRow = event.target.closest('.approval-notifications-case[data-case-id]');
+                const caseRow = event.target.closest('.approval-notifications-case[data-event-id], .approval-notifications-case[data-case-id]');
                 if (caseRow) {
+                    if (caseRow.dataset.eventId) {
+                        markNotificationSeen(caseRow.dataset.eventId);
+                    }
                     openApprovalFromNotifications(caseRow.dataset.approveId, caseRow.dataset.caseId);
                 }
             });
@@ -2728,11 +3042,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 if (event.key !== 'Enter' && event.key !== ' ') {
                     return;
                 }
-                const caseRow = event.target.closest('.approval-notifications-case[data-case-id]');
+                const caseRow = event.target.closest('.approval-notifications-case[data-event-id], .approval-notifications-case[data-case-id]');
                 if (!caseRow || event.target.closest('.approval-notifications-chat-btn')) {
                     return;
                 }
                 event.preventDefault();
+                if (caseRow.dataset.eventId) {
+                    markNotificationSeen(caseRow.dataset.eventId);
+                }
                 openApprovalFromNotifications(caseRow.dataset.approveId, caseRow.dataset.caseId);
             });
             initNotificationsTitleModeSwitch();

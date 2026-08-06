@@ -1,4 +1,4 @@
-"""Tests for home notifications payload (Approve→Cases + n_root section)."""
+"""Tests for home notification change events feed."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
-from approval.events_service import build_home_notifications, serialize_notification_case_row
-from approval.models import Approve, Case, CaseMessage
+from approval.events_service import build_home_notification_events
+from approval.models import Approve, Case, CaseMessage, CaseServiceEvent
 from django.utils import timezone
 from pass_viewer.models import ExternalUser
 
@@ -54,119 +54,132 @@ def _secondary(*, approve, n_root="09811", owners=None, title="Событие п
     "approval.events_service.batch_lookup_task_poly_meta",
     return_value={},
 )
-def test_build_home_notifications_nests_cases_under_approve(
-    _mock_batch, _mock_poly, approve_open, owner_a
+@patch(
+    "approval.events_service.lookup_task_survey_fields",
+    return_value=("", ""),
+)
+@patch(
+    "approval.events_service.resolve_root_object_names",
+    return_value={},
+)
+def test_build_home_notification_events_includes_message_case_approved(
+    _mock_roots, _mock_survey, _mock_batch, _mock_poly, approve_open, owner_a
 ):
     secondary = _secondary(approve=approve_open, n_root="ROOT-1")
+    foreign_message = CaseMessage.objects.create(
+        case=secondary,
+        author_login="inspector_user",
+        body="Привет от инспектора",
+    )
+    CaseMessage.objects.create(
+        case=secondary,
+        author_login=owner_a.login,
+        body="Моё сообщение не должно попасть",
+    )
+    service = CaseServiceEvent.objects.create(
+        case=secondary,
+        actor_login="inspector_user",
+        kind=CaseServiceEvent.KIND_APPROVED,
+    )
+    CaseServiceEvent.objects.create(
+        case=secondary,
+        actor_login=owner_a.login,
+        kind=CaseServiceEvent.KIND_APPROVED,
+    )
+
+    events = build_home_notification_events(
+        owner_id="OWNER_A",
+        username=owner_a.login,
+    )
+    by_id = {item["id"]: item for item in events}
+
+    assert f"approve:{approve_open.id}" in by_id
+    assert by_id[f"approve:{approve_open.id}"]["kind"] == "new_approve"
+    assert f"case:{secondary.id}" in by_id
+    assert by_id[f"case:{secondary.id}"]["kind"] == "new_case"
+    assert f"msg:{foreign_message.id}" in by_id
+    assert by_id[f"msg:{foreign_message.id}"]["kind"] == "message"
+    assert "inspector_user" in by_id[f"msg:{foreign_message.id}"]["subtitle"]
+    assert f"svc:{service.id}" in by_id
+    assert by_id[f"svc:{service.id}"]["kind"] == "approved"
+
+    own_message_ids = [
+        item["id"] for item in events if item["kind"] == "message" and item.get("author") == owner_a.login
+    ]
+    assert own_message_ids == []
+    own_approved_ids = [
+        item["id"] for item in events if item["kind"] == "approved" and item.get("author") == owner_a.login
+    ]
+    assert own_approved_ids == []
+
+
+@pytest.mark.django_db
+@patch(
+    "approval.events_service.lookup_task_poly_meta",
+    return_value={"source_label": "", "object_name": "", "table": ""},
+)
+@patch(
+    "approval.events_service.batch_lookup_task_poly_meta",
+    return_value={},
+)
+@patch(
+    "approval.events_service.lookup_task_survey_fields",
+    return_value=("", ""),
+)
+@patch(
+    "approval.events_service.resolve_root_object_names",
+    return_value={},
+)
+def test_build_home_notification_events_excludes_own_new_approve(
+    _mock_roots, _mock_survey, _mock_batch, _mock_poly, owner_a
+):
+    own_approve = Approve.objects.create(
+        incoming_guid=uuid.uuid4(),
+        owners=["OWNER_A"],
+        user=owner_a.login,
+        name="Создал сам",
+    )
+    events = build_home_notification_events(
+        owner_id="OWNER_A",
+        username=owner_a.login,
+    )
+    assert all(item["id"] != f"approve:{own_approve.id}" for item in events)
+
+
+@pytest.mark.django_db
+@patch(
+    "approval.events_service.lookup_task_poly_meta",
+    return_value={"source_label": "", "object_name": "", "table": ""},
+)
+@patch(
+    "approval.events_service.batch_lookup_task_poly_meta",
+    return_value={},
+)
+@patch(
+    "approval.events_service.lookup_task_survey_fields",
+    return_value=("", ""),
+)
+@patch(
+    "approval.events_service.resolve_root_object_names",
+    return_value={},
+)
+def test_build_home_notification_events_respects_lookback(
+    _mock_roots, _mock_survey, _mock_batch, _mock_poly, approve_open, owner_a
+):
+    secondary = _secondary(approve=approve_open, n_root="ROOT-OLD", title="Старое событие")
+    old_time = timezone.now() - timedelta(days=45)
+    Case.objects.filter(id=secondary.id).update(created_at=old_time, updated_at=old_time)
     CaseMessage.objects.create(
         case=secondary,
         author_login="inspector_user",
-        body="Привет",
+        body="Старое сообщение",
     )
+    CaseMessage.objects.filter(case=secondary).update(created_at=old_time)
 
-    payload = build_home_notifications(
+    events = build_home_notification_events(
         owner_id="OWNER_A",
         username=owner_a.login,
-        owned_rootids=["OTHER-ROOT"],
+        lookback_days=30,
     )
-
-    assert payload["open_case_count"] == 2
-    assert len(payload["approve_groups"]) == 1
-    group = payload["approve_groups"][0]
-    assert group["approve"]["id"] == str(approve_open.id)
-    assert "Согласование тестовое" in group["approve"]["label"]
-    case_ids = {row["id"] for row in group["cases"]}
-    assert str(approve_open.cases.get(is_primary=True).id) in case_ids
-    assert str(secondary.id) in case_ids
-    secondary_row = next(row for row in group["cases"] if row["id"] == str(secondary.id))
-    assert secondary_row["last_message_author"] == "inspector_user"
-    assert secondary_row["approve_until"]
-    assert payload["n_root_cases"] == []
-
-
-@pytest.mark.django_db
-@patch(
-    "approval.events_service.lookup_task_poly_meta",
-    return_value={"source_label": "", "object_name": "", "table": ""},
-)
-@patch(
-    "approval.events_service.batch_lookup_task_poly_meta",
-    return_value={},
-)
-def test_build_home_notifications_n_root_section_and_dedup(
-    _mock_batch, _mock_poly, approve_open, owner_a
-):
-    nested = _secondary(approve=approve_open, n_root="ROOT-SHARED", title="По паспорту пользователя")
-
-    other = Approve.objects.create(
-        incoming_guid=uuid.uuid4(),
-        owners=["OWNER_X", "OWNER_A"],
-        user="other_inspector",
-        name="Чужое согласование",
-    )
-    only_n_root = Case.objects.create(
-        approve=other,
-        is_primary=False,
-        title="Только по паспорту",
-        owners=["OWNER_A", "OWNER_X"],
-        n_root="ROOT-ONLY",
-    )
-
-    payload = build_home_notifications(
-        owner_id="OWNER_A",
-        username=owner_a.login,
-        owned_rootids=["ROOT-SHARED", "ROOT-ONLY", "root-only"],
-    )
-
-    section1_ids = {
-        row["id"]
-        for group in payload["approve_groups"]
-        for row in group["cases"]
-    }
-    assert str(nested.id) not in section1_ids
-    assert str(approve_open.cases.get(is_primary=True).id) in section1_ids
-
-    n_root_ids = {row["id"] for row in payload["n_root_cases"]}
-    assert str(nested.id) in n_root_ids
-    assert str(only_n_root.id) in n_root_ids
-    only_row = next(row for row in payload["n_root_cases"] if row["id"] == str(only_n_root.id))
-    assert only_row["n_root"] == "ROOT-ONLY"
-
-
-@pytest.mark.django_db
-@patch(
-    "approval.events_service.lookup_task_poly_meta",
-    return_value={"source_label": "", "object_name": "", "table": ""},
-)
-@patch(
-    "approval.events_service.batch_lookup_task_poly_meta",
-    return_value={},
-)
-def test_build_home_notifications_skips_approved_approve(
-    _mock_batch, _mock_poly, approve_open, owner_a
-):
-    approve_open.approved = True
-    approve_open.save(update_fields=["approved", "updated_at"])
-    for case in approve_open.cases.all():
-        case.approved = True
-        case.save(update_fields=["approved", "updated_at"])
-
-    payload = build_home_notifications(
-        owner_id="OWNER_A",
-        username=owner_a.login,
-        owned_rootids=[],
-    )
-    assert payload["approve_groups"] == []
-    assert payload["open_case_count"] == 0
-
-
-@pytest.mark.django_db
-def test_serialize_notification_case_row_marks_primary(approve_open):
-    primary = approve_open.cases.get(is_primary=True)
-    primary.created_at = timezone.now() - timedelta(days=5)
-    primary.save(update_fields=["created_at"])
-    row = serialize_notification_case_row(primary)
-    assert row["is_primary"] is True
-    assert "Основное" in row["display_title"]
-    assert row["approve_id"] == str(approve_open.id)
-    assert row["approve_until"]
+    assert all(item["id"] != f"case:{secondary.id}" for item in events)
+    assert all(not item["id"].startswith("msg:") for item in events if "Старое" in (item.get("subtitle") or ""))

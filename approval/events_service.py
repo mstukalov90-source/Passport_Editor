@@ -8,6 +8,7 @@ import re
 import shutil
 import uuid
 from pathlib import Path
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.gis.geos import GEOSGeometry
@@ -566,6 +567,199 @@ def build_home_notifications(
         "n_root_cases": n_root_cases,
         "open_case_count": open_case_count,
     }
+
+
+NOTIFICATION_LOOKBACK_DAYS = 30
+
+
+def build_home_notification_events(
+    *,
+    owner_id=None,
+    username: str | None = None,
+    lookback_days: int = NOTIFICATION_LOOKBACK_DAYS,
+) -> list[dict]:
+    """
+    Build a feed of approval-related change events for the home notifications modal.
+
+    Kinds: message, new_approve, new_case, approved.
+    Excludes actions by the current username. Window defaults to ~30 days.
+    """
+    login = (username or "").strip()
+    since = timezone.now() - timedelta(days=max(1, int(lookback_days or NOTIFICATION_LOOKBACK_DAYS)))
+
+    accessible_cases = list(
+        get_accessible_cases_queryset(owner_id, username=login or None)
+        .filter(created_at__gte=since)
+        .select_related("approve")
+        .order_by("-created_at")
+    )
+    # Also need older cases for messages/approvals that happened recently on older cases.
+    accessible_case_ids = list(
+        get_accessible_cases_queryset(owner_id, username=login or None).values_list("id", flat=True)
+    )
+    accessible_case_id_set = {str(cid) for cid in accessible_case_ids}
+
+    events: list[dict] = []
+
+    # New approves
+    open_approves = list(
+        get_accessible_approves(owner_id, username=login or None)
+        .filter(created_at__gte=since)
+        .order_by("-created_at")
+    )
+    approve_options = {
+        item["id"]: item
+        for item in serialize_approve_options(open_approves, username=login or None)
+    }
+    for approve in open_approves:
+        creator = (approve.user or "").strip()
+        if login and creator and creator == login:
+            continue
+        option = approve_options.get(str(approve.id)) or serialize_approve_option(
+            approve, username=login or None
+        )
+        events.append(
+            {
+                "id": f"approve:{approve.id}",
+                "kind": "new_approve",
+                "title": option.get("label") or (approve.name or "").strip() or "Новое согласование",
+                "subtitle": "Новое согласование",
+                "title_named": None,
+                "created_at": _format_dt(approve.created_at),
+                "created_at_sort": approve.created_at.isoformat() if approve.created_at else "",
+                "approve_id": str(approve.id),
+                "case_id": "",
+            }
+        )
+
+    # New cases (accessible and recent)
+    for case in accessible_cases:
+        title = (case.title or "").strip() or "Новое событие"
+        if case.is_primary and title:
+            display = f"{title} (Основное)"
+        elif case.is_primary:
+            display = "Основное событие"
+        else:
+            display = title
+        events.append(
+            {
+                "id": f"case:{case.id}",
+                "kind": "new_case",
+                "title": display,
+                "subtitle": "Новое событие",
+                "title_named": None,
+                "created_at": _format_dt(case.created_at),
+                "created_at_sort": case.created_at.isoformat() if case.created_at else "",
+                "approve_id": str(case.approve_id),
+                "case_id": str(case.id),
+                "is_primary": bool(case.is_primary),
+                "n_root": (case.n_root or "").strip(),
+            }
+        )
+
+    if accessible_case_ids:
+        messages = (
+            CaseMessage.objects.filter(
+                case_id__in=accessible_case_ids,
+                created_at__gte=since,
+            )
+            .select_related("case", "case__approve")
+            .order_by("-created_at")
+        )
+        for message in messages:
+            author = (message.author_login or "").strip()
+            if login and author == login:
+                continue
+            case = message.case
+            if str(case.id) not in accessible_case_id_set:
+                continue
+            case_title = (case.title or "").strip() or "Событие"
+            body = (message.body or "").strip()
+            if len(body) > 120:
+                body = body[:117] + "…"
+            events.append(
+                {
+                    "id": f"msg:{message.id}",
+                    "kind": "message",
+                    "title": case_title,
+                    "subtitle": (f"{author}: {body}" if author else body) or "Новое сообщение",
+                    "title_named": None,
+                    "created_at": _format_dt(message.created_at),
+                    "created_at_sort": message.created_at.isoformat() if message.created_at else "",
+                    "approve_id": str(case.approve_id),
+                    "case_id": str(case.id),
+                    "author": author,
+                }
+            )
+
+        service_events = (
+            CaseServiceEvent.objects.filter(
+                case_id__in=accessible_case_ids,
+                kind=CaseServiceEvent.KIND_APPROVED,
+                created_at__gte=since,
+            )
+            .select_related("case", "case__approve")
+            .order_by("-created_at")
+        )
+        for service in service_events:
+            actor = (service.actor_login or "").strip()
+            if login and actor == login:
+                continue
+            case = service.case
+            if str(case.id) not in accessible_case_id_set:
+                continue
+            case_title = (case.title or "").strip() or "Событие"
+            events.append(
+                {
+                    "id": f"svc:{service.id}",
+                    "kind": "approved",
+                    "title": case_title,
+                    "subtitle": f"{actor} согласовал" if actor else "Событие согласовано",
+                    "title_named": None,
+                    "created_at": _format_dt(service.created_at),
+                    "created_at_sort": service.created_at.isoformat() if service.created_at else "",
+                    "approve_id": str(case.approve_id),
+                    "case_id": str(case.id),
+                    "author": actor,
+                }
+            )
+
+    # Attach title_named for case-linked events (secondary cases).
+    case_ids_for_names = [
+        event["case_id"]
+        for event in events
+        if event.get("case_id") and event.get("kind") in ("new_case", "message", "approved")
+    ]
+    if case_ids_for_names:
+        cases_by_id = {
+            str(case.id): case
+            for case in Case.objects.filter(id__in=case_ids_for_names).select_related("approve")
+        }
+        by_guid: dict[str, list[tuple[dict, Case, dict]]] = {}
+        for event in events:
+            case_id = event.get("case_id") or ""
+            case = cases_by_id.get(case_id)
+            if case is None or case.is_primary:
+                continue
+            guid = str(getattr(case.approve, "incoming_guid", "") or "")
+            payload = {"id": case_id, "title_named": None}
+            by_guid.setdefault(guid, []).append((event, case, payload))
+        for guid, triples in by_guid.items():
+            payloads = [t[2] for t in triples]
+            cases = [t[1] for t in triples]
+            enrich_cases_payload_title_named(payloads, cases, task_guid=guid)
+            for event, _case, payload in triples:
+                named = (payload.get("title_named") or "").strip()
+                if named:
+                    event["title_named"] = named
+
+    events.sort(
+        key=lambda item: (item.get("created_at_sort") or "", item.get("id") or ""),
+        reverse=True,
+    )
+    for event in events:
+        event.pop("created_at_sort", None)
+    return events
 
 
 def _normalized_case_owners(case: Case) -> list[str]:
