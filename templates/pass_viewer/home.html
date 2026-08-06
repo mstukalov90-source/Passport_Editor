@@ -43,6 +43,16 @@
                 <button type="submit" class="user-guide-open-btn">Сменить район</button>
             </form>
             {% endif %}
+            <button
+                type="button"
+                id="dgi-intersections-table-btn"
+                class="user-guide-open-btn"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+                aria-controls="dgi-intersections-table-modal"
+            >
+                Таблица пересечений
+            </button>
             <div class="approval-notifications-dropdown">
                 <button
                     type="button"
@@ -726,6 +736,43 @@
     </div>
 
     {{ home_notification_events|json_script:"home-notification-events" }}
+    <div
+        id="dgi-intersections-table-modal"
+        class="approval-notifications-modal dgi-intersections-table-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dgi-intersections-table-modal-title"
+        hidden
+    >
+        <div class="approval-notifications-modal__card dgi-intersections-table-modal__card">
+            <div class="approval-notifications-modal__header">
+                <div>
+                    <h3 id="dgi-intersections-table-modal-title">Таблица пересечений</h3>
+                    <p id="dgi-intersections-table-meta" class="note dgi-intersections-table-meta" hidden></p>
+                </div>
+                <button type="button" id="dgi-intersections-table-close-btn" class="approval-notifications-modal__close" aria-label="Закрыть">&#10005;</button>
+            </div>
+            <div class="approval-notifications-modal__body dgi-intersections-table-modal__body">
+                <p id="dgi-intersections-table-status" class="note dgi-intersections-table-status">Загрузка…</p>
+                <div class="dgi-intersections-table-wrap" hidden>
+                    <table class="dgi-intersections-summary-table" aria-describedby="dgi-intersections-table-modal-title">
+                        <thead>
+                            <tr>
+                                <th>Тип</th>
+                                <th>Источник</th>
+                                <th>№</th>
+                                <th>Название</th>
+                                <th>Суммарное пересечение</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="dgi-intersections-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div
         id="approval-notifications-modal"
         class="approval-notifications-modal"

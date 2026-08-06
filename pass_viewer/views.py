@@ -4965,6 +4965,35 @@ def home(request):
 
 
 @login_required
+@require_GET
+def list_dgi_intersections(request):
+    """Return stored DGI intersection snapshot rows for the current user scope."""
+    from .dgi_intersection_batch import list_dgi_intersection_results_for_scope
+
+    scope = resolve_user_scope(request.user.username)
+    has_sup_hood = bool((request.session.get(SUP_HOOD_SESSION_GID) or "").strip())
+    try:
+        rows = list_dgi_intersection_results_for_scope(scope, has_sup_hood=has_sup_hood)
+    except Exception:
+        logger.exception("list_dgi_intersections failed")
+        return JsonResponse(
+            {"ok": False, "error": "Не удалось загрузить таблицу пересечений."},
+            status=500,
+        )
+
+    calculated_at = ""
+    if rows:
+        calculated_at = rows[0].get("calculated_at") or ""
+    return JsonResponse(
+        {
+            "ok": True,
+            "calculated_at": calculated_at,
+            "rows": rows,
+        }
+    )
+
+
+@login_required
 @require_POST
 def select_sup_hood(request):
     scope = resolve_user_scope(request.user.username)

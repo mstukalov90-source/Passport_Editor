@@ -91,6 +91,7 @@ PAGE_HEADERS: dict[str, str] = {
         + _HEADER_SUFFIX_COMMON
         + "    const formatAdjacentRelationsSearchStatus = PV.formatAdjacentRelationsSearchStatus.bind(PV);\n"
         + "    const filterPassportOnlyGeoJson = PV.filterPassportOnlyGeoJson.bind(PV);\n"
+        + "    const PdfExport = PV.PdfExport;\n"
         + "    const mps = PV.multipolygonSave || {};\n\n"
     ),
 }

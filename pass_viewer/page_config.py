@@ -82,6 +82,7 @@ def home_page_config(
             "exportRecap": reverse("export_recap_geometry"),
             "deleteRecap": reverse("delete_recap_object"),
             "checkDgi": reverse("check_dgi_intersections"),
+            "listDgiIntersections": reverse("list_dgi_intersections"),
             "resolveAsuOdsUrl": reverse("resolve_asu_ods_url"),
             "openOwned": reverse("open_owned_object"),
             "selectSupHood": reverse("select_sup_hood"),
@@ -186,7 +187,7 @@ def add_recap_page_config(
         selectedRootid=selected_rootid or "",
         selectedRowCtid=selected_row_ctid or "",
         initialRecapId=initial_recap_id or "",
-        features={"pdf": False, "selectedGeometry": True},
+        features={"pdf": True, "selectedGeometry": True},
     )
 
 
