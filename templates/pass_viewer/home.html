@@ -52,7 +52,7 @@
                     aria-expanded="false"
                     aria-controls="approval-notifications-modal"
                 >
-                    Уведомления{% if pending_approval_count %}<span class="approval-notifications-badge">{{ pending_approval_count }}</span>{% endif %}
+                    Уведомления
                 </button>
             </div>
             <button type="button" id="user-guide-open-btn" class="user-guide-open-btn">Инструкция пользования</button>
@@ -725,6 +725,7 @@
         </div>
     </div>
 
+    {{ home_notification_events|json_script:"home-notification-events" }}
     <div
         id="approval-notifications-modal"
         class="approval-notifications-modal"
@@ -732,7 +733,6 @@
         aria-modal="true"
         aria-labelledby="approval-notifications-modal-title"
         hidden
-        data-pending-approval-count="{{ pending_approval_count|default:0 }}"
     >
         <div class="approval-notifications-modal__card">
             <div class="approval-notifications-modal__header">
@@ -752,115 +752,27 @@
                 </div>
             </div>
             <div class="approval-notifications-modal__body">
-                <section class="approval-notifications-section" aria-labelledby="approval-notifications-taskguid-title">
-                    <h4 id="approval-notifications-taskguid-title" class="approval-notifications-panel__header">Согласования по вашим заявкам</h4>
-                    {% if home_notifications.approve_groups %}
-                        {% for group in home_notifications.approve_groups %}
-                            <div class="approval-notifications-group">
-                                <div class="approval-notifications-group__heading">
-                                    <div class="approval-notifications-group__title">{{ group.approve.label }}</div>
-                                    <button
-                                        type="button"
-                                        class="approval-notifications-group__toggle"
-                                        aria-expanded="true"
-                                        title="Свернуть список событий"
-                                    >▾</button>
-                                </div>
-                                <ul class="approval-notifications-list">
-                                    {% for case in group.cases %}
-                                        <li>
-                                            <div
-                                                class="approval-notifications-case"
-                                                data-approve-id="{{ case.approve_id }}"
-                                                data-case-id="{{ case.id }}"
-                                                data-title-numbers="{{ case.display_title }}"
-                                                data-title-names="{{ case.display_title_named|default:case.display_title }}"
-                                                role="button"
-                                                tabindex="0"
-                                            >
-                                                <div class="approval-notifications-case__main">
-                                                    <span class="approval-notifications-item__title">{{ case.display_title }}</span>
-                                                    <span class="approval-notifications-case__meta">
-                                                        Дата создания: {{ case.created_at_date|default:"—" }}
-                                                        · Статус: {{ case.status }}
-                                                        {% if case.last_message_author %}
-                                                            · От кого последнее сообщение: {{ case.last_message_author }}
-                                                        {% endif %}
-                                                        {% if case.approve_until %}
-                                                            · Согласовать до: {{ case.approve_until }}
-                                                        {% endif %}
-                                                    </span>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    class="approval-notifications-chat-btn"
-                                                    data-approve-id="{{ case.approve_id }}"
-                                                    data-case-id="{{ case.id }}"
-                                                    data-case-title="{{ case.display_title }}"
-                                                    data-title-numbers="{{ case.display_title }}"
-                                                    data-title-names="{{ case.display_title_named|default:case.display_title }}"
-                                                >Чат</button>
-                                            </div>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <p class="approval-notifications-empty">Нет согласований в работе</p>
-                    {% endif %}
+                <section
+                    id="approval-notifications-approvals-section"
+                    class="approval-notifications-section"
+                    hidden
+                    aria-labelledby="approval-notifications-approvals-title"
+                >
+                    <h4 id="approval-notifications-approvals-title" class="approval-notifications-panel__header">Согласования</h4>
+                    <ul id="approval-notifications-feed" class="approval-notifications-list"></ul>
                 </section>
 
-                <section class="approval-notifications-section" aria-labelledby="approval-notifications-nroot-title">
-                    <h4 id="approval-notifications-nroot-title" class="approval-notifications-panel__header">События по вашим паспортам</h4>
-                    {% if home_notifications.n_root_cases %}
-                        <ul class="approval-notifications-list">
-                            {% for case in home_notifications.n_root_cases %}
-                                <li>
-                                    <div
-                                        class="approval-notifications-case"
-                                        data-approve-id="{{ case.approve_id }}"
-                                        data-case-id="{{ case.id }}"
-                                        data-title-numbers="{% if case.n_root %}{{ case.display_title }} · {{ case.n_root }}{% else %}{{ case.display_title }}{% endif %}"
-                                        data-title-names="{% if case.display_title_named %}{{ case.display_title_named }}{% else %}{{ case.display_title }}{% endif %}"
-                                        role="button"
-                                        tabindex="0"
-                                    >
-                                        <div class="approval-notifications-case__main">
-                                            <span class="approval-notifications-item__title">{% if case.n_root %}{{ case.display_title }} · {{ case.n_root }}{% else %}{{ case.display_title }}{% endif %}</span>
-                                            <span class="approval-notifications-case__meta">
-                                                Дата создания: {{ case.created_at_date|default:"—" }}
-                                                · Статус: {{ case.status }}
-                                                {% if case.last_message_author %}
-                                                    · От кого последнее сообщение: {{ case.last_message_author }}
-                                                {% endif %}
-                                                {% if case.approve_until %}
-                                                    · Согласовать до: {{ case.approve_until }}
-                                                {% endif %}
-                                            </span>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            class="approval-notifications-chat-btn"
-                                            data-approve-id="{{ case.approve_id }}"
-                                            data-case-id="{{ case.id }}"
-                                            data-case-title="{{ case.display_title }}"
-                                            data-title-numbers="{% if case.n_root %}{{ case.display_title }} · {{ case.n_root }}{% else %}{{ case.display_title }}{% endif %}"
-                                            data-title-names="{% if case.display_title_named %}{{ case.display_title_named }}{% else %}{{ case.display_title }}{% endif %}"
-                                        >Чат</button>
-                                    </div>
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="approval-notifications-empty">Нет событий по паспортам</p>
-                    {% endif %}
-                </section>
-
-                <section id="approval-ods-sync-section" class="approval-notifications-section approval-ods-sync-section" hidden aria-labelledby="approval-notifications-ods-title">
-                    <h4 id="approval-notifications-ods-title" class="approval-notifications-panel__header">Уведомления по обновлению заявок из АСУ ОДС</h4>
+                <section
+                    id="approval-ods-sync-section"
+                    class="approval-notifications-section approval-ods-sync-section"
+                    hidden
+                    aria-labelledby="approval-notifications-ods-title"
+                >
+                    <h4 id="approval-notifications-ods-title" class="approval-notifications-panel__header">АСУ ОДС</h4>
                     <ul id="approval-ods-sync-list" class="approval-notifications-list"></ul>
                 </section>
+
+                <p id="approval-notifications-empty" class="approval-notifications-empty" hidden>Нет новых уведомлений</p>
             </div>
         </div>
     </div>

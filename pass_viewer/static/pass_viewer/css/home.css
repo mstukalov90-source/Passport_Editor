@@ -307,6 +307,15 @@ button.user-guide-open-btn.approval-home-link.is-open {
     font-size: 12px;
     color: #1d4ed8;
 }
+.approval-notifications-item__kind {
+    display: inline-block;
+    margin-bottom: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #64748b;
+}
 .approval-notifications-empty {
     margin: 0;
     padding: 8px 16px 14px;
@@ -316,11 +325,16 @@ button.user-guide-open-btn.approval-home-link.is-open {
 .approval-ods-sync-section {
     border-top: 1px solid #eef1f6;
 }
-.approval-ods-sync-item--ok .approval-notifications-item__status {
+.approval-ods-sync-item--ok .approval-notifications-item__status,
+.approval-ods-sync-item--ok .approval-notifications-item__kind {
     color: #15803d;
 }
-.approval-ods-sync-item--bad .approval-notifications-item__status {
+.approval-ods-sync-item--bad .approval-notifications-item__status,
+.approval-ods-sync-item--bad .approval-notifications-item__kind {
     color: #b91c1c;
+}
+.approval-ods-sync-item--new .approval-notifications-item__kind {
+    color: #1d4ed8;
 }
 .approval-notifications-badge {
     display: inline-flex;
