@@ -13,9 +13,11 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib.gis.geos import GEOSGeometry
 from django.db import transaction
-from django.db.models import Count, Prefetch
+from django.db.models import Count, Prefetch, Q
 from django.db.models.functions import Lower
 from django.utils import timezone
+
+from pass_viewer.roles import resolve_user_scope, sees_all_approvals
 
 from .access import (
     get_accessible_approves,
@@ -572,6 +574,40 @@ def build_home_notifications(
 NOTIFICATION_LOOKBACK_DAYS = 30
 
 
+def _notification_mine_approves_qs(login: str):
+    """Approves personally assigned to login or with login as case participant."""
+    return (
+        Approve.objects.filter(Q(user=login) | Q(cases__participant_logins__contains=[login]))
+        .distinct()
+        .order_by("-created_at")
+    )
+
+
+def _notification_mine_cases_qs(login: str):
+    """Cases on approves assigned to login or where login is a participant."""
+    return (
+        Case.objects.select_related("approve")
+        .filter(Q(approve__user=login) | Q(participant_logins__contains=[login]))
+        .distinct()
+    )
+
+
+def _notification_approves_qs(*, owner_id=None, username: str | None = None):
+    """Approves for the home notification feed (mine for global roles, else accessible)."""
+    login = (username or "").strip()
+    if login and sees_all_approvals(resolve_user_scope(login)):
+        return _notification_mine_approves_qs(login)
+    return get_accessible_approves(owner_id, username=login or None)
+
+
+def _notification_cases_qs(*, owner_id=None, username: str | None = None):
+    """Cases for the home notification feed (mine for global roles, else accessible)."""
+    login = (username or "").strip()
+    if login and sees_all_approvals(resolve_user_scope(login)):
+        return _notification_mine_cases_qs(login)
+    return get_accessible_cases_queryset(owner_id, username=login or None)
+
+
 def build_home_notification_events(
     *,
     owner_id=None,
@@ -583,27 +619,25 @@ def build_home_notification_events(
 
     Kinds: message, new_approve, new_case, approved.
     Excludes actions by the current username. Window defaults to ~30 days.
+    For roles that see all approvals (MGGT/SUP), only personal («mine»)
+    approves/cases are included so the feed is not a system-wide dump.
     """
     login = (username or "").strip()
     since = timezone.now() - timedelta(days=max(1, int(lookback_days or NOTIFICATION_LOOKBACK_DAYS)))
 
+    cases_qs = _notification_cases_qs(owner_id=owner_id, username=login or None)
     accessible_cases = list(
-        get_accessible_cases_queryset(owner_id, username=login or None)
-        .filter(created_at__gte=since)
-        .select_related("approve")
-        .order_by("-created_at")
+        cases_qs.filter(created_at__gte=since).select_related("approve").order_by("-created_at")
     )
-    # Also need older cases for messages/approvals that happened recently on older cases.
-    accessible_case_ids = list(
-        get_accessible_cases_queryset(owner_id, username=login or None).values_list("id", flat=True)
-    )
+    # Older cases still needed for recent messages / approvals on them.
+    accessible_case_ids = list(cases_qs.values_list("id", flat=True))
     accessible_case_id_set = {str(cid) for cid in accessible_case_ids}
 
     events: list[dict] = []
 
     # New approves
     open_approves = list(
-        get_accessible_approves(owner_id, username=login or None)
+        _notification_approves_qs(owner_id=owner_id, username=login or None)
         .filter(created_at__gte=since)
         .order_by("-created_at")
     )

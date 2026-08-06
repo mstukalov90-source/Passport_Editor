@@ -978,6 +978,6 @@
         </div>
     </div>
 
-    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" data-ods-source-label="{{ ods_request_source_label|default:'ОДС'|escape }}" data-owner-id="{{ owner_id|default:''|escape }}" data-user-role="{{ user_role|default:'BD'|escape }}" data-can-write="{% if can_write %}1{% else %}0{% endif %}" data-show-passports-tab="{% if show_passports_tab %}1{% else %}0{% endif %}" data-show-approvals-mine-all="{% if show_approvals_mine_all_filter %}1{% else %}0{% endif %}" data-need-sup-hood="{% if need_sup_hood_modal %}1{% else %}0{% endif %}" hidden></div>
+    <div id="home-bootstrap-data" data-need-entry-request-id="{% if need_entry_request_id %}1{% else %}0{% endif %}" data-ods-source-label="{{ ods_request_source_label|default:'ОДС'|escape }}" data-owner-id="{{ owner_id|default:''|escape }}" data-username="{{ request.user.username|default:''|escape }}" data-user-role="{{ user_role|default:'BD'|escape }}" data-can-write="{% if can_write %}1{% else %}0{% endif %}" data-show-passports-tab="{% if show_passports_tab %}1{% else %}0{% endif %}" data-show-approvals-mine-all="{% if show_approvals_mine_all_filter %}1{% else %}0{% endif %}" data-need-sup-hood="{% if need_sup_hood_modal %}1{% else %}0{% endif %}" hidden></div>
 
 {% endblock %}

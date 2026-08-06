@@ -183,3 +183,94 @@ def test_build_home_notification_events_respects_lookback(
     )
     assert all(item["id"] != f"case:{secondary.id}" for item in events)
     assert all(not item["id"].startswith("msg:") for item in events if "Старое" in (item.get("subtitle") or ""))
+
+
+@pytest.mark.django_db
+@patch(
+    "approval.events_service.lookup_task_poly_meta",
+    return_value={"source_label": "", "object_name": "", "table": ""},
+)
+@patch(
+    "approval.events_service.batch_lookup_task_poly_meta",
+    return_value={},
+)
+@patch(
+    "approval.events_service.lookup_task_survey_fields",
+    return_value=("", ""),
+)
+@patch(
+    "approval.events_service.resolve_root_object_names",
+    return_value={},
+)
+def test_build_home_notification_events_mggt_only_mine(
+    _mock_roots, _mock_survey, _mock_batch, _mock_poly
+):
+    mggt = ExternalUser.objects.create(
+        login="mggt_inspector",
+        password="pass",
+        owner_legal_person_id=None,
+        role="MGGT",
+    )
+    mine = Approve.objects.create(
+        incoming_guid=uuid.uuid4(),
+        owners=["OWNER_X"],
+        user=mggt.login,
+        name="Моё согласование MGGT",
+    )
+    mine_case = Case.objects.create(
+        approve=mine,
+        is_primary=False,
+        title="Моё событие",
+        owners=["OWNER_X"],
+        n_root="MINE-1",
+    )
+    foreign_msg = CaseMessage.objects.create(
+        case=mine_case,
+        author_login="owner_bd",
+        body="Сообщение BD",
+    )
+    CaseMessage.objects.create(
+        case=mine_case,
+        author_login=mggt.login,
+        body="Своё сообщение MGGT",
+    )
+    mine_svc = CaseServiceEvent.objects.create(
+        case=mine_case,
+        actor_login="owner_bd",
+        kind=CaseServiceEvent.KIND_APPROVED,
+    )
+
+    other = Approve.objects.create(
+        incoming_guid=uuid.uuid4(),
+        owners=["OWNER_Y"],
+        user="other_inspector",
+        name="Чужое согласование",
+    )
+    other_case = Case.objects.create(
+        approve=other,
+        is_primary=False,
+        title="Чужое событие",
+        owners=["OWNER_Y"],
+        n_root="OTHER-1",
+    )
+    CaseMessage.objects.create(
+        case=other_case,
+        author_login="someone",
+        body="Не должно попасть к MGGT",
+    )
+
+    events = build_home_notification_events(username=mggt.login)
+    by_id = {item["id"]: item for item in events}
+
+    assert f"case:{mine_case.id}" in by_id
+    assert f"msg:{foreign_msg.id}" in by_id
+    assert f"svc:{mine_svc.id}" in by_id
+    # Assigned approve is created by this MGGT user — own new_approve is skipped.
+    assert f"approve:{mine.id}" not in by_id
+
+    assert f"approve:{other.id}" not in by_id
+    assert f"case:{other_case.id}" not in by_id
+    assert all(
+        item.get("case_id") != str(other_case.id) for item in events if item.get("case_id")
+    )
+    assert all(item.get("author") != mggt.login for item in events if item["kind"] == "message")

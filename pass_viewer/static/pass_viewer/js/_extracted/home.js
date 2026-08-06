@@ -73,6 +73,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             homeBootstrapEl && homeBootstrapEl.dataset.needEntryRequestId === '1';
         const odsSourceLabelNorm = (homeBootstrapEl?.dataset.odsSourceLabel || 'ОДС').trim().toUpperCase();
         const homeOwnerIdNorm = (homeBootstrapEl?.dataset.ownerId || '').trim();
+        const homeUsernameNorm = (homeBootstrapEl?.dataset.username || '').trim();
         const homeUserRole = (homeBootstrapEl?.dataset.userRole || 'BD').trim().toUpperCase();
         const homeCanWrite = homeBootstrapEl?.dataset.canWrite !== '0';
         const homeShowPassportsTab = homeBootstrapEl?.dataset.showPassportsTab !== '0';
@@ -88,6 +89,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         }
 
         function getHomeNotificationsSeenStorageKey() {
+            if (homeUsernameNorm) {
+                return `home_notifications_seen:${homeUsernameNorm}`;
+            }
             return homeOwnerIdNorm
                 ? `home_notifications_seen:${homeOwnerIdNorm}`
                 : 'home_notifications_seen';
