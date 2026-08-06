@@ -30,6 +30,12 @@ REQUIRED_SYMBOLS = [
     "cfg.urls.listOwnedRecaps",
     "cfg.urls.exportRecap",
     "cfg.urls.deleteRecap",
+    "cfg.urls.listDgiIntersections",
+    "function loadDgiIntersectionsTable",
+    "function openDgiIntersectionDetail",
+    "dgi-intersections-table-btn",
+    "check-dgi-view-object-btn",
+    "setCheckDgiViewObjectProps",
     ".owned-recaps-open-btn",
 ]
 

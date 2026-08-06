@@ -64,3 +64,24 @@ def test_add_recap_js_auto_remove_uses_recap_page_without_selected_exclusion() -
     assert 'page: cfg.page || "add_recap"' in auto_remove_block
     assert "selected_geometry:" not in auto_remove_block
     assert "selected_request_id:" not in auto_remove_block
+
+
+def test_add_recap_js_supports_pdf_export_for_dossier() -> None:
+    source = ADD_RECAP_JS.read_text(encoding="utf-8")
+    required = [
+        "const PdfExport = PV.PdfExport",
+        'data-export-pdf-link="1"',
+        "async function runPdfExportDownload",
+        "function bindPdfExportLink",
+        "async function fetchPdfExportData",
+        "async function captureMapCanvasForPdf",
+        "lastPdfExportContext",
+    ]
+    missing = [symbol for symbol in required if symbol not in source]
+    assert not missing, f"add-recap.js is missing PDF export: {missing}"
+
+    save_block = source.split("async function saveDossier()", 1)[1]
+    save_block = save_block.split("saveModalCancel.addEventListener", 1)[0]
+    assert 'data-export-pdf-link="1"' in save_block
+    assert "bindPdfExportLink()" in save_block
+    assert "passportNo: selectedRootid" in save_block

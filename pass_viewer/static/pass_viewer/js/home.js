@@ -555,6 +555,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const checkDgiModalBody = document.getElementById('check-dgi-modal-body');
         const checkDgiModalClose = document.getElementById('check-dgi-modal-close');
         const checkDgiAsuOdsLink = document.getElementById('check-dgi-asu-ods-link');
+        const checkDgiViewObjectBtn = document.getElementById('check-dgi-view-object-btn');
+        let checkDgiViewObjectProps = null;
         const checkDgiUrl = (cfg.urls && cfg.urls.checkDgi) || '';
         const openOwnedUrl = (cfg.urls && cfg.urls.openOwned) || '';
         const viewObjectModal = document.getElementById('owned-view-object-modal');
@@ -722,11 +724,37 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             checkDgiAsuOdsLink.style.display = '';
         }
 
+        function setCheckDgiViewObjectProps(props) {
+            const rootid = String((props && props.rootid) || '').trim();
+            const requestId = String((props && props.request_id) || '').trim();
+            const name = String((props && props.name) || '').trim();
+            const sourceLabel = String(
+                (props && (props.source_label || props.source)) || ''
+            ).trim();
+            if (!rootid && !requestId && !name) {
+                checkDgiViewObjectProps = null;
+                if (checkDgiViewObjectBtn) {
+                    checkDgiViewObjectBtn.style.display = 'none';
+                }
+                return;
+            }
+            checkDgiViewObjectProps = {
+                rootid,
+                request_id: requestId,
+                name,
+                source_label: sourceLabel || 'ДТ',
+            };
+            if (checkDgiViewObjectBtn) {
+                checkDgiViewObjectBtn.style.display = '';
+            }
+        }
+
         function closeCheckDgiModal() {
             if (checkDgiModal) {
                 checkDgiModal.style.display = 'none';
             }
             setCheckDgiAsuOdsLink(null);
+            setCheckDgiViewObjectProps(null);
         }
 
         function openCheckDgiModalShell(bodyText) {
@@ -736,6 +764,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (bodyText != null) {
                 checkDgiModalBody.textContent = bodyText;
                 setCheckDgiAsuOdsLink(null);
+                setCheckDgiViewObjectProps(null);
             }
             checkDgiModal.style.display = 'flex';
         }
@@ -750,6 +779,12 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 checkDgiModalBody.textContent = 'Пересечений с объектами ДГИ и инфоресурсами не обнаружено.';
             }
             setCheckDgiAsuOdsLink(data && data.asu_ods_url);
+            // Map popup DGI check has no stored list row — hide view button unless props set earlier.
+            if (!(data && data.view_object)) {
+                setCheckDgiViewObjectProps(null);
+            } else {
+                setCheckDgiViewObjectProps(data.view_object);
+            }
             openCheckDgiModalShell();
         }
 
@@ -916,6 +951,21 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 event.preventDefault();
                 event.stopPropagation();
                 closeCheckDgiModal();
+            });
+        }
+        if (checkDgiViewObjectBtn) {
+            checkDgiViewObjectBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const props = checkDgiViewObjectProps;
+                if (!props) {
+                    return;
+                }
+                closeCheckDgiModal();
+                if (typeof setDgiIntersectionsTableOpen === 'function') {
+                    setDgiIntersectionsTableOpen(false);
+                }
+                void openOwnedObjectForView(props);
             });
         }
         // Close only via OK — backdrop click closes the same gesture that opened the modal.
@@ -2773,6 +2823,16 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const userGuideModal = document.getElementById('user-guide-modal');
         const userGuideOpenBtn = document.getElementById('user-guide-open-btn');
         const userGuideCloseBtn = document.getElementById('user-guide-close-btn');
+        const dgiIntersectionsTableBtn = document.getElementById('dgi-intersections-table-btn');
+        const dgiIntersectionsTableModal = document.getElementById('dgi-intersections-table-modal');
+        const dgiIntersectionsTableCloseBtn = document.getElementById('dgi-intersections-table-close-btn');
+        const dgiIntersectionsTableStatus = document.getElementById('dgi-intersections-table-status');
+        const dgiIntersectionsTableMeta = document.getElementById('dgi-intersections-table-meta');
+        const dgiIntersectionsTableWrap = document.querySelector('.dgi-intersections-table-wrap');
+        const dgiIntersectionsTableBody = document.getElementById('dgi-intersections-table-body');
+        const listDgiIntersectionsUrl = (cfg.urls && cfg.urls.listDgiIntersections) || '';
+        let dgiIntersectionsPreviousOverflow = '';
+        let dgiIntersectionsRowsById = new Map();
         const approvalNotificationsBtn = document.getElementById('approval-notifications-btn');
         const approvalNotificationsModal = document.getElementById('approval-notifications-modal');
         const approvalNotificationsCloseBtn = document.getElementById('approval-notifications-close-btn');
@@ -2785,6 +2845,215 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const approvalNotificationsTitleModeInput = document.getElementById('approval-notifications-title-mode');
         let userGuidePreviousOverflow = '';
         let notificationsPreviousOverflow = '';
+
+        function dgiPctClass(value) {
+            const n = Number(value);
+            if (!Number.isFinite(n) || n === 0) {
+                return 'dgi-pct--ok';
+            }
+            if (n <= 10) {
+                return 'dgi-pct--warn';
+            }
+            return 'dgi-pct--danger';
+        }
+
+        function formatDgiPct(value) {
+            const n = Math.round(Number(value) * 100) / 100;
+            if (!Number.isFinite(n) || n === 0) {
+                return '0';
+            }
+            return String(n);
+        }
+
+        function formatDgiCalculatedAt(iso) {
+            const raw = String(iso || '').trim();
+            if (!raw) {
+                return '';
+            }
+            const dt = new Date(raw);
+            if (Number.isNaN(dt.getTime())) {
+                return raw;
+            }
+            try {
+                return dt.toLocaleString('ru-RU', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                });
+            } catch (e) {
+                return raw;
+            }
+        }
+
+        function setDgiIntersectionsTableOpen(open) {
+            if (!dgiIntersectionsTableModal) {
+                return;
+            }
+            if (open) {
+                dgiIntersectionsPreviousOverflow = document.body.style.overflow;
+                document.body.style.overflow = 'hidden';
+                dgiIntersectionsTableModal.hidden = false;
+                if (dgiIntersectionsTableBtn) {
+                    dgiIntersectionsTableBtn.setAttribute('aria-expanded', 'true');
+                }
+            } else {
+                dgiIntersectionsTableModal.hidden = true;
+                document.body.style.overflow = dgiIntersectionsPreviousOverflow || '';
+                if (dgiIntersectionsTableBtn) {
+                    dgiIntersectionsTableBtn.setAttribute('aria-expanded', 'false');
+                }
+            }
+        }
+
+        function renderDgiIntersectionsRows(rows) {
+            if (!dgiIntersectionsTableBody) {
+                return;
+            }
+            dgiIntersectionsRowsById = new Map();
+            const frag = document.createDocumentFragment();
+            (rows || []).forEach((row) => {
+                const id = String(row.id ?? '');
+                dgiIntersectionsRowsById.set(id, row);
+                const kindLabel = row.object_kind === 'request' ? 'Заявка' : 'Паспорт';
+                const numberLabel = row.object_kind === 'request'
+                    ? (row.request_id || '—')
+                    : (row.rootid || '—');
+                const tr = document.createElement('tr');
+                const pct = formatDgiPct(row.pct_sum);
+                const pctClass = dgiPctClass(row.pct_sum);
+                tr.innerHTML =
+                    `<td>${escapeHtml(kindLabel)}</td>` +
+                    `<td>${escapeHtml(row.source_label || '')}</td>` +
+                    `<td>${escapeHtml(numberLabel)}</td>` +
+                    `<td>${escapeHtml(row.name || '')}</td>` +
+                    `<td class="dgi-pct ${pctClass}">${escapeHtml(pct)}%</td>` +
+                    `<td><button type="button" class="dgi-intersections-detail-btn" data-row-id="${escapeHtml(id)}">Подробнее</button></td>`;
+                frag.appendChild(tr);
+            });
+            dgiIntersectionsTableBody.innerHTML = '';
+            dgiIntersectionsTableBody.appendChild(frag);
+        }
+
+        async function loadDgiIntersectionsTable() {
+            if (!dgiIntersectionsTableStatus) {
+                return;
+            }
+            if (!listDgiIntersectionsUrl) {
+                dgiIntersectionsTableStatus.hidden = false;
+                dgiIntersectionsTableStatus.textContent = 'URL таблицы пересечений не настроен.';
+                if (dgiIntersectionsTableWrap) {
+                    dgiIntersectionsTableWrap.hidden = true;
+                }
+                return;
+            }
+            dgiIntersectionsTableStatus.hidden = false;
+            dgiIntersectionsTableStatus.textContent = 'Загрузка…';
+            if (dgiIntersectionsTableWrap) {
+                dgiIntersectionsTableWrap.hidden = true;
+            }
+            if (dgiIntersectionsTableMeta) {
+                dgiIntersectionsTableMeta.hidden = true;
+                dgiIntersectionsTableMeta.textContent = '';
+            }
+            try {
+                const response = await fetch(listDgiIntersectionsUrl, {
+                    method: 'GET',
+                    headers: { Accept: 'application/json' },
+                });
+                const data = typeof PV.parseJsonResponse === 'function'
+                    ? await PV.parseJsonResponse(response)
+                    : await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Не удалось загрузить таблицу пересечений.');
+                }
+                const rows = Array.isArray(data.rows) ? data.rows : [];
+                renderDgiIntersectionsRows(rows);
+                const calculatedLabel = formatDgiCalculatedAt(data.calculated_at);
+                if (dgiIntersectionsTableMeta) {
+                    if (calculatedLabel) {
+                        dgiIntersectionsTableMeta.textContent = `Данные на ${calculatedLabel}`;
+                        dgiIntersectionsTableMeta.hidden = false;
+                    } else {
+                        dgiIntersectionsTableMeta.hidden = true;
+                    }
+                }
+                if (!rows.length) {
+                    dgiIntersectionsTableStatus.textContent = 'Нет сохранённых результатов пересечений.';
+                    dgiIntersectionsTableStatus.hidden = false;
+                    if (dgiIntersectionsTableWrap) {
+                        dgiIntersectionsTableWrap.hidden = true;
+                    }
+                } else {
+                    dgiIntersectionsTableStatus.hidden = true;
+                    if (dgiIntersectionsTableWrap) {
+                        dgiIntersectionsTableWrap.hidden = false;
+                    }
+                }
+            } catch (error) {
+                dgiIntersectionsTableStatus.hidden = false;
+                dgiIntersectionsTableStatus.textContent =
+                    error.message || 'Не удалось загрузить таблицу пересечений.';
+                if (dgiIntersectionsTableWrap) {
+                    dgiIntersectionsTableWrap.hidden = true;
+                }
+            }
+        }
+
+        function openDgiIntersectionDetail(rowId) {
+            const row = dgiIntersectionsRowsById.get(String(rowId || ''));
+            if (!row || !checkDgiModal || !checkDgiModalBody) {
+                return;
+            }
+            const modalData = row.modal || {
+                intersects: true,
+                percent_moscow_rent: row.pct_moscow_rent,
+                percent_moscow_no_rent: row.pct_moscow_no_rent,
+                percent_private_rent: row.pct_private_rent,
+                percent_private_no_rent: row.pct_private_no_rent,
+                percent_renew: row.pct_renew,
+                percent_oozt: row.pct_oozt,
+                percent_rzd: row.pct_rzd,
+            };
+            checkDgiModalBody.innerHTML = PV.buildCheckDgiModalHtml(modalData);
+            setCheckDgiAsuOdsLink(null);
+            setCheckDgiViewObjectProps({
+                rootid: row.rootid || '',
+                request_id: row.request_id || '',
+                name: row.name || '',
+                source_label: row.source_label || 'ДТ',
+            });
+            checkDgiModal.style.display = 'flex';
+        }
+
+        if (dgiIntersectionsTableBtn && dgiIntersectionsTableModal) {
+            dgiIntersectionsTableBtn.addEventListener('click', () => {
+                setDgiIntersectionsTableOpen(true);
+                void loadDgiIntersectionsTable();
+            });
+        }
+        if (dgiIntersectionsTableCloseBtn) {
+            dgiIntersectionsTableCloseBtn.addEventListener('click', () => {
+                setDgiIntersectionsTableOpen(false);
+            });
+        }
+        if (dgiIntersectionsTableModal) {
+            dgiIntersectionsTableModal.addEventListener('click', (event) => {
+                if (event.target === dgiIntersectionsTableModal) {
+                    setDgiIntersectionsTableOpen(false);
+                }
+            });
+        }
+        if (dgiIntersectionsTableBody) {
+            dgiIntersectionsTableBody.addEventListener('click', (event) => {
+                const btn = event.target.closest('.dgi-intersections-detail-btn');
+                if (!btn) {
+                    return;
+                }
+                openDgiIntersectionDetail(btn.dataset.rowId);
+            });
+        }
 
         function getNotificationsTitleModeStorageKey() {
             return homeOwnerIdNorm
@@ -3091,6 +3360,10 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (approvalChatPreviewModal && !approvalChatPreviewModal.hidden) {
                 setApprovalChatPreviewOpen(false);
+                return;
+            }
+            if (dgiIntersectionsTableModal && !dgiIntersectionsTableModal.hidden) {
+                setDgiIntersectionsTableOpen(false);
                 return;
             }
             if (approvalNotificationsModal && !approvalNotificationsModal.hidden) {

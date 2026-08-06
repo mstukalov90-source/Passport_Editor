@@ -324,6 +324,15 @@ python manage.py sync_geodb_from_mggt --dry-run
 python manage.py sync_geodb_from_mggt --table dgi
 ```
 
+После успешного sync обёртка [`scripts/sync_geodb_from_mggt_daily.sh`](scripts/sync_geodb_from_mggt_daily.sh) запускает пересчёт таблицы пересечений ДГИ:
+
+```bash
+python manage.py compute_dgi_intersections
+python manage.py compute_dgi_intersections --limit 20   # отладка
+```
+
+Результат пишется в `public.dgi_intersection_results` (полная замена снимка). На home кнопка «Таблица пересечений» читает этот снимок через `GET /owned/dgi-intersections/`.
+
 **Cron на хосте** (`crontab -e` у `root`):
 
 ```cron

@@ -96,6 +96,46 @@ python manage.py import_seed_from_files --table ods_request
 Большие GeoJSON (сотни МБ–ГБ) читаются потоково; полный импорт может занять десятки минут.
 Миграции для загрузки не нужны — только существующие таблицы в PostGIS.
 
+## Роли пользователей
+
+Роль задаётся в таблице `users` (`ExternalUser.role`). Логика scope: [`pass_viewer/roles.py`](pass_viewer/roles.py); доступ к согласованиям: [`approval/access.py`](approval/access.py).
+
+| Роль | Объекты / заявки на home | ОДС | Согласования | Запись |
+|------|--------------------------|-----|--------------|--------|
+| **BD** | `OwnerLegalPersonId` пользователя | да | свои (`cases.owners` содержит ID) | да |
+| **MGGT** | все заявки сайта (с `request_id`, без `rootid`); паспорта скрыты | нет | все; фильтр «Мои/Все»; глобальный инспектор | да |
+| **DEP** | `DepartmentLegalPersonId = OwnerLegalPersonId` пользователя | да | как у BD | да |
+| **DEP+** | `OwnerLegalPersonId IN (список)` | да (объединение по всем ID) | любой ID из списка ∈ `cases.owners` | да |
+| **SUP** | паспорта в выбранном районе `hood` + все заявки сайта | нет | все, только просмотр | нет |
+
+Поля в `users`, связанные с ролями:
+
+| Поле | Колонка БД | Назначение |
+|------|------------|------------|
+| `role` | `role` | `BD` / `MGGT` / `DEP` / `DEP+` / `SUP` (по умолчанию `BD`) |
+| `owner_legal_person_id` | `OwnerLegalPersonId` | один ID для BD / DEP (и fallback) |
+| `owner_legal_person_ids` | `OwnerLegalPersonIds` | массив ID для **DEP+** (источник правды) |
+| `display_name` | `display_name` | заголовок home (`h2`) только для **DEP+** |
+| `hood_scope` | `hood_scope` | пространственный фильтр по районам (для BD и др.) |
+
+**SUP** при входе выбирает район (`hood.gid`); без выбора список объектов пуст.  
+**DEP+**: для home лимит выборки GIS выше обычных 500/таблица (до 10000), иначе при многих ID список обрезается.
+
+Назначить роль локально (пример DEP+):
+
+```bash
+python manage.py shell -c "
+from pass_viewer.models import ExternalUser
+u = ExternalUser.objects.get(login='4')
+u.role = 'DEP+'
+u.owner_legal_person_ids = ['9000022', '10231426']  # …
+u.display_name = 'Префектура ЦАО'
+u.save()
+"
+```
+
+Тесты: [`tests/test_user_roles.py`](tests/test_user_roles.py).
+
 ## Проверки качества
 
 ```bash
@@ -171,6 +211,7 @@ gh run watch
 | Путь | Назначение |
 |------|------------|
 | [tests/test_auth_smoke.py](tests/test_auth_smoke.py) | Редирект на login, вход, загрузка home |
+| [tests/test_user_roles.py](tests/test_user_roles.py) | Роли BD / MGGT / DEP / DEP+ / SUP: scope и согласования |
 | [tests/test_build_page_js.py](tests/test_build_page_js.py) | `_extracted/` и собранные `.js` в синхроне |
 | [tests/test_home_js_smoke.py](tests/test_home_js_smoke.py) | Символы home.js (фильтр ОДС, досъёмы, TOP) |
 | [tests/test_main_js_smoke.py](tests/test_main_js_smoke.py) | Символы main.js (смежные слои, auto-remove) |
