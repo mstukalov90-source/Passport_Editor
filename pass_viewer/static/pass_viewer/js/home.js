@@ -2850,7 +2850,10 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         let userGuidePreviousOverflow = '';
         let notificationsPreviousOverflow = '';
 
-        function dgiPctClass(value) {
+        function dgiPctClass(value, skipped) {
+            if (skipped) {
+                return 'dgi-pct--skipped';
+            }
             const n = Number(value);
             if (!Number.isFinite(n) || n === 0) {
                 return 'dgi-pct--ok';
@@ -2925,14 +2928,19 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     ? (row.request_id || '—')
                     : (row.rootid || '—');
                 const tr = document.createElement('tr');
+                const skipped = Boolean(row.skipped)
+                    || String(row.name || '').trim().startsWith('[пропущен:');
+                if (skipped) {
+                    tr.classList.add('dgi-intersections-row--skipped');
+                }
                 const pct = formatDgiPct(row.pct_sum);
-                const pctClass = dgiPctClass(row.pct_sum);
+                const pctClass = dgiPctClass(row.pct_sum, skipped);
                 tr.innerHTML =
                     `<td>${escapeHtml(kindLabel)}</td>` +
                     `<td>${escapeHtml(row.source_label || '')}</td>` +
                     `<td>${escapeHtml(numberLabel)}</td>` +
                     `<td>${escapeHtml(row.name || '')}</td>` +
-                    `<td class="dgi-pct ${pctClass}">${escapeHtml(pct)}%</td>` +
+                    `<td class="dgi-pct ${pctClass}">${skipped ? '—' : (escapeHtml(pct) + '%')}</td>` +
                     `<td><button type="button" class="dgi-intersections-detail-btn" data-row-id="${escapeHtml(id)}">Подробнее</button></td>`;
                 frag.appendChild(tr);
             });

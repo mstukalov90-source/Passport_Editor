@@ -19,6 +19,39 @@ logger = logging.getLogger(__name__)
 
 RESULTS_TABLE = "dgi_intersection_results"
 
+# Stored in ``name`` when percent compute fails / times out (UI paints these black).
+SKIPPED_TIMEOUT_MARKER = "[пропущен: таймаут]"
+SKIPPED_ERROR_MARKER = "[пропущен: ошибка]"
+
+
+def is_skipped_result_name(name: str | None) -> bool:
+    text = str(name or "").strip()
+    return text.startswith("[пропущен:")
+
+
+def skipped_display_name(original: str | None, *, reason: str) -> str:
+    """Prefix object name so the UI can show skipped rows in black."""
+    marker = SKIPPED_TIMEOUT_MARKER if reason == "timeout" else SKIPPED_ERROR_MARKER
+    base = str(original or "").strip()
+    if base.startswith("[пропущен:"):
+        return base
+    if base:
+        return f"{marker} {base}"
+    return marker
+
+
+def _zero_percent_fields() -> dict[str, float]:
+    return {
+        "pct_moscow_rent": 0.0,
+        "pct_private_rent": 0.0,
+        "pct_private_no_rent": 0.0,
+        "pct_sum": 0.0,
+        "pct_moscow_no_rent": 0.0,
+        "pct_renew": 0.0,
+        "pct_oozt": 0.0,
+        "pct_rzd": 0.0,
+    }
+
 
 def compute_pct_sum(
     moscow_rent: float,
@@ -267,47 +300,171 @@ def _iter_gis_objects(
     return items
 
 
-def _replace_results(rows: list[tuple[Any, ...]], *, calculated_at: datetime) -> int:
-    insert_sql = f"""
-        INSERT INTO {RESULTS_TABLE} (
-            table_name, source_label, object_kind, rootid, request_id, name,
-            owner_legal_person_id,
-            pct_moscow_rent, pct_private_rent, pct_private_no_rent, pct_sum,
-            pct_moscow_no_rent, pct_renew, pct_oozt, pct_rzd,
-            calculated_at
-        ) VALUES (
+def _is_statement_timeout_error(exc: BaseException) -> bool:
+    """True for PostgreSQL statement_timeout / QueryCanceled (incl. Django wrappers)."""
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        name = type(cur).__name__.lower()
+        if "querycanceled" in name:
+            return True
+        text = str(cur).lower()
+        if (
+            "canceling statement due to statement timeout" in text
+            or "statement timeout" in text
+            or "querycanceled" in text
+        ):
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
+
+
+def _set_statement_timeout_ms(timeout_ms: int | None) -> None:
+    with connection.cursor() as cursor:
+        if timeout_ms is None or timeout_ms <= 0:
+            cursor.execute("SET statement_timeout TO DEFAULT")
+        else:
+            cursor.execute("SET statement_timeout TO %s", [int(timeout_ms)])
+
+
+def _reset_db_connection() -> None:
+    """Recover after a cancelled / failed query so the batch can continue."""
+    try:
+        connection.rollback()
+    except Exception:
+        pass
+    try:
+        _set_statement_timeout_ms(None)
+    except Exception:
+        try:
+            connection.close()
+        except Exception:
+            pass
+
+
+def _truncate_results() -> None:
+    with connection.cursor() as cursor:
+        if not _table_exists(cursor, RESULTS_TABLE):
+            raise ValueError(
+                f'Table "{RESULTS_TABLE}" is missing; run migrations first.'
+            )
+        cursor.execute(f"TRUNCATE TABLE {RESULTS_TABLE} RESTART IDENTITY")
+
+
+def _insert_results_chunk(rows: list[tuple[Any, ...]]) -> int:
+    if not rows:
+        return 0
+    cols = (
+        "table_name, source_label, object_kind, rootid, request_id, name, "
+        "owner_legal_person_id, "
+        "pct_moscow_rent, pct_private_rent, pct_private_no_rent, pct_sum, "
+        "pct_moscow_no_rent, pct_renew, pct_oozt, pct_rzd, calculated_at"
+    )
+    insert_sql = f"INSERT INTO {RESULTS_TABLE} ({cols}) VALUES %s"
+    single_sql = f"""
+        INSERT INTO {RESULTS_TABLE} ({cols}) VALUES (
             %s, %s, %s, %s, %s, %s, %s,
             %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
     """
+    try:
+        from psycopg2.extras import execute_values
+    except ImportError:
+        execute_values = None
+
     with transaction.atomic():
         with connection.cursor() as cursor:
-            if not _table_exists(cursor, RESULTS_TABLE):
-                raise ValueError(
-                    f'Table "{RESULTS_TABLE}" is missing; run migrations first.'
-                )
-            cursor.execute(f"TRUNCATE TABLE {RESULTS_TABLE} RESTART IDENTITY")
-            for row in rows:
-                cursor.execute(insert_sql, list(row))
+            if execute_values is not None:
+                raw = getattr(cursor, "cursor", cursor)
+                execute_values(raw, insert_sql, rows, page_size=len(rows))
+            else:
+                for row in rows:
+                    cursor.execute(single_sql, list(row))
     return len(rows)
+
+
+def _obj_row_tuple(
+    obj: dict[str, Any],
+    fields: dict[str, float],
+    calculated_at: datetime,
+    *,
+    name_override: str | None = None,
+) -> tuple[Any, ...]:
+    return (
+        obj["table_name"],
+        obj["source_label"],
+        obj["object_kind"],
+        obj["rootid"],
+        obj["request_id"],
+        obj["name"] if name_override is None else name_override,
+        obj["owner_legal_person_id"],
+        fields["pct_moscow_rent"],
+        fields["pct_private_rent"],
+        fields["pct_private_no_rent"],
+        fields["pct_sum"],
+        fields["pct_moscow_no_rent"],
+        fields["pct_renew"],
+        fields["pct_oozt"],
+        fields["pct_rzd"],
+        calculated_at,
+    )
+
+
+def _compute_percents_for_object(
+    geometry: Any,
+    *,
+    timeout_ms: int,
+    compute_fn: Callable[[Any], dict[str, Any]],
+) -> dict[str, Any]:
+    """Run percent calc with PostgreSQL statement_timeout; raises on cancel/timeout."""
+    _set_statement_timeout_ms(timeout_ms)
+    try:
+        return compute_fn(geometry)
+    finally:
+        try:
+            _set_statement_timeout_ms(None)
+        except Exception:
+            connection.close()
+
+
+def _replace_results(rows: list[tuple[Any, ...]], *, calculated_at: datetime | None = None) -> int:
+    """Legacy full replace (tests / one-shot). Prefer chunked path in run_dgi_intersection_batch."""
+    _ = calculated_at
+    _truncate_results()
+    return _insert_results_chunk(rows)
 
 
 def run_dgi_intersection_batch(
     *,
     limit: int | None = None,
     rayon: str | None = None,
+    chunk_size: int = 50,
+    object_timeout_sec: float = 30.0,
     progress: Callable[[str], None] | None = None,
+    compute_fn: Callable[[Any], dict[str, Any]] | None = None,
 ) -> dict[str, int]:
     """
     Recompute DGI intersection percents and replace dgi_intersection_results.
 
+    - Truncates once, then commits inserts in chunks (``chunk_size``).
+    - Each object runs under PostgreSQL ``statement_timeout`` (``object_timeout_sec``);
+      timed-out / failed objects are skipped so the batch can continue.
+
     ``rayon`` — optional hood.rayon substring (ILIKE %rayon%).
-    Returns counts: scanned, stored, errors.
+    ``compute_fn`` — optional override for tests (defaults to views helper).
+    Returns counts: scanned, stored, errors, skipped_timeout.
     """
-    # Import here to avoid circular import at module load.
-    from pass_viewer.views import _get_dgi_intersection_percents_split
+    if compute_fn is None:
+        # Import here to avoid circular import at module load.
+        from pass_viewer.views import _get_dgi_intersection_percents_split as compute_fn
 
     log = progress or (lambda _msg: None)
+    if chunk_size < 1:
+        raise ValueError("chunk_size must be >= 1")
+    if object_timeout_sec <= 0:
+        raise ValueError("object_timeout_sec must be > 0")
+
     rayon_ilike = None
     if rayon:
         text = str(rayon).strip()
@@ -316,52 +473,83 @@ def run_dgi_intersection_batch(
             log(f"Filtering by hood.rayon ILIKE {rayon_ilike!r}")
 
     objects = _iter_gis_objects(limit=limit, rayon_ilike=rayon_ilike)
-    log(f"Loaded {len(objects)} GIS objects with geometry")
+    log(
+        f"Loaded {len(objects)} GIS objects with geometry "
+        f"(chunk_size={chunk_size}, object_timeout={object_timeout_sec}s)"
+    )
 
     calculated_at = timezone.now()
-    rows: list[tuple[Any, ...]] = []
+    timeout_ms = max(1000, int(object_timeout_sec * 1000))
+    chunk: list[tuple[Any, ...]] = []
+    stored = 0
     errors = 0
+    skipped_timeout = 0
+
+    _truncate_results()
+    log(f"Truncated {RESULTS_TABLE}")
 
     for idx, obj in enumerate(objects, start=1):
-        try:
-            percents = _get_dgi_intersection_percents_split(obj["geometry"])
-            fields = percents_dict_to_row_fields(percents)
-        except Exception:
-            errors += 1
-            logger.exception(
-                "dgi intersection batch failed for %s rootid=%s request_id=%s",
-                obj.get("table_name"),
-                obj.get("rootid"),
-                obj.get("request_id"),
-            )
-            continue
-
-        rows.append(
-            (
-                obj["table_name"],
-                obj["source_label"],
-                obj["object_kind"],
-                obj["rootid"],
-                obj["request_id"],
-                obj["name"],
-                obj["owner_legal_person_id"],
-                fields["pct_moscow_rent"],
-                fields["pct_private_rent"],
-                fields["pct_private_no_rent"],
-                fields["pct_sum"],
-                fields["pct_moscow_no_rent"],
-                fields["pct_renew"],
-                fields["pct_oozt"],
-                fields["pct_rzd"],
-                calculated_at,
-            )
+        label = (
+            f"{obj.get('table_name')} "
+            f"rootid={obj.get('rootid') or '-'} "
+            f"request_id={obj.get('request_id') or '-'}"
         )
-        if idx == 1 or idx % 50 == 0 or idx == len(objects):
-            log(f"  … computed {idx}/{len(objects)} (errors={errors})")
+        try:
+            percents = _compute_percents_for_object(
+                obj["geometry"],
+                timeout_ms=timeout_ms,
+                compute_fn=compute_fn,
+            )
+            fields = percents_dict_to_row_fields(percents)
+            chunk.append(_obj_row_tuple(obj, fields, calculated_at))
+        except Exception as exc:
+            _reset_db_connection()
+            if _is_statement_timeout_error(exc):
+                skipped_timeout += 1
+                reason = "timeout"
+                log(f"  skip timeout (stored): {label}")
+                logger.warning("dgi intersection timeout for %s", label, exc_info=True)
+            else:
+                errors += 1
+                reason = "error"
+                log(f"  skip error (stored): {label}: {exc}")
+                logger.exception("dgi intersection batch failed for %s", label)
+            chunk.append(
+                _obj_row_tuple(
+                    obj,
+                    _zero_percent_fields(),
+                    calculated_at,
+                    name_override=skipped_display_name(obj.get("name"), reason=reason),
+                )
+            )
 
-    stored = _replace_results(rows, calculated_at=calculated_at)
-    log(f"Stored {stored} rows in {RESULTS_TABLE} (errors={errors})")
-    return {"scanned": len(objects), "stored": stored, "errors": errors}
+        if len(chunk) >= chunk_size:
+            stored += _insert_results_chunk(chunk)
+            log(
+                f"  … computed {idx}/{len(objects)} stored={stored} "
+                f"errors={errors} timeouts={skipped_timeout}"
+            )
+            chunk = []
+        elif idx == 1 or idx % 50 == 0 or idx == len(objects):
+            log(
+                f"  … computed {idx}/{len(objects)} pending_chunk={len(chunk)} "
+                f"stored={stored} errors={errors} timeouts={skipped_timeout}"
+            )
+
+    if chunk:
+        stored += _insert_results_chunk(chunk)
+        log(f"  … flushed final chunk stored={stored}")
+
+    log(
+        f"Done: scanned={len(objects)} stored={stored} "
+        f"errors={errors} timeouts={skipped_timeout}"
+    )
+    return {
+        "scanned": len(objects),
+        "stored": stored,
+        "errors": errors,
+        "skipped_timeout": skipped_timeout,
+    }
 
 
 def serialize_result_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -371,6 +559,8 @@ def serialize_result_row(row: dict[str, Any]) -> dict[str, Any]:
         calculated_at_str = calculated_at.isoformat()
     else:
         calculated_at_str = str(calculated_at or "")
+    name = row.get("name") or ""
+    skipped = is_skipped_result_name(name)
     return {
         "id": row.get("id"),
         "table_name": row.get("table_name") or "",
@@ -378,7 +568,7 @@ def serialize_result_row(row: dict[str, Any]) -> dict[str, Any]:
         "object_kind": row.get("object_kind") or "",
         "rootid": row.get("rootid") or "",
         "request_id": row.get("request_id") or "",
-        "name": row.get("name") or "",
+        "name": name,
         "owner_legal_person_id": row.get("owner_legal_person_id") or "",
         "pct_moscow_rent": float(row.get("pct_moscow_rent") or 0),
         "pct_private_rent": float(row.get("pct_private_rent") or 0),
@@ -389,6 +579,7 @@ def serialize_result_row(row: dict[str, Any]) -> dict[str, Any]:
         "pct_oozt": float(row.get("pct_oozt") or 0),
         "pct_rzd": float(row.get("pct_rzd") or 0),
         "calculated_at": calculated_at_str,
+        "skipped": skipped,
         "modal": row_to_modal_payload(row),
     }
 
@@ -485,7 +676,7 @@ def _fetch_results(where_sql: str, params: list[Any]) -> list[dict[str, Any]]:
             pct_moscow_no_rent, pct_renew, pct_oozt, pct_rzd, calculated_at
         FROM {RESULTS_TABLE}
         {where_sql}
-        ORDER BY pct_sum DESC, name ASC NULLS LAST, rootid ASC NULLS LAST
+        ORDER BY (name LIKE '[пропущен:%') ASC, pct_sum DESC, name ASC NULLS LAST, rootid ASC NULLS LAST
     """
     with connection.cursor() as cursor:
         cursor.execute(query, params)

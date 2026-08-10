@@ -12,11 +12,15 @@ from django.utils import timezone as dj_timezone
 
 from pass_viewer.dgi_intersection_batch import (
     RESULTS_TABLE,
+    SKIPPED_TIMEOUT_MARKER,
+    _is_statement_timeout_error,
     compute_pct_sum,
+    is_skipped_result_name,
     list_dgi_intersection_results_for_scope,
     percents_dict_to_row_fields,
     row_to_modal_payload,
     serialize_result_row,
+    skipped_display_name,
 )
 from pass_viewer.models import ExternalUser
 from pass_viewer.roles import ROLE_BD, ROLE_MGGT, resolve_user_scope
@@ -95,7 +99,37 @@ def test_serialize_result_row_includes_modal():
     )
     assert row["pct_sum"] == 1.3
     assert row["modal"]["percent_moscow_rent"] == 1.1
+    assert row["skipped"] is False
     assert "2026-08-06" in row["calculated_at"]
+
+
+def test_skipped_display_name_and_serialize_flag():
+    assert skipped_display_name("Park", reason="timeout").startswith(SKIPPED_TIMEOUT_MARKER)
+    assert is_skipped_result_name(skipped_display_name("X", reason="error"))
+    assert not is_skipped_result_name("Park")
+    row = serialize_result_row(
+        {
+            "id": 2,
+            "table_name": "pass_objects",
+            "source_label": "ДТ",
+            "object_kind": "passport",
+            "rootid": "R2",
+            "request_id": "",
+            "name": skipped_display_name("Park", reason="error"),
+            "owner_legal_person_id": "OWNER_A",
+            "pct_moscow_rent": 0,
+            "pct_private_rent": 0,
+            "pct_private_no_rent": 0,
+            "pct_sum": 0,
+            "pct_moscow_no_rent": 0,
+            "pct_renew": 0,
+            "pct_oozt": 0,
+            "pct_rzd": 0,
+            "calculated_at": datetime(2026, 8, 6, 8, 15, tzinfo=timezone.utc),
+        }
+    )
+    assert row["skipped"] is True
+    assert "[пропущен: ошибка]" in row["name"]
 
 
 def _ensure_results_table():
@@ -266,3 +300,92 @@ def test_list_dgi_intersections_api_ok(client: Client):
     assert data["rows"][0]["pct_sum"] == 0.76
     assert "modal" in data["rows"][0]
     assert data["calculated_at"]
+
+
+def test_is_statement_timeout_error_detects_querycanceled():
+    class QueryCanceled(Exception):
+        pass
+
+    assert _is_statement_timeout_error(
+        QueryCanceled("canceling statement due to statement timeout")
+    )
+    assert _is_statement_timeout_error(
+        RuntimeError("canceling statement due to statement timeout")
+    )
+    wrapped = Exception("db failed")
+    wrapped.__cause__ = QueryCanceled("statement timeout")
+    assert _is_statement_timeout_error(wrapped)
+    assert not _is_statement_timeout_error(ValueError("bad geometry"))
+
+
+def test_run_dgi_intersection_batch_chunks_and_skips_timeout(monkeypatch):
+    from pass_viewer import dgi_intersection_batch as batch
+
+    objects = [
+        {
+            "table_name": "pass_objects",
+            "source_label": "ДТ",
+            "object_kind": "passport",
+            "rootid": f"R{i}",
+            "request_id": None,
+            "name": f"Obj {i}",
+            "owner_legal_person_id": "O1",
+            "geometry": {"type": "Polygon", "coordinates": []},
+        }
+        for i in range(1, 6)
+    ]
+    monkeypatch.setattr(batch, "_iter_gis_objects", lambda **_kw: objects)
+
+    truncate_calls = []
+    inserts: list[list] = []
+
+    monkeypatch.setattr(
+        batch,
+        "_truncate_results",
+        lambda: truncate_calls.append(1),
+    )
+    monkeypatch.setattr(
+        batch,
+        "_insert_results_chunk",
+        lambda rows: inserts.append(list(rows)) or len(rows),
+    )
+    monkeypatch.setattr(batch, "_reset_db_connection", lambda: None)
+
+    class QueryCanceled(Exception):
+        pass
+
+    def fake_compute(geometry, *, timeout_ms, compute_fn):
+        # Fail on R3 with timeout; others succeed.
+        # geometry is unused; look at call order via side channel
+        fake_compute.n += 1
+        if fake_compute.n == 3:
+            raise QueryCanceled("canceling statement due to statement timeout")
+        return {
+            "dgi_moscow_rent": 1.0,
+            "dgi_moscow_no_rent": 0,
+            "dgi_private_rent": 0,
+            "dgi_private_no_rent": 0,
+            "renew": 0,
+            "oozt": 0,
+            "rzd": 0,
+        }
+
+    fake_compute.n = 0
+    monkeypatch.setattr(batch, "_compute_percents_for_object", fake_compute)
+
+    stats = batch.run_dgi_intersection_batch(
+        chunk_size=2,
+        object_timeout_sec=5.0,
+        compute_fn=lambda _g: {},
+    )
+    assert truncate_calls == [1]
+    assert stats["scanned"] == 5
+    assert stats["skipped_timeout"] == 1
+    assert stats["errors"] == 0
+    assert stats["stored"] == 5
+    # chunks of 2,2, then final 1 (R3 stored as skipped between R2 and R4)
+    assert [len(c) for c in inserts] == [2, 2, 1]
+    skipped_names = [row[5] for chunk in inserts for row in chunk if is_skipped_result_name(row[5])]
+    assert len(skipped_names) == 1
+    assert skipped_names[0].startswith(SKIPPED_TIMEOUT_MARKER)
+    assert "Obj 3" in skipped_names[0]
