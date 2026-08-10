@@ -51,10 +51,10 @@ python manage.py runserver
 
 ### QGIS-витрина (alias `qgis`)
 
-Вторая БД в [`pass_map/settings.py`](pass_map/settings.py) — alias `qgis`, переменные `QGIS_DB_*`. Имя БД: **`mggt_asu`** на `172.21.197.51`.
+Вторая БД в [`pass_map/settings.py`](pass_map/settings.py) — alias `qgis`, переменные `QGIS_DB_*`. Имя БД: **`mggt_asu`** на `localhost`.
 
 ```text
-QGIS_DB_HOST=172.21.197.51
+QGIS_DB_HOST=localhost
 QGIS_DB_PORT=5432
 QGIS_DB_NAME=mggt_asu
 QGIS_DB_USER=mstukalov

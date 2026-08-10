@@ -24,7 +24,7 @@
 | Главная | Вкладка «Согласования», ссылка «Уведомления» с бейджем |
 | Схема БД | `approval.*` в `geodb` (контейнер `passport_db`) |
 | QGIS API | `POST http://172.21.197.77/approval/api/qgis/approves/` (только внутренний Host) |
-| Карта съёмки | Read-only запросы к `mggt_asu.work` на **172.21.197.51** |
+| Карта съёмки | Read-only запросы к `mggt_asu.work` на **localhost** |
 | Вложения чата | `media/approval/attachments/` (volume `media_data`) |
 
 **Состояние веток (на момент подготовки документа):** код модуля в **`main`** (v3.0+), на **`deploy/mggt-docker`** модуля ещё нет — перед продом нужен merge `main` → `deploy/mggt-docker`.
@@ -45,7 +45,7 @@ flowchart TB
         Geodb[(geodb approval schema)]
         Media[media_data volume]
     end
-    subgraph gis [172.21.197.51]
+    subgraph gis [localhost]
         WorkDB[(mggt_asu.work read-only)]
     end
     QGIS[QGIS desktop module]
@@ -63,10 +63,10 @@ flowchart TB
 ## Предварительные условия
 
 1. **Доступ SSH** к `pasp-ssh-user@172.21.197.77`, Docker через `sudo`.
-2. **Сеть:** контейнер `passport_web` должен достучаться до **`172.21.197.51:5432`** (PostgreSQL `mggt_asu`). При включённом firewalld на RED OS — отдельное правило для исходящего трафика к `.51` (см. [DEPLOY.md — firewalld](../DEPLOY.md#firewalld-red-os--mggt)).
+2. **Сеть:** контейнер `passport_web` должен достучаться до **`localhost:5432`** (PostgreSQL `mggt_asu`). При включённом firewalld на RED OS — отдельное правило для исходящего трафика к `localhost` (см. [DEPLOY.md — firewalld](../DEPLOY.md#firewalld-red-os--mggt)).
 3. **Пользователи** в таблице `users` (`ExternalUser`): у балансодержателей заполнен `OwnerLegalPersonId`; инспекторы — логин совпадает с полем `approval.approves.user`, заданным из QGIS.
 4. **QGIS-модуль** на рабочих местах инспекторов настроен на внутренний URL API (см. [QGIS_API.md](QGIS_API.md)).
-5. **`incoming_guid`** из QGIS совпадает с `TaskGUID` в `mggt_asu.work.*` на `.51` — иначе карта съёмки будет пустой.
+5. **`incoming_guid`** из QGIS совпадает с `TaskGUID` в `mggt_asu.work.*` на `localhost` — иначе карта съёмки будет пустой.
 
 ---
 
@@ -107,7 +107,7 @@ git push hub deploy/mggt-docker
 
 ```text
 # --- Согласование: read-only витрина съёмки (обязательно для карты) ---
-QGIS_DB_HOST=172.21.197.51
+QGIS_DB_HOST=localhost
 QGIS_DB_PORT=5432
 QGIS_DB_NAME=mggt_asu
 QGIS_DB_USER=<логин>
@@ -184,7 +184,7 @@ print('QGIS DB OK:', c.settings_dict['HOST'])
 "
 ```
 
-При ошибке `No route to host` / timeout — проверить firewalld и маршрутизацию до `172.21.197.51:5432`.
+При ошибке `No route to host` / timeout — проверить firewalld и маршрутизацию до `localhost:5432`.
 
 ---
 
@@ -311,10 +311,10 @@ DROP SCHEMA IF EXISTS approval CASCADE;
 ## Чеклист (кратко)
 
 - [ ] Merge `main` → `deploy/mggt-docker`, push в `origin` и `hub`
-- [ ] В `.env` на сервере: `QGIS_DB_*` (логин/пароль к `172.21.197.51`)
+- [ ] В `.env` на сервере: `QGIS_DB_*` (логин/пароль к `localhost`)
 - [ ] `git pull` / `reset` на сервере, `--force-recreate web`
 - [ ] Миграции `approval` применены (`\dt approval.*`)
-- [ ] Из контейнера доступен `mggt_asu` на `.51`
+- [ ] Из контейнера доступен `mggt_asu` на `localhost`
 - [ ] `curl` QGIS API: `200/400` с Host `172.21.197.77`, `403` с Host `border-ogh.mggt.ru`
 - [ ] Статика `/static/approval/...` отдаётся с `200`
 - [ ] Логин балансодержателя и инспектора — главная и `/approval/`

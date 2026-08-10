@@ -637,7 +637,7 @@
             <Option value="_____________________________________________________________a0e1ec18_0765_417c_acb5_abf17faf535f" type="QString" name="Layer"/>
             <Option value="Справочник (ДТ/ОО/ОДХ) юридических лиц балансодержателей ОГХ" type="QString" name="LayerName"/>
             <Option value="postgres" type="QString" name="LayerProviderName"/>
-            <Option value="dbname='mggt_asu' host=172.21.197.51 port=5432 user='asidorov' key='fid' checkPrimaryKeyUnicity='1' table=&quot;cls&quot;.&quot;OwnerLegalPerson&quot;" type="QString" name="LayerSource"/>
+            <Option value="dbname='mggt_asu' host=localhost port=5432 user='asidorov' key='fid' checkPrimaryKeyUnicity='1' table=&quot;cls&quot;.&quot;OwnerLegalPerson&quot;" type="QString" name="LayerSource"/>
             <Option value="1" type="int" name="NofColumns"/>
             <Option value="false" type="bool" name="OrderByDescending"/>
             <Option value="false" type="bool" name="OrderByField"/>
@@ -665,7 +665,7 @@
             <Option value="_________________________________________________________f805fc42_9e22_4ae2_ba70_5bc5861c7f8c" type="QString" name="Layer"/>
             <Option value="Справочник (ДТ/ОО/ОДХ) юридических лиц ведомственных ОИВ" type="QString" name="LayerName"/>
             <Option value="postgres" type="QString" name="LayerProviderName"/>
-            <Option value="dbname='mggt_asu' host=172.21.197.51 port=5432 user='asidorov' key='fid' checkPrimaryKeyUnicity='1' table=&quot;cls&quot;.&quot;DepartmentLegalPerson&quot;" type="QString" name="LayerSource"/>
+            <Option value="dbname='mggt_asu' host=localhost port=5432 user='asidorov' key='fid' checkPrimaryKeyUnicity='1' table=&quot;cls&quot;.&quot;DepartmentLegalPerson&quot;" type="QString" name="LayerSource"/>
             <Option value="1" type="int" name="NofColumns"/>
             <Option value="false" type="bool" name="OrderByDescending"/>
             <Option value="false" type="bool" name="OrderByField"/>

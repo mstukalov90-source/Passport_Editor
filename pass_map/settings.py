@@ -116,7 +116,7 @@ DATABASES = {
         "NAME": os.getenv("QGIS_DB_NAME", "mggt_asu"),
         "USER": os.getenv("QGIS_DB_USER", ""),
         "PASSWORD": os.getenv("QGIS_DB_PASSWORD", ""),
-        "HOST": os.getenv("QGIS_DB_HOST", "172.21.197.51"),
+        "HOST": os.getenv("QGIS_DB_HOST", "localhost"),
         "PORT": os.getenv("QGIS_DB_PORT", "5432"),
         "OPTIONS": {
             "connect_timeout": _db_connect_timeout("QGIS_DB_CONNECT_TIMEOUT"),

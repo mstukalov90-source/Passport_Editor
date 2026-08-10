@@ -327,7 +327,7 @@ postgresql://postgres:<POSTGIS_DB_PASSWORD>@127.0.0.1:5433/geodb
 
 | Параметр | Значение |
 |----------|----------|
-| Host | `172.21.197.51` |
+| Host | `localhost` |
 | Port | `5432` |
 | Database | `mggt_asu` |
 | User | `mstukalov` |
@@ -339,7 +339,7 @@ postgresql://postgres:<POSTGIS_DB_PASSWORD>@127.0.0.1:5433/geodb
 Строка подключения (пароль локально):
 
 ```
-postgresql://mstukalov:<QGIS_DB_PASSWORD>@172.21.197.51:5432/mggt_asu
+postgresql://mstukalov:<QGIS_DB_PASSWORD>@localhost:5432/mggt_asu
 ```
 
 ### 6.3. Локальная разработка (не МГГТ)
@@ -350,11 +350,11 @@ postgresql://mstukalov:<QGIS_DB_PASSWORD>@172.21.197.51:5432/mggt_asu
 
 ## 7. Связь с картой съёмки (mggt_asu)
 
-Веб-карта дополнительно подгружает объекты из БД **`mggt_asu`** (`172.21.197.51`), схема **`work`**, фильтруя по колонке **`TaskGUID`** = **`incoming_guid`** согласования в `geodb`.
+Веб-карта дополнительно подгружает объекты из БД **`mggt_asu`** (`localhost`), схема **`work`**, фильтруя по колонке **`TaskGUID`** = **`incoming_guid`** согласования в `geodb`.
 
 Поэтому:
 
-1. `incoming_guid`, который QGIS записывает в `approval.approves` на **`172.21.197.77`**, должен **совпадать** с `TaskGUID` в таблицах `work.*` на **`172.21.197.51`**.
+1. `incoming_guid`, который QGIS записывает в `approval.approves` на **`172.21.197.77`**, должен **совпадать** с `TaskGUID` в таблицах `work.*` на **`localhost`**.
 2. QGIS-модуль съёмки (`mggt_asu`) и модуль отправки согласования (`geodb`) должны использовать **один и тот же** GUID задания.
 3. Геометрию для `approval.geometry` сохраняйте в **SRID 4326**; в `work.*` геометрия может быть в SRID 980077 — при копировании используйте `ST_Transform`.
 
