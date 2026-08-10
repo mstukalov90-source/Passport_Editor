@@ -3093,7 +3093,24 @@ def _get_layer_intersection_percent(geometry, table_name, extra_where_sql: str =
             cursor.execute(query, [geometry_json] + hood_params)
             row = cursor.fetchone()
             return float(row[0]) if row and row[0] is not None else 0.0
-    except Exception:
+    except Exception as exc:
+        # Propagate statement timeouts so batch compute can skip the whole object.
+        text = str(exc).lower()
+        if (
+            "canceling statement due to statement timeout" in text
+            or "statement timeout" in text
+            or "querycanceled" in type(exc).__name__.lower()
+        ):
+            raise
+        cause = getattr(exc, "__cause__", None)
+        if cause is not None:
+            ctext = str(cause).lower()
+            if (
+                "canceling statement due to statement timeout" in ctext
+                or "statement timeout" in ctext
+                or "querycanceled" in type(cause).__name__.lower()
+            ):
+                raise
         logger.exception(
             "_get_layer_intersection_percent failed for table=%s",
             table_name,
