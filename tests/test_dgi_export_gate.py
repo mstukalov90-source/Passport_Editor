@@ -70,6 +70,7 @@ def test_check_dgi_intersections_for_export_success(client):
             "dgi_moscow_no_rent": 0.0,
             "dgi_private_rent": 0.0,
             "dgi_private_no_rent": 12.34,
+            "dgi_renovation": 0.0,
             "renew": 0.0,
             "oozt": 0.0,
             "rzd": 0.0,

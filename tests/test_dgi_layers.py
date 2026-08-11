@@ -1,13 +1,16 @@
-"""Tests for DGI sub-layer classification (moscow vs private) and rent."""
+"""Tests for DGI sub-layer classification (moscow vs private, renovation, rent)."""
 
 from pass_viewer.dgi_layers import (
     DGI_LAYER_KEYS,
     DGI_LAYER_SPECS,
     DGI_MOSCOW_MARKER_CITY,
     DGI_MOSCOW_MARKER_NO_DATA,
+    DGI_RENOVATION_MARKER,
     build_dgi_ownership_extra_sql,
+    build_dgi_renovation_extra_sql,
     build_dgi_rent_extra_sql,
     classify_dgi_ownership,
+    classify_dgi_renovation,
     normalize_dgi_aprove_payload,
 )
 
@@ -25,6 +28,14 @@ def test_classify_private():
     assert classify_dgi_ownership("Физическое лицо") == "private"
 
 
+def test_classify_dgi_renovation():
+    assert classify_dgi_renovation(DGI_RENOVATION_MARKER) is True
+    assert classify_dgi_renovation("  " + DGI_RENOVATION_MARKER.lower() + "  ") is True
+    assert classify_dgi_renovation("город Москва") is False
+    assert classify_dgi_renovation(None) is False
+    assert classify_dgi_renovation("") is False
+
+
 def test_build_sql_fragments():
     col = 't."short_sobstv_rr"'
     moscow_sql = build_dgi_ownership_extra_sql(col, "moscow")
@@ -32,6 +43,17 @@ def test_build_sql_fragments():
     assert "ILIKE" in moscow_sql
     assert DGI_MOSCOW_MARKER_CITY in moscow_sql
     assert "IS NULL" in private_sql
+
+
+def test_build_renovation_sql_fragments():
+    col = 't."zemlepol_dgi"'
+    match_sql = build_dgi_renovation_extra_sql(col, is_renovation=True)
+    exclude_sql = build_dgi_renovation_extra_sql(col, is_renovation=False)
+    assert match_sql.startswith(" AND ")
+    assert exclude_sql.startswith(" AND ")
+    assert DGI_RENOVATION_MARKER in match_sql
+    assert "NOT" in exclude_sql
+    assert "ILIKE" in match_sql
 
 
 def test_build_rent_sql_fragments():
@@ -50,6 +72,8 @@ def test_dgi_layer_specs_cover_ownership_and_rent():
     assert DGI_LAYER_SPECS["dgi_moscow_no_rent"] == {"ownership": "moscow", "with_rent": False}
     assert DGI_LAYER_SPECS["dgi_private_rent"] == {"ownership": "private", "with_rent": True}
     assert DGI_LAYER_SPECS["dgi_private_no_rent"] == {"ownership": "private", "with_rent": False}
+    assert DGI_LAYER_SPECS["dgi_renovation"] == {"kind": "renovation"}
+    assert "dgi_renovation" in DGI_LAYER_KEYS
 
 
 def test_normalize_dgi_aprove_private_over_10():

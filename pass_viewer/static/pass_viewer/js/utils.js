@@ -312,13 +312,15 @@
         const moscowNoRent = _dgiPctNumber(src.percent_moscow_no_rent);
         const privateRent = _dgiPctNumber(src.percent_private_rent);
         const privateNoRent = _dgiPctNumber(src.percent_private_no_rent);
+        const dgiRenovation = _dgiPctNumber(src.percent_dgi_renovation);
         // «З/У г. Москва без аренды» не входит в сумму и не влияет на её цвет.
-        const dgiSum = moscowRent + privateRent + privateNoRent;
+        const dgiSum = moscowRent + privateRent + privateNoRent + dgiRenovation;
 
         const rows =
             _dgiCheckRow('З/У г. Москва с арендой', moscowRent) +
             _dgiCheckRow('З/У Частная или федеральная собственность с арендой', privateRent) +
             _dgiCheckRow('З/У Частная или федеральная собственность без аренды', privateNoRent) +
+            _dgiCheckRow('З/У Реновация', dgiRenovation) +
             _dgiCheckRow('Суммарное пересечение', dgiSum, {
                 rowClass: 'dgi-check-table__sum',
             }) +

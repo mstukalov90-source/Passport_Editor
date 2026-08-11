@@ -99,6 +99,7 @@ def test_add_recap_ods_with_geometry(client):
         "dgi_moscow_no_rent": None,
         "dgi_private_rent": None,
         "dgi_private_no_rent": None,
+        "dgi_renovation": None,
         "odh": None,
         "ozn": None,
         "renew": None,

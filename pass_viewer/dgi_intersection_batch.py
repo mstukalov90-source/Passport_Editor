@@ -47,6 +47,7 @@ def _zero_percent_fields() -> dict[str, float]:
         "pct_private_no_rent": 0.0,
         "pct_sum": 0.0,
         "pct_moscow_no_rent": 0.0,
+        "pct_dgi_renovation": 0.0,
         "pct_renew": 0.0,
         "pct_oozt": 0.0,
         "pct_rzd": 0.0,
@@ -57,10 +58,14 @@ def compute_pct_sum(
     moscow_rent: float,
     private_rent: float,
     private_no_rent: float,
+    dgi_renovation: float = 0.0,
 ) -> float:
     """Same formula as PassViewer.buildCheckDgiModalHtml (utils.js)."""
     return round(
-        float(moscow_rent or 0) + float(private_rent or 0) + float(private_no_rent or 0),
+        float(moscow_rent or 0)
+        + float(private_rent or 0)
+        + float(private_no_rent or 0)
+        + float(dgi_renovation or 0),
         2,
     )
 
@@ -70,12 +75,14 @@ def percents_dict_to_row_fields(percents: dict[str, Any]) -> dict[str, float]:
     private_rent = round(float(percents.get("dgi_private_rent") or 0), 2)
     private_no_rent = round(float(percents.get("dgi_private_no_rent") or 0), 2)
     moscow_no_rent = round(float(percents.get("dgi_moscow_no_rent") or 0), 2)
+    dgi_renovation = round(float(percents.get("dgi_renovation") or 0), 2)
     return {
         "pct_moscow_rent": moscow_rent,
         "pct_private_rent": private_rent,
         "pct_private_no_rent": private_no_rent,
-        "pct_sum": compute_pct_sum(moscow_rent, private_rent, private_no_rent),
+        "pct_sum": compute_pct_sum(moscow_rent, private_rent, private_no_rent, dgi_renovation),
         "pct_moscow_no_rent": moscow_no_rent,
+        "pct_dgi_renovation": dgi_renovation,
         "pct_renew": round(float(percents.get("renew") or 0), 2),
         "pct_oozt": round(float(percents.get("oozt") or 0), 2),
         "pct_rzd": round(float(percents.get("rzd") or 0), 2),
@@ -88,13 +95,21 @@ def row_to_modal_payload(row: dict[str, Any]) -> dict[str, Any]:
     private_rent = float(row.get("pct_private_rent") or 0)
     private_no_rent = float(row.get("pct_private_no_rent") or 0)
     moscow_no_rent = float(row.get("pct_moscow_no_rent") or 0)
+    dgi_renovation = float(row.get("pct_dgi_renovation") or 0)
     renew = float(row.get("pct_renew") or 0)
     oozt = float(row.get("pct_oozt") or 0)
     rzd = float(row.get("pct_rzd") or 0)
     pct_sum = float(row.get("pct_sum") or 0)
     moscow = round(moscow_rent + moscow_no_rent, 2)
     private = round(private_rent + private_no_rent, 2)
-    intersects = pct_sum > 0 or moscow_no_rent > 0 or renew > 0 or oozt > 0 or rzd > 0
+    intersects = (
+        pct_sum > 0
+        or moscow_no_rent > 0
+        or dgi_renovation > 0
+        or renew > 0
+        or oozt > 0
+        or rzd > 0
+    )
     return {
         "ok": True,
         "intersects": intersects,
@@ -104,6 +119,7 @@ def row_to_modal_payload(row: dict[str, Any]) -> dict[str, Any]:
         "percent_moscow_no_rent": moscow_no_rent,
         "percent_private_rent": private_rent,
         "percent_private_no_rent": private_no_rent,
+        "percent_dgi_renovation": dgi_renovation,
         "percent_renew": renew,
         "percent_oozt": oozt,
         "percent_rzd": rzd,
@@ -359,13 +375,13 @@ def _insert_results_chunk(rows: list[tuple[Any, ...]]) -> int:
         "table_name, source_label, object_kind, rootid, request_id, name, "
         "owner_legal_person_id, "
         "pct_moscow_rent, pct_private_rent, pct_private_no_rent, pct_sum, "
-        "pct_moscow_no_rent, pct_renew, pct_oozt, pct_rzd, calculated_at"
+        "pct_moscow_no_rent, pct_dgi_renovation, pct_renew, pct_oozt, pct_rzd, calculated_at"
     )
     insert_sql = f"INSERT INTO {RESULTS_TABLE} ({cols}) VALUES %s"
     single_sql = f"""
         INSERT INTO {RESULTS_TABLE} ({cols}) VALUES (
             %s, %s, %s, %s, %s, %s, %s,
-            %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
     """
     try:
@@ -404,6 +420,7 @@ def _obj_row_tuple(
         fields["pct_private_no_rent"],
         fields["pct_sum"],
         fields["pct_moscow_no_rent"],
+        fields["pct_dgi_renovation"],
         fields["pct_renew"],
         fields["pct_oozt"],
         fields["pct_rzd"],
@@ -575,6 +592,7 @@ def serialize_result_row(row: dict[str, Any]) -> dict[str, Any]:
         "pct_private_no_rent": float(row.get("pct_private_no_rent") or 0),
         "pct_sum": float(row.get("pct_sum") or 0),
         "pct_moscow_no_rent": float(row.get("pct_moscow_no_rent") or 0),
+        "pct_dgi_renovation": float(row.get("pct_dgi_renovation") or 0),
         "pct_renew": float(row.get("pct_renew") or 0),
         "pct_oozt": float(row.get("pct_oozt") or 0),
         "pct_rzd": float(row.get("pct_rzd") or 0),
@@ -673,15 +691,15 @@ def _fetch_results(where_sql: str, params: list[Any]) -> list[dict[str, Any]]:
             id, table_name, source_label, object_kind, rootid, request_id, name,
             owner_legal_person_id,
             pct_moscow_rent, pct_private_rent, pct_private_no_rent, pct_sum,
-            pct_moscow_no_rent, pct_renew, pct_oozt, pct_rzd, calculated_at
+            pct_moscow_no_rent, pct_dgi_renovation, pct_renew, pct_oozt, pct_rzd, calculated_at
         FROM {RESULTS_TABLE}
         {where_sql}
-        ORDER BY (name LIKE '[пропущен:%') ASC, pct_sum DESC, name ASC NULLS LAST, rootid ASC NULLS LAST
+        ORDER BY (name LIKE '[пропущен:%%') ASC, pct_sum DESC, name ASC NULLS LAST, rootid ASC NULLS LAST
     """
     with connection.cursor() as cursor:
         cursor.execute(query, params)
         columns = [col[0] for col in cursor.description]
-        return [serialize_result_row(dict(zip(columns, row, strict=True))) for row in cursor.fetchall()]
+        return [serialize_result_row(dict(zip(columns, row))) for row in cursor.fetchall()]
 
 
 def _fetch_results_matching_keys(

@@ -23,6 +23,7 @@ from .dgi_layers import (
     DGI_LAYER_KEYS,
     DGI_LAYER_SPECS,
     build_dgi_ownership_extra_sql,
+    build_dgi_renovation_extra_sql,
     build_dgi_rent_extra_sql,
     finalize_dgi_aprove_record,
     normalize_dgi_aprove_payload,
@@ -714,6 +715,7 @@ MAP_DEFERRED_LAYER_KEYS = frozenset(
         "dgi_moscow_no_rent",
         "dgi_private_rent",
         "dgi_private_no_rent",
+        "dgi_renovation",
         "odh",
         "ozn",
         "renew",
@@ -3035,6 +3037,7 @@ def _get_new_object_relations(geometry, source_label="ДТ", request_id_filter=N
         "dgi_moscow_no_rent": ref_layers["dgi_moscow_no_rent"],
         "dgi_private_rent": ref_layers["dgi_private_rent"],
         "dgi_private_no_rent": ref_layers["dgi_private_no_rent"],
+        "dgi_renovation": ref_layers["dgi_renovation"],
         "odh": ref_layers["odh"],
         "ozn": ref_layers["ozn"],
         "renew": ref_layers["renew"],
@@ -3263,6 +3266,7 @@ def _remove_intersections_from_geometry(
         "dgi_moscow_no_rent",
         "dgi_private_rent",
         "dgi_private_no_rent",
+        "dgi_renovation",
         "renew",
         "oozt",
         "rzd",
@@ -3279,6 +3283,7 @@ def _remove_intersections_from_geometry(
             "dgi_moscow_no_rent",
             "dgi_private_rent",
             "dgi_private_no_rent",
+            "dgi_renovation",
             "renew",
             "oozt",
             "rzd",
@@ -3304,6 +3309,7 @@ def _remove_intersections_from_geometry(
         "dgi_moscow_no_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
         "dgi_private_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
         "dgi_private_no_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        "dgi_renovation": getattr(settings, "GIS_DGI_TABLE", "dgi"),
         "renew": getattr(settings, "GIS_RENEW_TABLE", "renew"),
         "oozt": getattr(settings, "GIS_OOZT_TABLE", "oozt"),
         "rzd": getattr(settings, "GIS_RZD_TABLE", "rzd"),
@@ -3438,6 +3444,7 @@ def _auto_remove_source_tokens(selected_sources):
         "dgi_moscow_no_rent",
         "dgi_private_rent",
         "dgi_private_no_rent",
+        "dgi_renovation",
         "renew",
         "oozt",
         "rzd",
@@ -3454,6 +3461,7 @@ def _auto_remove_source_tokens(selected_sources):
             "dgi_moscow_no_rent",
             "dgi_private_rent",
             "dgi_private_no_rent",
+            "dgi_renovation",
             "renew",
             "oozt",
             "rzd",
@@ -3506,6 +3514,7 @@ def _append_auto_remove_mask_parts(
         "dgi_moscow_no_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
         "dgi_private_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
         "dgi_private_no_rent": getattr(settings, "GIS_DGI_TABLE", "dgi"),
+        "dgi_renovation": getattr(settings, "GIS_DGI_TABLE", "dgi"),
         "renew": getattr(settings, "GIS_RENEW_TABLE", "renew"),
         "oozt": getattr(settings, "GIS_OOZT_TABLE", "oozt"),
         "rzd": getattr(settings, "GIS_RZD_TABLE", "rzd"),
@@ -4142,13 +4151,29 @@ def _check_recap_uniqueness(recap_id):
     return recap_exists
 
 
+def _sql_dgi_renovation_filter(
+    cursor, table_name: str, *, is_renovation: bool, table_alias: str = "t"
+) -> str:
+    """Filter on ``zemlepol_dgi`` for renovation fund parcels."""
+    if not _column_exists(cursor, table_name, "zemlepol_dgi"):
+        return " AND FALSE" if is_renovation else ""
+    col_name = _resolve_column_name(cursor, table_name, "zemlepol_dgi")
+    col_expr = f"{table_alias}.{_quote_ident(col_name)}"
+    return build_dgi_renovation_extra_sql(col_expr, is_renovation=is_renovation)
+
+
 def _sql_dgi_ownership_filter(cursor, table_name: str, ownership: str, *, table_alias: str = "t") -> str:
     """``ownership``: ``moscow`` | ``private`` — filter on short_sobstv_rr for table ``dgi``."""
+    exclude_renovation = _sql_dgi_renovation_filter(
+        cursor, table_name, is_renovation=False, table_alias=table_alias
+    )
     if not _column_exists(cursor, table_name, "short_sobstv_rr"):
-        return " AND FALSE" if ownership == "moscow" else ""
+        if ownership == "moscow":
+            return " AND FALSE"
+        return exclude_renovation
     col_name = _resolve_column_name(cursor, table_name, "short_sobstv_rr")
     col_expr = f"{table_alias}.{_quote_ident(col_name)}"
-    return build_dgi_ownership_extra_sql(col_expr, ownership)
+    return build_dgi_ownership_extra_sql(col_expr, ownership) + exclude_renovation
 
 
 def _sql_dgi_rent_filter(cursor, table_name: str, with_rent: bool, *, table_alias: str = "t") -> str:
@@ -4161,10 +4186,14 @@ def _sql_dgi_rent_filter(cursor, table_name: str, with_rent: bool, *, table_alia
 
 
 def _sql_dgi_layer_filter(cursor, table_name: str, layer_key: str, *, table_alias: str = "t") -> str:
-    """Combined ownership + rent filter for a DGI panel layer key."""
+    """Combined filter for a DGI panel layer key (renovation or ownership × rent)."""
     spec = DGI_LAYER_SPECS.get(layer_key)
     if not spec:
         return " AND FALSE"
+    if spec.get("kind") == "renovation":
+        return _sql_dgi_renovation_filter(
+            cursor, table_name, is_renovation=True, table_alias=table_alias
+        )
     return (
         _sql_dgi_ownership_filter(cursor, table_name, spec["ownership"], table_alias=table_alias)
         + _sql_dgi_rent_filter(cursor, table_name, spec["with_rent"], table_alias=table_alias)
@@ -4731,6 +4760,7 @@ def _get_reference_layers(geometry=None, distance_meters=None, request_id_filter
         "dgi_moscow_no_rent": None,
         "dgi_private_rent": None,
         "dgi_private_no_rent": None,
+        "dgi_renovation": None,
         "odh": None,
         "ozn": None,
         "renew": None,
@@ -5120,6 +5150,7 @@ def main(request):
             "dgi_moscow_no_rent": None,
             "dgi_private_rent": None,
             "dgi_private_no_rent": None,
+            "dgi_renovation": None,
             "odh": None,
             "ozn": None,
             "renew": None,
@@ -5168,6 +5199,7 @@ def main(request):
             "dgi_moscow_no_rent_geometry_json": reference_layers["dgi_moscow_no_rent"],
             "dgi_private_rent_geometry_json": reference_layers["dgi_private_rent"],
             "dgi_private_no_rent_geometry_json": reference_layers["dgi_private_no_rent"],
+            "dgi_renovation_geometry_json": reference_layers["dgi_renovation"],
             "odh_geometry_json": reference_layers["odh"],
             "ozn_geometry_json": reference_layers["ozn"],
             "renew_geometry_json": reference_layers["renew"],
@@ -5825,6 +5857,7 @@ def add_object(request):
             "dgi_moscow_no_rent_geometry_json": None,
             "dgi_private_rent_geometry_json": None,
             "dgi_private_no_rent_geometry_json": None,
+            "dgi_renovation_geometry_json": None,
             "odh_geometry_json": None,
             "ozn_geometry_json": None,
             "renew_geometry_json": None,
@@ -5910,6 +5943,7 @@ def add_recap(request):
             "dgi_moscow_no_rent_geometry_json": reference_layers["dgi_moscow_no_rent"],
             "dgi_private_rent_geometry_json": reference_layers["dgi_private_rent"],
             "dgi_private_no_rent_geometry_json": reference_layers["dgi_private_no_rent"],
+            "dgi_renovation_geometry_json": reference_layers["dgi_renovation"],
             "odh_geometry_json": reference_layers["odh"],
             "ozn_geometry_json": reference_layers["ozn"],
             "renew_geometry_json": reference_layers["renew"],
@@ -6280,21 +6314,33 @@ def check_dgi_intersections(request):
     percent_moscow_no_rent = round(float(percents.get("dgi_moscow_no_rent") or 0), 2)
     percent_private_rent = round(float(percents.get("dgi_private_rent") or 0), 2)
     percent_private_no_rent = round(float(percents.get("dgi_private_no_rent") or 0), 2)
+    percent_dgi_renovation = round(float(percents.get("dgi_renovation") or 0), 2)
     percent_renew = round(float(percents.get("renew") or 0), 2)
     percent_oozt = round(float(percents.get("oozt") or 0), 2)
     percent_rzd = round(float(percents.get("rzd") or 0), 2)
+    percent_sum = round(
+        percent_moscow_rent + percent_private_rent + percent_private_no_rent + percent_dgi_renovation,
+        2,
+    )
     intersects_moscow = percent_moscow > 0
     intersects_private = percent_private > 0
     intersects_info = percent_renew > 0 or percent_oozt > 0 or percent_rzd > 0
     response = {
         "ok": True,
-        "intersects": intersects_moscow or intersects_private or intersects_info,
+        "intersects": (
+            intersects_moscow
+            or intersects_private
+            or percent_dgi_renovation > 0
+            or intersects_info
+        ),
         "percent_moscow": percent_moscow,
         "percent_private": percent_private,
         "percent_moscow_rent": percent_moscow_rent,
         "percent_moscow_no_rent": percent_moscow_no_rent,
         "percent_private_rent": percent_private_rent,
         "percent_private_no_rent": percent_private_no_rent,
+        "percent_dgi_renovation": percent_dgi_renovation,
+        "percent_sum": percent_sum,
         "percent_renew": percent_renew,
         "percent_oozt": percent_oozt,
         "percent_rzd": percent_rzd,

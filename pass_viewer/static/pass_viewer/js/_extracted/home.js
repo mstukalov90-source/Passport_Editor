@@ -3006,6 +3006,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 percent_moscow_no_rent: row.pct_moscow_no_rent,
                 percent_private_rent: row.pct_private_rent,
                 percent_private_no_rent: row.pct_private_no_rent,
+                percent_dgi_renovation: row.pct_dgi_renovation,
                 percent_renew: row.pct_renew,
                 percent_oozt: row.pct_oozt,
                 percent_rzd: row.pct_rzd,

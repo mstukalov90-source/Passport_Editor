@@ -122,6 +122,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const autoRemoveDgiMoscowNoRentCheckbox = document.getElementById('auto-remove-dgi-moscow-no-rent');
         const autoRemoveDgiPrivateRentCheckbox = document.getElementById('auto-remove-dgi-private-rent');
         const autoRemoveDgiPrivateNoRentCheckbox = document.getElementById('auto-remove-dgi-private-no-rent');
+        const autoRemoveDgiRenovationCheckbox = document.getElementById('auto-remove-dgi-renovation');
         const autoRemoveRenewCheckbox = document.getElementById('auto-remove-renew');
         const autoRemoveTopCheckbox = document.getElementById('auto-remove-top');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
@@ -148,6 +149,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const dgiMoscowNoRentSignalGroup = L.featureGroup().addTo(map);
         const dgiPrivateRentSignalGroup = L.featureGroup().addTo(map);
         const dgiPrivateNoRentSignalGroup = L.featureGroup().addTo(map);
+        const dgiRenovationSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
         const oznSignalGroup = L.featureGroup().addTo(map);
         const renewGroup = L.featureGroup().addTo(map);
@@ -476,6 +478,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             dgi_moscow_no_rent: dgiMoscowNoRentSignalGroup,
             dgi_private_rent: dgiPrivateRentSignalGroup,
             dgi_private_no_rent: dgiPrivateNoRentSignalGroup,
+            dgi_renovation: dgiRenovationSignalGroup,
             renew: renewGroup,
             oozt: ooztSignalGroup,
             rzd: rzdSignalGroup,
@@ -486,7 +489,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const layerGroups = {
             municipal: ['selected', 'dt', 'oo', 'odh', 'top'],
             requests: ['requests', 'recaps', 'comments'],
-            dgi: ['dgi_moscow_rent', 'dgi_moscow_no_rent', 'dgi_private_rent', 'dgi_private_no_rent'],
+            dgi: ['dgi_moscow_rent', 'dgi_moscow_no_rent', 'dgi_private_rent', 'dgi_private_no_rent', 'dgi_renovation'],
             external: ['renew', 'oozt', 'rzd'],
         };
 
@@ -533,6 +536,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 dgi_moscow_no_rent: countGroupFeatures(dgiMoscowNoRentSignalGroup),
                 dgi_private_rent: countGroupFeatures(dgiPrivateRentSignalGroup),
                 dgi_private_no_rent: countGroupFeatures(dgiPrivateNoRentSignalGroup),
+                dgi_renovation: countGroupFeatures(dgiRenovationSignalGroup),
                 renew: countGroupFeatures(renewGroup),
                 oozt: countGroupFeatures(ooztSignalGroup),
                 rzd: countGroupFeatures(rzdSignalGroup),
@@ -783,11 +787,12 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 }
             }).addTo(targetGroup);
         }
-        function renderReferenceSignalLayers(dgiMoscowRentGeo, dgiMoscowNoRentGeo, dgiPrivateRentGeo, dgiPrivateNoRentGeo, odhGeo, oznGeo) {
+        function renderReferenceSignalLayers(dgiMoscowRentGeo, dgiMoscowNoRentGeo, dgiPrivateRentGeo, dgiPrivateNoRentGeo, dgiRenovationGeo, odhGeo, oznGeo) {
             addSignalTapeLayer(dgiMoscowRentSignalGroup, dgiMoscowRentGeo, 'З/У г. Москва с арендой');
             addSignalTapeLayer(dgiMoscowNoRentSignalGroup, dgiMoscowNoRentGeo, 'З/У г. Москва без аренды');
             addSignalTapeLayer(dgiPrivateRentSignalGroup, dgiPrivateRentGeo, 'З/У Частная или федеральная собственность с арендой');
             addSignalTapeLayer(dgiPrivateNoRentSignalGroup, dgiPrivateNoRentGeo, 'З/У Частная или федеральная собственность без аренды');
+            addSignalTapeLayer(dgiRenovationSignalGroup, dgiRenovationGeo, 'З/У Реновация');
             addSignalTapeLayer(odhSignalGroup, filterPassportOnlyGeoJson(odhGeo), 'ОДХ');
             addSignalTapeLayer(oznSignalGroup, filterPassportOnlyGeoJson(oznGeo), 'ОЗН');
         }
@@ -1018,7 +1023,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             [relationAdjacentDtPassportsGroup, relationRequestObjectsGroup, dgiMoscowRentSignalGroup,
                 dgiMoscowNoRentSignalGroup,
                 dgiPrivateRentSignalGroup,
-                dgiPrivateNoRentSignalGroup, odhSignalGroup, oznSignalGroup, topSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
+                dgiPrivateNoRentSignalGroup, dgiRenovationSignalGroup, odhSignalGroup, oznSignalGroup, topSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
@@ -1475,6 +1480,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 dgi_moscow_no_rent: normalizeGeoJson(layers.dgi_moscow_no_rent),
                 dgi_private_rent: normalizeGeoJson(layers.dgi_private_rent),
                 dgi_private_no_rent: normalizeGeoJson(layers.dgi_private_no_rent),
+                dgi_renovation: normalizeGeoJson(layers.dgi_renovation),
                 odh: normalizeGeoJson(layers.odh),
                 ozn: normalizeGeoJson(layers.ozn),
                 renew: normalizeGeoJson(layers.renew),
@@ -1503,7 +1509,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     },
                 }).addTo(relationRequestObjectsGroup);
             }
-            renderReferenceSignalLayers(parsed.dgi_moscow_rent, parsed.dgi_moscow_no_rent, parsed.dgi_private_rent, parsed.dgi_private_no_rent, parsed.odh, parsed.ozn);
+            renderReferenceSignalLayers(parsed.dgi_moscow_rent, parsed.dgi_moscow_no_rent, parsed.dgi_private_rent, parsed.dgi_private_no_rent, parsed.dgi_renovation, parsed.odh, parsed.ozn);
             renderRecapsLayer(parsed.recaps);
             renderRenewLayer(parsed.renew);
             addSignalTapeLayer(ooztSignalGroup, parsed.oozt, 'ООЗТ');
@@ -1629,6 +1635,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             dgi_moscow_no_rent: dgiMoscowNoRentSignalGroup,
             dgi_private_rent: dgiPrivateRentSignalGroup,
             dgi_private_no_rent: dgiPrivateNoRentSignalGroup,
+            dgi_renovation: dgiRenovationSignalGroup,
             renew: renewGroup,
             oozt: ooztSignalGroup,
             rzd: rzdSignalGroup,
@@ -1658,6 +1665,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 autoRemoveDgiMoscowNoRentCheckbox,
                 autoRemoveDgiPrivateRentCheckbox,
                 autoRemoveDgiPrivateNoRentCheckbox,
+                autoRemoveDgiRenovationCheckbox,
                 autoRemoveRenewCheckbox,
                 autoRemoveOoztCheckbox,
                 autoRemoveRzdCheckbox,
@@ -1734,6 +1742,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             }
             if (autoRemoveDgiPrivateNoRentCheckbox?.checked) {
                 sources.push('dgi_private_no_rent');
+            }
+            if (autoRemoveDgiRenovationCheckbox?.checked) {
+                sources.push('dgi_renovation');
             }
             if (autoRemoveRenewCheckbox.checked) {
                 sources.push('renew');
@@ -2565,6 +2576,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 dgiMoscowNoRentSignalGroup,
                 dgiPrivateRentSignalGroup,
                 dgiPrivateNoRentSignalGroup,
+                dgiRenovationSignalGroup,
                 renewGroup,
                 ooztSignalGroup,
                 rzdSignalGroup,
