@@ -100,6 +100,7 @@ function formatDgiShortSobstvRr(value) {
         const autoRemoveDgiMoscowNoRentCheckbox = document.getElementById('auto-remove-dgi-moscow-no-rent');
         const autoRemoveDgiPrivateRentCheckbox = document.getElementById('auto-remove-dgi-private-rent');
         const autoRemoveDgiPrivateNoRentCheckbox = document.getElementById('auto-remove-dgi-private-no-rent');
+        const autoRemoveDgiRenovationCheckbox = document.getElementById('auto-remove-dgi-renovation');
         const autoRemoveRenewCheckbox = document.getElementById('auto-remove-renew');
         const autoRemoveTopCheckbox = document.getElementById('auto-remove-top');
         const autoRemoveOoztCheckbox = document.getElementById('auto-remove-oozt');
@@ -223,6 +224,7 @@ function formatDgiShortSobstvRr(value) {
         const dgiMoscowNoRentSignalGroup = L.featureGroup().addTo(map);
         const dgiPrivateRentSignalGroup = L.featureGroup().addTo(map);
         const dgiPrivateNoRentSignalGroup = L.featureGroup().addTo(map);
+        const dgiRenovationSignalGroup = L.featureGroup().addTo(map);
         const odhSignalGroup = L.featureGroup().addTo(map);
         const oznSignalGroup = L.featureGroup().addTo(map);
         const renewGroup = L.featureGroup().addTo(map);
@@ -484,6 +486,7 @@ function formatDgiShortSobstvRr(value) {
         const dgiMoscowNoRentGeometry = parseGeometryData('dgi-moscow-no-rent-geometry-data');
         const dgiPrivateRentGeometry = parseGeometryData('dgi-private-rent-geometry-data');
         const dgiPrivateNoRentGeometry = parseGeometryData('dgi-private-no-rent-geometry-data');
+        const dgiRenovationGeometry = parseGeometryData('dgi-renovation-geometry-data');
         const odhGeometry = parseGeometryData('odh-geometry-data');
         const oznGeometry = parseGeometryData('ozn-geometry-data');
         const requestObjectsGeometry = parseGeometryData('request-objects-geometry-data');
@@ -568,6 +571,7 @@ function formatDgiShortSobstvRr(value) {
             dgi_moscow_no_rent: dgiMoscowNoRentSignalGroup,
             dgi_private_rent: dgiPrivateRentSignalGroup,
             dgi_private_no_rent: dgiPrivateNoRentSignalGroup,
+            dgi_renovation: dgiRenovationSignalGroup,
             renew: renewGroup,
             oozt: ooztSignalGroup,
             rzd: rzdSignalGroup,
@@ -578,7 +582,7 @@ function formatDgiShortSobstvRr(value) {
         const layerGroups = {
             municipal: ['selected', 'dt', 'oo', 'odh', 'top'],
             requests: ['requests', 'recaps', 'comments'],
-            dgi: ['dgi_moscow_rent', 'dgi_moscow_no_rent', 'dgi_private_rent', 'dgi_private_no_rent'],
+            dgi: ['dgi_moscow_rent', 'dgi_moscow_no_rent', 'dgi_private_rent', 'dgi_private_no_rent', 'dgi_renovation'],
             external: ['renew', 'oozt', 'rzd'],
         };
 
@@ -625,6 +629,7 @@ function formatDgiShortSobstvRr(value) {
                 dgi_moscow_no_rent: countGroupFeatures(dgiMoscowNoRentSignalGroup),
                 dgi_private_rent: countGroupFeatures(dgiPrivateRentSignalGroup),
                 dgi_private_no_rent: countGroupFeatures(dgiPrivateNoRentSignalGroup),
+                dgi_renovation: countGroupFeatures(dgiRenovationSignalGroup),
                 renew: countGroupFeatures(renewGroup),
                 oozt: countGroupFeatures(ooztSignalGroup),
                 rzd: countGroupFeatures(rzdSignalGroup),
@@ -875,11 +880,12 @@ function formatDgiShortSobstvRr(value) {
                 }
             }).addTo(targetGroup);
         }
-        function renderReferenceSignalLayers(dgiMoscowRentGeo, dgiMoscowNoRentGeo, dgiPrivateRentGeo, dgiPrivateNoRentGeo, odhGeo, oznGeo) {
+        function renderReferenceSignalLayers(dgiMoscowRentGeo, dgiMoscowNoRentGeo, dgiPrivateRentGeo, dgiPrivateNoRentGeo, dgiRenovationGeo, odhGeo, oznGeo) {
             addSignalTapeLayer(dgiMoscowRentSignalGroup, dgiMoscowRentGeo, 'З/У г. Москва с арендой');
             addSignalTapeLayer(dgiMoscowNoRentSignalGroup, dgiMoscowNoRentGeo, 'З/У г. Москва без аренды');
             addSignalTapeLayer(dgiPrivateRentSignalGroup, dgiPrivateRentGeo, 'З/У Частная или федеральная собственность с арендой');
             addSignalTapeLayer(dgiPrivateNoRentSignalGroup, dgiPrivateNoRentGeo, 'З/У Частная или федеральная собственность без аренды');
+            addSignalTapeLayer(dgiRenovationSignalGroup, dgiRenovationGeo, 'З/У Реновация');
             addSignalTapeLayer(odhSignalGroup, filterPassportOnlyGeoJson(odhGeo), 'ОДХ');
             addSignalTapeLayer(oznSignalGroup, filterPassportOnlyGeoJson(oznGeo), 'ОЗН');
         }
@@ -936,6 +942,7 @@ function formatDgiShortSobstvRr(value) {
             dgiMoscowNoRentGeometry,
             dgiPrivateRentGeometry,
             dgiPrivateNoRentGeometry,
+            dgiRenovationGeometry,
             filterOutSelectedRootid(odhGeometry, selectedRootid),
             filterOutSelectedRootid(oznGeometry, selectedRootid),
         );
@@ -1202,6 +1209,7 @@ function formatDgiShortSobstvRr(value) {
                 dgi_moscow_no_rent: normalizeGeoJson(layers.dgi_moscow_no_rent),
                 dgi_private_rent: normalizeGeoJson(layers.dgi_private_rent),
                 dgi_private_no_rent: normalizeGeoJson(layers.dgi_private_no_rent),
+                dgi_renovation: normalizeGeoJson(layers.dgi_renovation),
                 odh: normalizeGeoJson(layers.odh),
                 ozn: normalizeGeoJson(layers.ozn),
                 renew: normalizeGeoJson(layers.renew),
@@ -1232,15 +1240,28 @@ function formatDgiShortSobstvRr(value) {
             parsed.request_objects = excludeSelectedRootid(parsed.request_objects);
             parsed.odh = excludeSelectedRootid(parsed.odh);
             parsed.ozn = excludeSelectedRootid(parsed.ozn);
-            if (
-                Object.prototype.hasOwnProperty.call(layers, 'dgi_moscow_rent')
-                || Object.prototype.hasOwnProperty.call(layers, 'dgi_moscow_no_rent')
-                || Object.prototype.hasOwnProperty.call(layers, 'dgi_private_rent')
-                || Object.prototype.hasOwnProperty.call(layers, 'dgi_private_no_rent')
-                || Object.prototype.hasOwnProperty.call(layers, 'odh')
-                || Object.prototype.hasOwnProperty.call(layers, 'ozn')
-            ) {
-                renderReferenceSignalLayers(parsed.dgi_moscow_rent, parsed.dgi_moscow_no_rent, parsed.dgi_private_rent, parsed.dgi_private_no_rent, parsed.odh, parsed.ozn);
+            // Update only keys present in this payload so progressive deferred
+            // loads do not clear sibling DGI/ODH/OZN groups still pending.
+            if (Object.prototype.hasOwnProperty.call(layers, 'dgi_moscow_rent')) {
+                addSignalTapeLayer(dgiMoscowRentSignalGroup, parsed.dgi_moscow_rent, 'З/У г. Москва с арендой');
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'dgi_moscow_no_rent')) {
+                addSignalTapeLayer(dgiMoscowNoRentSignalGroup, parsed.dgi_moscow_no_rent, 'З/У г. Москва без аренды');
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'dgi_private_rent')) {
+                addSignalTapeLayer(dgiPrivateRentSignalGroup, parsed.dgi_private_rent, 'З/У Частная или федеральная собственность с арендой');
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'dgi_private_no_rent')) {
+                addSignalTapeLayer(dgiPrivateNoRentSignalGroup, parsed.dgi_private_no_rent, 'З/У Частная или федеральная собственность без аренды');
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'dgi_renovation')) {
+                addSignalTapeLayer(dgiRenovationSignalGroup, parsed.dgi_renovation, 'З/У Реновация');
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'odh')) {
+                addSignalTapeLayer(odhSignalGroup, filterPassportOnlyGeoJson(parsed.odh), 'ОДХ');
+            }
+            if (Object.prototype.hasOwnProperty.call(layers, 'ozn')) {
+                addSignalTapeLayer(oznSignalGroup, filterPassportOnlyGeoJson(parsed.ozn), 'ОЗН');
             }
             if (Object.prototype.hasOwnProperty.call(layers, 'recaps')) {
                 renderRecapsLayer(parsed.recaps);
@@ -1475,6 +1496,7 @@ function formatDgiShortSobstvRr(value) {
             dgi_moscow_no_rent: dgiMoscowNoRentSignalGroup,
             dgi_private_rent: dgiPrivateRentSignalGroup,
             dgi_private_no_rent: dgiPrivateNoRentSignalGroup,
+            dgi_renovation: dgiRenovationSignalGroup,
             renew: renewGroup,
             oozt: ooztSignalGroup,
             rzd: rzdSignalGroup,
@@ -1504,6 +1526,7 @@ function formatDgiShortSobstvRr(value) {
                 autoRemoveDgiMoscowNoRentCheckbox,
                 autoRemoveDgiPrivateRentCheckbox,
                 autoRemoveDgiPrivateNoRentCheckbox,
+                autoRemoveDgiRenovationCheckbox,
                 autoRemoveRenewCheckbox,
                 autoRemoveOoztCheckbox,
                 autoRemoveRzdCheckbox,
@@ -1580,6 +1603,9 @@ function formatDgiShortSobstvRr(value) {
             }
             if (autoRemoveDgiPrivateNoRentCheckbox?.checked) {
                 sources.push('dgi_private_no_rent');
+            }
+            if (autoRemoveDgiRenovationCheckbox?.checked) {
+                sources.push('dgi_renovation');
             }
             if (autoRemoveRenewCheckbox.checked) {
                 sources.push('renew');
@@ -1777,7 +1803,7 @@ function formatDgiShortSobstvRr(value) {
             [adjacentDtPassportsGroup, requestObjectsGroup, dgiMoscowRentSignalGroup,
                 dgiMoscowNoRentSignalGroup,
                 dgiPrivateRentSignalGroup,
-                dgiPrivateNoRentSignalGroup, odhSignalGroup, oznSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
+                dgiPrivateNoRentSignalGroup, dgiRenovationSignalGroup, odhSignalGroup, oznSignalGroup, renewGroup, ooztSignalGroup, rzdSignalGroup, recapsGroup].forEach((group) => {
                 group.eachLayer((layer) => {
                     if (typeof layer.toGeoJSON === 'function') {
                         collectSnapGuideLines(layer.toGeoJSON(), snapGuideLines);
@@ -2919,6 +2945,7 @@ function formatDgiShortSobstvRr(value) {
                 dgiMoscowNoRentSignalGroup,
                 dgiPrivateRentSignalGroup,
                 dgiPrivateNoRentSignalGroup,
+                dgiRenovationSignalGroup,
                 renewGroup,
                 topSignalGroup,
                 ooztSignalGroup,

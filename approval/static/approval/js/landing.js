@@ -56,6 +56,7 @@
             key: 'dgi_private_no_rent',
             name: 'З/У Частная или федеральная собственность без аренды',
         },
+        { key: 'dgi_renovation', name: 'З/У Реновация' },
     ];
     DGI_SUBLAYER_SPECS.forEach(function (spec) {
         dgiSubKeyChecked[spec.key] = true;

@@ -16,6 +16,7 @@
     {{ dgi_moscow_no_rent_geometry_json|default_if_none:"null"|json_script:"dgi-moscow-no-rent-geometry-data" }}
     {{ dgi_private_rent_geometry_json|default_if_none:"null"|json_script:"dgi-private-rent-geometry-data" }}
     {{ dgi_private_no_rent_geometry_json|default_if_none:"null"|json_script:"dgi-private-no-rent-geometry-data" }}
+    {{ dgi_renovation_geometry_json|default_if_none:"null"|json_script:"dgi-renovation-geometry-data" }}
     {{ odh_geometry_json|default_if_none:"null"|json_script:"odh-geometry-data" }}
     {{ ozn_geometry_json|default_if_none:"null"|json_script:"ozn-geometry-data" }}
     {{ renew_geometry_json|default_if_none:"null"|json_script:"renew-geometry-data" }}
@@ -160,6 +161,12 @@
                     <span class="layer-panel-row__count" data-layer-count-for="dgi_private_no_rent">(0)</span>
                     <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
                 </label>
+                <label class="layer-panel-row">
+                    <input type="checkbox" data-layer-key="dgi_renovation" checked />
+                    <span class="layer-panel-row__name">З/У Реновация</span>
+                    <span class="layer-panel-row__count" data-layer-count-for="dgi_renovation">(0)</span>
+                    <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
+                </label>
             </div>
             <div class="layer-management-panel__column">
                 <label class="layer-management-panel__column-title">
@@ -251,6 +258,10 @@
             <label class="modal-label auto-remove-option" data-auto-remove-source="dgi_private_no_rent">
                 <input type="checkbox" id="auto-remove-dgi-private-no-rent" />
                 З/У Частная или федеральная собственность без аренды
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi_renovation">
+                <input type="checkbox" id="auto-remove-dgi-renovation" />
+                З/У Реновация
             </label>
             <label class="modal-label auto-remove-option" data-auto-remove-source="renew">
                 <input type="checkbox" id="auto-remove-renew" />

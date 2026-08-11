@@ -22,6 +22,7 @@ def map_deferred_layer_specs():
         {"key": "dgi_moscow_no_rent", "label": "З/У г. Москва без аренды"},
         {"key": "dgi_private_rent", "label": "З/У Частная или федеральная собственность с арендой"},
         {"key": "dgi_private_no_rent", "label": "З/У Частная или федеральная собственность без аренды"},
+        {"key": "dgi_renovation", "label": "З/У Реновация"},
         {"key": "odh", "label": "ОДХ"},
         {"key": "ozn", "label": "ОЗН"},
         {"key": "renew", "label": "Реновация"},

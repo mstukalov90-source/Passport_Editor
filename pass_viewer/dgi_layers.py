@@ -1,16 +1,18 @@
-"""DGI sub-layer classification by short_sobstv_rr (moscow vs private) and rent."""
+"""DGI sub-layer classification by zemlepol_dgi, short_sobstv_rr, and rent."""
 
 from __future__ import annotations
 
 DGI_MOSCOW_MARKER_CITY = "город Москва"
 DGI_MOSCOW_MARKER_NO_DATA = "Нет данных о правообладателе"
+DGI_RENOVATION_MARKER = "МОСКОВСКИЙ ФОНД РЕНОВАЦИИ ЖИЛОЙ ЗАСТРОЙКИ"
 
-# Map panel / auto-remove / deferred load keys: ownership × rent.
+# Map panel / auto-remove / deferred load keys: renovation + ownership × rent.
 DGI_LAYER_KEYS = (
     "dgi_moscow_rent",
     "dgi_moscow_no_rent",
     "dgi_private_rent",
     "dgi_private_no_rent",
+    "dgi_renovation",
 )
 
 DGI_LAYER_SPECS = {
@@ -18,6 +20,7 @@ DGI_LAYER_SPECS = {
     "dgi_moscow_no_rent": {"ownership": "moscow", "with_rent": False},
     "dgi_private_rent": {"ownership": "private", "with_rent": True},
     "dgi_private_no_rent": {"ownership": "private", "with_rent": False},
+    "dgi_renovation": {"kind": "renovation"},
 }
 
 
@@ -25,6 +28,28 @@ def _sql_ilike_contains_fragment(literal: str) -> str:
     escaped = str(literal).replace("'", "''")
     # ``%%`` — literal ``%`` for ILIKE; psycopg2 otherwise treats ``%`` as a param placeholder.
     return f"'%%{escaped}%%'"
+
+
+def _sql_ilike_exact_fragment(literal: str) -> str:
+    escaped = str(literal).replace("'", "''")
+    return f"'{escaped}'"
+
+
+def build_dgi_renovation_match_sql(zemlepol_col_expr: str) -> str:
+    """Boolean SQL expression: zemlepol matches renovation fund marker."""
+    marker = _sql_ilike_exact_fragment(DGI_RENOVATION_MARKER)
+    return f"(TRIM(BOTH FROM COALESCE({zemlepol_col_expr}, '')) ILIKE {marker})"
+
+
+def build_dgi_renovation_extra_sql(zemlepol_col_expr: str, *, is_renovation: bool) -> str:
+    """
+    SQL fragment starting with `` AND `` for zemlepol_dgi column expression.
+    is_renovation True → match fund marker; False → exclude it (null/other).
+    """
+    match = build_dgi_renovation_match_sql(zemlepol_col_expr)
+    if is_renovation:
+        return f" AND ({match})"
+    return f" AND (NOT ({match}))"
 
 
 def build_dgi_ownership_extra_sql(short_sobstv_col_expr: str, ownership: str) -> str:
@@ -112,3 +137,11 @@ def classify_dgi_ownership(short_sobstv_rr: str | None) -> str:
     if DGI_MOSCOW_MARKER_CITY.lower() in lower or DGI_MOSCOW_MARKER_NO_DATA.lower() in lower:
         return "moscow"
     return "private"
+
+
+def classify_dgi_renovation(zemlepol_dgi: str | None) -> bool:
+    """True when zemlepol_dgi matches the renovation fund marker."""
+    raw = str(zemlepol_dgi or "").strip()
+    if not raw:
+        return False
+    return raw.casefold() == DGI_RENOVATION_MARKER.casefold()

@@ -31,6 +31,7 @@ def test_compute_pct_sum_matches_modal_formula():
     assert compute_pct_sum(0.76, 0.0, 0.0) == 0.76
     assert compute_pct_sum(0, 0, 0) == 0.0
     assert compute_pct_sum(None, None, None) == 0.0
+    assert compute_pct_sum(0.1, 0.2, 0.3, 0.4) == 1.0
 
 
 def test_percents_dict_to_row_fields_and_modal_payload():
@@ -40,13 +41,15 @@ def test_percents_dict_to_row_fields_and_modal_payload():
             "dgi_moscow_no_rent": 1.5,
             "dgi_private_rent": 0.0,
             "dgi_private_no_rent": 0.0,
+            "dgi_renovation": 0.5,
             "renew": 2.0,
             "oozt": 0.0,
             "rzd": 3.25,
         }
     )
     assert fields["pct_moscow_rent"] == 0.76
-    assert fields["pct_sum"] == 0.76
+    assert fields["pct_dgi_renovation"] == 0.5
+    assert fields["pct_sum"] == 1.26
     assert fields["pct_moscow_no_rent"] == 1.5
     assert fields["pct_rzd"] == 3.25
 
@@ -55,7 +58,8 @@ def test_percents_dict_to_row_fields_and_modal_payload():
     assert modal["intersects"] is True
     assert modal["percent_moscow_rent"] == 0.76
     assert modal["percent_moscow_no_rent"] == 1.5
-    assert modal["percent_sum"] == 0.76
+    assert modal["percent_dgi_renovation"] == 0.5
+    assert modal["percent_sum"] == 1.26
     assert modal["percent_rzd"] == 3.25
 
 
@@ -67,6 +71,7 @@ def test_row_to_modal_payload_zero_intersects_false():
             "pct_private_no_rent": 0,
             "pct_sum": 0,
             "pct_moscow_no_rent": 0,
+            "pct_dgi_renovation": 0,
             "pct_renew": 0,
             "pct_oozt": 0,
             "pct_rzd": 0,
@@ -91,6 +96,7 @@ def test_serialize_result_row_includes_modal():
             "pct_private_no_rent": 0.2,
             "pct_sum": 1.3,
             "pct_moscow_no_rent": 0,
+            "pct_dgi_renovation": 0,
             "pct_renew": 0,
             "pct_oozt": 0,
             "pct_rzd": 0,
@@ -98,6 +104,7 @@ def test_serialize_result_row_includes_modal():
         }
     )
     assert row["pct_sum"] == 1.3
+    assert row["pct_dgi_renovation"] == 0.0
     assert row["modal"]["percent_moscow_rent"] == 1.1
     assert row["skipped"] is False
     assert "2026-08-06" in row["calculated_at"]
@@ -122,6 +129,7 @@ def test_skipped_display_name_and_serialize_flag():
             "pct_private_no_rent": 0,
             "pct_sum": 0,
             "pct_moscow_no_rent": 0,
+            "pct_dgi_renovation": 0,
             "pct_renew": 0,
             "pct_oozt": 0,
             "pct_rzd": 0,
@@ -151,6 +159,7 @@ def _ensure_results_table():
                 pct_private_no_rent numeric(8,2) NOT NULL DEFAULT 0,
                 pct_sum numeric(8,2) NOT NULL DEFAULT 0,
                 pct_moscow_no_rent numeric(8,2) NOT NULL DEFAULT 0,
+                pct_dgi_renovation numeric(8,2) NOT NULL DEFAULT 0,
                 pct_renew numeric(8,2) NOT NULL DEFAULT 0,
                 pct_oozt numeric(8,2) NOT NULL DEFAULT 0,
                 pct_rzd numeric(8,2) NOT NULL DEFAULT 0,
@@ -158,6 +167,12 @@ def _ensure_results_table():
                 CONSTRAINT dgi_intersection_results_kind_chk
                     CHECK (object_kind IN ('passport', 'request'))
             )
+            """
+        )
+        cursor.execute(
+            """
+            ALTER TABLE dgi_intersection_results
+            ADD COLUMN IF NOT EXISTS pct_dgi_renovation numeric(8,2) NOT NULL DEFAULT 0
             """
         )
 
