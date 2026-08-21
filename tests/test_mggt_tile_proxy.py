@@ -73,10 +73,17 @@ def teardown_function() -> None:
     clear_tile_cache()
 
 
-def test_anonymous_tile_redirects_to_login():
-    response = _get_tile(authenticated=False)
-    assert response.status_code == 302
-    assert "/accounts/login/" in response.url
+def test_anonymous_tile_returns_png():
+    with patch(
+        "pass_viewer.tile_proxy.urlopen",
+        return_value=_FakeTileResponse(PNG_BYTES),
+    ):
+        response = _get_tile(authenticated=False)
+
+    assert response.status_code == 200
+    assert response["Content-Type"] == "image/png"
+    assert response["Cache-Control"] == "public, max-age=86400"
+    assert response.content == PNG_BYTES
 
 
 def test_unknown_layer_is_404_and_does_not_fetch():
@@ -102,7 +109,7 @@ def test_successful_proxy_returns_png_and_allowlisted_upstream():
 
     assert response.status_code == 200
     assert response["Content-Type"] == "image/png"
-    assert response["Cache-Control"] == "private, max-age=86400"
+    assert response["Cache-Control"] == "public, max-age=86400"
     assert response.content == PNG_BYTES
 
     upstream = _request_url(mock_urlopen)
@@ -157,12 +164,15 @@ def test_build_upstream_url_does_not_accept_client_host(settings):
     assert "http://evil.example" not in url
 
 
-def test_basemap_js_uses_same_origin_tile_urls():
+def test_basemap_js_splits_tile_urls_by_protocol():
     source = (ROOT / "pass_viewer/static/pass_viewer/js/basemap.js").read_text(encoding="utf-8")
     assert "/tiles/mggt/{z}/{x}/{y}.png" in source
     assert "/tiles/scale2000/{z}/{x}/{y}.png" in source
-    assert "http://ngtst.mggt" not in source
-    assert "passviewer:mggt_available_v2" in source
+    assert "http://ngtst.mggt" in source
+    assert "resource=248465" in source
+    assert "resource=232992" in source
+    assert "location.protocol === 'https:'" in source
+    assert "passviewer:mggt_available_v3" in source
 
 
 def test_pdf_export_skips_same_origin_cors():
