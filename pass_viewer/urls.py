@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .tile_proxy import proxy_mggt_tile
 from .views import (
     add_object,
     add_recap,
@@ -72,4 +73,9 @@ urlpatterns = [
     path("main/load-context-layers/", load_map_context_layers, name="load_map_context_layers"),
     path("main/export-geometry/", export_geometry, name="export_geometry"),
     path("split-object/", split_object, name="split_object"),
+    path(
+        "tiles/<str:layer>/<int:z>/<int:x>/<int:y>.png",
+        proxy_mggt_tile,
+        name="mggt_tile",
+    ),
 ]

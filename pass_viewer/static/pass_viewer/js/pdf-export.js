@@ -258,6 +258,22 @@
         leafletMap.eachLayer(visit);
     }
 
+    function isSameOriginTileUrl(url) {
+        const text = String(url || '');
+        if (!text || text.indexOf('data:') === 0) {
+            return false;
+        }
+        if (text.charAt(0) === '/') {
+            return true;
+        }
+        try {
+            const parsed = new URL(text, window.location.href);
+            return parsed.origin === window.location.origin;
+        } catch (e) {
+            return false;
+        }
+    }
+
     /* Ensure active tile layers request CORS-anonymous so html2canvas can read pixels. */
     function ensureTileLayerCors(leafletMap) {
         const restores = [];
@@ -267,6 +283,9 @@
             }
             const opts = layer.options || {};
             if (opts.crossOrigin === 'anonymous' || opts.crossOrigin === true) {
+                return;
+            }
+            if (isSameOriginTileUrl(layer._url)) {
                 return;
             }
             const prev = opts.crossOrigin;
