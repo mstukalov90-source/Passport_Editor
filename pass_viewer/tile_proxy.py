@@ -1,4 +1,8 @@
-"""Same-origin HTTPS proxy for internal МГГТ raster tiles."""
+"""HTTPS fallback for МГГТ raster tiles until nginx intercepts /tiles/.
+
+Corporate nginx should serve /tiles/ on the public HTTPS host. HTTP/IP clients
+fetch ngtst.mggt from the browser and do not use this view.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +14,6 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from django.conf import settings
-from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseNotFound
 from django.views.decorators.http import require_GET
 
@@ -18,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 MGGT_MAX_NATIVE_ZOOM = 17
 CACHE_MAX_ENTRIES = 64
-CACHE_CONTROL = "private, max-age=86400"
+CACHE_CONTROL = "public, max-age=86400"
 MAX_TILE_BYTES = 2 * 1024 * 1024
 _LAYER_SETTING_KEYS = {
     "mggt": "MGGT_TILE_RESOURCE_ID",
@@ -107,9 +110,9 @@ def _tile_response(body: bytes, content_type: str) -> HttpResponse:
     return response
 
 
-@login_required
 @require_GET
 def proxy_mggt_tile(request, layer: str, z: int, x: int, y: int):
+    """Fallback for HTTPS /tiles/ while nginx does not intercept that path."""
     resource_id = _resource_id_for_layer(layer)
     if resource_id is None:
         return HttpResponseNotFound()

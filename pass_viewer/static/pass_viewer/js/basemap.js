@@ -2,19 +2,36 @@
     'use strict';
     const PassViewer = (global.PassViewer = global.PassViewer || {});
 
-    const MGGT_TILE_URL = '/tiles/mggt/{z}/{x}/{y}.png';
-    const SCALE_2000_TILE_URL = '/tiles/scale2000/{z}/{x}/{y}.png';
+    const MGGT_HTTPS_TILE_URL = '/tiles/mggt/{z}/{x}/{y}.png';
+    const SCALE_2000_HTTPS_TILE_URL = '/tiles/scale2000/{z}/{x}/{y}.png';
+    const MGGT_HTTP_TILE_URL =
+        'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}';
+    const SCALE_2000_HTTP_TILE_URL =
+        'http://ngtst.mggt:8080/api/component/render/tile?resource=232992&nd=204&z={z}&x={x}&y={y}';
     const ERROR_TILE_URL =
         'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     /** Максимальный z, на котором сервер МГГТ отдаёт реальные тайлы; выше — Leaflet масштабирует уже загруженные. */
     const MGGT_MAX_NATIVE_ZOOM = 17;
     const MAP_MAX_ZOOM = 30;
-    const MGGT_PROBE_CACHE_KEY = 'passviewer:mggt_available_v2';
+    const MGGT_PROBE_CACHE_KEY = 'passviewer:mggt_available_v3';
     const MGGT_PROBE_TIMEOUT_MS = 3000;
     /** Тайл в центре Москвы для проверки доступности сервера МГГТ. */
     const MGGT_PROBE_TILE = { z: 10, x: 618, y: 319 };
 
     let mggtProbePromise = null;
+
+    /** HTTPS: same-origin /tiles/ (nginx, Django fallback). HTTP/IP: прямой ngtst.mggt. */
+    function useHttpsTileProxy() {
+        return typeof location !== 'undefined' && location.protocol === 'https:';
+    }
+
+    function mggtTileUrl() {
+        return useHttpsTileProxy() ? MGGT_HTTPS_TILE_URL : MGGT_HTTP_TILE_URL;
+    }
+
+    function scale2000TileUrl() {
+        return useHttpsTileProxy() ? SCALE_2000_HTTPS_TILE_URL : SCALE_2000_HTTP_TILE_URL;
+    }
 
     function getCachedMggtAvailability() {
         try {
@@ -40,7 +57,8 @@
     }
 
     function probeMggtAvailability(timeoutMs) {
-        const url = MGGT_TILE_URL.replace('{z}', String(MGGT_PROBE_TILE.z))
+        const url = mggtTileUrl()
+            .replace('{z}', String(MGGT_PROBE_TILE.z))
             .replace('{x}', String(MGGT_PROBE_TILE.x))
             .replace('{y}', String(MGGT_PROBE_TILE.y));
 
@@ -178,8 +196,8 @@
             updateWhenZooming: false,
             updateWhenIdle: true,
         };
-        const mggtLayer = L.tileLayer(MGGT_TILE_URL, mggtTileOpts);
-        const scale2000Layer = L.tileLayer(SCALE_2000_TILE_URL, {
+        const mggtLayer = L.tileLayer(mggtTileUrl(), mggtTileOpts);
+        const scale2000Layer = L.tileLayer(scale2000TileUrl(), {
             ...mggtTileOpts,
             attribution: '© МГГТ 1:2000',
         });
