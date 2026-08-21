@@ -235,6 +235,19 @@ except (TypeError, ValueError):
 GIS_SIGNAL_TAPE_GEOJSON_DECIMALS = int(os.getenv("GIS_SIGNAL_TAPE_GEOJSON_DECIMALS", "6") or "6")
 GIS_RZD_SIGNAL_GEOJSON_DECIMALS = int(os.getenv("GIS_RZD_SIGNAL_GEOJSON_DECIMALS", "5") or "5")
 
+# Same-origin proxy for internal МГГТ raster tiles (browser never talks HTTP to ngtst.mggt).
+MGGT_TILE_UPSTREAM_BASE = os.getenv(
+    "MGGT_TILE_UPSTREAM_BASE",
+    "http://ngtst.mggt:8080/api/component/render/tile",
+)
+MGGT_TILE_RESOURCE_ID = os.getenv("MGGT_TILE_RESOURCE_ID", "248465")
+SCALE_2000_TILE_RESOURCE_ID = os.getenv("SCALE_2000_TILE_RESOURCE_ID", "232992")
+MGGT_TILE_ND = os.getenv("MGGT_TILE_ND", "204")
+try:
+    MGGT_TILE_TIMEOUT_SECONDS = int(os.getenv("MGGT_TILE_TIMEOUT_SECONDS", "5"))
+except (TypeError, ValueError):
+    MGGT_TILE_TIMEOUT_SECONDS = 5
+
 # GeoDjango library paths (macOS Homebrew).
 GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH", "/opt/homebrew/lib/libgdal.dylib")
 GEOS_LIBRARY_PATH = os.getenv("GEOS_LIBRARY_PATH", "/opt/homebrew/lib/libgeos_c.dylib")

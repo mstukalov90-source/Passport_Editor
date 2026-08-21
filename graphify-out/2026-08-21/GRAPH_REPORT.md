@@ -1,18 +1,13 @@
-# Graph Report - GeoDjango  (2026-08-21)
+# Graph Report - GeoDjango  (2026-08-07)
 
 ## Corpus Check
-- 205 files · ~1,159,481 words
+- 201 files · ~1,070,977 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3387 nodes · 7414 edges · 227 communities (164 shown, 63 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 146 edges (avg confidence: 0.64)
+- 3322 nodes · 7270 edges · 224 communities (160 shown, 64 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 133 edges (avg confidence: 0.62)
 - Token cost: 0 input · 0 output
-
-## Graph Freshness
-- Built from commit: `f589e91b`
-- Run `git rev-parse HEAD` and compare to check if the graph is stale.
-- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - main.js
@@ -210,49 +205,46 @@
 - sync_geodb_from_mggt_daily.sh
 - list_dgi_intersection_results_for_scope
 - import_ozn_geojson.py
-- user_guide.py
-- import_ozn_geojson.py
-- 1. Upsert согласования (ingest)
-- Доступ и безопасность
 - _resolve_column_name
 - 0028_externaluser_dep_plus.py
 - renderDgiIntersectionsRows
 - getDossierGeometryForExport
 - 0029_create_dgi_intersection_results.py
+- Command
 - _simplify_geojson_for_editing
 
 ## God Nodes (most connected - your core abstractions)
 1. `Case` - 56 edges
-2. `_quote_ident()` - 44 edges
+2. `_quote_ident()` - 43 edges
 3. `_login()` - 37 edges
 4. `el()` - 35 edges
-5. `landing()` - 35 edges
-6. `resolve_user_scope()` - 35 edges
-7. `Approve` - 34 edges
+5. `Approve` - 34 edges
+6. `landing()` - 33 edges
+7. `resolve_user_scope()` - 33 edges
 8. `_valid_payload()` - 33 edges
 9. `_post_qgis_approve()` - 32 edges
-10. `get_accessible_approves()` - 31 edges
+10. `serialize_case_summary()` - 31 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `test_is_inspector_for_approve()` --calls--> `is_inspector_for_approve()`  [EXTRACTED]
-  tests/test_approval_access.py → approval/access.py
-- `test_user_can_access_case_for_inspector()` --calls--> `user_can_access_case()`  [EXTRACTED]
-  tests/test_approval_access.py → approval/access.py
-- `test_get_accessible_approves_for_inspector_without_owner_id()` --calls--> `get_accessible_approves()`  [EXTRACTED]
-  tests/test_approval_access.py → approval/access.py
-- `test_get_accessible_approves_filters_by_owner()` --calls--> `get_accessible_approves()`  [EXTRACTED]
-  tests/test_approval_map_data.py → approval/access.py
-- `test_record_case_approval_primary_without_inspector_when_not_assigned()` --calls--> `record_case_approval()`  [EXTRACTED]
-  tests/test_approval_access.py → approval/events_service.py
+- `Recompute DGI intersection percents and replace dgi_intersection_results.      `` --rationale_for--> `run_dgi_intersection_batch()`  [EXTRACTED]
+  pass_viewer/dgi_intersection_batch.py → GeoDjango/pass_viewer/dgi_intersection_batch.py
+- `JSON-friendly row for the list API.` --rationale_for--> `serialize_result_row()`  [EXTRACTED]
+  pass_viewer/dgi_intersection_batch.py → GeoDjango/pass_viewer/dgi_intersection_batch.py
+- `Return stored results filtered to the same objects the user sees on home.     So` --rationale_for--> `list_dgi_intersection_results_for_scope()`  [EXTRACTED]
+  pass_viewer/dgi_intersection_batch.py → GeoDjango/pass_viewer/dgi_intersection_batch.py
+- ```ownership``: ``moscow`` | ``private`` — filter on short_sobstv_rr for table ``` --rationale_for--> `_sql_dgi_ownership_filter()`  [EXTRACTED]
+  pass_viewer/views.py → GeoDjango/pass_viewer/views.py
+- `Filter on ``rent``: True → rent IS TRUE; False → rent IS NOT TRUE.` --rationale_for--> `_sql_dgi_rent_filter()`  [EXTRACTED]
+  pass_viewer/views.py → GeoDjango/pass_viewer/views.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (227 total, 63 thin omitted)
+## Communities (224 total, 64 thin omitted)
 
 ### Community 0 - "main.js"
 Cohesion: 0.02
-Nodes (110): addCommentPointButton, addPolygonButton, adjacentDtPassportsGroup, applyPopupHighlight(), autoRemoveDgiMoscowNoRentCheckbox, autoRemoveDgiMoscowRentCheckbox, autoRemoveDgiPrivateNoRentCheckbox, autoRemoveDgiPrivateRentCheckbox (+102 more)
+Nodes (107): addCommentPointButton, addPolygonButton, adjacentDtPassportsGroup, applyPopupHighlight(), autoRemoveDgiMoscowNoRentCheckbox, autoRemoveDgiMoscowRentCheckbox, autoRemoveDgiPrivateNoRentCheckbox, autoRemoveDgiPrivateRentCheckbox (+99 more)
 
 ### Community 1 - "home.js"
 Cohesion: 0.02
@@ -260,7 +252,7 @@ Nodes (119): addObjectEntryBtn, approvalChatPreviewCloseBtn, approvalChatPreview
 
 ### Community 2 - "add_object.js"
 Cohesion: 0.02
-Nodes (96): addCommentPointButton, addPolygonButton, autoRemoveDgiMoscowNoRentCheckbox, autoRemoveDgiMoscowRentCheckbox, autoRemoveDgiPrivateNoRentCheckbox, autoRemoveDgiPrivateRentCheckbox, autoRemoveDgiRenovationCheckbox, autoRemoveDtCheckbox (+88 more)
+Nodes (94): addCommentPointButton, addPolygonButton, autoRemoveDgiMoscowNoRentCheckbox, autoRemoveDgiMoscowRentCheckbox, autoRemoveDgiPrivateNoRentCheckbox, autoRemoveDgiPrivateRentCheckbox, autoRemoveDtCheckbox, autoRemoveIntersectionsButton (+86 more)
 
 ### Community 3 - "add-object.js"
 Cohesion: 0.05
@@ -268,7 +260,7 @@ Nodes (88): addSignalTapeLayer(), applyCutGeometry(), applyGeometryToEditableGro
 
 ### Community 4 - "add_recap.js"
 Cohesion: 0.02
-Nodes (83): addCommentPointButton, addDossierButton, adjacentDtPassportsGroup, applyPopupHighlight(), autoRemoveDgiMoscowNoRentCheckbox, autoRemoveDgiMoscowRentCheckbox, autoRemoveDgiPrivateNoRentCheckbox, autoRemoveDgiPrivateRentCheckbox (+75 more)
+Nodes (81): addCommentPointButton, addDossierButton, adjacentDtPassportsGroup, applyPopupHighlight(), autoRemoveDgiMoscowNoRentCheckbox, autoRemoveDgiMoscowRentCheckbox, autoRemoveDgiPrivateNoRentCheckbox, autoRemoveDgiPrivateRentCheckbox (+73 more)
 
 ### Community 5 - "add-recap.js"
 Cohesion: 0.06
@@ -280,79 +272,79 @@ Nodes (59): applyCutGeometry(), applyGeometryToEditableGroup(), applySelectionPo
 
 ### Community 7 - "home.js"
 Cohesion: 0.08
-Nodes (22): applyNotificationsTitleMode(), clearHomeOghSpecialModes(), clearPassportConfirmState(), closeEntryRecapModal(), closeEntryRequestModal(), dgiPctClass(), formatDgiCalculatedAt(), formatDgiPct() (+14 more)
+Nodes (24): clearHomeOghSpecialModes(), clearPassportConfirmState(), closeEntryRecapModal(), closeEntryRequestModal(), closeMergeRequestModal(), dgiPctClass(), formatDgiCalculatedAt(), formatDgiPct() (+16 more)
 
 ### Community 8 - "json_loaders.py"
 Cohesion: 0.16
 Nodes (18): Enum, Helpers for loading seed / reference data from JSON and GeoJSON files.  Expected, build_default_registry(), _comment_points_table(), expected_file_names(), expected_filename(), expected_files_doc(), FileKind (+10 more)
 
 ### Community 9 - "views.py"
-Cohesion: 0.22
-Nodes (14): geometry_intersects_allowed_hood(), geometry_norm: GeoJSON geometry dict (not Feature/FC)., _comment_points_table_name(), _create_new_object(), _create_recap_object(), delete_comment_point(), _dgi_aprove_column_exists(), _ensure_request_id_column() (+6 more)
+Cohesion: 0.21
+Nodes (12): geometry_intersects_allowed_hood(), geometry_norm: GeoJSON geometry dict (not Feature/FC)., _create_new_object(), _create_recap_object(), _dgi_aprove_column_exists(), _ensure_request_id_column(), _geojson_geom_sql_for_table(), Проверка перед INSERT/UPDATE в pass_objects / odh (колонка MultiPolygon). (+4 more)
 
 ### Community 10 - "geojson_dynamic.py"
-Cohesion: 0.09
-Nodes (33): AuthenticationForm, URL configuration for pass_map project.  The `urlpatterns` list routes URLs to v, EntryPointForm, RussianAuthenticationForm, add_object(), add_recap(), _build_owned_passports_geojson(), _entry_point_needs_request_id() (+25 more)
+Cohesion: 0.24
+Nodes (10): clearPendingRepairedGeometry(), clearSaveModalMessages(), closeSaveModal(), exportObjectFiles(), hideSaveModalFixUi(), openSaveModal(), repairPolygonFromSaveModal(), runSaveAndExportFlow() (+2 more)
 
 ### Community 11 - "test_adjacent_relations.py"
-Cohesion: 0.10
-Nodes (37): _adjacent_layers_for_json_response(), _build_map_adjacent_dt_combined_sql(), _build_map_request_layer_branch(), _build_map_requests_sql(), _build_map_requests_sql_for_source(), _build_new_object_request_layer_branch(), _build_new_object_request_objects_sql(), _defer_map_context_layers() (+29 more)
+Cohesion: 0.09
+Nodes (38): _adjacent_layers_for_json_response(), _build_map_adjacent_dt_combined_sql(), _build_map_request_layer_branch(), _build_map_requests_sql(), _build_map_requests_sql_for_source(), _build_new_object_request_layer_branch(), _build_new_object_request_objects_sql(), _defer_map_context_layers() (+30 more)
 
 ### Community 12 - "_quote_ident"
-Cohesion: 0.11
-Nodes (54): get_hood_cte_prefix_sql(), get_hood_intersects_ha_sql(), get_hood_intersects_sql_suffix(), Returns (sql_suffix, [params]) to AND into a WHERE clause, e.g.       AND ST_Int, Leading ``WITH ha AS (...), `` fragment (comma included) and its params., ``AND ST_Intersects((SELECT g FROM ha), ...)`` when scope active/empty; empty st, _adjacent_nearby_meters(), _append_merge_table_select_parts() (+46 more)
+Cohesion: 0.14
+Nodes (45): get_hood_cte_prefix_sql(), get_hood_intersects_ha_sql(), get_hood_intersects_sql_suffix(), Returns (sql_suffix, [params]) to AND into a WHERE clause, e.g.       AND ST_Int, Leading ``WITH ha AS (...), `` fragment (comma included) and its params., ``AND ST_Intersects((SELECT g FROM ha), ...)`` when scope active/empty; empty st, _adjacent_nearby_meters(), _append_merge_table_select_parts() (+37 more)
 
 ### Community 13 - "test_owned_recaps.py"
-Cohesion: 0.10
-Nodes (39): ApproveAlreadyApprovedError, ApproveUserConflictError, attach_geometry_to_message(), attachment_allowed_extensions(), attachment_max_bytes(), compute_message_reaction_stats(), create_case_with_geometry(), delete_inspector_own_message() (+31 more)
+Cohesion: 0.07
+Nodes (35): AppConfig, is_inspector_for_approve(), delete_approve(), ApprovalConfig, ApproveAlreadyApprovedError, ApproveUserConflictError, attach_geometry_to_message(), compute_message_reaction_stats() (+27 more)
 
 ### Community 14 - "main.js"
 Cohesion: 0.11
-Nodes (21): applyPopupHighlight(), buildCurrentGeometryFromSelected(), buildExportGeometry(), clearPendingRepairedGeometry(), clearPopupHighlight(), clearSaveModalMessages(), closeSaveModal(), detachPromptSnapHandlers() (+13 more)
+Nodes (21): applyPopupHighlight(), bindCommentPointLayer(), buildCommentPointPopupHtml(), cancelCommentPointMode(), clearPopupHighlight(), closeCommentPointModal(), deleteCommentPointById(), detachPromptSnapHandlers() (+13 more)
 
 ### Community 15 - "_get_map_layers"
 Cohesion: 0.10
 Nodes (21): 5.1. Статика и маршрут, 5.2. QGIS API (с сервера или машины в сети МГГТ), 5.3. Веб-интерфейс, 5.4. SQL-контроль, Media и вложения, Архитектура на проде, Бизнес-логика (важно для приёмки), Настройка QGIS-модуля (+13 more)
 
 ### Community 16 - "hood_scope.py"
-Cohesion: 0.13
-Nodes (29): bind_hood_scope(), clear_hood_scope(), get_hood_allowed_districts_geojson(), get_hood_cte_prefix_and_intersects_clause(), _hood_min_overlap_ratio(), _hood_owner_geom_union_sql_and_params(), _hood_owner_union_cte_sql(), _hood_spatial_scope_active() (+21 more)
+Cohesion: 0.07
+Nodes (43): AuthenticationForm, URL configuration for pass_map project.  The `urlpatterns` list routes URLs to v, EntryPointForm, RussianAuthenticationForm, bind_hood_scope(), clear_hood_scope(), get_hood_allowed_districts_geojson(), get_hood_cte_prefix_and_intersects_clause() (+35 more)
 
 ### Community 17 - "test_dgi_layers.py"
 Cohesion: 0.08
-Nodes (32): build_dgi_ownership_extra_sql(), build_dgi_renovation_extra_sql(), build_dgi_renovation_match_sql(), build_dgi_rent_extra_sql(), classify_dgi_ownership(), classify_dgi_renovation(), normalize_dgi_aprove_payload(), DGI sub-layer classification by zemlepol_dgi, short_sobstv_rr, and rent. (+24 more)
+Nodes (33): build_dgi_ownership_extra_sql(), build_dgi_rent_extra_sql(), classify_dgi_ownership(), finalize_dgi_aprove_record(), normalize_dgi_aprove_payload(), DGI sub-layer classification by short_sobstv_rr (moscow vs private) and rent., Return ``moscow`` or ``private`` for a raw short_sobstv_rr value (client/tests)., SQL fragment starting with `` AND `` for table alias column expression, e.g. ``t (+25 more)
 
 ### Community 18 - "clearMapDisplayedUserDrawings"
-Cohesion: 0.15
-Nodes (19): applyPopupHighlight(), bindEditablePolygonPopup(), buildEditableDeletePopupHtml(), cancelAddObjectMode(), cancelCutMode(), clearDrawSnapPreview(), clearMapDisplayedUserDrawings(), clearPopupHighlight() (+11 more)
+Cohesion: 0.14
+Nodes (24): applyPopupHighlight(), cancelAddObjectMode(), cancelCutMode(), captureMapCanvasForPdf(), clearDrawSnapPreview(), clearMapDisplayedUserDrawings(), clearPopupHighlight(), clearStartVertexFlag() (+16 more)
 
 ### Community 19 - "checkRelations"
-Cohesion: 0.13
-Nodes (24): applyCutGeometry(), applyGeometryToEditableGroup(), autoRemoveIntersections(), buildCurrentGeometry(), buildCurrentGeometryFromSelected(), buildExportGeometry(), checkDgiIntersections(), checkRelations() (+16 more)
+Cohesion: 0.15
+Nodes (20): applyCutGeometry(), applyGeometryToEditableGroup(), autoRemoveIntersections(), buildCurrentGeometry(), checkDgiIntersections(), checkRelations(), closeAutoRemoveModal(), closeDeletePolygonModal() (+12 more)
 
 ### Community 20 - "pdf-export.js"
-Cohesion: 0.14
-Nodes (21): addMapLandscapePage(), addPortraitContentPages(), buildAndSavePdf(), buildIntersectionBlockElement(), buildObjectInfoElement(), buildObjectInfoFromContext(), captureLeafletMapPngCanvas(), collectBoundsFromGeoJson() (+13 more)
+Cohesion: 0.15
+Nodes (20): addMapLandscapePage(), addPortraitContentPages(), buildAndSavePdf(), buildIntersectionBlockElement(), buildObjectInfoElement(), buildObjectInfoFromContext(), captureLeafletMapPngCanvas(), collectBoundsFromGeoJson() (+12 more)
 
 ### Community 21 - "dgi_xlsx_sync.py"
 Cohesion: 0.11
 Nodes (27): _as_text(), DgiXlsxSyncStats, _fetch_table_meta(), _flush_batches(), _insert_batch_rows(), _insert_sql(), _load_rows_from_xlsx(), _normalize_header() (+19 more)
 
 ### Community 22 - "urls.py"
-Cohesion: 0.09
-Nodes (32): finalize_dgi_aprove_record(), Apply server-side username and timestamp defaults before DB write., _build_merge_allowed_sets(), cancel_pending_entry(), _check_recap_uniqueness(), clear_sup_hood(), confirm_entry_request_id(), _dedupe_merge_items() (+24 more)
+Cohesion: 0.07
+Nodes (58): _annotate_and_filter_ods_registry_against_gis(), _auto_remove_square_table_name(), _build_where_clause(), cancel_pending_entry(), _classify_ods_click_scenario(), clear_sup_hood(), _comment_points_table_name(), confirm_entry_request_id() (+50 more)
 
 ### Community 23 - "finishDossierPolygon"
-Cohesion: 0.21
-Nodes (13): clearDrawSnapPreview(), clearPendingRepairedGeometry(), clearStartVertexFlag(), closeDeletePolygonModal(), collectSnapGuideLines(), deletePendingPolygon(), finishDossierPolygon(), getFirstVertexFromDrawer() (+5 more)
+Cohesion: 0.17
+Nodes (16): applyGeometryToDossierGroup(), bindDossierPolygonPopup(), buildEditableDeletePopupHtml(), clearPendingRepairedGeometry(), clearStartVertexFlag(), closeDeletePolygonModal(), collectSnapGuideLines(), deletePendingPolygon() (+8 more)
 
 ### Community 24 - "checkRelations"
-Cohesion: 0.15
-Nodes (20): applyCutGeometry(), applyGeometryToEditableGroup(), autoRemoveIntersections(), buildCurrentGeometry(), checkDgiIntersections(), checkRelations(), closeAutoRemoveModal(), closeDeletePolygonModal() (+12 more)
+Cohesion: 0.14
+Nodes (21): applyCutGeometry(), applyGeometryToEditableGroup(), autoRemoveIntersections(), buildCurrentGeometry(), buildCurrentGeometryFromSelected(), buildExportGeometry(), checkDgiIntersections(), checkRelations() (+13 more)
 
 ### Community 25 - "runSaveAndExportFlow"
-Cohesion: 0.24
-Nodes (10): clearPendingRepairedGeometry(), clearSaveModalMessages(), closeSaveModal(), exportObjectFiles(), getSaveTargetSourceLabel(), hideSaveModalFixUi(), openSaveModal(), runSaveAndExportFlow() (+2 more)
+Cohesion: 0.21
+Nodes (13): buildExportGeometry(), clearPendingRepairedGeometry(), clearSaveModalMessages(), closeSaveModal(), exportObjectFiles(), getEditableGeometryForSave(), getSaveTargetSourceLabel(), hideSaveModalFixUi() (+5 more)
 
 ### Community 26 - "renderRelationLayers"
 Cohesion: 0.12
@@ -363,7 +355,7 @@ Cohesion: 0.14
 Nodes (24): _flush_update_batch(), GeomSyncSpec, _iter_source_batches(), _mark_qgis_session_read_only(), Any, Reproject MSC-77 (980077) geometries from mggt_asu into local geodb (EPSG:4326)., MSC-77 geom → WGS84 MultiPolygon (or Geometry) expression., Best-effort read-only; this module never issues writes on qgis. (+16 more)
 
 ### Community 28 - "build_page_js.py"
-Cohesion: 0.24
+Cohesion: 0.25
 Nodes (14): apply_forward_replacements(), apply_reverse_replacements(), build_all_pages(), build_page(), build_page_content(), check_all_pages(), main(), Path (+6 more)
 
 ### Community 29 - "_create_new_object"
@@ -383,12 +375,12 @@ Cohesion: 0.11
 Nodes (18): 10. Ограничения по районам, 11. Ручной поиск объекта, 12. Рекомендации по работе, 13. Типичные сообщения, 14. Словарь терминов, 15. Поддержка, 1. Назначение системы, 2. Вход в систему (+10 more)
 
 ### Community 33 - "Деплой Passport Editor (MGGT / Docker)"
-Cohesion: 0.07
-Nodes (27): 1. Локально (из репозитория GeoDjango), 2. На сервере (обновление кода), 3. Проверка, 4. Вернуться к разработке, firewalld (RED OS / MGGT), Git на MGGT и токен развёртывания (hub.mos.ru), RED OS: Docker Hub недоступен, Безопасность (+19 more)
+Cohesion: 0.09
+Nodes (22): firewalld (RED OS / MGGT), Git на MGGT и токен развёртывания (hub.mos.ru), RED OS: Docker Hub недоступен, Безопасность, Ветки — зачем так, Деплой Passport Editor (MGGT / Docker), Ежедневная синхронизация geodb из mggt_asu (07:00 МСК), Известные нюансы (+14 more)
 
 ### Community 34 - "clearDrawSnapPreview"
-Cohesion: 0.12
-Nodes (22): applySnappedVertex(), attachPromptSnapHandlers(), bindEditablePolygonPopup(), buildEditableDeletePopupHtml(), cancelAddObjectMode(), cancelCutMode(), clearDrawSnapPreview(), clearStartVertexFlag() (+14 more)
+Cohesion: 0.21
+Nodes (13): bindEditablePolygonPopup(), buildEditableDeletePopupHtml(), cancelAddObjectMode(), cancelCutMode(), clearDrawSnapPreview(), clearStartVertexFlag(), finishCreatedPolygon(), getFirstVertexFromDrawer() (+5 more)
 
 ### Community 35 - "geometry-multipolygon-save.js"
 Cohesion: 0.23
@@ -403,8 +395,8 @@ Cohesion: 0.19
 Nodes (16): import_id_names(), import_ods_request(), import_users(), _load_json_array(), _load_ods_request_rows(), _ods_row_tuple(), _ods_ts(), _pick() (+8 more)
 
 ### Community 38 - "views.py"
-Cohesion: 0.15
-Nodes (39): _ensure_inspector(), _post_qgis_approve(), _qgis_delete(), _qgis_get(), _qgis_post_json(), Tests for QGIS approval ingest API., test_aggregates_n_root_and_owners_on_approve(), test_create_approve_when_task_owner_matches_n_root_owner() (+31 more)
+Cohesion: 0.07
+Nodes (50): BaseBackend, Client, DockerUsersTableBackend, Create or update the E2E test user in the users table (idempotent)., ExternalUser, Meta, Tests for progressive approval map-layer API., test_api_map_layer_missing_approve_returns_404() (+42 more)
 
 ### Community 39 - "CI на корпоративном GitLab (hub.mos.ru)"
 Cohesion: 0.25
@@ -412,7 +404,7 @@ Nodes (8): CI на корпоративном GitLab (hub.mos.ru), MosHub / ст
 
 ### Community 40 - "renderRelationLayers"
 Cohesion: 0.20
-Nodes (14): addSignalTapeLayer(), bindPdfExportLink(), captureMapCanvasForPdf(), clearRelationLayers(), fetchPdfExportData(), filterOutSelectedRootid(), formatDgiShortSobstvRr(), refreshObjectLayersControl() (+6 more)
+Nodes (12): addSignalTapeLayer(), bindPdfExportLink(), clearRelationLayers(), fetchPdfExportData(), filterOutSelectedRootid(), formatDgiShortSobstvRr(), renderRecapsLayer(), renderReferenceSignalLayers() (+4 more)
 
 ### Community 41 - "BaseCommand"
 Cohesion: 0.13
@@ -420,11 +412,11 @@ Nodes (26): build_manifest(), collect_table_names(), parse_filter(), parse_qml_f
 
 ### Community 42 - "page_config.py"
 Cohesion: 0.09
-Nodes (53): format_named_event_title(), Serialize approves with one batch poly-meta lookup for TaskGUIDs., Build secondary-event title with object names (or number fallbacks)., serialize_approve_option(), serialize_approve_options(), _event_case(), _login(), _message_with_attachment() (+45 more)
+Nodes (53): build_case_title_named(), format_named_event_title(), Build secondary-event title with object names (or number fallbacks)., Named display title for a secondary case, or None when not applicable.      Uses, serialize_approve_option(), _event_case(), _login(), _message_with_attachment() (+45 more)
 
 ### Community 43 - "updateDossierToolbarState"
-Cohesion: 0.16
-Nodes (18): applyGeometryToDossierGroup(), autoRemoveIntersections(), bindDossierPolygonPopup(), buildCurrentGeometry(), buildEditableDeletePopupHtml(), buildExportGeometry(), checkDgiIntersections(), checkRelations() (+10 more)
+Cohesion: 0.25
+Nodes (11): autoRemoveIntersections(), buildCurrentGeometry(), checkDgiIntersections(), checkRelations(), closeAutoRemoveModal(), getAutoRemoveSources(), hideDbLoadingModal(), showCheckDgiModal() (+3 more)
 
 ### Community 44 - "refreshObjectLayersControl"
 Cohesion: 0.17
@@ -435,8 +427,8 @@ Cohesion: 0.42
 Nodes (10): cancelCutMode(), cancelSelectionPolygonMode(), clearSplitDrawFinishFlag(), getFirstVertexFromPolygonDrawer(), getLastVertexFromPolylineDrawer(), refreshToolbar(), setEditMode(), startCutMode() (+2 more)
 
 ### Community 46 - "models.py"
-Cohesion: 0.15
-Nodes (30): _add_calendar_months(), add_case_participant(), _approvals_progress(), build_case_title_named(), build_home_notifications(), _case_approve_until(), _case_display_status(), _case_is_fully_approved() (+22 more)
+Cohesion: 0.13
+Nodes (40): _add_calendar_months(), add_case_participant(), _approvals_progress(), attachment_allowed_extensions(), attachment_max_bytes(), build_geometries_feature_collection(), build_home_notifications(), _case_approve_until() (+32 more)
 
 ### Community 47 - "bindCommentPointLayer"
 Cohesion: 0.20
@@ -455,12 +447,12 @@ Cohesion: 0.28
 Nodes (9): applySnappedVertex(), attachPromptSnapHandlers(), findNearestCandidate(), findNearestSnapTarget(), nearestPointOnSegment(), setSnapCircleVisualState(), snapLastDrawVertexIfNeeded(), startSnapBindingLoop() (+1 more)
 
 ### Community 52 - "attachPromptSnapHandlers"
-Cohesion: 0.10
-Nodes (27): build_upstream_url(), _cache_get(), _cache_put(), clear_tile_cache(), fetch_upstream_tile(), _int_setting(), proxy_mggt_tile(), Same-origin HTTPS proxy for internal МГГТ raster tiles. (+19 more)
+Cohesion: 0.28
+Nodes (9): applySnappedVertex(), attachPromptSnapHandlers(), findNearestCandidate(), findNearestSnapTarget(), nearestPointOnSegment(), setSnapCircleVisualState(), snapLastDrawVertexIfNeeded(), startSnapBindingLoop() (+1 more)
 
 ### Community 53 - "runSaveAndExportFlow"
-Cohesion: 0.20
-Nodes (10): bindPdfExportLink(), captureMapCanvasForPdf(), clearPendingRepairedGeometry(), clearSaveModalMessages(), closeSaveModal(), exportObjectFiles(), openSaveModal(), runPdfExportDownload() (+2 more)
+Cohesion: 0.19
+Nodes (13): buildCurrentGeometryFromSelected(), buildExportGeometry(), clearPendingRepairedGeometry(), clearSaveModalMessages(), closeSaveModal(), exportObjectFiles(), getEditableGeometryForSave(), hideSaveModalFixUi() (+5 more)
 
 ### Community 54 - "attachPromptSnapHandlers"
 Cohesion: 0.28
@@ -471,24 +463,24 @@ Cohesion: 0.12
 Nodes (16): CI, Page JS (`home.js`, `main.js`, …), Passport Editor (GeoDjango), pre-commit, QGIS-витрина (alias `qgis`), Быстрый старт, Локальная geodb (Docker), Опционально: прод geodb через SSH (+8 more)
 
 ### Community 57 - "3. Главная страница"
-Cohesion: 0.13
-Nodes (29): load_manifest(), build_schema_feature_collection(), build_topopassport_feature_collection(), build_work_feature_collection(), _max_features(), Load approval map features from mggt_asu.work / topopassport schemas., Return actual column name matching preferred_name case-insensitively, or None., GeoJSON polygon (EPSG:4326) of the survey object for the first matching guid. (+21 more)
+Cohesion: 0.12
+Nodes (31): load_manifest(), load_work_anchor_geometry(), Return survey polygon GeoJSON (dict) for TaskGUID from work YardPoly → OznPoly →, build_schema_feature_collection(), build_topopassport_feature_collection(), build_work_feature_collection(), _max_features(), Load approval map features from mggt_asu.work / topopassport schemas. (+23 more)
 
 ### Community 58 - "0013_externaluser_hood_scope.py"
 Cohesion: 0.39
 Nodes (7): forward_hood_scope_sql(), _hood_scope_backfill(), Migration, _quote_ident(), Return (id_field, name_field) using the same discovery rules as views._get_id_na, _resolve_id_names_columns(), reverse_hood_scope_sql()
 
 ### Community 59 - "renderRelationLayers"
-Cohesion: 0.16
-Nodes (14): addSignalTapeLayer(), bindPdfExportLink(), captureMapCanvasForPdf(), closeSaveModal(), fetchPdfExportData(), filterByRequestedName(), filterOutSelectedRootid(), formatDgiShortSobstvRr() (+6 more)
+Cohesion: 0.18
+Nodes (13): addSignalTapeLayer(), bindPdfExportLink(), captureMapCanvasForPdf(), clearDrawSnapPreview(), fetchPdfExportData(), filterByRequestedName(), filterOutSelectedRootid(), formatDgiShortSobstvRr() (+5 more)
 
 ### Community 60 - "getMergeCheckboxPayload"
 Cohesion: 0.32
 Nodes (8): closeMergeRequestModal(), getMergeCheckboxPayload(), getMergeGeometryDetailMode(), normalizeMergeSourceLabel(), openMergeRequestModalWithSources(), resetMergeTargetOptionRows(), submitMergePassportsContinue(), submitMergeRequestModal()
 
 ### Community 61 - "buildNewGeometryBeyondSelected"
-Cohesion: 0.29
-Nodes (8): buildNewGeometryBeyondSelected(), countPolygonLikeGeometriesInCollection(), extractPolygonGeometriesFromCollection(), fetchPdfExportData(), filterOutSelectedRootid(), hasNewPolygonBeyondSelected(), toGeometryFromPolygonList(), toIntersectionGeometry()
+Cohesion: 0.20
+Nodes (11): bindPdfExportLink(), buildNewGeometryBeyondSelected(), captureMapCanvasForPdf(), countPolygonLikeGeometriesInCollection(), extractPolygonGeometriesFromCollection(), fetchPdfExportData(), filterOutSelectedRootid(), hasNewPolygonBeyondSelected() (+3 more)
 
 ### Community 62 - "user_guide.py"
 Cohesion: 0.21
@@ -511,8 +503,8 @@ Cohesion: 0.11
 Nodes (23): applyHomeWorkflowOdsSyncNotifications(), buildOdsNewMessages(), buildOdsSyncChangeMessages(), collectCurrentOdsRequestIds(), collectCurrentOdsSyncStatuses(), eventDisplayTitle(), getHomeNotificationsSeenStorageKey(), getHomeOdsRequestIdsStorageKey() (+15 more)
 
 ### Community 69 - "renderRelationLayers"
-Cohesion: 0.33
-Nodes (7): addSignalTapeLayer(), formatDgiShortSobstvRr(), renderRecapsLayer(), renderReferenceSignalLayers(), renderRelationLayers(), renderRenewLayer(), renderTopLayer()
+Cohesion: 0.28
+Nodes (9): addSignalTapeLayer(), collectSnapGuideLines(), formatDgiShortSobstvRr(), rebuildSnapGuideLines(), renderRecapsLayer(), renderReferenceSignalLayers(), renderRelationLayers(), renderRenewLayer() (+1 more)
 
 ### Community 70 - "ci_resolve_gdal_paths.sh"
 Cohesion: 0.29
@@ -523,12 +515,12 @@ Cohesion: 0.25
 Nodes (3): django_db_use_migrations(), Shared pytest fixtures., Smoke tests only need ORM tables (users); GIS tables come from seed/import.
 
 ### Community 74 - "HTTP API: приём согласований из QGIS"
-Cohesion: 0.08
-Nodes (26): 10. Удаление сообщения, 11. Участники события, 12. Смежное событие, 13. Удаление согласования, 2. Список согласований, 3. Деталь согласования, 4. Геометрии (слой для карты QGIS), 5. Деталь события / чат (+18 more)
+Cohesion: 0.06
+Nodes (36): 10. Удаление сообщения, 11. Участники события, 12. Смежное событие, 13. Удаление согласования, 1. Upsert согласования (ingest), 2. Список согласований, 3. Деталь согласования, 4. Геометрии (слой для карты QGIS) (+28 more)
 
 ### Community 75 - "clearDrawSnapPreview"
-Cohesion: 0.50
-Nodes (4): findNearestCandidate(), findNearestSnapTarget(), nearestPointOnSegment(), snapLastDrawVertexIfNeeded()
+Cohesion: 0.40
+Nodes (5): findNearestCandidate(), findNearestSnapTarget(), nearestPointOnSegment(), snapLastDrawVertexIfNeeded(), updateDrawSnapPreview()
 
 ### Community 76 - "renderOwnedRecapsList"
 Cohesion: 0.47
@@ -539,24 +531,24 @@ Cohesion: 0.42
 Nodes (8): check_duplicate_primary_cases(), print_local_counts(), print_prod_counts(), prod_pg_dump(), restore_sql_stream(), sync_approval_from_prod.sh script, truncate_local_approval(), usage()
 
 ### Community 78 - "AppConfig"
-Cohesion: 0.13
-Nodes (22): aggregate_approve_owners(), create_event_from_adjacent(), resolve_event_case_owners(), validate_case_owners(), Unit tests for approval access rules and inspector approvals., _secondary_case(), test_aggregate_approve_owners_includes_task_owner(), test_get_accessible_approves_for_inspector_without_owner_id() (+14 more)
+Cohesion: 0.12
+Nodes (25): aggregate_approve_owners(), _merge_case_owners_preserving_extras(), Keep inspector-added owners that are not part of the QGIS owner set., resolve_event_case_owners(), _sync_primary_case_fields(), upsert_approve_from_qgis(), _upsert_qgis_event_cases(), validate_case_owners() (+17 more)
 
 ### Community 79 - "landing.js"
 Cohesion: 0.09
 Nodes (33): addGeometryLayer(), adjacentBaseKey(), adjacentBaseStyle(), adjacentFeatureKey(), adjacentLayerForRoot(), adjacentLayerKey(), adjacentLayerLabel(), adjacentSourceLabel() (+25 more)
 
 ### Community 80 - "forms.py"
-Cohesion: 0.15
-Nodes (38): get_accessible_approve(), build_geometries_feature_collection(), Short approve payload for QGIS list/detail headers., GeoJSON FeatureCollection for QGIS map layers., serialize_approve_qgis_summary(), qgis_api_host_allowed(), Access rules for the QGIS approval API (internal host only)., request_host_name() (+30 more)
+Cohesion: 0.16
+Nodes (36): get_accessible_approve(), Short approve payload for QGIS list/detail headers., serialize_approve_qgis_summary(), qgis_api_host_allowed(), Access rules for the QGIS approval API (internal host only)., request_host_name(), api_qgis_add_case_participant(), api_qgis_approve_by_guid() (+28 more)
 
 ### Community 81 - "Обычное обновление (только код, БД не трогаем)"
-Cohesion: 0.07
-Nodes (27): 10. Проверка после отправки, 11. Миграции схемы, 12. Контакты по доработкам, 1. Что передаёт QGIS-модуль, 2. UUID и идентификаторы: что генерировать, что не трогать, 3. Схема данных и связи, 4. Пошаговая процедура (SQL, альтернатива HTTP API), 5. Полный пример транзакции (+19 more)
+Cohesion: 0.10
+Nodes (20): 10. Проверка после отправки, 11. Миграции схемы, 12. Контакты по доработкам, 1. Что передаёт QGIS-модуль, 2. UUID и идентификаторы: что генерировать, что не трогать, 3. Схема данных и связи, 4. Пошаговая процедура (SQL, альтернатива HTTP API), 5. Полный пример транзакции (+12 more)
 
 ### Community 82 - "Git на MGGT и токен развёртывания (hub.mos.ru)"
-Cohesion: 0.21
-Nodes (18): _classify_object_kind(), _column_exists(), _fetch_results(), _fetch_results_matching_keys(), _gis_municipal_table_specs(), _insert_results_chunk(), _iter_gis_objects(), list_dgi_intersection_results_for_scope() (+10 more)
+Cohesion: 0.14
+Nodes (29): _classify_object_kind(), _column_exists(), _compute_percents_for_object(), _fetch_results(), _fetch_results_matching_keys(), _gis_municipal_table_specs(), _insert_results_chunk(), _iter_gis_objects() (+21 more)
 
 ### Community 83 - "_remove_intersections_from_geometry"
 Cohesion: 0.16
@@ -564,11 +556,11 @@ Nodes (19): Command, build_svg_index(), _index_key_variants(), load_svg_index(),
 
 ### Community 85 - "refreshAutoRemoveModalOptions"
 Cohesion: 0.09
-Nodes (35): landing_page_config(), Page bootstrap config for approval templates (json_script)., _feature_select_sql(), build_layer_groups(), format_survey_page_title(), layer_stack_order(), lookup_task_survey_fields(), Build approval page title from work-layer Name and PassBrId. (+27 more)
+Nodes (37): _feature_select_sql(), build_layer_groups(), format_survey_page_title(), geom_to_wgs84_sql(), Build approval page title from work-layer Name and PassBrId., Return work-layer Name for TaskGUID, or empty string when not found., Return landing page title from work YardPoly → OznPoly → OdhPoly for TaskGUID., SQL expression returning proj4text for APPROVAL_WORK_SOURCE_SRID.      PostGIS 3 (+29 more)
 
 ### Community 87 - "page_config.py"
-Cohesion: 0.28
-Nodes (12): add_object_page_config(), add_recap_page_config(), _adjacent_nearby_meters_for_page(), build_page_config(), _defer_map_context_layers_for_page(), _editor_api_urls(), home_page_config(), main_page_config() (+4 more)
+Cohesion: 0.23
+Nodes (14): add_object_page_config(), add_recap_page_config(), _adjacent_nearby_meters_for_page(), build_page_config(), _defer_map_context_layers_for_page(), _editor_api_urls(), home_page_config(), main_page_config() (+6 more)
 
 ### Community 88 - "conftest.py"
 Cohesion: 0.40
@@ -587,36 +579,32 @@ Cohesion: 0.50
 Nodes (4): closeEntryRequestModal(), getEntryGeometryDetailMode(), handleEntryRequestCancel(), submitEntryRequestModal()
 
 ### Community 92 - "cancelCommentPointMode"
-Cohesion: 0.10
-Nodes (45): _adjacent_layer_for_root(), adjacent_layer_key(), adjacent_poly_tables(), adjacent_primary_schema_name(), _adjacent_property_pairs(), adjacent_root_ids(), adjacent_schema_name(), _adjacent_select_sql() (+37 more)
+Cohesion: 0.22
+Nodes (22): adjacent_poly_tables(), adjacent_primary_schema_name(), _adjacent_property_pairs(), adjacent_schema_name(), _adjacent_select_sql(), _append_features(), build_adjacent_features(), count_adjacent_features() (+14 more)
 
 ### Community 94 - "test_geometry_multipolygon_export.py"
 Cohesion: 0.67
 Nodes (3): Unit tests for polygon normalization helpers in geometry-multipolygon-save.js., _run_js_tests(), test_geometry_multipolygon_export_helpers()
-
-### Community 98 - "settings.py"
-Cohesion: 0.18
-Nodes (9): AppConfig, delete_approve(), ApprovalConfig, delete_approve_for_inspector(), revoke_case_approval(), _sync_approve_status_after_case_approval(), _sync_approve_status_after_case_revoke(), Approve (+1 more)
 
 ### Community 100 - "clearHomeOghSpecialModes"
 Cohesion: 0.67
 Nodes (3): clearHomeOghSpecialModes(), setHomeOghBoundariesEditMode(), setHomeOghSplitPassportMode()
 
 ### Community 139 - "__init__.py"
-Cohesion: 0.19
-Nodes (29): _actor_context(), api_add_case_participant(), api_approve_case(), api_bootstrap(), api_case_detail(), api_change_case_owner(), api_create_adjacent_event(), api_create_case() (+21 more)
+Cohesion: 0.18
+Nodes (32): _actor_context(), api_add_case_participant(), api_approve_case(), api_bootstrap(), api_case_detail(), api_change_case_owner(), api_create_adjacent_event(), api_create_case() (+24 more)
 
 ### Community 155 - "utils.js"
 Cohesion: 0.80
 Nodes (4): _dgiCheckRow(), _dgiFormatPct(), _dgiPctClass(), _dgiPctNumber()
 
 ### Community 159 - "work_layers.py"
-Cohesion: 0.21
-Nodes (16): landing(), build_reference_layer_groups(), Panel group for dgi/oozt/renew/rzd. Counts filled after progressive load if unkn, HttpResponse, test_landing_adjacent_message_when_roots_but_no_features(), test_landing_inspector_adjacent_roots_from_cases(), test_landing_scopes_work_to_selected_approve(), test_landing_with_adjacent_layers() (+8 more)
+Cohesion: 0.08
+Nodes (39): landing(), _adjacent_layer_for_root(), adjacent_layer_key(), adjacent_root_ids(), adjacent_source_label(), collect_adjacent_roots(), _finalize_adjacent_feature(), format_adjacent_roots_message() (+31 more)
 
 ### Community 160 - "test_approval_events.py"
-Cohesion: 0.06
-Nodes (32): BaseBackend, Client, DockerUsersTableBackend, Create or update the E2E test user in the users table (idempotent)., ExternalUser, Meta, _login(), Integration tests for inspector access to approval chats. (+24 more)
+Cohesion: 0.14
+Nodes (21): _login(), Integration tests for inspector access to approval chats., test_adjacent_event_requires_neighbor_owner(), test_bootstrap_hides_can_delete_for_owner(), test_bootstrap_marks_can_delete_for_inspector(), test_duplicate_adjacent_n_root_returns_400(), test_inspector_bootstrap_without_owner_id(), test_inspector_can_add_owner_and_login_participants() (+13 more)
 
 ### Community 162 - "event_draw.js"
 Cohesion: 0.33
@@ -627,8 +615,8 @@ Cohesion: 0.11
 Nodes (29): ensureLayerGroup(), findManagedGroupContaining(), fitTaskGuidBounds(), fitVisibleBounds(), hideDbLoadingModal(), initLayerPanelControls(), initMap(), isAdjacentLayerKey() (+21 more)
 
 ### Community 166 - "cleanup_orphan_gis_rows.py"
-Cohesion: 0.16
-Nodes (14): get_owner_id_for_username(), build_map_layer_load_order(), Progressive map layer loading for the approval landing page., Ordered specs for sequential client-side loading., Return GeoJSON features for one progressive load chunk., resolve_map_layer_features(), api_map_layer(), collect_adjacent_roots() (+6 more)
+Cohesion: 0.15
+Nodes (13): get_owner_id_for_username(), build_map_layer_load_order(), Progressive map layer loading for the approval landing page., Ordered specs for sequential client-side loading., Return GeoJSON features for one progressive load chunk., resolve_map_layer_features(), api_map_layer(), build_reference_layer_groups() (+5 more)
 
 ### Community 167 - "Command"
 Cohesion: 0.12
@@ -647,12 +635,12 @@ Cohesion: 0.14
 Nodes (14): `approval.approves`, `approval.case_approvals`, `approval.case_message_attachments`, `approval.case_message_reactions`, `approval.case_messages`, `approval.cases`, `approval.geometry`, Из QGIS → БД (ingest) (+6 more)
 
 ### Community 175 - "test_dgi_intersection_results.py"
-Cohesion: 0.14
-Nodes (24): compute_pct_sum(), is_skipped_result_name(), percents_dict_to_row_fields(), Prefix object name so the UI can show skipped rows in black., JSON-friendly row for the list API., Same formula as PassViewer.buildCheckDgiModalHtml (utils.js)., Build payload compatible with PassViewer.buildCheckDgiModalHtml / check_dgi_inte, row_to_modal_payload() (+16 more)
+Cohesion: 0.13
+Nodes (27): datetime, compute_pct_sum(), is_skipped_result_name(), percents_dict_to_row_fields(), Prefix object name so the UI can show skipped rows in black., JSON-friendly row for the list API., JSON-friendly row for the list API., Same formula as PassViewer.buildCheckDgiModalHtml (utils.js). (+19 more)
 
 ### Community 177 - "work_layer_label"
-Cohesion: 0.16
-Nodes (9): delete_recap_object(), _get_owned_recap_row(), _get_owned_recaps_for_request(), _get_recap_counts_by_request_ids(), list_owned_recaps(), _recaps_owner_scope_columns(), Tests for owned recap list/export/delete API., test_delete_recap_object_success() (+1 more)
+Cohesion: 0.22
+Nodes (3): _get_recap_counts_by_request_ids(), Tests for owned recap list/export/delete API., test_get_recap_counts_by_request_ids_includes_owner_filter()
 
 ### Community 178 - "tickAdjacentHighlightPulse"
 Cohesion: 0.27
@@ -663,28 +651,28 @@ Cohesion: 0.25
 Nodes (11): anchorPixelsFromFractions(), applySvgMarkerSize(), applyTextLabelSize(), buildSvgIcon(), buildTextLabelIcon(), clampFraction(), createSvgMarker(), hotspotBasenameFromIconUrl() (+3 more)
 
 ### Community 180 - "reference_layers.py"
-Cohesion: 0.23
-Nodes (12): _build_dgi_split_features(), build_reference_layer_features(), _features_from_geojson_payload(), load_work_anchor_geometry(), Reference map layers (dgi/oozt/renew/rzd) near the approval survey object., Load ДГИ as four ownership×rent buckets; tag each feature with dgiSubKey., Load dgi / oozt / renew / rzd features within APPROVAL_REFERENCE_BUFFER_METERS, Return survey polygon GeoJSON (dict) for TaskGUID from work YardPoly → OznPoly → (+4 more)
+Cohesion: 0.29
+Nodes (9): _build_dgi_split_features(), build_reference_layer_features(), _features_from_geojson_payload(), Reference map layers (dgi/oozt/renew/rzd) near the approval survey object., Load ДГИ as four ownership×rent buckets; tag each feature with dgiSubKey., Load dgi / oozt / renew / rzd features within APPROVAL_REFERENCE_BUFFER_METERS, reference_buffer_meters(), test_build_reference_layer_features_dgi_tags_subkeys() (+1 more)
 
 ### Community 181 - "svgIconUrl"
 Cohesion: 0.25
 Nodes (9): encodeSvgPath(), getSvgHotspots(), getSvgIndex(), isUnknownSvgPath(), normalizeSvgLookupKey(), photoFixIconUrl(), readJsonScript(), resolveSvgRelativePath() (+1 more)
 
 ### Community 182 - "_layer_stack_sort_key"
-Cohesion: 0.13
-Nodes (8): BaseCommand, Command, _default_db_failure_hint(), Verify PostGIS connectivity for default (geodb) and qgis (mggt_asu) database ali, Command, Command, Command, _to_text()
+Cohesion: 0.17
+Nodes (8): BaseCommand, Command, Command, _detect_source_srid(), _pick_prop(), _text_or_none(), Command, _to_text()
 
 ### Community 183 - "_load_home_objects_for_scope"
-Cohesion: 0.12
-Nodes (17): _annotate_and_filter_ods_registry_against_gis(), _classify_ods_click_scenario(), _enrich_ods_interaction_and_geometry(), _find_gis_geometry_for_ods_short_root(), _get_owned_ods_request_for_recap(), _norm_registry_id(), _ods_brid_within_validation_window(), _parse_ods_request_object_key() (+9 more)
+Cohesion: 0.26
+Nodes (8): add_recap(), _get_owned_ods_request_for_recap(), _parse_ods_request_object_key(), Tests for ODS request recap entry (add_recap from ods_request rows)., test_get_owned_ods_request_for_recap_no_geometry(), test_get_owned_ods_request_for_recap_success(), test_get_owned_ods_request_for_recap_wrong_owner(), test_parse_ods_request_object_key()
 
 ### Community 184 - "refreshAutoRemoveModalOptions"
 Cohesion: 0.22
 Nodes (20): _extract_svg_field(), _is_vertex_rule(), _map_unit_to_px(), _mm_to_px(), _option_map_children(), _option_value(), parse_labeling(), parse_qgis_color() (+12 more)
 
 ### Community 185 - "1. Upsert согласования (ingest)"
-Cohesion: 0.11
-Nodes (27): batch_lookup_task_poly_meta(), build_topopassport_layer_groups(), _column_exists(), _empty_task_poly_meta(), _is_bottom_polygon_key(), _layer_panel_sort_key(), _layer_stack_sort_key(), lookup_task_poly_meta() (+19 more)
+Cohesion: 0.09
+Nodes (34): landing_page_config(), Page bootstrap config for approval templates (json_script)., batch_lookup_task_poly_meta(), build_topopassport_layer_groups(), _column_exists(), _empty_task_poly_meta(), _is_bottom_polygon_key(), _layer_panel_sort_key() (+26 more)
 
 ### Community 186 - "cancelCommentPointMode"
 Cohesion: 0.16
@@ -703,16 +691,16 @@ Cohesion: 0.38
 Nodes (4): _column_exists(), Command, Delete GIS rows whose request_id is not in ods_request."BrId" and created_at is, _table_exists()
 
 ### Community 190 - "checkRelations"
-Cohesion: 0.17
-Nodes (19): applyCutGeometry(), applyGeometryToEditableGroup(), autoRemoveIntersections(), buildCurrentGeometry(), buildExportGeometry(), checkDgiIntersections(), checkRelations(), collectSnapGuideLines() (+11 more)
+Cohesion: 0.19
+Nodes (13): applyCutGeometry(), applyGeometryToEditableGroup(), autoRemoveIntersections(), bindEditablePolygonPopup(), buildCurrentGeometry(), buildEditableDeletePopupHtml(), checkDgiIntersections(), checkRelations() (+5 more)
 
 ### Community 191 - "Command"
 Cohesion: 0.09
-Nodes (53): _append_auto_remove_mask_parts(), _append_intersection_mask_union_part(), auto_remove_intersections(), _auto_remove_mask_context(), _auto_remove_source_tokens(), _auto_remove_square_table_name(), _build_asu_ods_url(), _build_where_clause() (+45 more)
+Nodes (39): _append_auto_remove_mask_parts(), _append_intersection_mask_union_part(), auto_remove_intersections(), _auto_remove_mask_context(), _auto_remove_source_tokens(), check_dgi_intersections(), check_new_object_relations(), cut_edited_geometry() (+31 more)
 
 ### Community 192 - "Command"
-Cohesion: 0.50
-Nodes (4): _simplify_geojson_for_editing(), Contract tests for geometry shape passed to the map editor (main page)., main embeds this via selected_geometry_for_editing; utils.js must wrap it as FC., test_simplify_single_polygon_returns_bare_polygon_geometry()
+Cohesion: 0.15
+Nodes (18): _build_asu_ods_url(), _build_merge_allowed_sets(), _dedupe_merge_items(), main(), _merge_item_is_allowed(), _normalize_merge_items(), _normalize_source_label(), open_merged_passports() (+10 more)
 
 ### Community 193 - "3. Главная страница"
 Cohesion: 0.22
@@ -728,7 +716,7 @@ Nodes (12): attachMapUtilityControls(), clearMeasureGraphics(), formatMeasureMet
 
 ### Community 196 - "_remove_intersections_from_geometry"
 Cohesion: 0.09
-Nodes (51): get_accessible_approves(), get_accessible_cases_queryset(), get_owner_ids_for_username(), is_inspector_for_approve(), matching_case_owner_id(), _normalize_owner_ids_arg(), _normalized_participant_logins(), _owners_q_for_ids() (+43 more)
+Nodes (50): get_accessible_approves(), get_accessible_cases_queryset(), get_owner_ids_for_username(), matching_case_owner_id(), _normalize_owner_ids_arg(), _normalized_participant_logins(), _owners_q_for_ids(), Access control for approval workflows. (+42 more)
 
 ### Community 197 - "test_sync_geodb_from_mggt.py"
 Cohesion: 0.24
@@ -755,12 +743,12 @@ Cohesion: 0.29
 Nodes (8): AttrMapping, build_keyed_sync_plan(), _fetch_table_columns(), _pick_source_geom_column(), Any, One attribute column copied from source → geodb., Return [{name, typname, skip_insert}] for schema.table., Introspect both DBs and map syncable attribute columns.
 
 ### Community 203 - "renderRelationLayers"
-Cohesion: 0.25
-Nodes (9): addSignalTapeLayer(), collectSnapGuideLines(), formatDgiShortSobstvRr(), rebuildSnapGuideLines(), renderRecapsLayer(), renderReferenceSignalLayers(), renderRelationLayers(), renderRenewLayer() (+1 more)
+Cohesion: 0.38
+Nodes (7): addSignalTapeLayer(), formatDgiShortSobstvRr(), renderRecapsLayer(), renderReferenceSignalLayers(), renderRelationLayers(), renderRenewLayer(), renderTopLayer()
 
 ### Community 204 - "autoRemoveIntersections"
-Cohesion: 0.17
-Nodes (13): bindCommentPointLayer(), buildCommentPointPopupHtml(), cancelCommentPointMode(), closeCommentPointModal(), deleteCommentPointById(), ensureCommentPickCapture(), loadCommentPointsForMap(), openCommentPointModal() (+5 more)
+Cohesion: 0.29
+Nodes (7): 6.1. geodb — запись согласования (схема `approval`), 6.2. mggt_asu — витрина съёмки (схема `work`, только чтение), 6.3. Локальная разработка (не МГГТ), 6. Подключение к БД (сервер МГГТ), Подключение QGIS с рабочей станции (рекомендуется), Подключение с самого сервера МГГТ, Права на запись
 
 ### Community 205 - "initOwnedMap"
 Cohesion: 0.29
@@ -775,36 +763,20 @@ Cohesion: 0.40
 Nodes (6): bindOwnedViewObjectButton(), closeOwnedViewObjectModal(), getCsrfToken(), openOwnedObjectForView(), openOwnedViewObjectModal(), setOwnedViewObjectLoading()
 
 ### Community 208 - "Доступ и безопасность"
-Cohesion: 0.29
-Nodes (4): datetime, Django settings for pass_map project.  Generated by 'django-admin startproject', _obj_row_tuple(), Remove export files under media/exports older than N days.  Intended for cron at
+Cohesion: 0.24
+Nodes (5): BaseException, Django settings for pass_map project.  Generated by 'django-admin startproject', _is_statement_timeout_error(), True for PostgreSQL statement_timeout / QueryCanceled (incl. Django wrappers)., test_is_statement_timeout_error_detects_querycanceled()
 
 ### Community 209 - "openOdsRequestFromNotifications"
 Cohesion: 0.29
 Nodes (8): approvalCaseUrl(), openApprovalChatPreview(), openApprovalFromNotifications(), openOdsRequestFromNotifications(), renderChatPreviewMessages(), setApprovalChatPreviewOpen(), setApprovalNotificationsOpen(), setOwnedListTab()
 
 ### Community 215 - "list_dgi_intersection_results_for_scope"
-Cohesion: 0.39
-Nodes (8): geom_to_wgs84_sql(), SQL expression returning proj4text for APPROVAL_WORK_SOURCE_SRID.      PostGIS 3, Reproject MSC-77 geometry to WGS-84 using spatial_ref_sys.proj4text for source S, Reproject WGS-84 GeoJSON param to work MSC-77 via spatial_ref_sys.proj4text., wgs84_to_work_sql(), work_source_proj4_sql(), work_source_srid(), test_work_source_srid_transform_helpers_use_980077()
+Cohesion: 0.40
+Nodes (6): applyNotificationsTitleMode(), getNotificationsTitleModeStorageKey(), initNotificationsTitleModeSwitch(), notificationCaseTitle(), persistNotificationsTitleMode(), readNotificationsTitleMode()
 
 ### Community 216 - "import_ozn_geojson.py"
-Cohesion: 0.32
-Nodes (8): closeMergeRequestModal(), getMergeCheckboxPayload(), getMergeGeometryDetailMode(), normalizeMergeSourceLabel(), openMergeRequestModalWithSources(), resetMergeTargetOptionRows(), submitMergePassportsContinue(), submitMergeRequestModal()
-
-### Community 217 - "user_guide.py"
-Cohesion: 0.36
-Nodes (7): _add_heading_ids(), _enhance_images(), load_user_guide_html(), Render USER_GUIDE.md as HTML for the home page modal., Match USER_GUIDE anchor style, e.g. ``8. Объединение паспортов`` → ``8-объединен, _rewrite_image_paths(), _slugify_heading()
-
-### Community 218 - "import_ozn_geojson.py"
-Cohesion: 0.43
-Nodes (4): Command, _detect_source_srid(), _pick_prop(), _text_or_none()
-
-### Community 219 - "1. Upsert согласования (ingest)"
-Cohesion: 0.33
-Nodes (6): 1. Upsert согласования (ingest), Коды HTTP (upsert), Поведение upsert, Пример запроса, Тело (JSON), Успешный ответ (200)
-
-### Community 220 - "Доступ и безопасность"
-Cohesion: 0.50
-Nodes (4): Host allowlist, Доступ и безопасность, Логин (`user`), Настройки (`.env`)
+Cohesion: 0.40
+Nodes (5): 1. Локально (из репозитория GeoDjango), 2. На сервере (обновление кода), 3. Проверка, 4. Вернуться к разработке, Обычное обновление (только код, БД не трогаем)
 
 ### Community 221 - "_resolve_column_name"
 Cohesion: 0.40
@@ -814,29 +786,33 @@ Nodes (6): applyNotificationsTitleMode(), getNotificationsTitleModeStorageKey(),
 Cohesion: 0.40
 Nodes (5): dgiPctClass(), formatDgiCalculatedAt(), formatDgiPct(), loadDgiIntersectionsTable(), renderDgiIntersectionsRows()
 
-### Community 227 - "_simplify_geojson_for_editing"
-Cohesion: 0.13
-Nodes (14): BaseException, _compute_percents_for_object(), _is_statement_timeout_error(), True for PostgreSQL statement_timeout / QueryCanceled (incl. Django wrappers)., Recover after a cancelled / failed query so the batch can continue., Run percent calc with PostgreSQL statement_timeout; raises on cancel/timeout., Recompute DGI intersection percents and replace dgi_intersection_results.      -, _reset_db_connection() (+6 more)
+### Community 224 - "getDossierGeometryForExport"
+Cohesion: 0.50
+Nodes (4): buildExportGeometry(), closeSaveModal(), getDossierGeometryForExport(), saveDossier()
+
+### Community 226 - "Command"
+Cohesion: 0.40
+Nodes (3): Command, _default_db_failure_hint(), Verify PostGIS connectivity for default (geodb) and qgis (mggt_asu) database ali
 
 ## Knowledge Gaps
-- **617 isolated node(s):** `Migration`, `Migration`, `Migration`, `Migration`, `Migration` (+612 more)
+- **609 isolated node(s):** `Migration`, `Migration`, `Migration`, `Migration`, `Migration` (+604 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **63 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **64 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `main()` connect `build_page_js.py` to `applyHomeWorkflowOdsSyncNotifications`, `applyHomeWorkflowOdsSyncNotifications`?**
-  _High betweenness centrality (0.098) - this node is a cross-community bridge._
 - **Why does `strip_built_wrapper()` connect `build_page_js.py` to `test_owned_recaps.py`?**
-  _High betweenness centrality (0.095) - this node is a cross-community bridge._
+  _High betweenness centrality (0.107) - this node is a cross-community bridge._
+- **Why does `main()` connect `build_page_js.py` to `applyHomeWorkflowOdsSyncNotifications`, `applyHomeWorkflowOdsSyncNotifications`?**
+  _High betweenness centrality (0.105) - this node is a cross-community bridge._
 - **Why does `renderApprovalNotificationFeed()` connect `applyHomeWorkflowOdsSyncNotifications` to `home.js`, `build_page_js.py`?**
-  _High betweenness centrality (0.064) - this node is a cross-community bridge._
+  _High betweenness centrality (0.062) - this node is a cross-community bridge._
 - **Are the 3 inferred relationships involving `Case` (e.g. with `ApprovalConfig` and `ApproveAlreadyApprovedError`) actually correct?**
   _`Case` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 30 inferred relationships involving `ValueError` (e.g. with `merge_parsed_qml_tables()` and `resolve_task_owner_legal_person_id()`) actually correct?**
   _`ValueError` has 30 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Access control for approval workflows.`, `OR of owners__contains for each id. case_field=False uses cases__owners.`, `First of the user's owner ids that appears in case.owners (for CaseApproval slot` to the rest of the system?**
-  _863 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _854 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `main.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.017238881645661307 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.01769641495041953 - nodes in this community are weakly interconnected._
