@@ -1,0 +1,79 @@
+{% load static %}
+{% with route_name=request.resolver_match.url_name %}
+<header class="site-header" role="banner">
+    {% if request.user.is_authenticated %}
+        <a class="site-header__brand" href="{% url 'personal_account' %}" aria-label="Главная — САПР МГГТ">
+    {% else %}
+        <span class="site-header__brand" aria-label="САПР МГГТ">
+    {% endif %}
+        <img class="site-header__gsk" src="{% static 'pass_viewer/gsk.svg' %}" alt="ГСК">
+        <img class="site-header__logo" src="{% static 'pass_viewer/logo_dgp.png' %}" alt="ДГП">
+        <img class="site-header__cube" src="{% static 'pass_viewer/cube_red.svg' %}" alt="Pass Viewer">
+    {% if request.user.is_authenticated %}</a>{% else %}</span>{% endif %}
+
+    {% if request.user.is_authenticated %}
+    <nav class="site-header__nav" aria-label="Главная навигация">
+        <ul class="site-header__nav-list">
+            <li>
+                <a class="site-header__link{% if route_name == 'personal_account' or route_name == 'home' or route_name == 'main' %} is-active{% endif %}"
+                   href="{% url 'personal_account' %}">Личный кабинет</a>
+            </li>
+            <li>
+                <a class="site-header__link{% if route_name == 'add_object' or route_name == 'add_recap' or route_name == 'split_object' %} is-active{% endif %}"
+                   href="{% url 'add_object' %}">Отрисовка границ заявок</a>
+            </li>
+            <li>
+                <a class="site-header__link{% if route_name == 'landing' %} is-active{% endif %}"
+                   href="{% url 'approval:landing' %}">Согласование границ ОГХ</a>
+            </li>
+            <li><span class="site-header__link site-header__link--disabled" aria-disabled="true">Согласование ЦГ</span></li>
+            <li class="site-header__more-wrap">
+                <button type="button" class="site-header__link site-header__more-btn" data-header-dropdown-toggle
+                        aria-haspopup="menu" aria-expanded="false" aria-controls="site-header-more-menu">Ещё</button>
+                <ul class="site-header__dropdown" id="site-header-more-menu" hidden>
+                    {% if route_name == 'home' %}
+                    <li><button type="button" class="site-header__dropdown-link site-header__dropdown-button" id="user-guide-open-btn">Инструкция пользователя</button></li>
+                    {% else %}
+                    <li><a class="site-header__dropdown-link" href="{% url 'home' %}">Карта и рабочие списки</a></li>
+                    {% endif %}
+                </ul>
+            </li>
+        </ul>
+    </nav>
+
+    <div class="site-header__actions">
+        {% if route_name == 'home' %}
+        <button type="button" class="site-header__icon-link" id="approval-notifications-btn"
+                aria-label="Уведомления" aria-haspopup="dialog" aria-expanded="false"
+                aria-controls="approval-notifications-modal">
+            <img class="site-header__icon" src="{% static 'pass_viewer/notification-21_128x128.svg' %}" alt="">
+            <span class="approval-notifications-badge"{% if not pending_approval_count %} hidden{% endif %}>{{ pending_approval_count|default:0 }}</span>
+        </button>
+        {% else %}
+        <a class="site-header__icon-link" href="{% url 'home' %}" aria-label="Уведомления">
+            <img class="site-header__icon" src="{% static 'pass_viewer/notification-21_128x128.svg' %}" alt="">
+        </a>
+        {% endif %}
+        <div class="site-header__user-menu">
+            <button type="button" class="site-header__user" data-header-dropdown-toggle
+                    aria-haspopup="menu" aria-expanded="false" aria-controls="site-header-user-menu">
+                <span class="site-header__user-avatar" aria-hidden="true">{{ request.user.username|slice:':2'|upper }}</span>
+                <span>
+                    <span class="site-header__user-name">{{ request.user.get_full_name|default:request.user.username }}</span>
+                    {% if display_name %}<span class="site-header__scope">{{ display_name }}</span>{% endif %}
+                </span>
+            </button>
+            <ul class="site-header__dropdown site-header__dropdown--right" id="site-header-user-menu" hidden>
+                <li><a class="site-header__dropdown-link" href="{% url 'personal_account' %}">Профиль</a></li>
+                <li>
+                    <form class="site-header__dropdown-form" method="post" action="{% url 'logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="site-header__dropdown-link site-header__dropdown-button">Выйти</button>
+                    </form>
+                </li>
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+</header>
+{% endwith %}

@@ -10,6 +10,7 @@ from approval.access import get_accessible_approves
 from approval.events_service import build_home_notification_events, serialize_approve_options
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.contrib.gis.geos import GEOSGeometry
 from django.db import connection, connections
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
@@ -4852,6 +4853,33 @@ def _entry_point_needs_request_id(entry_point):
     return not (str(entry_point.get("request_id") or "").strip())
 
 
+def _build_personal_account_metrics(owned_objects, approval_items):
+    passports = [item for item in owned_objects if (item.get("rootid") or "").strip()]
+    requests = [
+        item
+        for item in owned_objects
+        if not (item.get("rootid") or "").strip() and (item.get("request_id") or "").strip()
+    ]
+    total_area_m2 = 0.0
+    for item in passports:
+        geom_json = (item.get("geom_json") or "").strip()
+        if not geom_json:
+            continue
+        try:
+            geometry = GEOSGeometry(geom_json, srid=4326)
+            geometry.transform(32637)
+            total_area_m2 += float(geometry.area or 0)
+        except Exception:
+            logger.debug("Could not calculate personal-account geometry area", exc_info=True)
+
+    return {
+        "passport_count": len(passports),
+        "request_count": len(requests),
+        "approval_count": len(approval_items),
+        "total_area_label": f"{round(total_area_m2):,}".replace(",", " ") if total_area_m2 else "—",
+    }
+
+
 @login_required
 def home(request):
     if request.method == "POST":
@@ -4976,9 +5004,12 @@ def home(request):
 
     need_entry_request_id = bool(request.session.get("pending_entry_point"))
 
+    is_personal_account = request.resolver_match.url_name == "personal_account"
+    template_name = "pass_viewer/personal_account.html" if is_personal_account else "pass_viewer/home.html"
+
     return render(
         request,
-        "pass_viewer/home.html",
+        template_name,
         {
             "form": form,
             "owner_id": owner_id,
@@ -4991,6 +5022,9 @@ def home(request):
             "ods_request_source_label": getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
             "ods_user_brids": ods_user_brids,
             "approval_items": approval_items,
+            "personal_metrics": _build_personal_account_metrics(owned_objects, approval_items)
+            if is_personal_account
+            else None,
             "home_notification_events": home_notification_events,
             "pending_approval_count": pending_approval_count,
             "user_role": scope.role,

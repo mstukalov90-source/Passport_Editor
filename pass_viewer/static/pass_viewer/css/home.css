@@ -16,19 +16,57 @@ main.container.container--wide:has(.owned-home-shell) {
     min-height: 0;
     display: grid;
     grid-template-rows: auto 1fr auto;
-    gap: 10px;
+    gap: 12px;
 }
 .owned-home-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
+    padding: 12px 16px;
+    background: #fff;
+    border: 1px solid var(--pv-border, #e3e6ec);
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
 }
 .owned-home-header-actions {
     display: flex;
     align-items: center;
     gap: 10px;
     flex-shrink: 0;
+}
+
+.owned-home-scope {
+    max-width: 220px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.3;
+}
+
+.owned-secondary-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 1100px) {
+    .owned-home-header {
+        align-items: stretch;
+        flex-wrap: wrap;
+    }
+
+    .owned-home-header-tabs {
+        order: 3;
+        flex-basis: 100%;
+        justify-content: flex-start;
+        overflow-x: auto;
+    }
+
+    .owned-home-scope {
+        display: none;
+    }
 }
 button.user-guide-open-btn,
 button.user-guide-open-btn.approval-home-link {
@@ -44,13 +82,14 @@ button.user-guide-open-btn.approval-home-link {
     line-height: 1.25;
     box-sizing: border-box;
     text-decoration: none;
-    background: #e5e7eb;
-    color: #111;
+    background: var(--pv-blue, #165391);
+    color: #fff;
     white-space: nowrap;
+    transition: background 0.15s ease;
 }
 .user-guide-open-btn:hover,
 button.user-guide-open-btn.approval-home-link:hover {
-    background: #d1d5db;
+    background: var(--pv-dark-blue, #1A3F6E);
 }
 button.user-guide-open-btn.approval-home-link.is-open {
     background: #d1d5db;
@@ -601,6 +640,11 @@ button.user-guide-open-btn.approval-home-link.is-open {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    background: #fff;
+    border: 1px solid var(--pv-border, #e3e6ec);
+    border-radius: 10px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
 }
 .owned-home-actions {
     display: flex;
@@ -608,19 +652,38 @@ button.user-guide-open-btn.approval-home-link.is-open {
     align-items: center;
     flex-wrap: wrap;
 }
+.owned-home-actions .button-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: var(--pv-blue, #165391);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    font-family: inherit;
+    border: none !important;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.owned-home-actions .button-link:hover {
+    background: var(--pv-dark-blue, #1A3F6E);
+}
 .owned-list-wrap {
     max-height: none;
     height: 100%;
     overflow: auto;
-    border: 1px solid #dbe2ea;
-    border-radius: 12px;
-    background: #fff;
+    border: none;
+    background: transparent;
 }
 .owned-home-workspace {
     display: grid;
     grid-template-columns: minmax(340px, 1fr) minmax(620px, 2fr);
     grid-template-areas: "lists map";
-    gap: 14px;
+    gap: 16px;
     width: 100%;
     align-items: stretch;
     flex: 1;
@@ -635,21 +698,32 @@ button.user-guide-open-btn.approval-home-link.is-open {
     min-width: 0;
     min-height: 0;
     height: 100%;
+    background: #fff;
+    border: 1px solid var(--pv-border, #e3e6ec);
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
 }
 .owned-filter-toolbar {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+    gap: 6px;
+    flex-wrap: nowrap;
     flex: 0 0 auto;
     width: 100%;
     box-sizing: border-box;
 }
 .owned-filter-toolbar #owned-filter-rootid {
-    max-width: 260px;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 180px;
 }
 .owned-filter-toolbar #owned-filter-name {
-    flex: 1;
-    min-width: 140px;
+    flex: 1 1 0;
+    min-width: 0;
+}
+.owned-filter-toolbar #owned-filter-clear,
+.owned-filter-toolbar #owned-filter-more {
+    flex-shrink: 0;
 }
 .owned-filter-toolbar #owned-filter-clear {
     background: #e5e7eb;
@@ -658,14 +732,46 @@ button.user-guide-open-btn.approval-home-link.is-open {
     border-radius: 8px;
     padding: 8px 10px;
     cursor: pointer;
-    font: inherit;
+    font-family: inherit;
+    transition: background 0.15s ease;
+}
+.owned-filter-toolbar #owned-filter-clear:hover {
+    background: #d1d5db;
+}
+.owned-filter-toolbar #owned-filter-more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--pv-blue, #165391);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s ease;
+}
+.owned-filter-toolbar #owned-filter-more:hover {
+    background: var(--pv-dark-blue, #1A3F6E);
+}
+.owned-filter-more-btn__icon {
+    display: block;
+    width: 18px;
+    height: 18px;
 }
 .owned-filter-toolbar input[type="text"] {
     padding: 8px 10px;
     border-radius: 8px;
-    border: 1px solid #cbd5e1;
-    font: inherit;
+    border: 1px solid var(--pv-border, #e3e6ec);
+    font-family: inherit;
+    font-size: 13px;
     box-sizing: border-box;
+    min-width: 0;
+}
+.owned-filter-toolbar input[type="text"]:focus {
+    outline: none;
+    border-color: var(--pv-blue, #165391);
+    box-shadow: 0 0 0 2px rgba(22, 83, 145, 0.15);
 }
 .owned-home-map-stack {
     grid-area: map;
@@ -675,6 +781,11 @@ button.user-guide-open-btn.approval-home-link.is-open {
     min-width: 0;
     min-height: 0;
     height: 100%;
+    background: #fff;
+    border: 1px solid var(--pv-border, #e3e6ec);
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
 }
 .owned-map-legend {
     flex: 0 0 auto;
@@ -903,18 +1014,24 @@ button.user-guide-open-btn.approval-home-link.is-open {
     word-break: break-word;
 }
 .owned-list-tab-btn {
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--pv-border, #e3e6ec);
     background: #fff;
-    color: #1f2937;
+    color: #334155;
     border-radius: 8px;
-    padding: 8px 12px;
-    font-weight: 700;
+    padding: 7px 10px;
+    font-weight: 600;
     cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.owned-list-tab-btn:hover {
+    background: #f1f5f9;
 }
 .owned-list-tab-btn.is-active {
-    background: #dbeafe;
-    border-color: #93c5fd;
-    color: #1d4ed8;
+    background: var(--pv-red, #BA3034);
+    border-color: var(--pv-red, #BA3034);
+    color: #fff;
 }
 .owned-source-filters {
     display: flex;
@@ -983,10 +1100,10 @@ body.home--ogh-split-passport .owned-passport-row .owned-confirm-open-btn {
     flex: 1;
 }
 .owned-map-wrap {
-    border: 1px solid #dbe2ea;
-    border-radius: 12px;
+    border: none;
+    border-radius: 8px;
     overflow: hidden;
-    background: #fff;
+    background: transparent;
     min-height: 0;
     flex: 1;
 }
@@ -994,6 +1111,10 @@ body.home--ogh-split-passport .owned-passport-row .owned-confirm-open-btn {
     width: 100%;
     height: 100%;
     min-height: 0;
+    object-fit: contain;
+    object-position: center;
+    display: block;
+    background: #edf2f7;
 }
 .owned-list-title {
     margin: 0 0 8px;
@@ -1003,26 +1124,34 @@ body.home--ogh-split-passport .owned-passport-row .owned-confirm-open-btn {
     display: flex;
     gap: 10px;
     align-items: stretch;
-    border-bottom: 1px solid #eef1f6;
+    background: #fff;
+    border: 1px solid var(--pv-border, #e3e6ec);
+    border-radius: 8px;
     padding: 10px 12px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.15s ease;
 }
 .owned-passport-row,
 .owned-request-row {
     cursor: pointer;
 }
+.owned-list-item:hover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
 .owned-passport-row.is-map-focused,
 .owned-request-row.is-map-focused,
 .owned-approval-row.is-notification-focused {
     background: #f0f7ff;
-    box-shadow: inset 0 0 0 2px #93c5fd;
+    box-shadow: inset 0 0 0 2px #93c5fd, 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 .owned-passport-row.is-map-hovered,
 .owned-request-row.is-map-hovered {
     background: #fff1f2;
-    box-shadow: inset 0 0 0 2px #fda4af;
+    box-shadow: inset 0 0 0 2px #fda4af, 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 .owned-list-item:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
 }
 .owned-list-open-btn {
     width: 100%;
@@ -1037,43 +1166,38 @@ body.home--ogh-split-passport .owned-passport-row .owned-confirm-open-btn {
 }
 .source-badge {
     align-self: center;
-    border: 1px solid #93c5fd;
-    border-radius: 999px;
-    padding: 4px 9px;
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
     font-size: 12px;
-    font-weight: 700;
-    color: #1d4ed8;
-    background: #eff6ff;
+    font-weight: 600;
+    line-height: 1;
     white-space: nowrap;
+    border: none;
 }
 .source-badge--dt {
-    color: #1d4ed8;
-    border-color: #93c5fd;
-    background: #eff6ff;
+    background: #e0f2fe;
+    color: #0369a1;
 }
 .source-badge--odh {
+    background: #f1f5f9;
     color: #475569;
-    border-color: #cbd5e1;
-    background: #f8fafc;
 }
 .source-badge--oo {
+    background: #d1fae5;
     color: #047857;
-    border-color: #6ee7b7;
-    background: #ecfdf5;
 }
 .source-badge--top {
+    background: #ffedd5;
     color: #9a3412;
-    border-color: #fdba74;
-    background: #fff7ed;
 }
 .owned-map-legend__swatch--top {
     background: var(--pv-layer-top-bg);
     border-color: var(--pv-layer-top);
 }
 .source-badge--ods {
+    background: #f3e8ff;
     color: #6b21a8;
-    border-color: #d8b4fe;
-    background: #faf5ff;
 }
 .owned-list-open-btn:disabled {
     cursor: not-allowed;
@@ -1384,4 +1508,84 @@ body.home--merge-passports #add-object-entry-btn {
     width: 100%;
     border: 0;
     background: #f8fafc;
+}
+
+/* Request-tab-only footer actions */
+#merge-passports-btn,
+#add-object-entry-btn {
+    display: none;
+}
+
+.owned-home-shell:has(.owned-home-header-tabs [data-owned-list-tab="requests"].is-active) #merge-passports-btn,
+.owned-home-shell:has(.owned-home-header-tabs [data-owned-list-tab="requests"].is-active) #add-object-entry-btn {
+    display: inline-flex;
+}
+
+/* Header tabs layout */
+.owned-home-header-tabs {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.owned-home-header-tabs .owned-list-tab-btn {
+    white-space: nowrap;
+}
+
+.owned-home-header .button-link,
+.owned-home-header-actions {
+    flex-shrink: 0;
+}
+
+/* View toggle (matches personal_account.html) */
+.personal-view-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    margin: 0 0 10px;
+    background: #eef2f7;
+    border-radius: 10px;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.personal-view-toggle__btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: 8px;
+    color: #334155;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.personal-view-toggle__btn:hover {
+    background: rgba(22, 83, 145, 0.08);
+}
+
+.personal-view-toggle__btn.is-active {
+    background: var(--pv-red, #BA3034);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(186, 48, 52, 0.25);
+}
+
+.owned-home-header .personal-view-toggle {
+    margin: 0;
+    flex-shrink: 0;
+}
+
+/* Brand modal headings */
+.modal-card h3,
+.owned-view-object-modal__card h3,
+.approval-notifications-modal__card h3,
+.dgi-intersections-table-modal__card h3,
+.approval-chat-preview-modal__card h3,
+.user-guide-modal-card h3 {
+    color: var(--pv-dark-blue, #1A3F6E);
 }

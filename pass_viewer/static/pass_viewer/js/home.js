@@ -378,6 +378,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     badge.className = 'approval-notifications-badge';
                     btn.appendChild(badge);
                 }
+                badge.hidden = false;
                 badge.textContent = String(total);
             } else if (badge) {
                 badge.remove();

@@ -31,9 +31,10 @@
 {% block container_class %}container--wide{% endblock %}
 
 {% block content %}
+<section class="page-header-card">
     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
         <div>
-            <h1 style="margin-bottom: 8px;">{% if view_only %}Просмотр объекта{% else %}Редактирование объекта{% endif %}</h1>
+            <h1 class="page-header-card__title">{% if view_only %}Просмотр объекта{% else %}Редактирование объекта{% endif %}</h1>
             {% if selected_rootid %}
                 <p style="margin: 0;">Обьект паспорт №: {{ selected_rootid }}</p>
                 <p style="margin: 4px 0 0;">&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;: <strong>{{ selected_name|default:"-" }}</strong></p>
@@ -58,7 +59,7 @@
     {% endif %}
 
     {# Keep toolbar DOM for main.js; hide visually in view-only mode. #}
-    <div style="display: {% if view_only %}none{% else %}flex{% endif %}; gap: 10px; margin: 8px 0 12px; align-items: center; flex-wrap: wrap;">
+    <div class="page-header-card__toolbar"{% if view_only %} style="display:none;"{% endif %}>
         <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1053;&#1072;&#1095;&#1072;&#1090;&#1100; &#1088;&#1077;&#1076;&#1072;&#1082;&#1090;&#1080;&#1088;&#1086;&#1074;&#1072;&#1085;&#1080;&#1077;</button>
         <button type="button" id="add-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent" disabled>&#1044;&#1086;&#1073;&#1072;&#1074;&#1080;&#1090;&#1100; &#1087;&#1086;&#1083;&#1080;&#1075;&#1086;&#1085;</button>
         <button type="button" id="cut-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent" disabled>Обрезать полигон</button>
@@ -80,6 +81,7 @@
         <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
         <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">&#1042;&#1099;&#1075;&#1088;&#1091;&#1079;&#1080;&#1090;&#1100; &#1092;&#1072;&#1081;&#1083;&#1099;</button>
     </div>
+</section>
     <div id="map" style="height: {% if view_only %}calc(100vh - 160px){% else %}72vh{% endif %}; min-height: {% if view_only %}360px{% else %}520px{% endif %}; margin: 0; border-radius: 10px; border: 1px solid #e3e6ec;"></div>
     <section id="layer-management-panel" class="layer-management-panel" aria-label="Панель управления слоями">
         <div class="layer-management-panel__title">Панель управления слоями</div>

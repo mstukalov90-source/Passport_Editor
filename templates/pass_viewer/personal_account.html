@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Личный кабинет{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}">
+{% endblock %}
+
+{% block container_class %}personal-account{% endblock %}
+
+{% block content %}
+<h1 class="personal-account__title">Личный кабинет</h1>
+
+<div class="personal-view-toggle" role="tablist" aria-label="Режим просмотра">
+    <span class="personal-view-toggle__btn is-active" role="tab" aria-selected="true">Список</span>
+    <a class="personal-view-toggle__btn" href="{% url 'home' %}" role="tab" aria-selected="false">Просмотр на карте</a>
+</div>
+
+{% if owned_objects_error %}
+<p class="note" style="color: var(--pv-error);">{{ owned_objects_error }}</p>
+{% endif %}
+
+<section class="personal-metrics" aria-label="Метрики">
+    <div class="personal-metric-card">
+        <div class="personal-metric-card__value">{{ personal_metrics.passport_count }}</div>
+        <div class="personal-metric-card__label">Количество актуальных паспортов</div>
+    </div>
+    <div class="personal-metric-card">
+        <div class="personal-metric-card__value">{{ personal_metrics.total_area_label }}{% if personal_metrics.total_area_label != '—' %} м²{% endif %}</div>
+        <div class="personal-metric-card__label">Общая площадь паспортов</div>
+    </div>
+    <div class="personal-metric-card">
+        <div class="personal-metric-card__value">{{ personal_metrics.request_count }}</div>
+        <div class="personal-metric-card__label">Подано заявок</div>
+    </div>
+    <div class="personal-metric-card">
+        <div class="personal-metric-card__value">{{ personal_metrics.approval_count }}</div>
+        <div class="personal-metric-card__label">Согласование границ ОГХ</div>
+    </div>
+</section>
+
+<section class="personal-actions" aria-label="Разделы">
+    <a class="personal-action-btn" href="{% url 'add_object' %}">Отрисовка границ заявок</a>
+    <a class="personal-action-btn" href="{% url 'approval:landing' %}">Согласование границ ОГХ</a>
+    <span class="personal-action-btn personal-action-btn--disabled" aria-disabled="true">Согласование ЦГ</span>
+</section>
+
+<section class="personal-list" aria-label="Список объектов">
+    <div class="personal-list-header">
+        <h2 class="personal-section-title">Актуальные паспорта</h2>
+        <button type="button" class="personal-filter-icon-btn" id="personal-filter-toggle"
+                aria-label="Фильтр" aria-expanded="false" aria-controls="personal-filter-panel">
+            <img class="personal-filter-icon-btn__icon" src="{% static 'pass_viewer/filter-so_128x128.svg' %}" alt="">
+        </button>
+    </div>
+    <div class="personal-filter-panel" id="personal-filter-panel" hidden>
+        <input type="text" data-filter-col="0" placeholder="№ паспорта">
+        <input type="text" data-filter-col="1" placeholder="Название">
+        <input type="text" data-filter-col="2" placeholder="Тип ОГХ">
+        <button type="button" id="personal-filter-clear">Сброс</button>
+    </div>
+    <div class="personal-table-wrap">
+        <table class="personal-table">
+            <thead>
+                <tr>
+                    <th>№ паспорта</th>
+                    <th>Название</th>
+                    <th>Тип ОГХ</th>
+                    <th>№ заявки</th>
+                    <th>Досъёмы</th>
+                    <th>Детальный просмотр</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in owned_objects %}
+                    {% if item.rootid %}
+                    <tr>
+                        <td>{{ item.rootid }}</td>
+                        <td>{{ item.name|default:'—' }}</td>
+                        <td>{% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}</td>
+                        <td>{{ item.request_id|default:'—' }}</td>
+                        <td>{{ item.recap_count|default:0 }}</td>
+                        <td>
+                            <button type="button" class="personal-table-btn personal-detail-open"
+                                    data-id="{{ item.rootid }}" data-name="{{ item.name }}"
+                                    data-request-id="{{ item.request_id }}" data-source="{{ item.source_label|default:'ДТ' }}"
+                                    data-recaps="{{ item.recap_count|default:0 }}">Просмотр</button>
+                        </td>
+                    </tr>
+                    {% endif %}
+                {% empty %}
+                <tr><td colspan="6">Объекты не найдены.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<div id="personal-detail-modal" class="personal-modal" style="display:none;">
+    <div class="personal-modal__overlay">
+        <div class="personal-modal__card" role="dialog" aria-modal="true" aria-labelledby="personal-detail-title">
+            <div class="personal-modal__header">
+                <h3 id="personal-detail-title">Детальная информация</h3>
+                <button type="button" class="personal-modal__close" id="personal-detail-close" aria-label="Закрыть">&#10005;</button>
+            </div>
+            <div class="personal-modal__body">
+                <dl class="personal-detail-list">
+                    <dt>№ паспорта</dt><dd id="detail-passport-id">—</dd>
+                    <dt>Название</dt><dd id="detail-passport-name">—</dd>
+                    <dt>№ заявки</dt><dd id="detail-request-id">—</dd>
+                    <dt>Тип ОГХ</dt><dd id="detail-source">—</dd>
+                    <dt>Досъёмы</dt><dd id="detail-recaps">0</dd>
+                </dl>
+            </div>
+            <div class="personal-modal__footer">
+                <form method="post" action="{% url 'open_owned_object' %}" id="personal-open-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="rootid" id="personal-open-rootid">
+                    <input type="hidden" name="name" id="personal-open-name">
+                    <input type="hidden" name="request_id" id="personal-open-request-id">
+                    <input type="hidden" name="source_label" id="personal-open-source">
+                    <input type="hidden" name="geometry_detail_mode" value="simplified">
+                    <button type="submit" class="personal-table-btn">Посмотреть на карте</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{% static 'pass_viewer/js/personal-account.js' %}"></script>
+{% endblock %}

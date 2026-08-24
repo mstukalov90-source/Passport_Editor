@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Границы объектов ОГХ</title>
+    
+    <link rel="icon" type="image/png" href="../assets/pass_viewer/brand-mark.png">
+    <link rel="stylesheet" href="../assets/pass_viewer/css/base.css">
+
+<link rel="stylesheet" href="../assets/pass_viewer/css/tokens.css">
+<link rel="stylesheet" href="../assets/pass_viewer/css/map-core.css">
+<link rel="stylesheet" href="../assets/pass_viewer/css/map-toolbar.css">
+<link rel="stylesheet" href="../assets/pass_viewer/css/home.css">
+
+
+
+<style>
+    body.modal-preview-page { margin: 0; min-width: 320px; background: #eef2f7; }
+    .modal-preview-header { padding: 16px 24px; background: #fff; border-bottom: 1px solid #d8e0ea; font: 14px/1.4 'Montserrat', 'Century Gothic', Arial, sans-serif; color: #334155; }
+    .modal-preview-header h1 { margin: 0 0 4px; color: #0f172a; font-size: 20px; }
+    .modal-preview-screen { box-sizing: border-box; display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 78px); padding: 24px; }
+    .modal-preview-screen > .modal-overlay, .modal-preview-screen > [role="dialog"], .modal-preview-screen > [id$="-modal"] { position: relative !important; inset: auto !important; display: flex !important; visibility: visible !important; opacity: 1 !important; width: 100%; min-height: min(680px, calc(100vh - 126px)); }
+    .modal-preview-screen > dialog { position: relative !important; inset: auto !important; display: block !important; visibility: visible !important; opacity: 1 !important; margin: auto; }
+    .modal-preview-screen iframe { background: #f8fafc; }
+</style>
+</head>
+<body class="modal-preview-page"><header class="modal-preview-header"><h1>Ручной ввод</h1><span>Статический макет · home</span></header>
+<main class="modal-preview-screen"><div
+        id="manual-modal"
+        data-open-on-load="0"
+        style="display: flex; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1000; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 18px;">&#1056;&#1091;&#1095;&#1085;&#1086;&#1081; &#1074;&#1074;&#1086;&#1076;</h3>
+                <button type="button" id="manual-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+            </div>
+            <p class="note" style="margin-top: 0;">
+                &#1059;&#1082;&#1072;&#1078;&#1080;&#1090;&#1077; &#1086;&#1076;&#1080;&#1085; &#1087;&#1072;&#1088;&#1072;&#1084;&#1077;&#1090;&#1088;: <strong>&#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;</strong> &#1080;&#1083;&#1080; <strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;</strong>.
+            </p>
+            <form method="post">
+                <input type="hidden" name="csrfmiddlewaretoken" value="static-preview">
+                
+                
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                    <button type="submit">&#1054;&#1090;&#1082;&#1088;&#1099;&#1090;&#1100; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;</button>
+                    <button type="button" id="manual-cancel-btn" style="background: #e5e7eb; color: #111;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
+                </div>
+            </form>
+        </div>
+    </div></main></body></html>
