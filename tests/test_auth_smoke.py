@@ -14,7 +14,7 @@ def test_anonymous_home_redirects_to_login(client):
 
 
 @pytest.mark.django_db
-def test_login_and_home_loads(client, e2e_credentials):
+def test_login_and_personal_account_loads(client, e2e_credentials):
     login_url = reverse('login')
     response = client.post(
         login_url,
@@ -26,4 +26,4 @@ def test_login_and_home_loads(client, e2e_credentials):
     )
     assert response.status_code == 200
     content = response.content.decode('utf-8')
-    assert 'owned-home-shell' in content or 'Объекты балансодержателя' in content
+    assert 'personal-account' in content

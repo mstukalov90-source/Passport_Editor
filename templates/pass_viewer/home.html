@@ -20,7 +20,21 @@
 {% block content %}
     <div class="owned-home-shell">
     <div class="owned-home-header">
-        <h2 style="font-size: 18px; margin: 0;">
+        <div class="personal-view-toggle" role="tablist" aria-label="Режим просмотра">
+            <a class="personal-view-toggle__btn" href="{% url 'personal_account' %}" role="tab" aria-selected="false">Список</a>
+            <span class="personal-view-toggle__btn is-active" role="tab" aria-selected="true">Просмотр на карте</span>
+        </div>
+        <div class="owned-home-header-tabs">
+            {% if show_passports_tab %}
+            <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="passports">Актуальные паспорта</button>
+            <button type="button" class="owned-list-tab-btn" data-owned-list-tab="requests">Заявки</button>
+            {% else %}
+            <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="requests">Заявки</button>
+            {% endif %}
+            <button type="button" class="owned-list-tab-btn" data-owned-list-tab="approvals">Согласование ОГХ</button>
+        </div>
+        <div class="owned-home-header-actions">
+        <span class="owned-home-scope">
             {% if user_role == 'SUP' %}
                 Объекты района:{% if sup_hood_label %}
                 <strong>{{ sup_hood_label }}</strong>{% endif %}
@@ -35,8 +49,7 @@
                 Объекты балансодержателя:{% if owner_id or owner_name %}
                 <strong>{% if owner_name %}{{ owner_name }}{% else %}{{ owner_id }}{% endif %}</strong>{% endif %}
             {% endif %}
-        </h2>
-        <div class="owned-home-header-actions">
+        </span>
             {% if user_role == 'SUP' and sup_hood_gid %}
             <form method="post" action="{% url 'clear_sup_hood' %}" style="margin: 0;">
                 {% csrf_token %}
@@ -53,23 +66,6 @@
             >
                 Таблица пересечений
             </button>
-            <div class="approval-notifications-dropdown">
-                <button
-                    type="button"
-                    id="approval-notifications-btn"
-                    class="user-guide-open-btn approval-home-link"
-                    aria-haspopup="dialog"
-                    aria-expanded="false"
-                    aria-controls="approval-notifications-modal"
-                >
-                    Уведомления
-                </button>
-            </div>
-            <button type="button" id="user-guide-open-btn" class="user-guide-open-btn">Инструкция пользования</button>
-            <form method="post" action="{% url 'logout' %}" style="margin: 0;">
-                {% csrf_token %}
-                <button type="submit">&#1042;&#1099;&#1081;&#1090;&#1080;</button>
-            </form>
         </div>
     </div>
 
@@ -113,14 +109,7 @@
                     <button type="button" id="owned-filter-clear">&#1057;&#1073;&#1088;&#1086;&#1089;</button>
                 </div>
                 <div class="owned-lists-panel">
-                    <div class="owned-list-tabs">
-                        {% if show_passports_tab %}
-                        <button type="button" class="owned-list-tab-btn{% if show_passports_tab %} is-active{% endif %}" data-owned-list-tab="passports">Актуальные паспорта</button>
-                        <button type="button" class="owned-list-tab-btn" data-owned-list-tab="requests">Заявки</button>
-                        {% else %}
-                        <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="requests">Заявки</button>
-                        {% endif %}
-                        <button type="button" class="owned-list-tab-btn" data-owned-list-tab="approvals">Согласования</button>
+                    <div class="owned-secondary-filters">
                         <div id="owned-request-status-filter" class="owned-request-status-filter" hidden aria-label="Фильтр по статусу заявки"></div>
                         <div id="owned-approval-select-wrap" class="owned-approval-select-wrap" hidden aria-label="Фильтр по статусу согласования">
                             <select id="owned-approval-select" class="owned-approval-select">
@@ -806,7 +795,30 @@
                     aria-labelledby="approval-notifications-approvals-title"
                 >
                     <h4 id="approval-notifications-approvals-title" class="approval-notifications-panel__header">Согласования</h4>
-                    <ul id="approval-notifications-feed" class="approval-notifications-list"></ul>
+                    <ul id="approval-notifications-feed" class="approval-notifications-list">
+                        {% for event in home_notification_events %}
+                            <li class="approval-notifications-item">
+                                <div
+                                    class="approval-notifications-case"
+                                    data-event-id="{{ event.id }}"
+                                    data-event-kind="{{ event.kind }}"
+                                    data-approve-id="{{ event.approve_id }}"
+                                    data-case-id="{{ event.case_id }}"
+                                    data-title-numbers="{{ event.title }}"
+                                    data-title-names="{{ event.title_named|default:event.title }}"
+                                    role="button"
+                                    tabindex="0"
+                                >
+                                    <div class="approval-notifications-case__main">
+                                        <span class="approval-notifications-item__title">{{ event.title }}</span>
+                                        {% if event.subtitle %}
+                                            <span class="approval-notifications-case__meta">{{ event.subtitle }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
                 </section>
 
                 <section

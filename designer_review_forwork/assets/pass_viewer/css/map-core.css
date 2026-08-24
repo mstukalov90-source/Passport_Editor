@@ -1,0 +1,153 @@
+/* Leaflet edit handles */
+#map.edit-mode .leaflet-editing-icon,
+#map .leaflet-editing-icon {
+    width: 8px !important;
+    height: 8px !important;
+    margin-left: -4px !important;
+    margin-top: -4px !important;
+    border-radius: 50% !important;
+    border: 1px solid #111 !important;
+    background: #1f2937 !important;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55) !important;
+}
+/* Middle markers often overlap and clutter editing view. */
+#map.edit-mode .leaflet-middle-icon,
+#map .leaflet-middle-icon {
+    display: none !important;
+}
+#map.map--pick-comment-point {
+    cursor: crosshair !important;
+}
+.map-basemap-control {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    max-width: 280px;
+    justify-content: flex-end;
+}
+.map-basemap-btn {
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 6px 10px;
+    background: #fff;
+    color: #111827;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.map-basemap-btn.is-active {
+    border-color: #2563eb;
+    background: #e8f0ff;
+    color: #1d4ed8;
+}
+.start-vertex-flag {
+    position: relative;
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+}
+.start-vertex-flag::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 1px;
+    width: 2px;
+    height: 15px;
+    background: #334155;
+    border-radius: 2px;
+}
+.start-vertex-flag::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 10px;
+    height: 8px;
+    border-radius: 2px;
+    border: 1px solid #334155;
+    background:
+        linear-gradient(45deg, #111827 25%, transparent 25%, transparent 75%, #111827 75%, #111827),
+        linear-gradient(45deg, #111827 25%, transparent 25%, transparent 75%, #111827 75%, #111827);
+    background-size: 6px 6px;
+    background-position: 0 0, 3px 3px;
+    background-color: #ffffff;
+}
+
+#check-dgi-modal .modal-card {
+    max-width: 560px;
+}
+
+.check-dgi-modal-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.check-dgi-modal-actions__right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.check-dgi-asu-ods-link {
+    color: #1d4ed8;
+    font-size: 13px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.check-dgi-asu-ods-link:hover {
+    color: #1e40af;
+}
+
+.dgi-check-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    color: #1e293b;
+}
+
+.dgi-check-table th,
+.dgi-check-table td {
+    border: 1px solid #e2e8f0;
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.dgi-check-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #334155;
+}
+
+.dgi-check-table td.dgi-pct {
+    width: 7.5rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.dgi-check-table__sum td {
+    font-weight: 600;
+}
+
+.dgi-pct--ok {
+    background: #bbf7d0;
+}
+
+.dgi-pct--warn {
+    background: #fef08a;
+}
+
+.dgi-pct--danger {
+    background: #fecaca;
+}

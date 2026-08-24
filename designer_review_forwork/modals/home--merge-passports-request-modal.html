@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Границы объектов ОГХ</title>
+    
+    <link rel="icon" type="image/png" href="../assets/pass_viewer/brand-mark.png">
+    <link rel="stylesheet" href="../assets/pass_viewer/css/base.css">
+
+<link rel="stylesheet" href="../assets/pass_viewer/css/tokens.css">
+<link rel="stylesheet" href="../assets/pass_viewer/css/map-core.css">
+<link rel="stylesheet" href="../assets/pass_viewer/css/map-toolbar.css">
+<link rel="stylesheet" href="../assets/pass_viewer/css/home.css">
+
+
+
+<style>
+    body.modal-preview-page { margin: 0; min-width: 320px; background: #eef2f7; }
+    .modal-preview-header { padding: 16px 24px; background: #fff; border-bottom: 1px solid #d8e0ea; font: 14px/1.4 'Montserrat', 'Century Gothic', Arial, sans-serif; color: #334155; }
+    .modal-preview-header h1 { margin: 0 0 4px; color: #0f172a; font-size: 20px; }
+    .modal-preview-screen { box-sizing: border-box; display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 78px); padding: 24px; }
+    .modal-preview-screen > .modal-overlay, .modal-preview-screen > [role="dialog"], .modal-preview-screen > [id$="-modal"] { position: relative !important; inset: auto !important; display: flex !important; visibility: visible !important; opacity: 1 !important; width: 100%; min-height: min(680px, calc(100vh - 126px)); }
+    .modal-preview-screen > dialog { position: relative !important; inset: auto !important; display: block !important; visibility: visible !important; opacity: 1 !important; margin: auto; }
+    .modal-preview-screen iframe { background: #f8fafc; }
+</style>
+</head>
+<body class="modal-preview-page"><header class="modal-preview-header"><h1>Заявка на объединение</h1><span>Статический макет · home</span></header>
+<main class="modal-preview-screen"><div
+        id="merge-passports-request-modal"
+        style="display: flex; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1002; align-items: center; justify-content: center; padding: 16px;"
+    >
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 18px;">Заявка на объединение</h3>
+                <button type="button" id="merge-passports-request-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+            </div>
+            <p id="merge-passports-request-intro" class="note" style="margin-top: 0;">
+                Укажите номер заявки для объединённого объекта на карте редактирования.
+            </p>
+            <label class="note" for="merge-passports-request-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер заявки</label>
+            <input
+                id="merge-passports-request-input"
+                type="text"
+                maxlength="100"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
+                autocomplete="off"
+            / value="240817-005">
+            <fieldset
+                id="merge-target-source-fieldset"
+                style="display: flex; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-top: 12px; margin-bottom: 0;"
+            >
+                <legend class="note" style="font-weight: 600; padding: 0 4px;">Итоговый паспорт (куда сохранить)</legend>
+                <label class="merge-target-option" data-merge-source="ДТ" style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <span>ДТ</span>
+                    <input type="radio" name="merge_target_source_ui" value="ДТ" id="merge-target-dt" />
+                </label>
+                <label class="merge-target-option" data-merge-source="ОДХ" style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <span>ОДХ</span>
+                    <input type="radio" name="merge_target_source_ui" value="ОДХ" id="merge-target-odh" />
+                </label>
+                <label class="merge-target-option" data-merge-source="ОЗН" style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <span>ОО</span>
+                    <input type="radio" name="merge_target_source_ui" value="ОЗН" id="merge-target-ozn" />
+                </label>
+                <label class="merge-target-option" data-merge-source="ТОП" style="display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <span>ТОП</span>
+                    <input type="radio" name="merge_target_source_ui" value="ТОП" id="merge-target-top" />
+                </label>
+            </fieldset>
+
+            <fieldset
+                id="merge-geometry-detail-fieldset"
+                style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-top: 12px; margin-bottom: 0;"
+            >
+                <legend class="note" style="font-weight: 600; padding: 0 4px;">Геометрия выбранного паспорта</legend>
+                <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <input type="radio" name="merge_geometry_detail_ui" value="simplified" id="merge-geometry-detail-simplified" checked style="width: auto; height: auto; margin: 0; flex: 0 0 auto;" />
+                    <span style="display: inline-block;">Упрощённая (быстрее редактирование)</span>
+                </label>
+                <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; cursor: pointer;">
+                    <input type="radio" name="merge_geometry_detail_ui" value="full" id="merge-geometry-detail-full" style="width: auto; height: auto; margin: 0; flex: 0 0 auto;" />
+                    <span style="display: inline-block;">Полная</span>
+                </label>
+            </fieldset>
+            <p id="merge-passports-request-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+                <button type="button" id="merge-passports-request-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
+                <button type="button" id="merge-passports-request-submit-btn">Открыть карту</button>
+            </div>
+        </div>
+    </div></main></body></html>

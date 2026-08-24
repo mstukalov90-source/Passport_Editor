@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>&#1044;&#1086;&#1073;&#1072;&#1074;&#1083;&#1077;&#1085;&#1080;&#1077; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1072;</title>
+    
+    <link rel="icon" type="image/png" href="../assets/pass_viewer/brand-mark.png">
+    <link rel="stylesheet" href="../assets/pass_viewer/css/base.css">
+
+<link rel="stylesheet" href="../assets/pass_viewer/css/tokens.css">
+<link rel="stylesheet" href="../assets/pass_viewer/css/map-core.css">
+<link rel="stylesheet" href="../assets/pass_viewer/css/map-toolbar.css">
+<link rel="stylesheet" href="../assets/pass_viewer/css/map-layers.css">
+
+
+<link rel="stylesheet" href="../assets/pass_viewer/css/map-editor.css">
+
+
+
+<style>
+    body.modal-preview-page { margin: 0; min-width: 320px; background: #eef2f7; }
+    .modal-preview-header { padding: 16px 24px; background: #fff; border-bottom: 1px solid #d8e0ea; font: 14px/1.4 'Montserrat', 'Century Gothic', Arial, sans-serif; color: #334155; }
+    .modal-preview-header h1 { margin: 0 0 4px; color: #0f172a; font-size: 20px; }
+    .modal-preview-screen { box-sizing: border-box; display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 78px); padding: 24px; }
+    .modal-preview-screen > .modal-overlay, .modal-preview-screen > [role="dialog"], .modal-preview-screen > [id$="-modal"] { position: relative !important; inset: auto !important; display: flex !important; visibility: visible !important; opacity: 1 !important; width: 100%; min-height: min(680px, calc(100vh - 126px)); }
+    .modal-preview-screen > dialog { position: relative !important; inset: auto !important; display: block !important; visibility: visible !important; opacity: 1 !important; margin: auto; }
+    .modal-preview-screen iframe { background: #f8fafc; }
+</style>
+</head>
+<body class="modal-preview-page"><header class="modal-preview-header"><h1>Автоматическое удаление пересечений</h1><span>Статический макет · add_object</span></header>
+<main class="modal-preview-screen"><div id="auto-remove-modal" class="modal-overlay" style="display:flex;">
+        <div class="modal-card">
+            <h3 style="margin: 0 0 10px;">Автоматическое удаление пересечений</h3>
+            <p class="note" style="margin-top: 0;">Выберите слои, с которыми нужно убрать пересечения:</p>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dt">
+                <input type="checkbox" id="auto-remove-dt" />
+                ДТ
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="odh">
+                <input type="checkbox" id="auto-remove-odh" />
+                ОДХ
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="ozn">
+                <input type="checkbox" id="auto-remove-ozn" />
+                ОО
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="top">
+                <input type="checkbox" id="auto-remove-top" />
+                ТОП
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="requests">
+                <input type="checkbox" id="auto-remove-requests" />
+                Заявки
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi_moscow_rent">
+                <input type="checkbox" id="auto-remove-dgi-moscow-rent" />
+                З/У г. Москва с арендой
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi_moscow_no_rent">
+                <input type="checkbox" id="auto-remove-dgi-moscow-no-rent" />
+                З/У г. Москва без аренды
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi_private_rent">
+                <input type="checkbox" id="auto-remove-dgi-private-rent" />
+                З/У Частная или федеральная собственность с арендой
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi_private_no_rent">
+                <input type="checkbox" id="auto-remove-dgi-private-no-rent" />
+                З/У Частная или федеральная собственность без аренды
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="dgi_renovation">
+                <input type="checkbox" id="auto-remove-dgi-renovation" />
+                З/У Реновация
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="renew">
+                <input type="checkbox" id="auto-remove-renew" />
+                Реновация
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="oozt">
+                <input type="checkbox" id="auto-remove-oozt" />
+                ООЗТ
+            </label>
+            <label class="modal-label auto-remove-option" data-auto-remove-source="rzd">
+                <input type="checkbox" id="auto-remove-rzd" />
+                Полосы отвода ЖД
+            </label>
+            <p id="auto-remove-no-layers" class="note" style="display:flex; margin-top: 8px;">
+                Нет отображённых слоёв. Включите нужные слои в панели управления картой.
+            </p>
+            <p id="auto-remove-modal-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+                <button type="button" id="auto-remove-modal-cancel" class="map-toolbar-btn map-toolbar-btn--muted">Отмена</button>
+                <button type="button" id="auto-remove-modal-submit" class="map-toolbar-btn map-toolbar-btn--primary">Удалить пересечения</button>
+            </div>
+        </div>
+    </div></main></body></html>

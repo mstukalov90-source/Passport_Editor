@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Согласование границ ОГХ</title>
+    
+    <link rel="icon" type="image/png" href="../assets/pass_viewer/brand-mark.png">
+    <link rel="stylesheet" href="../assets/pass_viewer/css/base.css">
+    
+
+<link rel="stylesheet" href="../assets/pass_viewer/css/tokens.css">
+<link rel="stylesheet" href="../assets/pass_viewer/css/map-core.css">
+<link rel="stylesheet" href="../assets/pass_viewer/css/map-editor.css">
+<link rel="stylesheet" href="../assets/approval/css/landing.css">
+
+
+<style>
+    body.modal-preview-page { margin: 0; min-width: 320px; background: #eef2f7; }
+    .modal-preview-header { padding: 16px 24px; background: #fff; border-bottom: 1px solid #d8e0ea; font: 14px/1.4 'Montserrat', 'Century Gothic', Arial, sans-serif; color: #334155; }
+    .modal-preview-header h1 { margin: 0 0 4px; color: #0f172a; font-size: 20px; }
+    .modal-preview-screen { box-sizing: border-box; display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 78px); padding: 24px; }
+    .modal-preview-screen > .modal-overlay, .modal-preview-screen > [role="dialog"], .modal-preview-screen > [id$="-modal"] { position: relative !important; inset: auto !important; display: flex !important; visibility: visible !important; opacity: 1 !important; width: 100%; min-height: min(680px, calc(100vh - 126px)); }
+    .modal-preview-screen > dialog { position: relative !important; inset: auto !important; display: block !important; visibility: visible !important; opacity: 1 !important; margin: auto; }
+    .modal-preview-screen iframe { background: #f8fafc; }
+</style>
+</head>
+<body class="modal-preview-page"><header class="modal-preview-header"><h1>Подтверждение</h1><span>Статический макет · approval</span></header>
+<main class="modal-preview-screen"><dialog id="approval-chat-confirm-dialog" class="approval-event-dialog" aria-labelledby="approval-chat-confirm-title">
+    <form method="dialog" class="approval-event-dialog__form" id="approval-chat-confirm-form">
+        <h3 class="approval-event-dialog__title" id="approval-chat-confirm-title">Подтверждение</h3>
+        <p class="approval-chat-confirm-dialog__text" id="approval-chat-confirm-text">Подтвердить согласование границ по событию № 240817-003?</p>
+        <div class="approval-event-dialog__actions">
+            <button type="submit" value="cancel" class="approval-event-dialog__cancel">Отменить</button>
+            <button type="submit" value="confirm" class="approval-event-dialog__submit" id="approval-chat-confirm-submit">Подтвердить</button>
+        </div>
+    </form>
+</dialog></main></body></html>

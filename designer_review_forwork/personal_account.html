@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Личный кабинет</title>
+    <link rel="icon" type="image/png" href="assets/pass_viewer/brand-mark.png">
+    <link rel="stylesheet" href="assets/pass_viewer/css/base.css">
+    <link rel="stylesheet" href="assets/pass_viewer/css/tokens.css">
+    <link rel="stylesheet" href="assets/pass_viewer/css/header.css">
+    <link rel="stylesheet" href="assets/pass_viewer/css/personal.css">
+    <script src="assets/pass_viewer/js/header.js" defer></script>
+</head>
+<body>
+
+<main class="personal-account">
+    <div class="personal-view-toggle" role="tablist" aria-label="Режим просмотра">
+        <span class="personal-view-toggle__btn is-active" role="tab" aria-selected="true">Список</span>
+        <a class="personal-view-toggle__btn" href="home.html" role="tab" aria-selected="false">Просмотр на карте</a>
+    </div>
+
+    <section class="personal-metrics" aria-label="Метрики">
+        <div class="personal-metric-card">
+            <div class="personal-metric-card__value">1 248</div>
+            <div class="personal-metric-card__label">Количество утверждённых паспортов</div>
+        </div>
+        <div class="personal-metric-card">
+            <div class="personal-metric-card__value">84 320 м²</div>
+            <div class="personal-metric-card__label">Уборочная площадь</div>
+        </div>
+        <div class="personal-metric-card">
+            <div class="personal-metric-card__value">37</div>
+            <div class="personal-metric-card__label">Подано заявок</div>
+        </div>
+        <div class="personal-metric-card">
+            <div class="personal-metric-card__value">12</div>
+            <div class="personal-metric-card__label">Согласование границ ОГХ</div>
+        </div>
+    </section>
+
+    <section class="personal-list" aria-label="Список объектов">
+        <div class="personal-list-header">
+            <h2 class="personal-section-title">Утвержденные паспорта</h2>
+            <button type="button" class="personal-filter-icon-btn" id="personal-filter-toggle" aria-label="Фильтр" aria-expanded="false" aria-controls="personal-filter-panel">
+                <img class="personal-filter-icon-btn__icon" src="assets/pass_viewer/filter-so_128x128.svg" alt="" />
+            </button>
+        </div>
+        <div class="personal-filter-panel" id="personal-filter-panel" hidden>
+            <input type="text" data-filter-col="0" placeholder="№ Паспорта">
+            <input type="text" data-filter-col="1" placeholder="Название">
+            <input type="text" data-filter-col="2" placeholder="Площадь">
+            <input type="text" data-filter-col="3" placeholder="Тип ОГХ">
+            <input type="text" data-filter-col="4" placeholder="Статус">
+            <button type="button" id="personal-filter-clear">Сброс</button>
+        </div>
+        <div class="personal-table-wrap">
+            <table class="personal-table">
+                <thead>
+                    <tr>
+                        <th>№ Паспорта</th>
+                        <th>Название</th>
+                        <th>Площадь</th>
+                        <th>Тип ОГХ</th>
+                        <th>Статус</th>
+                        <th>АСУ ОДС</th>
+                        <th>Детальный просмотр</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>12/ОГХ-26/00001</td>
+                        <td>Детская площадка у дома 12</td>
+                        <td>1 250 м²</td>
+                        <td><span class="personal-badge personal-badge--dt">ДТ</span></td>
+                        <td>Утверждён</td>
+                        <td><a class="personal-table-btn" href="https://asu-ods.example.com/" target="_blank" rel="noopener noreferrer">Открыть</a></td>
+                        <td><a class="personal-table-btn personal-detail-open" href="#" data-id="12/ОГХ-26/00001" data-name="Детская площадка у дома 12" data-date="15.08.2025" data-owner="Демонстрационный балансодержатель" data-oiv="Департамент городского хозяйства" data-area="1 250 м²" data-status="Утверждён">Просмотр</a></td>
+                    </tr>
+                    <tr>
+                        <td>12/ОГХ-26/00001</td>
+                        <td>Сквер на улице Академика Королёва</td>
+                        <td>3 400 м²</td>
+                        <td><span class="personal-badge personal-badge--oo">ОО</span></td>
+                        <td>В согласовании</td>
+                        <td><a class="personal-table-btn" href="https://asu-ods.example.com/" target="_blank" rel="noopener noreferrer">Открыть</a></td>
+                        <td><a class="personal-table-btn personal-detail-open" href="#" data-id="12/ОГХ-26/00001" data-name="Сквер на улице Академика Королёва" data-date="10.07.2025" data-owner="Демонстрационный балансодержатель" data-oiv="Департамент городского хозяйства" data-area="3 400 м²" data-status="В согласовании">Просмотр</a></td>
+                    </tr>
+                    <tr>
+                        <td>240817-003</td>
+                        <td>Благоустройство дворовой территории</td>
+                        <td>2 100 м²</td>
+                        <td><span class="personal-badge personal-badge--odh">ОДХ</span></td>
+                        <td>Подана заявка</td>
+                        <td><a class="personal-table-btn" href="https://asu-ods.example.com/" target="_blank" rel="noopener noreferrer">Открыть</a></td>
+                        <td><a class="personal-table-btn personal-detail-open" href="#" data-id="240817-003" data-name="Благоустройство дворовой территории" data-date="—" data-owner="Демонстрационный балансодержатель" data-oiv="Департамент городского хозяйства" data-area="2 100 м²" data-status="Подана заявка">Просмотр</a></td>
+                    </tr>
+                    <tr>
+                        <td>12/ОГХ-26/00001</td>
+                        <td>Тротуарная плитка на улице Ленина</td>
+                        <td>800 м²</td>
+                        <td><span class="personal-badge personal-badge--top">ТОП</span></td>
+                        <td>Утверждён</td>
+                        <td><a class="personal-table-btn" href="https://asu-ods.example.com/" target="_blank" rel="noopener noreferrer">Открыть</a></td>
+                        <td><a class="personal-table-btn personal-detail-open" href="#" data-id="12/ОГХ-26/00001" data-name="Тротуарная плитка на улице Ленина" data-date="22.09.2025" data-owner="Демонстрационный балансодержатель" data-oiv="Департамент городского хозяйства" data-area="800 м²" data-status="Утверждён">Просмотр</a></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<div id="personal-detail-modal" class="personal-modal" style="display: none;">
+    <div class="personal-modal__overlay">
+        <div class="personal-modal__card">
+            <div class="personal-modal__header">
+                <h3>Детальная информация</h3>
+                <button type="button" class="personal-modal__close" id="personal-detail-close" aria-label="Закрыть">&#10005;</button>
+            </div>
+            <div class="personal-modal__body">
+                <dl class="personal-detail-list">
+                    <dt>ID паспорта</dt>
+                    <dd id="detail-passport-id">—</dd>
+                    <dt>Название паспорта</dt>
+                    <dd id="detail-passport-name">—</dd>
+                    <dt>Дата утверждения</dt>
+                    <dd id="detail-approval-date">—</dd>
+                    <dt>Балансодержатель</dt>
+                    <dd id="detail-owner">—</dd>
+                    <dt>ОИВ</dt>
+                    <dd id="detail-oiv">—</dd>
+                    <dt>Уборочные площади</dt>
+                    <dd id="detail-area">—</dd>
+                    <dt>Статус</dt>
+                    <dd id="detail-status">—</dd>
+                    <dt>Карта</dt>
+                    <dd>
+                        <img class="personal-detail-map-img" src="assets/maps/map-1.png" alt="Карта объекта" />
+                    </dd>
+                </dl>
+            </div>
+            <div class="personal-modal__footer">
+                <a class="personal-table-btn" href="https://asu-ods.example.com/" target="_blank" rel="noopener noreferrer">Перейти в АСУ ОДС</a>
+                <a class="personal-table-btn" href="home.html">Посмотреть на карте</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    var toggle = document.getElementById('personal-filter-toggle');
+    var panel = document.getElementById('personal-filter-panel');
+    var table = document.querySelector('.personal-table');
+    var clearBtn = document.getElementById('personal-filter-clear');
+    if (!toggle || !panel || !table) return;
+
+    var rows = table.querySelectorAll('tbody tr');
+    var inputs = panel.querySelectorAll('input[data-filter-col]');
+
+    function filter() {
+        var filters = [];
+        inputs.forEach(function (input) {
+            filters.push({
+                col: parseInt(input.getAttribute('data-filter-col'), 10),
+                val: (input.value || '').toLowerCase()
+            });
+        });
+        rows.forEach(function (row) {
+            var cells = row.querySelectorAll('td');
+            var show = filters.every(function (f) {
+                if (!f.val) return true;
+                var cell = cells[f.col];
+                if (!cell) return false;
+                return cell.textContent.toLowerCase().indexOf(f.val) !== -1;
+            });
+            row.style.display = show ? '' : 'none';
+        });
+    }
+
+    toggle.addEventListener('click', function () {
+        var expanded = panel.hidden;
+        panel.hidden = !expanded;
+        toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    });
+
+    inputs.forEach(function (input) {
+        input.addEventListener('input', filter);
+    });
+
+    clearBtn.addEventListener('click', function () {
+        inputs.forEach(function (input) {
+            input.value = '';
+        });
+        filter();
+    });
+})();
+</script>
+
+<script>
+(function () {
+    'use strict';
+    var modal = document.getElementById('personal-detail-modal');
+    var closeBtn = document.getElementById('personal-detail-close');
+    var openBtns = document.querySelectorAll('.personal-detail-open');
+    if (!modal || !closeBtn) return;
+
+    function openModal(data) {
+        document.getElementById('detail-passport-id').textContent = data.id || '—';
+        document.getElementById('detail-passport-name').textContent = data.name || '—';
+        document.getElementById('detail-approval-date').textContent = data.date || '—';
+        document.getElementById('detail-owner').textContent = data.owner || '—';
+        document.getElementById('detail-oiv').textContent = data.oiv || '—';
+        document.getElementById('detail-area').textContent = data.area || '—';
+        document.getElementById('detail-status').textContent = data.status || '—';
+        modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+        modal.style.display = 'none';
+    }
+
+    openBtns.forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            openModal({
+                id: btn.getAttribute('data-id'),
+                name: btn.getAttribute('data-name'),
+                date: btn.getAttribute('data-date'),
+                owner: btn.getAttribute('data-owner'),
+                oiv: btn.getAttribute('data-oiv'),
+                area: btn.getAttribute('data-area'),
+                status: btn.getAttribute('data-status')
+            });
+        });
+    });
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) {
+        if (e.target === modal || e.target.classList.contains('personal-modal__overlay')) {
+            closeModal();
+        }
+    });
+})();
+</script>
+
+</body>
+</html>

@@ -6,13 +6,17 @@
     <title>{% block title %}Pass Map{% endblock %}</title>
     {% load static %}
     <link rel="icon" type="image/png" href="{% static 'pass_viewer/brand-mark.png' %}">
-    <link rel="stylesheet" href="{% static 'pass_viewer/css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'pass_viewer/css/base.css' %}?v=redesign-1">
+    <link rel="stylesheet" href="{% static 'pass_viewer/css/tokens.css' %}?v=redesign-1">
+    <link rel="stylesheet" href="{% static 'pass_viewer/css/header.css' %}?v=redesign-1">
     {% block page_styles %}{% endblock %}
 </head>
-<body>
+<body class="has-site-header {% block body_class %}{% endblock %}">
+{% include 'includes/site_header.html' %}
 <main class="container {% block container_class %}{% endblock %}">
     {% block content %}{% endblock %}
 </main>
+<script src="{% static 'pass_viewer/js/site-header.js' %}?v=redesign-1" defer></script>
 {% block page_scripts %}{% endblock %}
 </body>
 </html>

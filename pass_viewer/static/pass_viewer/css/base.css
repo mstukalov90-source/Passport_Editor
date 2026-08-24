@@ -1,17 +1,30 @@
 body {
     margin: 0;
-    font-family: Arial, sans-serif;
+    font-family: 'Montserrat', 'Century Gothic', Arial, sans-serif;
     background: #f5f7fb;
     color: #20242b;
 }
+
+html {
+    min-width: 320px;
+}
+
+button,
+input,
+select,
+textarea {
+    font-family: inherit;
+}
 .container {
-    max-width: 420px;
+    width: calc(100% - 32px);
+    max-width: 470px;
     margin: 56px auto;
     background: #fff;
     border: 1px solid #e3e6ec;
     border-radius: 10px;
     padding: 24px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+    box-sizing: border-box;
 }
 h1 {
     margin: 0 0 16px;
@@ -35,7 +48,7 @@ input {
 button, .button-link {
     display: inline-block;
     border: none;
-    background: #1f6feb;
+    background: var(--pv-blue, #165391);
     color: #fff;
     padding: 10px 14px;
     border-radius: 8px;

@@ -1,0 +1,340 @@
+/* Shared site header */
+.site-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 16px;
+    background: var(--pv-header-bg, #1A3F6E);
+    color: var(--pv-header-text, #fff);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+    box-sizing: border-box;
+}
+
+.site-header__brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    text-decoration: none;
+}
+
+.site-header__gsk,
+.site-header__logo {
+    display: block;
+    height: 48px;
+    width: auto;
+    object-fit: contain;
+}
+
+.site-header__cube {
+    display: block;
+    height: 36px;
+    width: auto;
+    object-fit: contain;
+}
+
+.site-header__nav {
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    flex: 1;
+    position: relative;
+}
+
+.site-header__nav::-webkit-scrollbar {
+    display: none;
+}
+
+/* Fade indicator for scrollable nav on mobile */
+.site-header__nav::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 24px;
+    background: linear-gradient(to right, transparent, var(--pv-header-bg, #1A3F6E));
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.site-header__nav.is-scrollable::after {
+    opacity: 1;
+}
+
+.site-header__nav-list {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.site-header__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    color: var(--pv-header-text, #fff);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1.25;
+}
+
+.site-header__link:hover,
+.site-header__link:focus-visible {
+    background: var(--pv-header-hover, rgba(255, 255, 255, 0.12));
+    outline: none;
+}
+
+.site-header__link.is-active {
+    background: transparent;
+    position: relative;
+}
+
+.site-header__link.is-active::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 14px;
+    right: 14px;
+    height: 2px;
+    background: #fff;
+    border-radius: 1px;
+}
+
+.site-header__link--disabled,
+.site-header__link--disabled:hover,
+.site-header__link--disabled:focus-visible {
+    opacity: 0.55;
+    cursor: not-allowed;
+    background: transparent;
+}
+
+.site-header__more-wrap {
+    position: relative;
+}
+
+.site-header__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.site-header__user-menu {
+    position: relative;
+}
+
+.site-header__user {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    color: var(--pv-header-text, #fff);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s ease;
+}
+
+.site-header__user:hover,
+.site-header__user:focus-visible {
+    background: var(--pv-header-hover, rgba(255, 255, 255, 0.12));
+    outline: none;
+}
+
+.site-header__user-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--pv-red, #BA3034);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.site-header__user-name {
+    font-weight: 600;
+}
+
+.site-header__icon-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 8px;
+    border-radius: 8px;
+    color: var(--pv-header-text, #fff);
+    text-decoration: none;
+    transition: background 0.15s ease;
+}
+
+.site-header__icon-link:hover,
+.site-header__icon-link:focus-visible {
+    background: var(--pv-header-hover, rgba(255, 255, 255, 0.12));
+    outline: none;
+}
+
+.site-header__icon {
+    display: block;
+    width: 22px;
+    height: 22px;
+}
+
+.site-header__badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--pv-red, #BA3034);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--pv-header-bg, #1A3F6E);
+    box-sizing: border-box;
+}
+
+/* Dropdowns */
+.site-header__dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    min-width: 180px;
+    margin: 0;
+    padding: 8px 0;
+    list-style: none;
+    background: #fff;
+    color: #20242b;
+    border: 1px solid var(--pv-border, #e3e6ec);
+    border-radius: 10px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+    z-index: 1000;
+}
+
+.site-header__dropdown--right {
+    left: auto;
+    right: 0;
+}
+
+.site-header__dropdown-link {
+    display: block;
+    padding: 8px 16px;
+    color: #20242b;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.15s ease;
+}
+
+.site-header__dropdown-link:hover,
+.site-header__dropdown-link:focus-visible {
+    background: #f1f5f9;
+    outline: none;
+}
+
+/* Offset page content for fixed header */
+body.has-site-header {
+    padding-top: 64px;
+}
+
+body.has-site-header main.container--wide {
+    min-height: calc(100vh - 48px - 64px);
+}
+
+body.has-site-header main.container--wide:has(.owned-home-shell) {
+    height: calc(100vh - 48px - 64px);
+    min-height: calc(100vh - 48px - 64px);
+}
+
+/* Login page: header shows only logos, brand link is disabled */
+.login-page .site-header__brand {
+    pointer-events: none;
+    cursor: default;
+}
+
+.login-page .site-header__nav,
+.login-page .site-header__actions {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .site-header {
+        height: 56px;
+        padding: 0 10px;
+        gap: 10px;
+    }
+
+    .site-header__gsk,
+    .site-header__logo {
+        height: 40px;
+    }
+
+    .site-header__cube {
+        height: 30px;
+    }
+
+    .site-header__link {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+
+    .site-header__user-name {
+        display: none;
+    }
+
+    .site-header__icon {
+        width: 20px;
+        height: 20px;
+    }
+
+    body.has-site-header {
+        padding-top: 56px;
+    }
+
+    body.has-site-header main.container--wide {
+        min-height: calc(100vh - 16px - 56px);
+    }
+
+    body.has-site-header main.container--wide:has(.owned-home-shell) {
+        height: calc(100vh - 16px - 56px);
+        min-height: calc(100vh - 16px - 56px);
+    }
+}

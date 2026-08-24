@@ -2,9 +2,18 @@
 
 {% block title %}&#1042;&#1093;&#1086;&#1076;{% endblock %}
 
+{% block body_class %}login-page{% endblock %}
+
+{% block page_styles %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'pass_viewer/css/login.css' %}">
+{% endblock %}
+
 {% block content %}
-    <h1>&#1042;&#1093;&#1086;&#1076; &#1074; &#1089;&#1080;&#1089;&#1090;&#1077;&#1084;&#1091;</h1>
-    <form method="post">
+<div class="login-card">
+    <div class="login-brand-title">САПР МГГТ 2.0</div>
+    <h1 class="login-title">Вход в систему</h1>
+    <form class="login-form" method="post">
         {% csrf_token %}
         {{ form.non_field_errors }}
         <p>
@@ -17,6 +26,11 @@
             {{ form.password }}
             {{ form.password.errors }}
         </p>
-        <button type="submit">&#1042;&#1086;&#1081;&#1090;&#1080;</button>
+        <button class="login-submit" type="submit">Войти</button>
     </form>
+    <div class="login-actions">
+        <span class="login-action-btn login-action-btn--secondary" aria-disabled="true">Регистрация пользователя</span>
+        <span class="login-action-btn login-action-btn--secondary" aria-disabled="true">Ссылка на TDM-канал</span>
+    </div>
+</div>
 {% endblock %}
