@@ -61,6 +61,17 @@ def build_page_config(page, **extra):
     return config
 
 
+def personal_page_config():
+    return build_page_config(
+        "personal",
+        urls={
+            "resolveAsuOdsUrl": reverse("resolve_asu_ods_url"),
+            "personalObjectDetails": reverse("personal_object_details"),
+            "openOwned": reverse("open_owned_object"),
+        },
+    )
+
+
 def home_page_config(
     *,
     need_entry_request_id,
@@ -87,6 +98,7 @@ def home_page_config(
             "listDgiIntersections": reverse("list_dgi_intersections"),
             "resolveAsuOdsUrl": reverse("resolve_asu_ods_url"),
             "openOwned": reverse("open_owned_object"),
+            "approvalLanding": reverse("approval:landing"),
             "selectSupHood": reverse("select_sup_hood"),
             "clearSupHood": reverse("clear_sup_hood"),
         },

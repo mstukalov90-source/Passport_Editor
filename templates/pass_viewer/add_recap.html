@@ -35,18 +35,18 @@
 {% block content %}
 <div class="pass-viewer-page pass-viewer-page--recap">
 <section class="page-header-card">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
-        <div>
+    <div class="page-header-card__top">
+        <div class="page-header-card__title-block">
             <h1 class="page-header-card__title">Добавление досъёма</h1>
-            <p style="margin: 0;"><strong>№ Заявки:</strong> {{ request_id|default:"-" }}</p>
-            <p style="margin: 4px 0 0;"><strong>Название:</strong> {{ name|default:"-" }}</p>
+            <p><strong>№ Заявки:</strong> {{ request_id|default:"-" }}</p>
+            <p><strong>Название:</strong> {{ name|default:"-" }}</p>
         </div>
-        <div style="flex: 1 1 260px; min-width: 200px;">
-            <strong style="display: block; margin-bottom: 6px; font-size: 13px;">Информация о редактируемом обьекте:</strong>
-            <p id="editable-area-info" class="note" style="display:none; margin: 0 0 4px;">Площадь редактируемого объекта: -</p>
-            <p id="edit-status" class="note" style="margin: 0;"></p>
+        <div class="page-header-card__info">
+            <strong>Информация о редактируемом объекте:</strong>
+            <p id="editable-area-info" class="note" style="display:none;">Площадь редактируемого объекта: -</p>
+            <p id="edit-status" class="note"></p>
         </div>
-        <a class="button-link" href="{% url 'home' %}">&#1042;&#1077;&#1088;&#1085;&#1091;&#1090;&#1100;&#1089;&#1103; &#1082; &#1089;&#1087;&#1080;&#1089;&#1082;&#1091;</a>
+        <a class="button-link" href="{% url 'home' %}">Вернуться к списку</a>
     </div>
 
     <div class="page-header-card__toolbar">
@@ -63,14 +63,14 @@
             <span class="snap-switch__label">Прилипание</span>
         </label>
         <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">Обновить смежные объекты и площадь</button>
-        <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">&#1055;&#1088;&#1086;&#1074;&#1077;&#1088;&#1082;&#1072; &#1087;&#1077;&#1088;&#1077;&#1089;&#1077;&#1095;&#1077;&#1085;&#1080;&#1081; &#1089; &#1086;&#1073;&#1100;&#1077;&#1082;&#1090;&#1072;&#1084;&#1080; &#1044;&#1043;&#1048;</button>
+        <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Проверка пересечений с объектами ДГИ</button>
         <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
         <button type="button" id="add-comment-point-btn" class="map-toolbar-btn map-toolbar-btn--primary">Добавить точку с комментарием</button>
-        <button type="button" id="cancel-draw-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
+        <button type="button" id="cancel-draw-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">Отмена</button>
         <button type="button" id="save-dossier-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">Сохранить досъём</button>
     </div>
 </section>
-    <div id="map" style="height: 72vh; min-height: 520px; margin: 0; border-radius: 10px; border: 1px solid #e3e6ec;"></div>
+    <div id="map" class="map-stage"></div>
     <section id="layer-management-panel" class="layer-management-panel" aria-label="Панель управления слоями">
         <div class="layer-management-panel__title">Панель управления слоями</div>
         <div class="layer-management-panel__grid">
@@ -319,10 +319,8 @@
         </div>
     </div>
     <div id="db-loading-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-card" style="max-width: 420px; text-align: center;">
-            <p class="note" style="margin: 0; font-size: 15px; font-weight: 600; color: #0f172a;">
-                Выполняется выгрузка обьектов. Подождите
-            </p>
+        <div class="modal-card modal-card--center">
+            <p class="modal-center-text">Выполняется выгрузка объектов. Подождите</p>
         </div>
     </div>
 

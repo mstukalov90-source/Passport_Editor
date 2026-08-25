@@ -24,6 +24,14 @@
     color: #20242b;
 }
 
+.page-header-card__title-block p {
+    margin: 4px 0 0;
+}
+
+.page-header-card__title-block p:first-of-type {
+    margin-top: 0;
+}
+
 .page-header-card__info {
     flex: 1 1 260px;
     min-width: 200px;
@@ -57,4 +65,21 @@
         flex: 1 1 auto;
         min-width: auto;
     }
+}
+
+.map-stage {
+    height: 72vh;
+    min-height: 520px;
+    margin: 0;
+    border-radius: 10px;
+    border: 1px solid #e3e6ec;
+}
+
+.map-stage--view-only {
+    height: calc(100vh - 160px);
+    min-height: 360px;
+}
+
+.note--danger {
+    color: #b42318;
 }
