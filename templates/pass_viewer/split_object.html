@@ -27,34 +27,36 @@
 
 {% block content %}
 <div class="pass-viewer-page pass-viewer-page--split">
-<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
-    <div>
-        <h1 style="margin-bottom:8px;">Разделение объекта</h1>
-        {% if selected_rootid %}
-            <p style="margin:0;">Обьект паспорт №: {{ selected_rootid }}</p>
-        {% endif %}
-        <p style="margin:4px 0 0;">Название: <strong>{{ selected_name|default:"-" }}</strong></p>
-        <p style="margin:4px 0 0;">№ заявки: <strong>{{ selected_request_id|default:"-" }}</strong></p>
+<section class="page-header-card">
+    <div class="page-header-card__top">
+        <div class="page-header-card__title-block">
+            <h1 class="page-header-card__title">Разделение объекта</h1>
+            {% if selected_rootid %}
+                <p>Объект паспорт №: {{ selected_rootid }}</p>
+            {% endif %}
+            <p>Название: <strong>{{ selected_name|default:"-" }}</strong></p>
+            <p>№ заявки: <strong>{{ selected_request_id|default:"-" }}</strong></p>
+        </div>
+        <a class="button-link" href="{% url 'home' %}">Вернуться к списку</a>
     </div>
-    <a class="button-link" href="{% url 'home' %}">Вернуться к списку</a>
-</div>
 
-{% if query_error %}
-    <p class="note" style="color:#b42318;">{{ query_error }}</p>
-{% elif not map_layers %}
-    <p class="note" style="color:#b42318;">Объект не найден в базе.</p>
-{% endif %}
+    {% if query_error %}
+        <p class="note note--danger">{{ query_error }}</p>
+    {% elif not map_layers %}
+        <p class="note note--danger">Объект не найден в базе.</p>
+    {% endif %}
 
-<div style="display:flex;gap:10px;margin:8px 0 12px;align-items:center;flex-wrap:wrap;">
-    <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">Начать редактирование</button>
-    <button type="button" id="cut-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent" disabled>Разрезать полигон</button>
-    <button type="button" id="select-by-polygon-btn" class="map-toolbar-btn map-toolbar-btn--teal" disabled>Выборка полигоном</button>
-    <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">Отмена</button>
-    <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">Выгрузить файлы</button>
-</div>
+    <div class="page-header-card__toolbar">
+        <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">Начать редактирование</button>
+        <button type="button" id="cut-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent" disabled>Разрезать полигон</button>
+        <button type="button" id="select-by-polygon-btn" class="map-toolbar-btn map-toolbar-btn--teal" disabled>Выборка полигоном</button>
+        <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">Отмена</button>
+        <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">Выгрузить файлы</button>
+    </div>
+</section>
 
-<p id="edit-status" class="note" style="margin:0 0 10px;"></p>
-<div id="map" style="height:72vh;min-height:520px;margin:0;border-radius:10px;border:1px solid #e3e6ec;"></div>
+<p id="edit-status" class="note"></p>
+<div id="map" class="map-stage"></div>
 <p id="export-links" class="note"></p>
 </div>
 {% endblock %}

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block page_styles %}
 {% include 'pass_viewer/includes/map_home_styles.html' %}
@@ -9,6 +10,7 @@
 {% block page_scripts %}
     {{ page_config|json_script:"page-config" }}
     {{ owned_passports_geojson|json_script:"owned-passports-geojson-data" }}
+    {{ owned_approvals_geojson|json_script:"owned-approvals-geojson-data" }}
     {{ hood_work_area_geojson|json_script:"hood-work-area-geojson-data" }}
     {% include 'pass_viewer/includes/map_home_scripts.html' %}
     {% load static %}
@@ -26,7 +28,7 @@
         </div>
         <div class="owned-home-header-tabs">
             {% if show_passports_tab %}
-            <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="passports">Актуальные паспорта</button>
+            <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="passports">Утверждённые паспорта</button>
             <button type="button" class="owned-list-tab-btn" data-owned-list-tab="requests">Заявки</button>
             {% else %}
             <button type="button" class="owned-list-tab-btn is-active" data-owned-list-tab="requests">Заявки</button>
@@ -106,7 +108,10 @@
                 <div class="owned-filter-toolbar">
                     <input type="text" id="owned-filter-rootid" placeholder="Фильтр по № Паспорта/Заявки">
                     <input type="text" id="owned-filter-name" placeholder="Фильтр по Названию">
-                    <button type="button" id="owned-filter-clear">&#1057;&#1073;&#1088;&#1086;&#1089;</button>
+                    <button type="button" id="owned-filter-clear">Сброс</button>
+                    <button type="button" id="owned-filter-more" class="owned-filter-more-btn" aria-label="Дополнительные фильтры">
+                        <img class="owned-filter-more-btn__icon" src="{% static 'pass_viewer/filter-so_128x128.svg' %}" alt="">
+                    </button>
                 </div>
                 <div class="owned-lists-panel">
                     <div class="owned-secondary-filters">
@@ -125,15 +130,6 @@
                                 <option value="all">Все</option>
                             </select>
                         </div>
-                        {% endif %}
-                    </div>
-                    <div class="owned-source-filters"{% if not show_passports_tab and user_role == 'MGGT' %} style="display:none"{% endif %}>
-                        <button type="button" class="source-badge source-badge--dt owned-source-filter-btn is-active" data-source-filter="ДТ">ДТ</button>
-                        <button type="button" class="source-badge source-badge--odh owned-source-filter-btn is-active" data-source-filter="ОДХ">ОДХ</button>
-                        <button type="button" class="source-badge source-badge--oo owned-source-filter-btn is-active" data-source-filter="ОЗН">ОО</button>
-                        <button type="button" class="source-badge source-badge--top owned-source-filter-btn is-active" data-source-filter="ТОП">ТОП</button>
-                        {% if user_role != 'MGGT' and user_role != 'SUP' %}
-                        <button type="button" class="source-badge source-badge--ods owned-source-filter-btn is-active" data-source-filter="{{ ods_request_source_label|default:'ОДС' }}">{{ ods_request_source_label|default:"ОДС" }}</button>
                         {% endif %}
                     </div>
                 <div class="owned-list-wrap owned-list-panel{% if show_passports_tab %} is-active{% endif %}" data-list-panel="passports"{% if not show_passports_tab %} hidden{% endif %}>
@@ -172,12 +168,12 @@
                                     <input type="hidden" name="geometry_detail_mode" value="simplified">
                                     <button type="submit" class="owned-list-open-btn">
                                         <span class="owned-request-id-row">
-                                            <strong>&#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.rootid }}
+                                            <strong>№ Паспорта:</strong> {{ item.rootid }}
                                             {% if item.ods_registry_root_match %}
                                                 <span class="ods-registry-passport-note">Для этого паспорта есть заявка в АСУ ОДС</span>
                                             {% endif %}
                                         </span><br>
-                                        <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
+                                        <span style="font-size: 13px; color: #4a5565;"><strong>Название:</strong> {{ item.name|default:"-" }}</span>
                                     </button>
                                 </form>
                                 <form
@@ -244,10 +240,10 @@
                                             data-matched-name="{{ item.ods_matched_name|default:'' }}"
                                             data-matched-source="{{ item.ods_matched_source_label|default:'ДТ' }}"
                                         >
-                                            <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}<br>
-                                            <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
+                                            <strong>№ Заявки:</strong> {{ item.request_id|default:"-" }}<br>
+                                            <span style="font-size: 13px; color: #4a5565;"><strong>Название:</strong> {{ item.name|default:"-" }}</span>
                                             {% if item.short_object_root_id %}
-                                                <br><span style="font-size: 12px; color: #64748b;"><strong>&#8470; &#1087;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;:</strong> {{ item.short_object_root_id }}</span>
+                                                <br><span style="font-size: 12px; color: #64748b;"><strong>№ паспорта:</strong> {{ item.short_object_root_id }}</span>
                                             {% endif %}
                                             {% if item.br_status_name %}
                                                 <span class="ods-registry-status">Статус: {{ item.br_status_name }}</span>
@@ -318,7 +314,7 @@
                                     <input type="hidden" name="geometry_detail_mode" value="full">
                                     <button type="submit" class="owned-list-open-btn">
                                         <span class="owned-request-id-row">
-                                            <strong>&#8470; &#1047;&#1072;&#1103;&#1074;&#1082;&#1080;:</strong> {{ item.request_id|default:"-" }}
+                                            <strong>№ Заявки:</strong> {{ item.request_id|default:"-" }}
                                             {% if item.ods_registry_brid_labeled %}
                                                 <span class="ods-registry-indicator{% if item.ods_registry_brid_match %} ods-registry-indicator--ok{% elif item.ods_registry_brid_pending %} ods-registry-indicator--pending{% else %} ods-registry-indicator--bad{% endif %}">
                                                     <span class="ods-registry-indicator__icon" aria-hidden="true">{% if item.ods_registry_brid_match %}✅{% elif item.ods_registry_brid_pending %}🔄{% else %}❌{% endif %}</span>
@@ -326,7 +322,7 @@
                                                 </span>
                                             {% endif %}
                                         </span><br>
-                                        <span style="font-size: 13px; color: #4a5565;"><strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;:</strong> {{ item.name|default:"-" }}</span>
+                                        <span style="font-size: 13px; color: #4a5565;"><strong>Название:</strong> {{ item.name|default:"-" }}</span>
                                         {% if item.ods_registry_brid_match and item.ods_registry_br_status_name %}
                                             <span class="ods-registry-status">Статус: {{ item.ods_registry_br_status_name }}</span>
                                         {% endif %}
@@ -436,30 +432,38 @@
             <div class="owned-home-map-stack">
                 <div class="owned-map-legend" aria-label="Условные обозначения карты">
                     <span class="owned-map-legend__title">Обозначения:</span>
-                    <span class="owned-map-legend__item">
+                    <button type="button" class="owned-map-legend__item owned-source-filter-btn is-active" data-source-filter="ДТ" aria-pressed="true">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--dt" aria-hidden="true"></span>
                         ДТ
-                    </span>
-                    <span class="owned-map-legend__item">
+                    </button>
+                    <button type="button" class="owned-map-legend__item owned-source-filter-btn is-active" data-source-filter="ОДХ" aria-pressed="true">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--odh" aria-hidden="true"></span>
                         ОДХ
-                    </span>
-                    <span class="owned-map-legend__item">
+                    </button>
+                    <button type="button" class="owned-map-legend__item owned-source-filter-btn is-active" data-source-filter="ОЗН" aria-pressed="true">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--oo" aria-hidden="true"></span>
                         ОО
-                    </span>
-                    <span class="owned-map-legend__item">
+                    </button>
+                    <button type="button" class="owned-map-legend__item owned-source-filter-btn is-active" data-source-filter="ТОП" aria-pressed="true">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--top" aria-hidden="true"></span>
                         ТОП
-                    </span>
-                    <span class="owned-map-legend__item">
+                    </button>
+                    <button type="button" class="owned-map-legend__item owned-source-filter-btn is-active" data-source-filter="ЗАЯВКА" aria-pressed="true">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--request" aria-hidden="true"></span>
-                        Заявка
-                    </span>
-                    <span class="owned-map-legend__item">
+                        Отрисованная заявка
+                    </button>
+                    <button type="button" class="owned-map-legend__item owned-source-filter-btn is-active" data-source-filter="{{ ods_request_source_label|default:'ОДС' }}" aria-pressed="true">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--ods" aria-hidden="true"></span>
-                        {{ ods_request_source_label|default:"ОДС" }}
-                    </span>
+                        Заявка из графика паспортизации
+                    </button>
+                    <button type="button" class="owned-map-legend__item owned-source-filter-btn is-active" data-source-filter="СОГЛ" aria-pressed="true">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--approval" aria-hidden="true"></span>
+                        Заявки на согласовании
+                    </button>
+                    <button type="button" class="owned-map-legend__item owned-source-filter-btn is-active" data-source-filter="СМЕЖ" aria-pressed="true">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--adjacent" aria-hidden="true"></span>
+                        Согласование смежного объекта
+                    </button>
                     <span class="owned-map-legend__item">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--hood" aria-hidden="true"></span>
                         Границы районов
@@ -472,14 +476,14 @@
             </div>
         </div>
     {% else %}
-        <p class="note">&#1053;&#1077;&#1090; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;&#1086;&#1074; &#1076;&#1083;&#1103; &#1090;&#1077;&#1082;&#1091;&#1097;&#1077;&#1075;&#1086; OwnerLegalPersonId.</p>
+        <p class="note">Нет объектов для текущего OwnerLegalPersonId.</p>
     {% endif %}
     </div>
 
     <footer class="owned-home-footer">
     <div class="owned-home-actions">
         <button type="button" id="manual-open-btn" style="display: none;">
-            &#1042;&#1074;&#1077;&#1089;&#1090;&#1080; &#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072; / &#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; &#1074;&#1088;&#1091;&#1095;&#1085;&#1091;&#1102;
+            Ввести № Паспорта / Название вручную
         </button>
         <button type="button" id="merge-passports-btn" class="button-link" style="border: none; cursor: pointer; font: inherit;">
             Объединение объектов
@@ -493,7 +497,7 @@
         style="padding: 10px 12px; border-radius: 10px; border: 1px solid #bbf7d0; background: #f0fdf4; align-items: center; gap: 12px; flex-wrap: wrap;"
     >
         <span class="note" style="margin: 0; flex: 1; min-width: 200px;">
-            Отметьте <strong>не менее двух</strong> объектов на вкладках «Актуальные паспорта» и/или «Заявки» (паспорта, GIS-заявки и заявки ОДС с геометрией на карте; можно из ДТ, ОДХ и ОО вместе), затем нажмите «Продолжить» и укажите номер заявки; если отмечены объекты из <strong>разных</strong> таблиц, в том же окне появится выбор одной из этих таблиц для сохранения результата.
+            Отметьте <strong>не менее двух</strong> объектов на вкладках «Утверждённые паспорта» и/или «Заявки» (паспорта, GIS-заявки и заявки ОДС с геометрией на карте; можно из ДТ, ОДХ и ОО вместе), затем нажмите «Продолжить» и укажите номер заявки; если отмечены объекты из <strong>разных</strong> таблиц, в том же окне появится выбор одной из этих таблиц для сохранения результата.
         </span>
         <button type="button" id="merge-passports-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
         <button type="button" id="merge-passports-next-btn" style="background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;">
@@ -535,7 +539,7 @@
                 <h3 id="owned-view-object-modal-title">Просмотр объекта</h3>
                 <div class="owned-view-object-modal__header-actions">
                     <button type="button" id="owned-view-object-edit-btn" class="map-toolbar-btn map-toolbar-btn--primary owned-view-object-edit-btn" style="display:none;">Редактировать объект</button>
-                    <button type="button" id="owned-view-object-close-btn" class="owned-view-object-modal__close" aria-label="Закрыть">&#10005;</button>
+                    <button type="button" id="owned-view-object-close-btn" class="owned-view-object-modal__close" aria-label="Закрыть">✕</button>
                 </div>
             </div>
             <p id="owned-view-object-status" class="note owned-view-object-modal__status"></p>
@@ -604,7 +608,7 @@
         <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                 <h3 style="margin: 0; font-size: 18px;">Заявка на объединение</h3>
-                <button type="button" id="merge-passports-request-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+                <button type="button" id="merge-passports-request-close-btn" style="background: #e5e7eb; color: #111;">✕</button>
             </div>
             <p id="merge-passports-request-intro" class="note" style="margin-top: 0;">
                 Укажите номер заявки для объединённого объекта на карте редактирования.
@@ -683,7 +687,7 @@
         <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 520px; padding: 18px; max-height: min(80vh, 640px); display: flex; flex-direction: column;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-shrink: 0;">
                 <h3 id="owned-recaps-modal-title" style="margin: 0; font-size: 18px;">Досъёмы по заявке</h3>
-                <button type="button" id="owned-recaps-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+                <button type="button" id="owned-recaps-close-btn" style="background: #e5e7eb; color: #111;">✕</button>
             </div>
             <p id="owned-recaps-modal-subtitle" class="note" style="margin: 0 0 12px; flex-shrink: 0;"></p>
             <p id="owned-recaps-status" class="note" style="margin: 0 0 12px; flex-shrink: 0;"></p>
@@ -701,7 +705,7 @@
         <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                 <h3 style="margin: 0; font-size: 18px;">Заявка на досъём</h3>
-                <button type="button" id="entry-recap-id-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+                <button type="button" id="entry-recap-id-close-btn" style="background: #e5e7eb; color: #111;">✕</button>
             </div>
             <p id="entry-recap-id-modal-text" class="note" style="margin-top: 0;">
                 Укажите номер досъёма (заявки на досъём) перед переходом к карте досъёма.
@@ -739,7 +743,7 @@
                     <h3 id="dgi-intersections-table-modal-title">Таблица пересечений</h3>
                     <p id="dgi-intersections-table-meta" class="note dgi-intersections-table-meta" hidden></p>
                 </div>
-                <button type="button" id="dgi-intersections-table-close-btn" class="approval-notifications-modal__close" aria-label="Закрыть">&#10005;</button>
+                <button type="button" id="dgi-intersections-table-close-btn" class="approval-notifications-modal__close" aria-label="Закрыть">✕</button>
             </div>
             <div class="approval-notifications-modal__body dgi-intersections-table-modal__body">
                 <p id="dgi-intersections-table-status" class="note dgi-intersections-table-status">Загрузка…</p>
@@ -784,7 +788,7 @@
                         <span class="approval-title-mode-switch__track" aria-hidden="true"></span>
                         <span class="approval-title-mode-switch__label approval-title-mode-switch__label--right">Имена</span>
                     </label>
-                    <button type="button" id="approval-notifications-close-btn" class="approval-notifications-modal__close" aria-label="Закрыть">&#10005;</button>
+                    <button type="button" id="approval-notifications-close-btn" class="approval-notifications-modal__close" aria-label="Закрыть">✕</button>
                 </div>
             </div>
             <div class="approval-notifications-modal__body">
@@ -847,7 +851,7 @@
         <div class="approval-notifications-modal__card approval-chat-preview-modal__card">
             <div class="approval-notifications-modal__header">
                 <h3 id="approval-chat-preview-title">Превью чата</h3>
-                <button type="button" id="approval-chat-preview-close-btn" class="approval-notifications-modal__close" aria-label="Закрыть">&#10005;</button>
+                <button type="button" id="approval-chat-preview-close-btn" class="approval-notifications-modal__close" aria-label="Закрыть">✕</button>
             </div>
             <p id="approval-chat-preview-status" class="note approval-chat-preview-status" hidden></p>
             <div id="approval-chat-preview-thread" class="approval-chat-preview-thread"></div>
@@ -869,7 +873,7 @@
                 <h3 id="home-workflow-modal-title" style="margin: 0; font-size: 18px; line-height: 1.35;">
                     Выберите действие
                 </h3>
-                <button type="button" id="home-workflow-close-btn" style="flex-shrink: 0; background: #e5e7eb; color: #111;">&#10005;</button>
+                <button type="button" id="home-workflow-close-btn" style="flex-shrink: 0; background: #e5e7eb; color: #111;">✕</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 10px;">
                 <button type="button" id="home-workflow-ods-requests-btn" class="home-workflow-action-btn">
@@ -898,7 +902,7 @@
         <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                 <h3 id="entry-request-id-modal-title" style="margin: 0; font-size: 18px;">Заявка на актуализацию.</h3>
-                <button type="button" id="entry-request-id-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+                <button type="button" id="entry-request-id-close-btn" style="background: #e5e7eb; color: #111;">✕</button>
             </div>
             <p id="entry-request-id-modal-text" class="note" style="margin-top: 0;">
                 Укажите номер заявки для продолжения.
@@ -953,19 +957,19 @@
     >
         <div style="background: #fff; border-radius: 10px; border: 1px solid #e3e6ec; width: 100%; max-width: 460px; padding: 18px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                <h3 style="margin: 0; font-size: 18px;">&#1056;&#1091;&#1095;&#1085;&#1086;&#1081; &#1074;&#1074;&#1086;&#1076;</h3>
-                <button type="button" id="manual-close-btn" style="background: #e5e7eb; color: #111;">&#10005;</button>
+                <h3 style="margin: 0; font-size: 18px;">Ручной ввод</h3>
+                <button type="button" id="manual-close-btn" style="background: #e5e7eb; color: #111;">✕</button>
             </div>
             <p class="note" style="margin-top: 0;">
-                &#1059;&#1082;&#1072;&#1078;&#1080;&#1090;&#1077; &#1086;&#1076;&#1080;&#1085; &#1087;&#1072;&#1088;&#1072;&#1084;&#1077;&#1090;&#1088;: <strong>&#8470; &#1055;&#1072;&#1089;&#1087;&#1086;&#1088;&#1090;&#1072;</strong> &#1080;&#1083;&#1080; <strong>&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077;</strong>.
+                Укажите один параметр: <strong>№ Паспорта</strong> или <strong>Название</strong>.
             </p>
             <form method="post">
                 {% csrf_token %}
                 {{ form.non_field_errors }}
                 {{ form.as_p }}
                 <div style="display: flex; gap: 8px; margin-top: 8px;">
-                    <button type="submit">&#1054;&#1090;&#1082;&#1088;&#1099;&#1090;&#1100; &#1086;&#1073;&#1098;&#1077;&#1082;&#1090;</button>
-                    <button type="button" id="manual-cancel-btn" style="background: #e5e7eb; color: #111;">&#1054;&#1090;&#1084;&#1077;&#1085;&#1072;</button>
+                    <button type="submit">Открыть объект</button>
+                    <button type="button" id="manual-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
                 </div>
             </form>
         </div>
@@ -982,7 +986,7 @@
         <div class="user-guide-modal-card">
             <div class="user-guide-modal-header">
                 <h3 id="user-guide-modal-title">Руководство пользователя</h3>
-                <button type="button" id="user-guide-close-btn" class="user-guide-close-btn" aria-label="Закрыть">&#10005;</button>
+                <button type="button" id="user-guide-close-btn" class="user-guide-close-btn" aria-label="Закрыть">✕</button>
             </div>
             <div id="user-guide-modal-body" class="user-guide-modal-body user-guide-content">
                 {{ user_guide_html|safe }}

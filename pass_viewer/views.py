@@ -3,11 +3,13 @@ import logging
 import re
 import uuid
 import zipfile
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from approval.access import get_accessible_approves
 from approval.events_service import build_home_notification_events, serialize_approve_options
+from approval.home_geojson import build_home_approval_feature_collection
+from approval.work_layers import geom_to_wgs84_sql
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.gis.geos import GEOSGeometry
@@ -46,6 +48,7 @@ from .page_config import (
     add_recap_page_config,
     home_page_config,
     main_page_config,
+    personal_page_config,
     split_object_page_config,
 )
 from .roles import (
@@ -1052,6 +1055,8 @@ def _get_owned_objects(
     passports_only=False,
     apply_hood=True,
     row_limit=500,
+    rootid=None,
+    only_source=None,
 ):
     """
     Load GIS objects for the home list.
@@ -1079,8 +1084,15 @@ def _get_owned_objects(
     owned_items = []
     seen_keys = set()
     seen_tables = set()
+    wanted_source = _normalize_source_label(only_source) if only_source is not None else None
+    rootid_filter = str(rootid).strip() if rootid is not None else ""
+    if rootid is not None and not rootid_filter:
+        return []
+
     with connection.cursor() as cursor:
         for source_label, table, owner_field_candidates in _gis_municipal_table_specs():
+            if wanted_source is not None and _normalize_source_label(source_label) != wanted_source:
+                continue
             if table in seen_tables:
                 continue
             seen_tables.add(table)
@@ -1162,6 +1174,9 @@ def _get_owned_objects(
                     f"{_quote_ident(rootid_col)} IS NOT NULL "
                     f"AND BTRIM({_quote_ident(rootid_col)}::text) <> ''"
                 )
+            if rootid_filter:
+                where_parts.append(f"lower({_quote_ident(rootid_col)}::text) = lower(%s)")
+                params.append(rootid_filter)
 
             where_sql = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
 
@@ -1217,6 +1232,41 @@ def _get_owned_objects(
             (item.get("request_id") or "").lower(),
         ),
     )
+
+
+def _passport_in_user_scope(scope, rootid, source_label, *, has_sup_hood=False):
+    """True if a passport with this rootid/source is visible in the user's home/personal list."""
+    rid = str(rootid or "").strip()
+    if not rid:
+        return False
+    kwargs = {
+        "passports_only": True,
+        "row_limit": 1,
+        "rootid": rid,
+        "only_source": source_label,
+    }
+    if scope.role == ROLE_MGGT:
+        return False
+    if scope.role == ROLE_SUP:
+        if not has_sup_hood:
+            return False
+        items = _get_owned_objects(None, filter_mode=FILTER_NONE, apply_hood=True, **kwargs)
+        return bool(items)
+    if scope.role == ROLE_DEP_PLUS:
+        if not scope.owner_ids:
+            return False
+        items = _get_owned_objects(
+            None,
+            filter_mode=FILTER_OWNER_MULTI,
+            legal_person_ids=list(scope.owner_ids),
+            **kwargs,
+        )
+        return bool(items)
+    if not scope.owner_id:
+        return False
+    filter_mode = FILTER_DEPARTMENT if scope.filter_field == FILTER_DEPARTMENT else FILTER_OWNER
+    items = _get_owned_objects(scope.owner_id, filter_mode=filter_mode, **kwargs)
+    return bool(items)
 
 
 def _owned_item_dedup_key(item):
@@ -4860,23 +4910,21 @@ def _build_personal_account_metrics(owned_objects, approval_items):
         for item in owned_objects
         if not (item.get("rootid") or "").strip() and (item.get("request_id") or "").strip()
     ]
-    total_area_m2 = 0.0
+    total_clean_area_m2 = 0.0
     for item in passports:
-        geom_json = (item.get("geom_json") or "").strip()
-        if not geom_json:
+        value = item.get("clean_area_m2")
+        if value is None or value == "":
             continue
         try:
-            geometry = GEOSGeometry(geom_json, srid=4326)
-            geometry.transform(32637)
-            total_area_m2 += float(geometry.area or 0)
-        except Exception:
-            logger.debug("Could not calculate personal-account geometry area", exc_info=True)
+            total_clean_area_m2 += float(value)
+        except (TypeError, ValueError):
+            continue
 
     return {
         "passport_count": len(passports),
         "request_count": len(requests),
         "approval_count": len(approval_items),
-        "total_area_label": f"{round(total_area_m2):,}".replace(",", " ") if total_area_m2 else "—",
+        "total_area_label": _format_personal_area(total_clean_area_m2) or "—",
     }
 
 
@@ -4908,6 +4956,7 @@ def home(request):
     owner_name = None
     owned_objects = []
     owned_passports_geojson = {"type": "FeatureCollection", "features": []}
+    owned_approvals_geojson = {"type": "FeatureCollection", "features": []}
     hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
     owned_objects_error = None
     ods_user_brids = []
@@ -4941,6 +4990,9 @@ def home(request):
             for item in owned_objects:
                 request_id = (item.get("request_id") or "").strip()
                 item["recap_count"] = recap_counts.get(request_id, 0)
+            if request.resolver_match.url_name == "personal_account":
+                _annotate_personal_total_areas(owned_objects)
+                _annotate_personal_ogh_statuses(owned_objects)
             owned_passports_geojson = _build_owned_passports_geojson(owned_objects)
             if scope.role == ROLE_SUP and has_sup_hood:
                 try:
@@ -4983,13 +5035,22 @@ def home(request):
         )
 
     try:
-        accessible_approves = get_accessible_approves(owner_id, username=request.user.username)
+        accessible_approves = list(
+            get_accessible_approves(owner_id, username=request.user.username)
+        )
         approval_items = serialize_approve_options(
             accessible_approves,
             username=request.user.username,
         )
     except Exception:
+        accessible_approves = []
         approval_items = []
+
+    if accessible_approves and request.resolver_match.url_name != "personal_account":
+        try:
+            owned_approvals_geojson = build_home_approval_feature_collection(accessible_approves)
+        except Exception:
+            owned_approvals_geojson = {"type": "FeatureCollection", "features": []}
 
     try:
         home_notification_events = build_home_notification_events(
@@ -5016,6 +5077,7 @@ def home(request):
             "owner_name": owner_name,
             "owned_objects": owned_objects,
             "owned_passports_geojson": owned_passports_geojson,
+            "owned_approvals_geojson": owned_approvals_geojson,
             "hood_work_area_geojson": hood_work_area_geojson,
             "owned_objects_error": owned_objects_error,
             "need_entry_request_id": need_entry_request_id,
@@ -5036,7 +5098,9 @@ def home(request):
             "hood_districts": hood_districts,
             "sup_hood_gid": sup_hood_gid,
             "sup_hood_label": sup_hood_label,
-            "page_config": home_page_config(
+            "page_config": personal_page_config()
+            if is_personal_account
+            else home_page_config(
                 need_entry_request_id=need_entry_request_id,
                 ods_source_label=getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
                 owner_id=owner_id,
@@ -6315,6 +6379,362 @@ def resolve_asu_ods_url(request):
     if asu_ods_url:
         response["asu_ods_url"] = asu_ods_url
     return JsonResponse(response)
+
+
+_PERSONAL_MASTER_TABLE_BY_SOURCE = {
+    "ДТ": "YardPoly",
+    "ОДХ": "OdhPoly",
+    "ОЗН": "OznPoly",
+}
+_PERSONAL_ROOTID_CHUNK_SIZE = 500
+
+
+def _personal_rootid_values_are_int(ids):
+    if not ids:
+        return False
+    for value in ids:
+        text = str(value).strip()
+        if text.startswith("-"):
+            text = text[1:]
+        if not text.isdigit():
+            return False
+    return True
+
+
+def _personal_rootid_any_match_sql(ids):
+    """Index-friendly RootId = ANY(...) without lower() on the column."""
+    col = _quote_ident("RootId")
+    if _personal_rootid_values_are_int(ids):
+        return f"t.{col} = ANY(%s::bigint[])", [[int(str(x).strip()) for x in ids]]
+    return f"t.{col}::text = ANY(%s)", [[str(x).strip() for x in ids]]
+
+
+def _personal_rootid_eq_match_sql(rootid):
+    col = _quote_ident("RootId")
+    rid = str(rootid or "").strip()
+    if _personal_rootid_values_are_int([rid]):
+        return f"t.{col} = %s::bigint", [rid]
+    return f"t.{col}::text = %s", [rid]
+
+
+def _format_personal_date(value):
+    if value is None or value == "":
+        return ""
+    if isinstance(value, datetime):
+        return value.strftime("%d.%m.%Y")
+    if isinstance(value, date):
+        return value.strftime("%d.%m.%Y")
+    text = str(value).strip()
+    if not text:
+        return ""
+    parsed = parse_datetime(text)
+    if parsed:
+        return parsed.strftime("%d.%m.%Y")
+    try:
+        return date.fromisoformat(text[:10]).strftime("%d.%m.%Y")
+    except ValueError:
+        return text
+
+
+def _format_personal_area(value):
+    if value is None or value == "":
+        return ""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if number == 0:
+        return ""
+    label = f"{round(number):,}".replace(",", " ")
+    return f"{label} м²"
+
+
+def _format_personal_area_hectares(value_m2):
+    """Convert mggt_asu TotalArea (m²) to a compact hectare label."""
+    if value_m2 is None or value_m2 == "":
+        return ""
+    try:
+        hectares = float(value_m2) / 10000.0
+    except (TypeError, ValueError):
+        return str(value_m2)
+    if hectares == 0:
+        return ""
+    formatted = f"{hectares:.4f}".rstrip("0").rstrip(".")
+    sign = ""
+    if formatted.startswith("-"):
+        sign = "-"
+        formatted = formatted[1:]
+    int_part, _, frac = formatted.partition(".")
+    try:
+        int_part = f"{int(int_part):,}".replace(",", " ")
+    except ValueError:
+        pass
+    label = f"{sign}{int_part},{frac}" if frac else f"{sign}{int_part}"
+    return f"{label} га"
+
+
+def _annotate_personal_total_areas(owned_objects):
+    """Fill area_label from master.TotalArea (m² → ha) for personal-account rows."""
+    if not owned_objects:
+        return owned_objects
+    rootids_by_source: dict[str, list[str]] = {}
+    for item in owned_objects:
+        rootid = str(item.get("rootid") or "").strip()
+        if not rootid:
+            continue
+        source = _normalize_source_label(item.get("source_label"))
+        if source not in _PERSONAL_MASTER_TABLE_BY_SOURCE:
+            continue
+        rootids_by_source.setdefault(source, []).append(rootid)
+
+    areas: dict[tuple[str, str], object] = {}
+    clean_areas: dict[tuple[str, str], object] = {}
+    schema = getattr(settings, "APPROVAL_ADJACENT_SCHEMA", "master")
+    try:
+        cursor_cm = connections["qgis"].cursor()
+    except Exception:
+        logger.exception("personal_account: failed to open qgis cursor for TotalArea")
+    else:
+        with cursor_cm as cursor:
+            for source, rootids in rootids_by_source.items():
+                unique_ids = list(dict.fromkeys(rootids))
+                if not unique_ids:
+                    continue
+                table_name = _PERSONAL_MASTER_TABLE_BY_SOURCE[source]
+                try:
+                    for offset in range(0, len(unique_ids), _PERSONAL_ROOTID_CHUNK_SIZE):
+                        chunk = unique_ids[offset : offset + _PERSONAL_ROOTID_CHUNK_SIZE]
+                        where_sql, params = _personal_rootid_any_match_sql(chunk)
+                        cursor.execute(
+                            (
+                                f"SELECT t.{_quote_ident('RootId')}::text, "
+                                f"t.{_quote_ident('TotalArea')}, t.{_quote_ident('TotalCleanArea')} "
+                                f"FROM {_quote_ident(schema)}.{_quote_ident(table_name)} t "
+                                f"WHERE {where_sql}"
+                            ),
+                            params,
+                        )
+                        for rootid_key, total_area, clean_area in cursor.fetchall():
+                            if rootid_key:
+                                key = (source, str(rootid_key).strip().lower())
+                                areas[key] = total_area
+                                clean_areas[key] = clean_area
+                except Exception:
+                    logger.exception(
+                        "personal_account: failed to load TotalArea from %s.%s (source=%s, ids=%s)",
+                        schema,
+                        table_name,
+                        source,
+                        len(unique_ids),
+                    )
+                    try:
+                        connections["qgis"].rollback()
+                    except Exception:
+                        pass
+
+    for item in owned_objects:
+        rootid = str(item.get("rootid") or "").strip().lower()
+        if not rootid:
+            continue
+        source = _normalize_source_label(item.get("source_label"))
+        key = (source, rootid)
+        item["area_label"] = _format_personal_area_hectares(areas.get(key))
+        item["clean_area_m2"] = clean_areas.get(key)
+    return owned_objects
+
+
+_PERSONAL_MISSING_OGH_STATUS = object()
+_PERSONAL_DEFAULT_OGH_STATUS = "Утверждён"
+
+
+def _format_personal_ogh_status(value, *, found):
+    if not found:
+        return "—"
+    text = "" if value is None else str(value).strip()
+    return text or _PERSONAL_DEFAULT_OGH_STATUS
+
+
+def _format_personal_passportization_year(value, *, found):
+    if not found:
+        return "—"
+    if value is None or value == "":
+        return "—"
+    text = str(value).strip()
+    if not text:
+        return "—"
+    try:
+        number = float(text)
+        if number.is_integer():
+            return str(int(number))
+    except ValueError:
+        pass
+    return text
+
+
+def _annotate_personal_ogh_statuses(owned_objects):
+    """Fill status and passportization year from gis.ogh_analiz."""
+    if not owned_objects:
+        return owned_objects
+    unique_ids = list(
+        dict.fromkeys(
+            str(item.get("rootid") or "").strip()
+            for item in owned_objects
+            if str(item.get("rootid") or "").strip()
+        )
+    )
+    if not unique_ids:
+        return owned_objects
+
+    found_status: dict[str, object] = {}
+    found_year: dict[str, object] = {}
+    try:
+        with connections["qgis"].cursor() as cursor:
+            cursor.execute(
+                (
+                    f"SELECT lower(t.{_quote_ident('RootId')}::text), "
+                    f"t.{_quote_ident('OghStatus')}, t.{_quote_ident('PassportizationYear')} "
+                    f"FROM {_quote_ident('gis')}.{_quote_ident('ogh_analiz')} t "
+                    f"WHERE lower(t.{_quote_ident('RootId')}::text) = ANY(%s)"
+                ),
+                [[rid.lower() for rid in unique_ids]],
+            )
+            for rootid_key, status, year in cursor.fetchall():
+                if not rootid_key:
+                    continue
+                key = str(rootid_key)
+                previous = found_status.get(key, _PERSONAL_MISSING_OGH_STATUS)
+                previous_empty = (
+                    previous is _PERSONAL_MISSING_OGH_STATUS
+                    or previous is None
+                    or not str(previous).strip()
+                )
+                incoming_empty = status is None or not str(status).strip()
+                if previous is _PERSONAL_MISSING_OGH_STATUS or (previous_empty and not incoming_empty):
+                    found_status[key] = status
+                previous_year = found_year.get(key, _PERSONAL_MISSING_OGH_STATUS)
+                previous_year_empty = (
+                    previous_year is _PERSONAL_MISSING_OGH_STATUS
+                    or previous_year is None
+                    or not str(previous_year).strip()
+                )
+                incoming_year_empty = year is None or not str(year).strip()
+                if previous_year is _PERSONAL_MISSING_OGH_STATUS or (
+                    previous_year_empty and not incoming_year_empty
+                ):
+                    found_year[key] = year
+    except Exception:
+        logger.exception("personal_account: failed to load OghStatus from gis.ogh_analiz")
+        for item in owned_objects:
+            if str(item.get("rootid") or "").strip():
+                item["status"] = "—"
+                item["passportization_year"] = "—"
+        return owned_objects
+
+    for item in owned_objects:
+        rootid = str(item.get("rootid") or "").strip().lower()
+        if not rootid:
+            continue
+        item["status"] = _format_personal_ogh_status(
+            found_status.get(rootid), found=rootid in found_status
+        )
+        item["passportization_year"] = _format_personal_passportization_year(
+            found_year.get(rootid), found=rootid in found_year
+        )
+    return owned_objects
+
+
+def _empty_personal_object_details():
+    return {
+        "ok": True,
+        "approval_date": "",
+        "owner_name": "",
+        "oiv_name": "",
+        "area_label": "",
+        "geometry": None,
+    }
+
+
+def _fetch_personal_master_details(source_label, rootid):
+    normalized = _normalize_source_label(source_label)
+    table_name = _PERSONAL_MASTER_TABLE_BY_SOURCE.get(normalized)
+    rid = str(rootid or "").strip()
+    if not table_name or not rid:
+        return None
+    schema = getattr(settings, "APPROVAL_ADJACENT_SCHEMA", "master")
+    geom_sql = geom_to_wgs84_sql('ST_Force2D(t."Geometry")')
+    where_sql, params = _personal_rootid_eq_match_sql(rid)
+    query = (
+        f"SELECT t.{_quote_ident('StartDate')}, t.{_quote_ident('OwnerLegalPersonId')}, "
+        f"t.{_quote_ident('DepartmentLegalPersonId')}, t.{_quote_ident('TotalCleanArea')}, "
+        f"ST_AsGeoJSON({geom_sql})::text "
+        f"FROM {_quote_ident(schema)}.{_quote_ident(table_name)} t "
+        f"WHERE {where_sql} "
+        "LIMIT 1"
+    )
+    try:
+        with connections["qgis"].cursor() as cursor:
+            cursor.execute(query, params)
+            row = cursor.fetchone()
+    except Exception:
+        logger.exception(
+            "personal_object_details: failed to read %s.%s for rootid=%s",
+            schema,
+            table_name,
+            rid,
+        )
+        return None
+    if not row:
+        return None
+    start_date, owner_id, department_id, area, geom_json = row
+    geometry = None
+    if geom_json:
+        try:
+            geometry = json.loads(geom_json)
+        except (TypeError, json.JSONDecodeError, ValueError):
+            geometry = None
+    return {
+        "startdate": start_date,
+        "owner_id": owner_id,
+        "department_id": department_id,
+        "area": area,
+        "geometry": geometry,
+    }
+
+
+@login_required
+@require_POST
+def personal_object_details(request):
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
+
+    rootid = (payload.get("rootid") or "").strip()
+    source_label = payload.get("source_label")
+    if not rootid:
+        return JsonResponse({"ok": False, "error": "Не передан rootid."}, status=400)
+
+    scope = resolve_user_scope(request.user.username)
+    has_sup_hood = bool((request.session.get(SUP_HOOD_SESSION_GID) or "").strip())
+    if not _passport_in_user_scope(scope, rootid, source_label, has_sup_hood=has_sup_hood):
+        return JsonResponse({"ok": False, "error": "Объект не найден."}, status=404)
+
+    details = _fetch_personal_master_details(source_label, rootid)
+    if not details:
+        return JsonResponse(_empty_personal_object_details())
+
+    owner_name = _get_id_name_lookup_value(details["owner_id"]) or ""
+    oiv_name = _get_id_name_lookup_value(details["department_id"]) or ""
+    return JsonResponse(
+        {
+            "ok": True,
+            "approval_date": _format_personal_date(details["startdate"]),
+            "owner_name": owner_name,
+            "oiv_name": oiv_name,
+            "area_label": _format_personal_area(details["area"]),
+            "geometry": details["geometry"],
+        }
+    )
 
 
 @login_required

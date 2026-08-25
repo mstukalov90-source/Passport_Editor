@@ -123,6 +123,14 @@
     background: rgba(22, 83, 145, 0.08);
 }
 
+.login-lockout-text {
+    margin: 0 0 20px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #475569;
+    text-align: left;
+}
+
 @media (max-width: 480px) {
     .login-brand-title {
         font-size: 24px;

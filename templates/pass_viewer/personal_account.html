@@ -10,25 +10,23 @@
 {% block container_class %}personal-account{% endblock %}
 
 {% block content %}
-<h1 class="personal-account__title">Личный кабинет</h1>
-
 <div class="personal-view-toggle" role="tablist" aria-label="Режим просмотра">
     <span class="personal-view-toggle__btn is-active" role="tab" aria-selected="true">Список</span>
     <a class="personal-view-toggle__btn" href="{% url 'home' %}" role="tab" aria-selected="false">Просмотр на карте</a>
 </div>
 
 {% if owned_objects_error %}
-<p class="note" style="color: var(--pv-error);">{{ owned_objects_error }}</p>
+<p class="note note--danger">{{ owned_objects_error }}</p>
 {% endif %}
 
 <section class="personal-metrics" aria-label="Метрики">
     <div class="personal-metric-card">
         <div class="personal-metric-card__value">{{ personal_metrics.passport_count }}</div>
-        <div class="personal-metric-card__label">Количество актуальных паспортов</div>
+        <div class="personal-metric-card__label">Количество утверждённых паспортов</div>
     </div>
     <div class="personal-metric-card">
-        <div class="personal-metric-card__value">{{ personal_metrics.total_area_label }}{% if personal_metrics.total_area_label != '—' %} м²{% endif %}</div>
-        <div class="personal-metric-card__label">Общая площадь паспортов</div>
+        <div class="personal-metric-card__value">{{ personal_metrics.total_area_label }}</div>
+        <div class="personal-metric-card__label">Уборочная площадь</div>
     </div>
     <div class="personal-metric-card">
         <div class="personal-metric-card__value">{{ personal_metrics.request_count }}</div>
@@ -40,57 +38,83 @@
     </div>
 </section>
 
-<section class="personal-actions" aria-label="Разделы">
-    <a class="personal-action-btn" href="{% url 'add_object' %}">Отрисовка границ заявок</a>
-    <a class="personal-action-btn" href="{% url 'approval:landing' %}">Согласование границ ОГХ</a>
-    <span class="personal-action-btn personal-action-btn--disabled" aria-disabled="true">Согласование ЦГ</span>
-</section>
-
 <section class="personal-list" aria-label="Список объектов">
     <div class="personal-list-header">
-        <h2 class="personal-section-title">Актуальные паспорта</h2>
+        <h2 class="personal-section-title">Утверждённые паспорта</h2>
         <button type="button" class="personal-filter-icon-btn" id="personal-filter-toggle"
                 aria-label="Фильтр" aria-expanded="false" aria-controls="personal-filter-panel">
             <img class="personal-filter-icon-btn__icon" src="{% static 'pass_viewer/filter-so_128x128.svg' %}" alt="">
         </button>
     </div>
     <div class="personal-filter-panel" id="personal-filter-panel" hidden>
-        <input type="text" data-filter-col="0" placeholder="№ паспорта">
+        <input type="text" data-filter-col="0" placeholder="№ Паспорта">
         <input type="text" data-filter-col="1" placeholder="Название">
-        <input type="text" data-filter-col="2" placeholder="Тип ОГХ">
+        <input type="text" data-filter-col="2" placeholder="Площадь">
+        <input type="text" data-filter-col="3" placeholder="Тип ОГХ">
+        <input type="text" data-filter-col="4" placeholder="Год паспортизации">
+        <input type="text" data-filter-col="5" placeholder="Статус">
         <button type="button" id="personal-filter-clear">Сброс</button>
     </div>
     <div class="personal-table-wrap">
         <table class="personal-table">
             <thead>
                 <tr>
-                    <th>№ паспорта</th>
+                    <th>№ Паспорта</th>
                     <th>Название</th>
+                    <th>Площадь</th>
                     <th>Тип ОГХ</th>
-                    <th>№ заявки</th>
-                    <th>Досъёмы</th>
+                    <th>Год паспортизации</th>
+                    <th>Статус</th>
+                    <th>АСУ ОДС</th>
                     <th>Детальный просмотр</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in owned_objects %}
                     {% if item.rootid %}
+                    {% with source=item.source_label|default:'ДТ' %}
+                    {% firstof item.area_label item.area '—' as area %}
                     <tr>
                         <td>{{ item.rootid }}</td>
                         <td>{{ item.name|default:'—' }}</td>
-                        <td>{% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}</td>
-                        <td>{{ item.request_id|default:'—' }}</td>
-                        <td>{{ item.recap_count|default:0 }}</td>
+                        <td>{{ area }}</td>
+                        <td>
+                            {% if source == 'ОЗН' or source == 'ОО' %}
+                            <span class="personal-badge personal-badge--oo">ОО</span>
+                            {% elif source == 'ОДХ' %}
+                            <span class="personal-badge personal-badge--odh">ОДХ</span>
+                            {% elif source == 'ТОП' %}
+                            <span class="personal-badge personal-badge--top">ТОП</span>
+                            {% else %}
+                            <span class="personal-badge personal-badge--dt">{{ source }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.passportization_year|default:'—' }}</td>
+                        <td>{{ item.status|default:'—' }}</td>
+                        <td>
+                            {% if source == 'ТОП' %}
+                            <button type="button" class="personal-table-btn is-disabled" disabled>Открыть</button>
+                            {% else %}
+                            <button type="button" class="personal-table-btn personal-asu-ods-open"
+                                    data-rootid="{{ item.rootid }}"
+                                    data-source="{{ source }}">Открыть</button>
+                            {% endif %}
+                        </td>
                         <td>
                             <button type="button" class="personal-table-btn personal-detail-open"
-                                    data-id="{{ item.rootid }}" data-name="{{ item.name }}"
-                                    data-request-id="{{ item.request_id }}" data-source="{{ item.source_label|default:'ДТ' }}"
-                                    data-recaps="{{ item.recap_count|default:0 }}">Просмотр</button>
+                                    data-id="{{ item.rootid }}"
+                                    data-name="{{ item.name }}"
+                                    data-request-id="{{ item.request_id }}"
+                                    data-source="{{ source }}"
+                                    data-recaps="{{ item.recap_count|default:0 }}"
+                                    data-area="{{ area }}"
+                                    data-status="{{ item.status|default:'—' }}">Просмотр</button>
                         </td>
                     </tr>
+                    {% endwith %}
                     {% endif %}
                 {% empty %}
-                <tr><td colspan="6">Объекты не найдены.</td></tr>
+                <tr><td colspan="8">Объекты не найдены.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -102,18 +126,22 @@
         <div class="personal-modal__card" role="dialog" aria-modal="true" aria-labelledby="personal-detail-title">
             <div class="personal-modal__header">
                 <h3 id="personal-detail-title">Детальная информация</h3>
-                <button type="button" class="personal-modal__close" id="personal-detail-close" aria-label="Закрыть">&#10005;</button>
+                <button type="button" class="personal-modal__close" id="personal-detail-close" aria-label="Закрыть">×</button>
             </div>
             <div class="personal-modal__body">
                 <dl class="personal-detail-list">
-                    <dt>№ паспорта</dt><dd id="detail-passport-id">—</dd>
-                    <dt>Название</dt><dd id="detail-passport-name">—</dd>
-                    <dt>№ заявки</dt><dd id="detail-request-id">—</dd>
-                    <dt>Тип ОГХ</dt><dd id="detail-source">—</dd>
-                    <dt>Досъёмы</dt><dd id="detail-recaps">0</dd>
+                    <dt>ID паспорта</dt><dd id="detail-passport-id">—</dd>
+                    <dt>Название паспорта</dt><dd id="detail-passport-name">—</dd>
+                    <dt>Дата утверждения</dt><dd id="detail-approval-date">—</dd>
+                    <dt>Балансодержатель</dt><dd id="detail-owner">—</dd>
+                    <dt>ОИВ</dt><dd id="detail-oiv">—</dd>
+                    <dt>Уборочные площади</dt><dd id="detail-area">—</dd>
+                    <dt>Статус</dt><dd id="detail-status">—</dd>
                 </dl>
+                <div id="personal-detail-map" class="personal-detail-map" role="img" aria-label="Карта объекта"></div>
             </div>
             <div class="personal-modal__footer">
+                <button type="button" class="personal-table-btn is-disabled" id="personal-asu-ods-link" disabled>Перейти в АСУ ОДС</button>
                 <form method="post" action="{% url 'open_owned_object' %}" id="personal-open-form">
                     {% csrf_token %}
                     <input type="hidden" name="rootid" id="personal-open-rootid">
@@ -127,8 +155,41 @@
         </div>
     </div>
 </div>
+
+<div
+    id="owned-view-object-modal"
+    class="owned-view-object-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="owned-view-object-modal-title"
+    style="display: none;"
+>
+    <div class="owned-view-object-modal__card">
+        <div class="owned-view-object-modal__header">
+            <h3 id="owned-view-object-modal-title">Просмотр объекта</h3>
+            <button type="button" id="owned-view-object-close-btn" class="owned-view-object-modal__close" aria-label="Закрыть">×</button>
+        </div>
+        <p id="owned-view-object-status" class="note owned-view-object-modal__status"></p>
+        <div class="owned-view-object-modal__body">
+            <div id="owned-view-object-loading" class="owned-view-object-modal__loading" hidden>
+                <div class="owned-view-object-modal__spinner" aria-hidden="true"></div>
+                <span>Загрузка карты и слоёв…</span>
+            </div>
+            <iframe
+                id="owned-view-object-frame"
+                class="owned-view-object-modal__frame"
+                title="Просмотр объекта"
+                src="about:blank"
+            ></iframe>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block page_scripts %}
+{{ page_config|json_script:"page-config" }}
+{% include 'pass_viewer/includes/map_leaflet_vendor.html' %}
+<script src="{% static 'pass_viewer/js/utils.js' %}"></script>
+<script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
 <script src="{% static 'pass_viewer/js/personal-account.js' %}"></script>
 {% endblock %}
