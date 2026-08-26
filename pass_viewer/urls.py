@@ -28,6 +28,7 @@ from .views import (
     main,
     open_merged_passports,
     open_owned_object,
+    owned_lists_partial,
     personal_object_details,
     prepare_add_object,
     repair_save_geometry,
@@ -42,6 +43,7 @@ from .views import (
 urlpatterns = [
     path("", home, name="home"),
     path("personal/", home, name="personal_account"),
+    path("owned/lists-partial/", owned_lists_partial, name="owned_lists_partial"),
     path("home/select-hood/", select_sup_hood, name="select_sup_hood"),
     path("home/clear-hood/", clear_sup_hood, name="clear_sup_hood"),
     path("add-object/", add_object, name="add_object"),

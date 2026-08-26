@@ -173,3 +173,69 @@ def test_home_contains_notifications_dropdown(client, e2e_credentials):
     assert 'id="approval-ods-sync-list"' in content
     assert 'home-workflow-ods-sync-block' not in content
     assert 'home-workflow-ods-sync-list' not in content
+
+
+@pytest.mark.django_db
+def test_personal_notifications_panel_shows_all_events(client):
+    owner_id = 'PERSONAL_NOTIF_OWNER'
+    ExternalUser.objects.create(login='personal_notif', password='pass', owner_legal_person_id=owner_id)
+    approve = Approve.objects.create(
+        incoming_guid=uuid.uuid4(),
+        owners=[owner_id],
+        approved=False,
+        name='Событие для панели personal',
+    )
+    primary = approve.cases.get(is_primary=True)
+    primary.owners = [owner_id]
+    primary.save(update_fields=['owners', 'updated_at'])
+    owned_stub = [{'rootid': 'abc', 'name': 'Объект', 'source_label': 'ДТ', 'request_id': ''}]
+    with patch('pass_viewer.views._get_owned_objects', return_value=owned_stub):
+        with patch('pass_viewer.views._merge_owned_ods_requests', side_effect=lambda items, _oid: items):
+            with patch('pass_viewer.views._annotate_and_filter_ods_registry_against_gis', side_effect=lambda items: items):
+                with patch('pass_viewer.views._enrich_ods_interaction_and_geometry', side_effect=lambda items: items):
+                    with patch('pass_viewer.views._get_recap_counts_by_request_ids', return_value={}):
+                        with patch(
+                            'pass_viewer.views._build_owned_passports_geojson',
+                            return_value={'type': 'FeatureCollection', 'features': []},
+                        ):
+                            with patch(
+                                'pass_viewer.views.get_hood_allowed_districts_geojson',
+                                return_value={'type': 'FeatureCollection', 'features': []},
+                            ):
+                                client.post(
+                                    reverse('login'),
+                                    {'username': 'personal_notif', 'password': 'pass'},
+                                )
+                                response = client.get(reverse('personal_account'))
+    assert response.status_code == 200
+    content = response.content.decode('utf-8')
+    assert 'id="personal-notifications-panel"' in content
+    assert 'id="personal-notifications-title"' in content
+    assert '>События</h3>' in content
+    assert 'id="personal-notifications-feed"' in content
+    assert 'Событие для панели personal' in content
+    assert 'id="approval-notifications-btn"' in content
+    assert 'id="approval-notifications-modal"' in content
+    assert 'class="site-header__icon-link" href="/" aria-label="Уведомления"' not in content
+    assert 'personal-account-layout' in content
+
+
+@pytest.mark.django_db
+def test_non_home_page_opens_notifications_modal_markup(client, e2e_credentials):
+    with patch('approval.views.count_features_by_table', return_value={}):
+        with patch('approval.views.count_topopassport_features_by_table', return_value={}):
+            with patch('approval.views.count_adjacent_features_by_source', return_value={}):
+                client.post(
+                    reverse('login'),
+                    {
+                        'username': e2e_credentials['username'],
+                        'password': e2e_credentials['password'],
+                    },
+                )
+                response = client.get(reverse('approval:landing'))
+    assert response.status_code == 200
+    content = response.content.decode('utf-8')
+    assert 'id="approval-notifications-btn"' in content
+    assert 'id="approval-notifications-modal"' in content
+    assert 'id="approval-notifications-feed"' in content
+    assert 'class="site-header__icon-link" href="/" aria-label="Уведомления"' not in content

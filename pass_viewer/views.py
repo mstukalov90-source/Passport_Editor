@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from approval.access import get_accessible_approves
-from approval.events_service import build_home_notification_events, serialize_approve_options
+from approval.events_service import serialize_approve_options
 from approval.home_geojson import build_home_approval_feature_collection
 from approval.work_layers import geom_to_wgs84_sql
 from django.conf import settings
@@ -4951,6 +4951,21 @@ def home(request):
     else:
         form = EntryPointForm()
 
+    ctx = _build_home_page_context(request, form)
+    is_personal_account = request.resolver_match.url_name == "personal_account"
+    template_name = "pass_viewer/personal_account.html" if is_personal_account else "pass_viewer/home.html"
+    return render(request, template_name, ctx)
+
+
+@login_required
+@require_GET
+def owned_lists_partial(request):
+    """HTML fragment of home lists + footer for the shared header modal."""
+    ctx = _build_home_page_context(request, EntryPointForm(), lists_embed=True)
+    return render(request, "pass_viewer/owned_lists_partial.html", ctx)
+
+
+def _build_home_page_context(request, form, *, lists_embed=False):
     scope = resolve_user_scope(request.user.username)
     owner_id = scope.owner_id
     owner_name = None
@@ -4961,8 +4976,6 @@ def home(request):
     owned_objects_error = None
     ods_user_brids = []
     approval_items = []
-    home_notification_events = []
-    pending_approval_count = 0
     hood_districts = []
     need_sup_hood_modal = False
     sup_hood_gid = (request.session.get(SUP_HOOD_SESSION_GID) or "").strip()
@@ -4975,6 +4988,8 @@ def home(request):
             hood_districts = list_hood_districts()
         except Exception:
             hood_districts = []
+
+    is_personal_account = (not lists_embed) and request.resolver_match.url_name == "personal_account"
 
     try:
         if owner_id is not None:
@@ -4990,45 +5005,46 @@ def home(request):
             for item in owned_objects:
                 request_id = (item.get("request_id") or "").strip()
                 item["recap_count"] = recap_counts.get(request_id, 0)
-            if request.resolver_match.url_name == "personal_account":
+            if is_personal_account:
                 _annotate_personal_total_areas(owned_objects)
                 _annotate_personal_ogh_statuses(owned_objects)
-            owned_passports_geojson = _build_owned_passports_geojson(owned_objects)
-            if scope.role == ROLE_SUP and has_sup_hood:
-                try:
-                    with connection.cursor() as hood_cur:
-                        scope_row = resolve_hood_wkt_for_gid(hood_cur, sup_hood_gid)
-                        if scope_row.get("mode") == "active" and scope_row.get("wkt"):
-                            hood_cur.execute(
-                                """
-                                SELECT ST_AsGeoJSON(ST_MakeValid(ST_SetSRID(ST_GeomFromText(%s), 4326)))::text
-                                """,
-                                [scope_row["wkt"]],
-                            )
-                            geo_row = hood_cur.fetchone()
-                            if geo_row and geo_row[0]:
-                                geom = json.loads(geo_row[0])
-                                hood_work_area_geojson = {
-                                    "type": "FeatureCollection",
-                                    "features": [
-                                        {
-                                            "type": "Feature",
-                                            "properties": {
-                                                "gid": sup_hood_gid,
-                                                "label": sup_hood_label,
-                                            },
-                                            "geometry": geom,
-                                        }
-                                    ],
-                                }
-                except Exception:
-                    hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
-            elif owner_id is not None:
-                try:
-                    with connection.cursor() as hood_cur:
-                        hood_work_area_geojson = get_hood_allowed_districts_geojson(hood_cur, owner_id)
-                except Exception:
-                    hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
+            if not lists_embed:
+                owned_passports_geojson = _build_owned_passports_geojson(owned_objects)
+                if scope.role == ROLE_SUP and has_sup_hood:
+                    try:
+                        with connection.cursor() as hood_cur:
+                            scope_row = resolve_hood_wkt_for_gid(hood_cur, sup_hood_gid)
+                            if scope_row.get("mode") == "active" and scope_row.get("wkt"):
+                                hood_cur.execute(
+                                    """
+                                    SELECT ST_AsGeoJSON(ST_MakeValid(ST_SetSRID(ST_GeomFromText(%s), 4326)))::text
+                                    """,
+                                    [scope_row["wkt"]],
+                                )
+                                geo_row = hood_cur.fetchone()
+                                if geo_row and geo_row[0]:
+                                    geom = json.loads(geo_row[0])
+                                    hood_work_area_geojson = {
+                                        "type": "FeatureCollection",
+                                        "features": [
+                                            {
+                                                "type": "Feature",
+                                                "properties": {
+                                                    "gid": sup_hood_gid,
+                                                    "label": sup_hood_label,
+                                                },
+                                                "geometry": geom,
+                                            }
+                                        ],
+                                    }
+                    except Exception:
+                        hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
+                elif owner_id is not None:
+                    try:
+                        with connection.cursor() as hood_cur:
+                            hood_work_area_geojson = get_hood_allowed_districts_geojson(hood_cur, owner_id)
+                    except Exception:
+                        hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
     except Exception:
         owned_objects_error = (
             "Не удалось получить список объектов пользователя. Проверьте поле OwnerLegalPersonId в таблице users."
@@ -5046,76 +5062,67 @@ def home(request):
         accessible_approves = []
         approval_items = []
 
-    if accessible_approves and request.resolver_match.url_name != "personal_account":
+    if accessible_approves and not is_personal_account and not lists_embed:
         try:
             owned_approvals_geojson = build_home_approval_feature_collection(accessible_approves)
         except Exception:
             owned_approvals_geojson = {"type": "FeatureCollection", "features": []}
 
-    try:
-        home_notification_events = build_home_notification_events(
+    need_entry_request_id = bool(request.session.get("pending_entry_point"))
+    if lists_embed:
+        requested_list_tab = (request.GET.get("open_list") or "requests").strip()
+        lists_active_tab = (
+            requested_list_tab
+            if requested_list_tab in ("requests", "approvals", "passports")
+            else "requests"
+        )
+    else:
+        lists_active_tab = "passports" if scope.role != ROLE_MGGT else "requests"
+
+    return {
+        "form": form,
+        "owner_id": owner_id,
+        "owner_name": owner_name,
+        "owned_objects": owned_objects,
+        "owned_passports_geojson": owned_passports_geojson,
+        "owned_approvals_geojson": owned_approvals_geojson,
+        "hood_work_area_geojson": hood_work_area_geojson,
+        "owned_objects_error": owned_objects_error,
+        "need_entry_request_id": need_entry_request_id,
+        "ods_request_source_label": getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
+        "ods_user_brids": ods_user_brids,
+        "approval_items": approval_items,
+        "personal_metrics": _build_personal_account_metrics(owned_objects, approval_items)
+        if is_personal_account
+        else None,
+        "user_role": scope.role,
+        "display_name": scope.display_name,
+        "can_write": scope.can_write,
+        "show_passports_tab": scope.role != ROLE_MGGT,
+        "show_approvals_mine_all_filter": scope.role == ROLE_MGGT,
+        "need_sup_hood_modal": need_sup_hood_modal,
+        "hood_districts": hood_districts,
+        "sup_hood_gid": sup_hood_gid,
+        "sup_hood_label": sup_hood_label,
+        "lists_embed": lists_embed,
+        "lists_active_tab": lists_active_tab,
+        "page_config": personal_page_config()
+        if is_personal_account
+        else home_page_config(
+            need_entry_request_id=need_entry_request_id,
+            ods_source_label=getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
             owner_id=owner_id,
             username=request.user.username,
-        )
-        # Badge is computed client-side from unseen localStorage ids.
-        pending_approval_count = 0
-    except Exception:
-        home_notification_events = []
-        pending_approval_count = 0
-
-    need_entry_request_id = bool(request.session.get("pending_entry_point"))
-
-    is_personal_account = request.resolver_match.url_name == "personal_account"
-    template_name = "pass_viewer/personal_account.html" if is_personal_account else "pass_viewer/home.html"
-
-    return render(
-        request,
-        template_name,
-        {
-            "form": form,
-            "owner_id": owner_id,
-            "owner_name": owner_name,
-            "owned_objects": owned_objects,
-            "owned_passports_geojson": owned_passports_geojson,
-            "owned_approvals_geojson": owned_approvals_geojson,
-            "hood_work_area_geojson": hood_work_area_geojson,
-            "owned_objects_error": owned_objects_error,
-            "need_entry_request_id": need_entry_request_id,
-            "ods_request_source_label": getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
-            "ods_user_brids": ods_user_brids,
-            "approval_items": approval_items,
-            "personal_metrics": _build_personal_account_metrics(owned_objects, approval_items)
-            if is_personal_account
-            else None,
-            "home_notification_events": home_notification_events,
-            "pending_approval_count": pending_approval_count,
-            "user_role": scope.role,
-            "display_name": scope.display_name,
-            "can_write": scope.can_write,
-            "show_passports_tab": scope.role != ROLE_MGGT,
-            "show_approvals_mine_all_filter": scope.role == ROLE_MGGT,
-            "need_sup_hood_modal": need_sup_hood_modal,
-            "hood_districts": hood_districts,
-            "sup_hood_gid": sup_hood_gid,
-            "sup_hood_label": sup_hood_label,
-            "page_config": personal_page_config()
-            if is_personal_account
-            else home_page_config(
-                need_entry_request_id=need_entry_request_id,
-                ods_source_label=getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
-                owner_id=owner_id,
-                username=request.user.username,
-                user_role=scope.role,
-                can_write=scope.can_write,
-                show_passports_tab=scope.role != ROLE_MGGT,
-                show_approvals_mine_all_filter=scope.role == ROLE_MGGT,
-                need_sup_hood_modal=need_sup_hood_modal,
-                sup_hood_gid=sup_hood_gid,
-                sup_hood_label=sup_hood_label,
-            ),
-            "user_guide_html": load_user_guide_html(),
-        },
-    )
+            user_role=scope.role,
+            can_write=scope.can_write,
+            show_passports_tab=scope.role != ROLE_MGGT,
+            show_approvals_mine_all_filter=scope.role == ROLE_MGGT,
+            need_sup_hood_modal=need_sup_hood_modal,
+            sup_hood_gid=sup_hood_gid,
+            sup_hood_label=sup_hood_label,
+        ),
+        "user_guide_html": "" if lists_embed else load_user_guide_html(),
+    }
 
 
 @login_required
