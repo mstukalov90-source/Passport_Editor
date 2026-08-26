@@ -1,0 +1,61 @@
+<aside id="personal-notifications-panel" class="personal-notifications-aside" aria-labelledby="personal-notifications-title">
+    <div class="approval-notifications-modal__card personal-notifications-card">
+        <div class="approval-notifications-modal__header">
+            <h3 id="personal-notifications-title">События</h3>
+            <div class="approval-notifications-modal__header-actions">
+                <label
+                    class="approval-title-mode-switch"
+                    for="personal-notifications-title-mode"
+                    title="Отображение заголовков событий: номера или имена объектов"
+                >
+                    <input type="checkbox" id="personal-notifications-title-mode" />
+                    <span class="approval-title-mode-switch__label approval-title-mode-switch__label--left">Номера</span>
+                    <span class="approval-title-mode-switch__track" aria-hidden="true"></span>
+                    <span class="approval-title-mode-switch__label approval-title-mode-switch__label--right">Имена</span>
+                </label>
+            </div>
+        </div>
+        <div class="approval-notifications-modal__body">
+            <section
+                id="personal-notifications-approvals-section"
+                class="approval-notifications-section"
+                {% if not home_notification_events %}hidden{% endif %}
+                aria-labelledby="personal-notifications-approvals-title"
+            >
+                <h4 id="personal-notifications-approvals-title" class="approval-notifications-panel__header">Согласования</h4>
+                <ul id="personal-notifications-feed" class="approval-notifications-list">
+                    {% for event in home_notification_events %}
+                        <li class="approval-notifications-item">
+                            <div
+                                class="approval-notifications-case"
+                                data-event-id="{{ event.id }}"
+                                data-event-kind="{{ event.kind }}"
+                                data-approve-id="{{ event.approve_id }}"
+                                data-case-id="{{ event.case_id }}"
+                                data-title-numbers="{{ event.title }}"
+                                data-title-names="{{ event.title_named|default:event.title }}"
+                                role="button"
+                                tabindex="0"
+                            >
+                                <div class="approval-notifications-case__main">
+                                    <span class="approval-notifications-item__kind">
+                                        {% if event.kind == 'message' %}Сообщение
+                                        {% elif event.kind == 'new_approve' %}Согласование
+                                        {% elif event.kind == 'new_case' %}Событие
+                                        {% elif event.kind == 'approved' %}Согласовано
+                                        {% else %}Уведомление{% endif %}
+                                    </span>
+                                    <span class="approval-notifications-item__title">{{ event.title }}</span>
+                                    {% if event.subtitle or event.created_at %}
+                                        <span class="approval-notifications-case__meta">{% if event.subtitle %}{{ event.subtitle }}{% endif %}{% if event.subtitle and event.created_at %} · {% endif %}{% if event.created_at %}{{ event.created_at }}{% endif %}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </section>
+            <p id="personal-notifications-empty" class="approval-notifications-empty"{% if home_notification_events %} hidden{% endif %}>Нет уведомлений</p>
+        </div>
+    </div>
+</aside>

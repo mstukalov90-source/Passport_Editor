@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HOME_JS = ROOT / "pass_viewer/static/pass_viewer/js/home.js"
+NOTIFICATIONS_JS = ROOT / "pass_viewer/static/pass_viewer/js/notifications.js"
 HOME_HTML = ROOT / "templates/pass_viewer/home.html"
 
 REQUIRED_SYMBOLS = [
@@ -15,14 +16,6 @@ REQUIRED_SYMBOLS = [
     "function initRequestStatusFilter",
     "function openUserGuideModal",
     "function closeUserGuideModal",
-    "function applyHomeWorkflowOdsSyncNotifications",
-    "function getHomeOdsSyncStorageKey",
-    "function getHomeOdsRequestIdsStorageKey",
-    "function getHomeNotificationsSeenStorageKey",
-    "home_notifications_seen:",
-    "function buildOdsNewMessages",
-    "function markNotificationSeen",
-    "home-notification-events",
     "dataset.username",
     "ResizeObserver",
     "source === 'ТОП' || source === 'TOP'",
@@ -41,11 +34,29 @@ REQUIRED_SYMBOLS = [
     ".owned-recaps-open-btn",
 ]
 
+NOTIFICATIONS_SYMBOLS = [
+    "function applyHomeWorkflowOdsSyncNotifications",
+    "function getHomeOdsSyncStorageKey",
+    "function getHomeOdsRequestIdsStorageKey",
+    "function getHomeNotificationsSeenStorageKey",
+    "home_notifications_seen:",
+    "function buildOdsNewMessages",
+    "function markNotificationSeen",
+    "home-notification-events",
+    "personal-notifications-feed",
+]
+
 
 def test_home_js_contains_restored_symbols() -> None:
     source = HOME_JS.read_text(encoding="utf-8")
     missing = [symbol for symbol in REQUIRED_SYMBOLS if symbol not in source]
     assert not missing, f"home.js is missing restored symbols: {missing}"
+
+
+def test_notifications_js_contains_feed_symbols() -> None:
+    source = NOTIFICATIONS_JS.read_text(encoding="utf-8")
+    missing = [symbol for symbol in NOTIFICATIONS_SYMBOLS if symbol not in source]
+    assert not missing, f"notifications.js is missing symbols: {missing}"
 
 
 def test_home_html_ods_recap_buttons_require_geometry() -> None:

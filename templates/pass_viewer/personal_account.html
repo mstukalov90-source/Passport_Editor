@@ -3,11 +3,21 @@
 
 {% block title %}Личный кабинет{% endblock %}
 
+{% block body_class %}personal-account-page{% endblock %}
+
 {% block page_styles %}
 <link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}">
 {% endblock %}
 
 {% block container_class %}personal-account{% endblock %}
+
+{% block page_layout_start %}<div class="personal-account-layout">{% endblock %}
+
+{% block after_main %}
+{% include 'includes/personal_notifications_panel.html' %}
+{% endblock %}
+
+{% block page_layout_end %}</div>{% endblock %}
 
 {% block content %}
 <div class="personal-view-toggle" role="tablist" aria-label="Режим просмотра">

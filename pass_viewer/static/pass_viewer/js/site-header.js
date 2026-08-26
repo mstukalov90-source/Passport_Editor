@@ -40,4 +40,14 @@
     updateNavOverflow();
     window.addEventListener('load', updateNavOverflow);
     window.addEventListener('resize', updateNavOverflow);
+
+    document.querySelectorAll('[data-header-open-list]').forEach((link) => {
+        link.addEventListener('click', (event) => {
+            event.preventDefault();
+            const tab = link.dataset.headerOpenList || 'requests';
+            if (typeof window.openOwnedListsModal === 'function') {
+                window.openOwnedListsModal(tab);
+            }
+        });
+    });
 })();

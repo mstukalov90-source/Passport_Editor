@@ -1,0 +1,103 @@
+{% load static %}
+<div
+    id="approval-notifications-bootstrap"
+    hidden
+    data-username="{{ request.user.username|default:'' }}"
+    data-owner-id="{{ notifications_owner_id|default:'' }}"
+    data-home-url="{% url 'home' %}"
+></div>
+{{ home_notification_events|json_script:"home-notification-events" }}
+<div
+    id="approval-notifications-modal"
+    class="approval-notifications-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="approval-notifications-modal-title"
+    hidden
+>
+    <div class="approval-notifications-modal__card">
+        <div class="approval-notifications-modal__header">
+            <h3 id="approval-notifications-modal-title">Уведомления</h3>
+            <div class="approval-notifications-modal__header-actions">
+                <label
+                    class="approval-title-mode-switch"
+                    for="approval-notifications-title-mode"
+                    title="Отображение заголовков событий: номера или имена объектов"
+                >
+                    <input type="checkbox" id="approval-notifications-title-mode" />
+                    <span class="approval-title-mode-switch__label approval-title-mode-switch__label--left">Номера</span>
+                    <span class="approval-title-mode-switch__track" aria-hidden="true"></span>
+                    <span class="approval-title-mode-switch__label approval-title-mode-switch__label--right">Имена</span>
+                </label>
+                <button type="button" id="approval-notifications-close-btn" class="approval-notifications-modal__close" aria-label="Закрыть">✕</button>
+            </div>
+        </div>
+        <div class="approval-notifications-modal__body">
+            <section
+                id="approval-notifications-approvals-section"
+                class="approval-notifications-section"
+                hidden
+                aria-labelledby="approval-notifications-approvals-title"
+            >
+                <h4 id="approval-notifications-approvals-title" class="approval-notifications-panel__header">Согласования</h4>
+                <ul id="approval-notifications-feed" class="approval-notifications-list">
+                    {% for event in home_notification_events %}
+                        <li class="approval-notifications-item">
+                            <div
+                                class="approval-notifications-case"
+                                data-event-id="{{ event.id }}"
+                                data-event-kind="{{ event.kind }}"
+                                data-approve-id="{{ event.approve_id }}"
+                                data-case-id="{{ event.case_id }}"
+                                data-title-numbers="{{ event.title }}"
+                                data-title-names="{{ event.title_named|default:event.title }}"
+                                role="button"
+                                tabindex="0"
+                            >
+                                <div class="approval-notifications-case__main">
+                                    <span class="approval-notifications-item__title">{{ event.title }}</span>
+                                    {% if event.subtitle %}
+                                        <span class="approval-notifications-case__meta">{{ event.subtitle }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </section>
+
+            <section
+                id="approval-ods-sync-section"
+                class="approval-notifications-section approval-ods-sync-section"
+                hidden
+                aria-labelledby="approval-notifications-ods-title"
+            >
+                <h4 id="approval-notifications-ods-title" class="approval-notifications-panel__header">АСУ ОДС</h4>
+                <ul id="approval-ods-sync-list" class="approval-notifications-list"></ul>
+            </section>
+
+            <p id="approval-notifications-empty" class="approval-notifications-empty" hidden>Нет новых уведомлений</p>
+        </div>
+    </div>
+</div>
+
+<div
+    id="approval-chat-preview-modal"
+    class="approval-notifications-modal approval-chat-preview-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="approval-chat-preview-title"
+    hidden
+>
+    <div class="approval-notifications-modal__card approval-chat-preview-modal__card">
+        <div class="approval-notifications-modal__header">
+            <h3 id="approval-chat-preview-title">Превью чата</h3>
+            <button type="button" id="approval-chat-preview-close-btn" class="approval-notifications-modal__close" aria-label="Закрыть">✕</button>
+        </div>
+        <p id="approval-chat-preview-status" class="note approval-chat-preview-status" hidden></p>
+        <div id="approval-chat-preview-thread" class="approval-chat-preview-thread"></div>
+        <div class="approval-chat-preview-actions">
+            <a id="approval-chat-preview-open-link" class="approval-chat-preview-open-link" href="#">Открыть в согласовании</a>
+        </div>
+    </div>
+</div>

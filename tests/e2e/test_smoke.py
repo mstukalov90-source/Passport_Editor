@@ -86,10 +86,10 @@ def test_approval_notifications_dropdown_opens(page, live_server, e2e_credential
     page.fill('input[name="username"]', e2e_credentials['username'])
     page.fill('input[name="password"]', e2e_credentials['password'])
     page.get_by_role('button', name='Войти').click()
-    page.wait_for_selector('.owned-home-shell', state='visible')
+    page.wait_for_selector('.personal-account', state='visible')
     page.wait_for_load_state('networkidle')
-    assert page.locator('#home-workflow-modal').evaluate('el => el.style.display') != 'flex'
     page.locator('#approval-notifications-btn').click()
-    panel = page.locator('#approval-notifications-panel')
-    assert panel.evaluate('el => !el.hidden') is True
+    modal = page.locator('#approval-notifications-modal')
+    assert modal.evaluate('el => !el.hidden') is True
     assert page.locator('#approval-ods-sync-section').count() == 1
+    assert page.locator('#personal-notifications-panel').count() == 1

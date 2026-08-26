@@ -1,0 +1,19 @@
+<div
+    id="owned-lists-modal"
+    class="owned-lists-modal"
+    hidden
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="owned-lists-modal-title"
+    data-partial-url="{% url 'owned_lists_partial' %}"
+>
+    <div class="owned-lists-modal__dialog">
+        <div class="owned-lists-modal__header">
+            <h3 id="owned-lists-modal-title">Заявки</h3>
+            <button type="button" id="owned-lists-modal-close" class="owned-lists-modal__close" aria-label="Закрыть">✕</button>
+        </div>
+        <div class="owned-lists-modal__body" id="owned-lists-modal-body"></div>
+        <div class="owned-lists-modal__footer" id="owned-lists-modal-footer"></div>
+    </div>
+</div>
+<div id="owned-lists-actions-host"></div>

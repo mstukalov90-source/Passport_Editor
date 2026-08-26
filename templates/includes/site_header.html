@@ -15,16 +15,18 @@
     <nav class="site-header__nav" aria-label="Главная навигация">
         <ul class="site-header__nav-list">
             <li>
-                <a class="site-header__link{% if route_name == 'personal_account' or route_name == 'home' or route_name == 'main' %} is-active{% endif %}"
+                <a class="site-header__link{% if route_name == 'personal_account' or route_name == 'home' %} is-active{% endif %}"
                    href="{% url 'personal_account' %}">Личный кабинет</a>
             </li>
             <li>
-                <a class="site-header__link{% if route_name == 'add_object' or route_name == 'add_recap' or route_name == 'split_object' %} is-active{% endif %}"
-                   href="{% url 'add_object' %}">Отрисовка границ заявок</a>
+                <a class="site-header__link{% if route_name == 'add_object' or route_name == 'main' or route_name == 'add_recap' %} is-active{% endif %}"
+                   href="{% url 'owned_lists_partial' %}?open_list=requests"
+                   data-header-open-list="requests">Отрисовка границ заявок</a>
             </li>
             <li>
                 <a class="site-header__link{% if route_name == 'landing' %} is-active{% endif %}"
-                   href="{% url 'approval:landing' %}">Согласование границ ОГХ</a>
+                   href="{% url 'owned_lists_partial' %}?open_list=approvals"
+                   data-header-open-list="approvals">Согласование границ ОГХ</a>
             </li>
             <li><span class="site-header__link site-header__link--disabled" aria-disabled="true">Согласование ЦГ</span></li>
             <li class="site-header__more-wrap">
@@ -42,18 +44,12 @@
     </nav>
 
     <div class="site-header__actions">
-        {% if route_name == 'home' %}
         <button type="button" class="site-header__icon-link" id="approval-notifications-btn"
                 aria-label="Уведомления" aria-haspopup="dialog" aria-expanded="false"
                 aria-controls="approval-notifications-modal">
             <img class="site-header__icon" src="{% static 'pass_viewer/notification-21_128x128.svg' %}" alt="">
             <span class="approval-notifications-badge"{% if not pending_approval_count %} hidden{% endif %}>{{ pending_approval_count|default:0 }}</span>
         </button>
-        {% else %}
-        <a class="site-header__icon-link" href="{% url 'home' %}" aria-label="Уведомления">
-            <img class="site-header__icon" src="{% static 'pass_viewer/notification-21_128x128.svg' %}" alt="">
-        </a>
-        {% endif %}
         <div class="site-header__user-menu">
             <button type="button" class="site-header__user" data-header-dropdown-toggle
                     aria-haspopup="menu" aria-expanded="false" aria-controls="site-header-user-menu">

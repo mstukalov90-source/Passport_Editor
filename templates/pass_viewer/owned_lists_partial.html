@@ -1,0 +1,24 @@
+<div id="owned-lists-fragment">
+    <div class="owned-lists-fragment__tabs" hidden>
+        {% if show_passports_tab %}
+        <button type="button" class="owned-list-tab-btn" data-owned-list-tab="passports">Утверждённые паспорта</button>
+        {% endif %}
+        <button type="button" class="owned-list-tab-btn" data-owned-list-tab="requests">Заявки</button>
+        <button type="button" class="owned-list-tab-btn" data-owned-list-tab="approvals">Согласование ОГХ</button>
+    </div>
+    {% if owned_objects_error %}
+        <div class="owned-home-lists-stack">
+            <p class="note" style="color: #b42318;">{{ owned_objects_error }}</p>
+        </div>
+    {% elif owned_objects or approval_items %}
+        {% include 'pass_viewer/includes/owned_home_lists.html' %}
+    {% else %}
+        <div class="owned-home-lists-stack">
+            <p class="note">Нет объектов для текущего OwnerLegalPersonId.</p>
+        </div>
+    {% endif %}
+    {% include 'pass_viewer/includes/owned_home_footer.html' %}
+    <div class="owned-lists-fragment__actions">
+        {% include 'pass_viewer/includes/owned_list_action_modals.html' %}
+    </div>
+</div>

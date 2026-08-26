@@ -1,0 +1,25 @@
+    <footer class="owned-home-footer">
+    <div class="owned-home-actions">
+        <button type="button" id="manual-open-btn" style="display: none;">
+            Ввести № Паспорта / Название вручную
+        </button>
+        <button type="button" id="merge-passports-btn" class="button-link" style="border: none; cursor: pointer; font: inherit;">
+            Объединение объектов
+        </button>
+        <button type="button" id="add-object-entry-btn" class="button-link" style="border: none; cursor: pointer; font: inherit;">
+            Заявка на новый паспорт
+        </button>
+    </div>
+    <div
+        id="merge-passports-toolbar"
+        style="padding: 10px 12px; border-radius: 10px; border: 1px solid #bbf7d0; background: #f0fdf4; align-items: center; gap: 12px; flex-wrap: wrap;"
+    >
+        <span class="note" style="margin: 0; flex: 1; min-width: 200px;">
+            Отметьте <strong>не менее двух</strong> объектов на вкладках «Утверждённые паспорта» и/или «Заявки» (паспорта, GIS-заявки и заявки ОДС с геометрией на карте; можно из ДТ, ОДХ и ОО вместе), затем нажмите «Продолжить» и укажите номер заявки; если отмечены объекты из <strong>разных</strong> таблиц, в том же окне появится выбор одной из этих таблиц для сохранения результата.
+        </span>
+        <button type="button" id="merge-passports-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
+        <button type="button" id="merge-passports-next-btn" style="background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;">
+            Продолжить
+        </button>
+    </div>
+    </footer>
