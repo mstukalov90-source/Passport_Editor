@@ -63,6 +63,45 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
 
         PV.attachBasemapControl(map);
 
+        function parseHoodWorkAreaGeoData() {
+            const el = document.getElementById('hood-work-area-geojson-data');
+            if (!el) {
+                return { type: 'FeatureCollection', features: [] };
+            }
+            try {
+                const parsed = JSON.parse(el.textContent || '{}');
+                if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
+                    return parsed;
+                }
+                if (Array.isArray(parsed)) {
+                    return { type: 'FeatureCollection', features: parsed };
+                }
+            } catch (e) {
+                // keep map resilient to malformed payload
+            }
+            return { type: 'FeatureCollection', features: [] };
+        }
+
+        const hoodWorkAreaData = parseHoodWorkAreaGeoData();
+        if (hoodWorkAreaData.features && hoodWorkAreaData.features.length > 0) {
+            const hoodWorkAreaLayer = L.geoJSON(hoodWorkAreaData, {
+                interactive: false,
+                style: {
+                    color: '#5c4033',
+                    weight: 2,
+                    opacity: 0.95,
+                    fillOpacity: 0,
+                    fill: false,
+                },
+            });
+            hoodWorkAreaLayer.addTo(map);
+            hoodWorkAreaLayer.bringToBack();
+            const hoodBounds = hoodWorkAreaLayer.getBounds();
+            if (hoodBounds && hoodBounds.isValid && hoodBounds.isValid()) {
+                map.fitBounds(hoodBounds.pad(0.05));
+            }
+        }
+
         const editButton = document.getElementById('edit-geometry-btn');
         const addPolygonButton = document.getElementById('add-polygon-btn');
         const cutPolygonButton = document.getElementById('cut-polygon-btn');

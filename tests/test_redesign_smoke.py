@@ -58,6 +58,8 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "fetchFragment" in owned_lists_js
     assert "getModalListPanels" in owned_lists_js
     assert owned_lists_js.index("const modal =") < owned_lists_js.index("const PARTIAL_URL")
+    assert "filterApprovalsByMine" in owned_lists_js
+    assert "!filterApprovalsByMine" in owned_lists_js
     assert reverse("owned_lists_partial") == "/owned/lists-partial/"
     request = RequestFactory().get("/owned/lists-partial/")
     request.user = AnonymousUser()

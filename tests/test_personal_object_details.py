@@ -87,6 +87,28 @@ def test_annotate_personal_total_areas_converts_to_hectares() -> None:
     assert mock_cursor.execute.call_args[0][1] == [[924695948]]
 
 
+def test_annotate_personal_total_areas_skips_missing_clean_area_column() -> None:
+    mock_cursor = MagicMock()
+    mock_cursor.fetchone.return_value = None
+    mock_cursor.fetchall.return_value = [("54", 10000, None)]
+    mock_db = MagicMock()
+    mock_db.cursor.return_value.__enter__.return_value = mock_cursor
+    items = [{"rootid": "54", "source_label": "ОДХ", "name": "odh"}]
+
+    with patch("pass_viewer.views.connections") as mock_connections:
+        mock_connections.__getitem__.return_value = mock_db
+        _annotate_personal_total_areas(items)
+
+    assert items[0]["area_label"] == "1 га"
+    assert items[0]["clean_area_m2"] is None
+    sqls = [call.args[0] for call in mock_cursor.execute.call_args_list]
+    assert any("information_schema.columns" in sql for sql in sqls)
+    select_sql = next(sql for sql in sqls if '"OdhPoly"' in sql and "SELECT t." in sql)
+    assert '"TotalArea"' in select_sql
+    assert '"TotalCleanArea"' not in select_sql
+    assert ", NULL " in select_sql
+
+
 def test_annotate_personal_total_areas_isolates_source_errors() -> None:
     mock_cursor = MagicMock()
 
@@ -200,10 +222,57 @@ def test_fetch_personal_master_details_queries_yardpoly() -> None:
     assert '"YardPoly"' in sql
     assert '"RootId"' in sql
     assert '"StartDate"' in sql
+    assert '"DepartmentLegalPersonId"' in sql
+    assert '"GrbsLegalPersonId"' not in sql
     assert '"TotalCleanArea"' in sql
+    assert '"CleaningArea"' not in sql
     assert "lower(" not in sql
     assert "%s::bigint" in sql
     assert mock_cursor.execute.call_args[0][1] == ["924695948"]
+
+
+def test_fetch_personal_master_details_uses_grbs_for_odhpoly() -> None:
+    mock_cursor = MagicMock()
+    data_row = (
+        datetime(2024, 1, 15),
+        "100",
+        "300",
+        1234.6,
+        '{"type":"Polygon","coordinates":[[[37.6,55.7],[37.61,55.7],[37.61,55.71],[37.6,55.7]]]}',
+    )
+
+    def execute(sql, params=None):
+        mock_cursor._last_sql = sql
+        mock_cursor._last_params = params
+
+    def fetchone():
+        sql = getattr(mock_cursor, "_last_sql", "") or ""
+        params = getattr(mock_cursor, "_last_params", None) or []
+        if "information_schema.columns" in sql:
+            column_name = str(params[2]).lower() if len(params) > 2 else ""
+            if column_name in {"grbslegalpersonid", "cleaningarea"}:
+                return (1,)
+            return None
+        return data_row
+
+    mock_cursor.execute.side_effect = execute
+    mock_cursor.fetchone.side_effect = fetchone
+    mock_db = MagicMock()
+    mock_db.cursor.return_value.__enter__.return_value = mock_cursor
+
+    with patch("pass_viewer.views.connections") as mock_connections:
+        mock_connections.__getitem__.return_value = mock_db
+        details = _fetch_personal_master_details("ОДХ", "10001283")
+
+    assert details["owner_id"] == "100"
+    assert details["department_id"] == "300"
+    assert details["area"] == 1234.6
+    sqls = [call.args[0] for call in mock_cursor.execute.call_args_list]
+    select_sql = next(sql for sql in sqls if '"OdhPoly"' in sql and "SELECT t." in sql)
+    assert '"GrbsLegalPersonId"' in select_sql
+    assert '"DepartmentLegalPersonId"' not in select_sql
+    assert '"CleaningArea"' in select_sql
+    assert '"TotalCleanArea"' not in select_sql
 
 
 @pytest.mark.django_db
