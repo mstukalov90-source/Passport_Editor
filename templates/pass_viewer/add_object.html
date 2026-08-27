@@ -21,6 +21,7 @@
     {{ top_geometry_json|default_if_none:"null"|json_script:"top-geometry-data" }}
     {{ recaps_geometry_json|default_if_none:"null"|json_script:"recaps-geometry-data" }}
     {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
+    {{ hood_work_area_geojson|json_script:"hood-work-area-geojson-data" }}
     {% include 'pass_viewer/includes/map_editor_scripts.html' %}
     {% load static %}
     <script src="{% static 'pass_viewer/js/add-object.js' %}"></script>

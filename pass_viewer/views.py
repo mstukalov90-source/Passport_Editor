@@ -329,17 +329,17 @@ def _resolve_column_name(cursor, table_name, preferred_name):
     return row[0] if row else preferred_name
 
 
-def _column_exists(cursor, table_name, column_name):
+def _column_exists(cursor, table_name, column_name, schema="public"):
     cursor.execute(
         """
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = 'public'
+        WHERE table_schema = %s
           AND table_name = %s
           AND lower(column_name) = lower(%s)
         LIMIT 1
         """,
-        [table_name, column_name],
+        [schema, table_name, column_name],
     )
     return cursor.fetchone() is not None
 
@@ -4965,6 +4965,49 @@ def owned_lists_partial(request):
     return render(request, "pass_viewer/owned_lists_partial.html", ctx)
 
 
+def _get_hood_work_area_geojson(request, scope):
+    empty = {"type": "FeatureCollection", "features": []}
+    try:
+        if scope.role == ROLE_SUP:
+            gid = (request.session.get(SUP_HOOD_SESSION_GID) or "").strip()
+            label = (request.session.get(SUP_HOOD_SESSION_LABEL) or "").strip()
+            if not gid:
+                return empty
+            with connection.cursor() as hood_cur:
+                scope_row = resolve_hood_wkt_for_gid(hood_cur, gid)
+                if scope_row.get("mode") == "active" and scope_row.get("wkt"):
+                    hood_cur.execute(
+                        """
+                        SELECT ST_AsGeoJSON(ST_MakeValid(ST_SetSRID(ST_GeomFromText(%s), 4326)))::text
+                        """,
+                        [scope_row["wkt"]],
+                    )
+                    geo_row = hood_cur.fetchone()
+                    if geo_row and geo_row[0]:
+                        geom = json.loads(geo_row[0])
+                        return {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {
+                                        "gid": gid,
+                                        "label": label,
+                                    },
+                                    "geometry": geom,
+                                }
+                            ],
+                        }
+            return empty
+        owner_id = scope.owner_id
+        if owner_id is None:
+            return empty
+        with connection.cursor() as hood_cur:
+            return get_hood_allowed_districts_geojson(hood_cur, owner_id)
+    except Exception:
+        return empty
+
+
 def _build_home_page_context(request, form, *, lists_embed=False):
     scope = resolve_user_scope(request.user.username)
     owner_id = scope.owner_id
@@ -5010,41 +5053,7 @@ def _build_home_page_context(request, form, *, lists_embed=False):
                 _annotate_personal_ogh_statuses(owned_objects)
             if not lists_embed:
                 owned_passports_geojson = _build_owned_passports_geojson(owned_objects)
-                if scope.role == ROLE_SUP and has_sup_hood:
-                    try:
-                        with connection.cursor() as hood_cur:
-                            scope_row = resolve_hood_wkt_for_gid(hood_cur, sup_hood_gid)
-                            if scope_row.get("mode") == "active" and scope_row.get("wkt"):
-                                hood_cur.execute(
-                                    """
-                                    SELECT ST_AsGeoJSON(ST_MakeValid(ST_SetSRID(ST_GeomFromText(%s), 4326)))::text
-                                    """,
-                                    [scope_row["wkt"]],
-                                )
-                                geo_row = hood_cur.fetchone()
-                                if geo_row and geo_row[0]:
-                                    geom = json.loads(geo_row[0])
-                                    hood_work_area_geojson = {
-                                        "type": "FeatureCollection",
-                                        "features": [
-                                            {
-                                                "type": "Feature",
-                                                "properties": {
-                                                    "gid": sup_hood_gid,
-                                                    "label": sup_hood_label,
-                                                },
-                                                "geometry": geom,
-                                            }
-                                        ],
-                                    }
-                    except Exception:
-                        hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
-                elif owner_id is not None:
-                    try:
-                        with connection.cursor() as hood_cur:
-                            hood_work_area_geojson = get_hood_allowed_districts_geojson(hood_cur, owner_id)
-                    except Exception:
-                        hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
+                hood_work_area_geojson = _get_hood_work_area_geojson(request, scope)
     except Exception:
         owned_objects_error = (
             "Не удалось получить список объектов пользователя. Проверьте поле OwnerLegalPersonId в таблице users."
@@ -5954,6 +5963,7 @@ def delete_owned_object(request):
 def add_object(request):
     entry_point = request.session.get("entry_point") or {}
     effective_request_id = (entry_point.get("request_id") or "").strip()
+    scope = resolve_user_scope(request.user.username)
     return render(
         request,
         "pass_viewer/add_object.html",
@@ -5971,6 +5981,7 @@ def add_object(request):
             "rzd_geometry_json": None,
             "top_geometry_json": None,
             "request_objects_geometry_json": None,
+            "hood_work_area_geojson": _get_hood_work_area_geojson(request, scope),
             "selected_rootid": (entry_point.get("rootid") or "").strip(),
             "selected_source_label": _normalize_source_label(entry_point.get("source_label")),
             "effective_request_id": effective_request_id,
@@ -6509,13 +6520,21 @@ def _annotate_personal_total_areas(owned_objects):
                     continue
                 table_name = _PERSONAL_MASTER_TABLE_BY_SOURCE[source]
                 try:
+                    has_clean_area = _column_exists(
+                        cursor, table_name, "TotalCleanArea", schema=schema
+                    )
+                    clean_area_sql = (
+                        f"t.{_quote_ident('TotalCleanArea')}"
+                        if has_clean_area
+                        else "NULL"
+                    )
                     for offset in range(0, len(unique_ids), _PERSONAL_ROOTID_CHUNK_SIZE):
                         chunk = unique_ids[offset : offset + _PERSONAL_ROOTID_CHUNK_SIZE]
                         where_sql, params = _personal_rootid_any_match_sql(chunk)
                         cursor.execute(
                             (
                                 f"SELECT t.{_quote_ident('RootId')}::text, "
-                                f"t.{_quote_ident('TotalArea')}, t.{_quote_ident('TotalCleanArea')} "
+                                f"t.{_quote_ident('TotalArea')}, {clean_area_sql} "
                                 f"FROM {_quote_ident(schema)}.{_quote_ident(table_name)} t "
                                 f"WHERE {where_sql}"
                             ),
@@ -6670,16 +6689,31 @@ def _fetch_personal_master_details(source_label, rootid):
     schema = getattr(settings, "APPROVAL_ADJACENT_SCHEMA", "master")
     geom_sql = geom_to_wgs84_sql('ST_Force2D(t."Geometry")')
     where_sql, params = _personal_rootid_eq_match_sql(rid)
-    query = (
-        f"SELECT t.{_quote_ident('StartDate')}, t.{_quote_ident('OwnerLegalPersonId')}, "
-        f"t.{_quote_ident('DepartmentLegalPersonId')}, t.{_quote_ident('TotalCleanArea')}, "
-        f"ST_AsGeoJSON({geom_sql})::text "
-        f"FROM {_quote_ident(schema)}.{_quote_ident(table_name)} t "
-        f"WHERE {where_sql} "
-        "LIMIT 1"
-    )
     try:
         with connections["qgis"].cursor() as cursor:
+            clean_area_sql = "NULL"
+            for area_column in ("TotalCleanArea", "CleaningArea"):
+                if _column_exists(cursor, table_name, area_column, schema=schema):
+                    clean_area_sql = f"t.{_quote_ident(area_column)}"
+                    break
+            department_sql = "NULL"
+            for department_column in (
+                "DepartmentLegalPersonId",
+                "GrbsLegalPersonId",
+            ):
+                if _column_exists(
+                    cursor, table_name, department_column, schema=schema
+                ):
+                    department_sql = f"t.{_quote_ident(department_column)}"
+                    break
+            query = (
+                f"SELECT t.{_quote_ident('StartDate')}, t.{_quote_ident('OwnerLegalPersonId')}, "
+                f"{department_sql}, {clean_area_sql}, "
+                f"ST_AsGeoJSON({geom_sql})::text "
+                f"FROM {_quote_ident(schema)}.{_quote_ident(table_name)} t "
+                f"WHERE {where_sql} "
+                "LIMIT 1"
+            )
             cursor.execute(query, params)
             row = cursor.fetchone()
     except Exception:

@@ -80,6 +80,7 @@
         const nameNeedle = (nameEl?.value || '').trim().toLowerCase();
         const activeTab = getActiveOwnedListTab();
         const selectedApprovalStatus = (approvalSelectEl?.value || '').trim();
+        const filterApprovalsByMine = Boolean(approvalScopeSelectEl);
         const approvalScope = (approvalScopeSelectEl?.value || 'mine').trim();
         const approvalSelectWrapEl = document.getElementById('owned-approval-select-wrap');
         const approvalScopeWrapEl = document.getElementById('owned-approval-scope-wrap');
@@ -96,6 +97,7 @@
             const isMine = (item.dataset.approvalMine || '') === '1';
             const approvalScopeMatch =
                 activeTab !== 'approvals' ||
+                !filterApprovalsByMine ||
                 approvalScope === 'all' ||
                 isMine;
             item.style.display =

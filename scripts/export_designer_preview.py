@@ -103,7 +103,12 @@ def page_contexts() -> dict[str, tuple[str, dict[str, object]]]:
         "request_id": "240817-001",
         "name": "Детская площадка у дома 12",
     }
-    add_object = {**empty_layers, "page_config": {}, "effective_request_id": "240817-004"}
+    add_object = {
+        **empty_layers,
+        "page_config": {},
+        "effective_request_id": "240817-004",
+        "hood_work_area_geojson": {"type": "FeatureCollection", "features": []},
+    }
     add_recap = {
         **empty_layers,
         "page_config": {},
