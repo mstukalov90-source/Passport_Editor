@@ -76,8 +76,19 @@
 }
 
 .map-stage--view-only {
-    height: calc(100vh - 160px);
+    height: calc(100vh - 8px);
     min-height: 360px;
+}
+
+body.view-only-embed {
+    padding-top: 0;
+}
+
+body.view-only-embed main.container--wide {
+    min-height: 100vh;
+    width: 100%;
+    margin: 0;
+    padding-top: 0;
 }
 
 .note--danger {
