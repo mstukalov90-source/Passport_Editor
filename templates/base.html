@@ -13,8 +13,10 @@
     <link rel="stylesheet" href="{% static 'pass_viewer/css/owned-lists.css' %}?v=redesign-2">
     {% block page_styles %}{% endblock %}
 </head>
-<body class="has-site-header {% block body_class %}{% endblock %}">
+<body class="{% if not view_only %}has-site-header {% endif %}{% block body_class %}{% endblock %}">
+{% if not view_only %}
 {% include 'includes/site_header.html' %}
+{% endif %}
 {% block page_layout_start %}{% endblock %}
 <main class="container {% block container_class %}{% endblock %}">
     {% block content %}{% endblock %}
@@ -25,7 +27,9 @@
 {% include 'includes/approval_notifications_modal.html' %}
 {% include 'pass_viewer/includes/owned_lists_modal.html' %}
 {% endif %}
+{% if not view_only %}
 <script src="{% static 'pass_viewer/js/site-header.js' %}?v=redesign-3" defer></script>
+{% endif %}
 {% if request.user.is_authenticated %}
 <script src="{% static 'pass_viewer/js/notifications.js' %}?v=redesign-1" defer></script>
 <script src="{% static 'pass_viewer/js/owned-lists.js' %}?v=redesign-4" defer></script>

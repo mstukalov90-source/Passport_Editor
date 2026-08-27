@@ -143,6 +143,29 @@ def test_personal_account_renders_owned_object_without_area() -> None:
     assert "personal-account-layout" in html
 
 
+def test_view_only_main_hides_site_header() -> None:
+    request = RequestFactory().get("/main/?view_only=1")
+    request.user = AnonymousUser()
+    html = render_to_string(
+        "pass_viewer/main.html",
+        {
+            "view_only": True,
+            "entry_point": {},
+            "map_layers": {"selected": None},
+            "page_config": {"page": "main", "viewOnly": True},
+            "query_error": "",
+        },
+        request=request,
+    )
+    assert 'class="site-header"' not in html
+    assert "site-header.js" not in html
+    assert "has-site-header" not in html
+    assert "view-only-embed" in html
+    assert "map-stage--view-only" in html
+    assert 'class="page-header-card" style="display:none;"' in html
+    assert "owned-view-object" not in html
+
+
 def test_editor_dom_contracts_are_preserved() -> None:
     required_ids = {
         "main.html": {"map", "edit-geometry-btn", "save-geometry-btn", "layer-management-panel"},

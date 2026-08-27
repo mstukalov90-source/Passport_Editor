@@ -6,6 +6,8 @@
 
 {% block title %}{% if view_only %}Просмотр объекта{% else %}Редактирование объекта{% endif %}{% endblock %}
 
+{% block body_class %}{% if view_only %}view-only-embed{% endif %}{% endblock %}
+
 {% block page_scripts %}
     {{ page_config|json_script:"page-config" }}
     {{ selected_geometry_json|default_if_none:"null"|json_script:"selected-geometry-data" }}
@@ -31,7 +33,7 @@
 {% block container_class %}container--wide{% endblock %}
 
 {% block content %}
-<section class="page-header-card">
+<section class="page-header-card"{% if view_only %} style="display:none;"{% endif %}>
     <div class="page-header-card__top">
         <div class="page-header-card__title-block">
             <h1 class="page-header-card__title">{% if view_only %}Просмотр объекта{% else %}Редактирование объекта{% endif %}</h1>
