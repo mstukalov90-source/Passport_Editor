@@ -10,14 +10,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_redesign_routes_and_templates_are_wired() -> None:
     assert reverse("personal_account") == "/personal/"
+    assert reverse("statistics") == "/statistics/"
     base = (ROOT / "templates/base.html").read_text(encoding="utf-8")
     header = (ROOT / "templates/includes/site_header.html").read_text(encoding="utf-8")
     personal = (ROOT / "templates/pass_viewer/personal_account.html").read_text(encoding="utf-8")
+    statistics = (ROOT / "templates/pass_viewer/statistics.html").read_text(encoding="utf-8")
     assert "includes/site_header.html" in base
     assert "site-header.js" in base
     assert "notifications.js" in base
     assert "approval_notifications_modal.html" in base
     assert "approval-notifications-btn" in header
+    assert "site-header__icon-label" in header
+    assert ">Уведомления</span>" in header
     assert 'href="{% url \'home\' %}" aria-label="Уведомления"' not in header
     assert 'data-header-open-list="requests"' in header
     assert 'data-header-open-list="approvals"' in header
@@ -29,7 +33,13 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "approval:landing" not in header
     assert "add_object' or route_name == 'main' or route_name == 'add_recap'" in header
     assert "personal_account' or route_name == 'home' %} is-active" in header
+    assert "Статистика" in header
+    assert "{% url 'statistics' %}" in header
     assert "split_object" not in header
+    assert "personal-metrics" not in personal
+    assert "personal-metrics" in statistics
+    assert "personal-stat-table" in statistics
+    assert "Статистика" in statistics
     home = (ROOT / "templates/pass_viewer/home.html").read_text(encoding="utf-8")
     partial = (ROOT / "templates/pass_viewer/owned_lists_partial.html").read_text(encoding="utf-8")
     assert 'id="owned-lists-home-slot"' in home
@@ -82,17 +92,56 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert 'id="owned-passports-map"' not in partial_html
     assert "site-header" not in partial_html
     assert "personal-account" in personal
-    assert "personal_notifications_panel.html" in personal
+    assert "personal_notifications_panel.html" not in personal
+    assert "personal-notifications-panel" not in personal
     assert "personal-account-layout" in personal
+    assert "№ Заявки" in personal
+    assert 'class="personal-row-num-col">№</th>' in personal
+    assert "personal-row-num" in personal
+    assert 'data-filter-col="1"' in personal
+    assert 'colspan="12"' in personal
+    assert "Вид паспортизации" in personal
+    assert "personal_table_items" in personal
+    assert "personal-kind-filter-btn" in personal
+    assert 'data-kind-filter="all"' in personal
+    assert 'data-kind-filter="actualization"' in personal
+    assert 'data-kind-filter="primary"' in personal
+    assert 'data-kind-filter="approval"' in personal
+    assert "personal-kind-filter-count" in personal
+    assert "Все паспорта и заявки на паспортизацию" in personal
+    assert "Заявки на актуализацию" in personal
+    assert "Заявки на первичную паспортизацию" in personal
+    assert "Список объектов" not in personal
     assert "|default:item.area" not in personal
     assert "personal-asu-ods-open" in personal
+    assert "personal-table-btn__icon" in personal
+    assert "moscow-gerb.svg" in personal
+    assert "intersect-polygons.svg" in personal
+    assert "search-loupe.svg" in personal
+    assert "Проверить пересечения" in personal
+    assert "personal-dgi-check" in personal
+    assert "check-dgi-modal" in personal
+    assert "personal-dgi-choose-modal" in personal
     assert "personal-detail-map" in personal
+    assert "personal-detail-object-toggle" in personal
+    assert "personal-detail-mode-passport" in personal
+    assert "personal-detail-mode-request" in personal
     assert "Год паспортизации" in personal
     js = (ROOT / "pass_viewer/static/pass_viewer/js/personal-account.js").read_text(encoding="utf-8")
     assert "createBasemapLayers" in js
     assert "attachBasemapControl" not in js
     assert "openOwnedObjectForView" in js
     assert "view_only" in js
+    assert "applyPersonalTableFilters" in js
+    assert "renumberVisiblePersonalRows" in js
+    assert "updateKindFilterCounts" in js
+    assert "data-kind-filter" in js
+    assert "setKindFilterPressed(allKindBtn, false)" in js
+    assert "setKindFilterPressed(item, item === btn)" in js
+    assert "applyDetailMode" in js
+    assert "personal-detail-object-toggle" in js
+    assert "runPersonalDgiCheck" in js
+    assert "personal-dgi-check" in js
     assert "owned-view-object-modal" in personal
 
 
@@ -102,14 +151,54 @@ def test_personal_account_renders_owned_object_without_area() -> None:
     html = render_to_string(
         "pass_viewer/personal_account.html",
         {
-            "owned_objects": [
+            "personal_table_items": [
                 {
-                    "rootid": "924695948",
+                    "row_kind": "passport",
+                    "display_rootid": "924695948",
+                    "display_request_id": "",
                     "name": "1-й Щипковский пер.",
                     "source_label": "ОЗН",
+                    "area_label": "7 617 м²",
+                    "passportization_year": "—",
+                    "passportization_kind": "",
+                    "display_status": "—",
+                    "asu_ods_rootid": "924695948",
+                    "asu_ods_source": "ОЗН",
+                    "asu_ods_enabled": True,
                     "request_id": "",
-                    "area_label": "0,7617 га",
-                }
+                    "recap_count": 0,
+                },
+                {
+                    "row_kind": "request",
+                    "display_rootid": "",
+                    "display_request_id": "78467",
+                    "name": "Валовая ул. 10",
+                    "source_label": "ДТ",
+                    "area_label": "",
+                    "passportization_year": "—",
+                    "passportization_kind": "Первичная",
+                    "display_status": "Включена в график",
+                    "asu_ods_rootid": "",
+                    "asu_ods_source": "ДТ",
+                    "asu_ods_enabled": False,
+                    "request_id": "78467",
+                    "recap_count": 0,
+                },
+                {
+                    "row_kind": "approval",
+                    "display_rootid": "",
+                    "display_request_id": "",
+                    "name": "Согласование заявки из графика паспортизации 46998",
+                    "source_label": "ДТ",
+                    "area_label": "",
+                    "passportization_year": "—",
+                    "passportization_kind": "",
+                    "display_status": "В работе",
+                    "approve_id": "approve-1",
+                    "asu_ods_rootid": "",
+                    "asu_ods_source": "ДТ",
+                    "asu_ods_enabled": False,
+                },
             ],
             "owned_objects_error": "",
             "personal_metrics": {
@@ -117,6 +206,12 @@ def test_personal_account_renders_owned_object_without_area() -> None:
                 "total_area_label": "7 717 м²",
                 "request_count": 0,
                 "approval_count": 0,
+            },
+            "personal_kind_counts": {
+                "all": 2,
+                "actualization": 0,
+                "primary": 1,
+                "approval": 1,
             },
             "page_config": {
                 "page": "personal",
@@ -130,17 +225,90 @@ def test_personal_account_renders_owned_object_without_area() -> None:
     )
     assert "1-й Щипковский пер." in html
     assert "ОЗН" in html
-    assert "0,7617 га" in html
-    assert "7 717 м²" in html
+    assert "7 617 м²" in html
     assert "personal-badge" in html
     assert "personal-asu-ods-open" in html
+    assert "personal-table-btn__icon" in html
+    assert "moscow-gerb.svg" in html
+    assert "intersect-polygons.svg" in html
+    assert "search-loupe.svg" in html
+    assert "personal-dgi-check" in html
+    assert "Проверить пересечения" in html
+    assert "check-dgi-modal" in html
     assert "personal-detail-map" in html
-    assert 'disabled>Открыть' not in html
     assert "page-config" in html
     assert "owned-view-object-modal" in html
     assert "owned-view-object-frame" in html
-    assert "personal-notifications-panel" in html
+    assert "personal-notifications-panel" not in html
     assert "personal-account-layout" in html
+    assert "№ Заявки" in html
+    assert 'class="personal-row-num">' in html
+    assert "Вид паспортизации" in html
+    assert "78467" in html
+    assert "Первичная" in html
+    assert "Согласование заявки из графика паспортизации 46998" in html
+    assert "В работе" in html
+    assert 'data-row-kind="passport"' in html
+    assert 'data-row-kind="request"' in html
+    assert 'data-row-kind="approval"' in html
+    assert 'data-kind-filter="all"' in html
+    assert "Все паспорта и заявки на паспортизацию" in html
+    assert "personal-kind-filter-count" in html
+    assert ">2</span>" in html
+    assert ">1</span>" in html
+    assert "personal-metrics" not in html
+
+
+def test_statistics_page_renders_metrics_and_tables() -> None:
+    request = RequestFactory().get("/statistics/")
+    request.user = AnonymousUser()
+    html = render_to_string(
+        "pass_viewer/statistics.html",
+        {
+            "owned_objects_error": "",
+            "personal_metrics": {
+                "passport_count": 2,
+                "request_count": 1,
+                "approval_count": 3,
+                "total_area_label": "7 717 м²",
+            },
+            "personal_statistics": {
+                "passportization_kinds": [
+                    {"label": "Актуализация", "count": 1},
+                    {"label": "Первичная", "count": 1},
+                    {"label": "Ожидает подтверждение", "count": 0},
+                    {"label": "Не определено", "count": 0},
+                    {"label": "без вида", "count": 2},
+                ],
+                "ogh_types": [
+                    {"label": "ДТ", "count": 1},
+                    {"label": "ОДХ", "count": 0},
+                    {"label": "ОО", "count": 1},
+                    {"label": "ТОП", "count": 0},
+                    {"label": "прочие", "count": 0},
+                ],
+                "years": [{"label": "2026", "count": 2}, {"label": "—", "count": 2}],
+                "statuses": [{"label": "Утверждён", "count": 2}, {"label": "В работе", "count": 1}],
+                "links": [
+                    {"label": "Связь с АСУ ОДС", "count": 1},
+                    {"label": "Приклеенная заявка", "count": 0},
+                ],
+            },
+        },
+        request=request,
+    )
+    assert "Статистика" in html
+    assert "personal-metrics" in html
+    assert "Количество утверждённых паспортов" in html
+    assert "7 717 м²" in html
+    assert "personal-stat-table" in html
+    assert "Вид паспортизации" in html
+    assert "Тип ОГХ" in html
+    assert "Год паспортизации" in html
+    assert "Связь с АСУ ОДС" in html
+    assert "Приклеенная заявка" in html
+    assert "Актуализация" in html
+    assert "Утверждён" in html
 
 
 def test_view_only_main_hides_site_header() -> None:

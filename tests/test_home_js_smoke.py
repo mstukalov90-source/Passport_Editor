@@ -43,7 +43,7 @@ NOTIFICATIONS_SYMBOLS = [
     "function buildOdsNewMessages",
     "function markNotificationSeen",
     "home-notification-events",
-    "personal-notifications-feed",
+    "approval-notifications-feed",
 ]
 
 

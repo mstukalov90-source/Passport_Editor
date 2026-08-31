@@ -68,6 +68,7 @@ def personal_page_config():
             "resolveAsuOdsUrl": reverse("resolve_asu_ods_url"),
             "personalObjectDetails": reverse("personal_object_details"),
             "openOwned": reverse("open_owned_object"),
+            "checkDgi": reverse("check_dgi_intersections"),
         },
     )
 

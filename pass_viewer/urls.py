@@ -38,11 +38,13 @@ from .views import (
     save_recap_object,
     select_sup_hood,
     split_object,
+    statistics,
 )
 
 urlpatterns = [
     path("", home, name="home"),
     path("personal/", home, name="personal_account"),
+    path("statistics/", statistics, name="statistics"),
     path("owned/lists-partial/", owned_lists_partial, name="owned_lists_partial"),
     path("home/select-hood/", select_sup_hood, name="select_sup_hood"),
     path("home/clear-hood/", clear_sup_hood, name="clear_sup_hood"),

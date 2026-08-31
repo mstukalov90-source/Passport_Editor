@@ -16,8 +16,6 @@
     const approvalChatPreviewThread = document.getElementById('approval-chat-preview-thread');
     const approvalChatPreviewOpenLink = document.getElementById('approval-chat-preview-open-link');
     const approvalNotificationsTitleModeInput = document.getElementById('approval-notifications-title-mode');
-    const personalNotificationsPanel = document.getElementById('personal-notifications-panel');
-    const personalNotificationsTitleModeInput = document.getElementById('personal-notifications-title-mode');
 
     let notificationsTitleMode = 'numbers';
     let notificationsPreviousOverflow = '';
@@ -444,26 +442,6 @@
         updateApprovalNotificationsBadge((serverEvents || []).length + (odsEvents || []).length);
     }
 
-    function renderPersonalNotificationFeed(serverEvents) {
-        const approvalsSection = document.getElementById('personal-notifications-approvals-section');
-        const approvalsList = document.getElementById('personal-notifications-feed');
-        const emptyEl = document.getElementById('personal-notifications-empty');
-        if (!approvalsList) {
-            return;
-        }
-        approvalsList.replaceChildren();
-        (serverEvents || []).forEach((event) => {
-            appendServerEventRow(approvalsList, event);
-        });
-        const hasApprovals = !!(serverEvents && serverEvents.length);
-        if (approvalsSection) {
-            approvalsSection.hidden = !hasApprovals;
-        }
-        if (emptyEl) {
-            emptyEl.hidden = hasApprovals;
-        }
-    }
-
     function applyHomeWorkflowOdsSyncNotifications() {
         const serverEvents = loadServerNotificationEvents();
         const hasOdsRows = hasOdsRequestRows();
@@ -509,7 +487,6 @@
             };
             writeNotificationsSeenState(state);
             renderApprovalNotificationFeed([], hasOdsRows ? [] : (state.ods_active || []));
-            renderPersonalNotificationFeed(serverEvents);
             return;
         }
 
@@ -517,7 +494,6 @@
         const unreadServer = serverEvents.filter((event) => event && event.id && !state.seen[event.id]);
         const unreadOds = (state.ods_active || []).filter((item) => item && item.id && !state.seen[item.id]);
         renderApprovalNotificationFeed(unreadServer, unreadOds);
-        renderPersonalNotificationFeed(serverEvents);
     }
 
     function refreshUnreadNotificationsFeed() {
@@ -527,7 +503,6 @@
         );
         const unreadOds = (state.ods_active || []).filter((item) => item && item.id && !state.seen[item.id]);
         renderApprovalNotificationFeed(unreadServer, unreadOds);
-        renderPersonalNotificationFeed(loadServerNotificationEvents());
     }
 
     function readNotificationsTitleMode() {
@@ -560,18 +535,18 @@
     }
 
     function applyNotificationsTitleMode() {
-        const roots = [approvalNotificationsModal, personalNotificationsPanel].filter(Boolean);
-        roots.forEach((root) => {
-            root.querySelectorAll('.approval-notifications-case').forEach((row) => {
-                const titleEl = row.querySelector('.approval-notifications-item__title');
-                if (titleEl) {
-                    titleEl.textContent = notificationCaseTitle(row);
-                }
-                const chatBtn = row.querySelector('.approval-notifications-chat-btn');
-                if (chatBtn) {
-                    chatBtn.dataset.caseTitle = notificationCaseTitle(chatBtn) || notificationCaseTitle(row);
-                }
-            });
+        if (!approvalNotificationsModal) {
+            return;
+        }
+        approvalNotificationsModal.querySelectorAll('.approval-notifications-case').forEach((row) => {
+            const titleEl = row.querySelector('.approval-notifications-item__title');
+            if (titleEl) {
+                titleEl.textContent = notificationCaseTitle(row);
+            }
+            const chatBtn = row.querySelector('.approval-notifications-chat-btn');
+            if (chatBtn) {
+                chatBtn.dataset.caseTitle = notificationCaseTitle(chatBtn) || notificationCaseTitle(row);
+            }
         });
     }
 
@@ -580,25 +555,19 @@
         if (approvalNotificationsTitleModeInput) {
             approvalNotificationsTitleModeInput.checked = isNames;
         }
-        if (personalNotificationsTitleModeInput) {
-            personalNotificationsTitleModeInput.checked = isNames;
-        }
     }
 
     function initNotificationsTitleModeSwitch() {
         notificationsTitleMode = readNotificationsTitleMode();
         setTitleModeInputs(notificationsTitleMode);
-        [approvalNotificationsTitleModeInput, personalNotificationsTitleModeInput].forEach((input) => {
-            if (!input) {
-                return;
-            }
-            input.addEventListener('change', () => {
-                notificationsTitleMode = input.checked ? 'names' : 'numbers';
+        if (approvalNotificationsTitleModeInput) {
+            approvalNotificationsTitleModeInput.addEventListener('change', () => {
+                notificationsTitleMode = approvalNotificationsTitleModeInput.checked ? 'names' : 'numbers';
                 persistNotificationsTitleMode(notificationsTitleMode);
                 setTitleModeInputs(notificationsTitleMode);
                 applyNotificationsTitleMode();
             });
-        });
+        }
         applyNotificationsTitleMode();
     }
 
@@ -836,11 +805,6 @@
             handleFeedClick(event);
         });
         approvalNotificationsModal.addEventListener('keydown', handleFeedKeydown);
-    }
-
-    if (personalNotificationsPanel) {
-        personalNotificationsPanel.addEventListener('click', handleFeedClick);
-        personalNotificationsPanel.addEventListener('keydown', handleFeedKeydown);
     }
 
     if (approvalChatPreviewCloseBtn) {

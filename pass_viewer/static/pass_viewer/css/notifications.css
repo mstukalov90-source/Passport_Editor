@@ -364,19 +364,3 @@
     text-decoration: underline;
 }
 
-.personal-notifications-card {
-    max-width: none;
-    width: 100%;
-    max-height: calc(100vh - 88px);
-    min-width: 0;
-    box-sizing: border-box;
-    overflow: hidden;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
-}
-.personal-notifications-card .approval-notifications-modal__body {
-    min-width: 0;
-    overflow-x: hidden;
-}
-.personal-notifications-card .approval-notifications-chat-btn {
-    max-width: 100%;
-}
