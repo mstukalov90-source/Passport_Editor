@@ -38,6 +38,8 @@
                     {% else %}
                     <li><a class="site-header__dropdown-link" href="{% url 'home' %}">Карта и рабочие списки</a></li>
                     {% endif %}
+                    <li><a class="site-header__dropdown-link{% if route_name == 'statistics' %} is-active{% endif %}"
+                           href="{% url 'statistics' %}">Статистика</a></li>
                 </ul>
             </li>
         </ul>
@@ -47,6 +49,7 @@
         <button type="button" class="site-header__icon-link" id="approval-notifications-btn"
                 aria-label="Уведомления" aria-haspopup="dialog" aria-expanded="false"
                 aria-controls="approval-notifications-modal">
+            <span class="site-header__icon-label">Уведомления</span>
             <img class="site-header__icon" src="{% static 'pass_viewer/notification-21_128x128.svg' %}" alt="">
             <span class="approval-notifications-badge"{% if not pending_approval_count %} hidden{% endif %}>{{ pending_approval_count|default:0 }}</span>
         </button>

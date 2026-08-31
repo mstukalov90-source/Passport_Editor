@@ -9,31 +9,141 @@
     const filterPanel = document.getElementById('personal-filter-panel');
     const table = document.querySelector('.personal-table');
     const clearButton = document.getElementById('personal-filter-clear');
+    const kindFilterButtons = Array.from(document.querySelectorAll('.personal-kind-filter-btn[data-kind-filter]'));
 
-    if (filterToggle && filterPanel && table) {
+    function activeKindFilters() {
+        return new Set(
+            kindFilterButtons
+                .filter((btn) => btn.getAttribute('aria-pressed') === 'true')
+                .map((btn) => btn.dataset.kindFilter)
+        );
+    }
+
+    function rowMatchesKindFilter(row, active) {
+        const rowKind = row.dataset.rowKind || '';
+        if (!rowKind) {
+            return true;
+        }
+        if (!active.size) {
+            return true;
+        }
+        const passportizationKind = row.dataset.passportizationKind || '';
+        if (active.has('all') && rowKind !== 'approval') {
+            return true;
+        }
+        if (active.has('actualization') && passportizationKind === 'Актуализация') {
+            return true;
+        }
+        if (active.has('primary') && passportizationKind === 'Первичная') {
+            return true;
+        }
+        if (active.has('approval') && rowKind === 'approval') {
+            return true;
+        }
+        return false;
+    }
+
+    function applyPersonalTableFilters() {
+        if (!table) {
+            return;
+        }
         const rows = table.querySelectorAll('tbody tr');
-        const inputs = filterPanel.querySelectorAll('input[data-filter-col]');
-        const applyFilters = () => {
-            rows.forEach((row) => {
-                const cells = row.querySelectorAll('td');
-                row.hidden = Array.from(inputs).some((input) => {
-                    const value = input.value.trim().toLocaleLowerCase('ru');
-                    if (!value) return false;
-                    const cell = cells[Number(input.dataset.filterCol)];
-                    return !cell || !cell.textContent.toLocaleLowerCase('ru').includes(value);
-                });
+        const inputs = filterPanel ? filterPanel.querySelectorAll('input[data-filter-col]') : [];
+        const active = activeKindFilters();
+        rows.forEach((row) => {
+            if (!rowMatchesKindFilter(row, active)) {
+                row.hidden = true;
+                return;
+            }
+            const cells = row.querySelectorAll('td');
+            row.hidden = Array.from(inputs).some((input) => {
+                const value = input.value.trim().toLocaleLowerCase('ru');
+                if (!value) return false;
+                const cell = cells[Number(input.dataset.filterCol)];
+                return !cell || !cell.textContent.toLocaleLowerCase('ru').includes(value);
             });
-        };
-        filterToggle.addEventListener('click', () => {
-            const open = filterPanel.hidden;
-            filterPanel.hidden = !open;
-            filterToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
         });
-        inputs.forEach((input) => input.addEventListener('input', applyFilters));
+        renumberVisiblePersonalRows();
+        updateKindFilterCounts();
+    }
+
+    function updateKindFilterCounts() {
+        const rows = table
+            ? Array.from(table.querySelectorAll('tbody tr')).filter((row) => row.dataset.rowKind)
+            : [];
+        kindFilterButtons.forEach((btn) => {
+            const countEl = btn.querySelector('.personal-kind-filter-count');
+            const key = btn.dataset.kindFilter;
+            if (!countEl || !key) {
+                return;
+            }
+            const n = rows.filter((row) => rowMatchesKindFilter(row, new Set([key]))).length;
+            countEl.textContent = String(n);
+        });
+    }
+
+    function renumberVisiblePersonalRows() {
+        if (!table) {
+            return;
+        }
+        let index = 0;
+        table.querySelectorAll('tbody tr').forEach((row) => {
+            const cell = row.querySelector('td.personal-row-num');
+            if (!cell) {
+                return;
+            }
+            if (row.hidden || !row.dataset.rowKind) {
+                cell.textContent = '';
+                return;
+            }
+            index += 1;
+            cell.textContent = String(index);
+        });
+    }
+
+    if (table) {
+        const inputs = filterPanel ? filterPanel.querySelectorAll('input[data-filter-col]') : [];
+        const allKindBtn = kindFilterButtons.find((item) => item.dataset.kindFilter === 'all');
+
+        function setKindFilterPressed(btn, pressed) {
+            btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+            btn.classList.toggle('is-active', pressed);
+        }
+
+        kindFilterButtons.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const filter = btn.dataset.kindFilter;
+                if (filter === 'all') {
+                    kindFilterButtons.forEach((item) => {
+                        setKindFilterPressed(item, item === btn);
+                    });
+                    applyPersonalTableFilters();
+                    return;
+                }
+                const nextPressed = btn.getAttribute('aria-pressed') !== 'true';
+                setKindFilterPressed(btn, nextPressed);
+                if (nextPressed && allKindBtn) {
+                    setKindFilterPressed(allKindBtn, false);
+                }
+                if (!kindFilterButtons.some((item) => item.getAttribute('aria-pressed') === 'true') && allKindBtn) {
+                    setKindFilterPressed(allKindBtn, true);
+                }
+                applyPersonalTableFilters();
+            });
+        });
+        if (filterToggle && filterPanel) {
+            filterToggle.addEventListener('click', () => {
+                const open = filterPanel.hidden;
+                filterPanel.hidden = !open;
+                filterToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+        }
+        inputs.forEach((input) => input.addEventListener('input', applyPersonalTableFilters));
         clearButton?.addEventListener('click', () => {
             inputs.forEach((input) => { input.value = ''; });
-            applyFilters();
+            applyPersonalTableFilters();
         });
+        applyPersonalTableFilters();
     }
 
     const modal = document.getElementById('personal-detail-modal');
@@ -136,6 +246,7 @@
     function closeModal() {
         detailsRequestSeq += 1;
         if (modal) modal.style.display = 'none';
+        if (objectToggle) objectToggle.hidden = true;
         clearDetailMap();
         setAsuOdsLinkEnabled(false);
     }
@@ -279,10 +390,61 @@
         }
     }
 
-    async function loadObjectDetails(rootid, sourceLabel, seq) {
+    const objectToggle = document.getElementById('personal-detail-object-toggle');
+    const passportModeBtn = document.getElementById('personal-detail-mode-passport');
+    const requestModeBtn = document.getElementById('personal-detail-mode-request');
+    let detailContext = {
+        passportRootid: '',
+        displayRootid: '',
+        drawnRequestId: '',
+        displayRequestId: '',
+        name: '',
+        source: 'ДТ',
+        drawnSource: '',
+        status: '—',
+        hasDrawnRequest: false,
+        mode: 'passport',
+    };
+
+    function setDetailModeButtons(mode) {
+        const isPassport = mode === 'passport';
+        passportModeBtn?.classList.toggle('is-active', isPassport);
+        requestModeBtn?.classList.toggle('is-active', !isPassport);
+        passportModeBtn?.setAttribute('aria-pressed', isPassport ? 'true' : 'false');
+        requestModeBtn?.setAttribute('aria-pressed', isPassport ? 'false' : 'true');
+    }
+
+    function applyDetailMode(mode) {
+        detailContext.mode = mode;
+        setDetailModeButtons(mode);
+        const isPassport = mode === 'passport';
+        const rootid = isPassport ? (detailContext.passportRootid || detailContext.displayRootid) : '';
+        const requestId = isPassport ? '' : (detailContext.drawnRequestId || detailContext.displayRequestId);
+        const sourceLabel = isPassport
+            ? detailContext.source
+            : (detailContext.drawnSource || detailContext.source);
+        const seq = detailsRequestSeq + 1;
+        detailsRequestSeq = seq;
+        if (field('personal-open-rootid')) field('personal-open-rootid').value = rootid;
+        if (field('personal-open-request-id')) field('personal-open-request-id').value = requestId;
+        if (field('personal-open-source')) field('personal-open-source').value = sourceLabel;
+        fillText('detail-passport-id', rootid || requestId);
+        renderDetailGeometry(null);
+        loadObjectDetails(rootid, sourceLabel, seq, requestId);
+    }
+
+    async function loadObjectDetails(rootid, sourceLabel, seq, requestId) {
         const endpoint = urls.personalObjectDetails;
-        if (!endpoint || !rootid) {
+        const rid = String(rootid || '').trim();
+        const reqId = String(requestId || '').trim();
+        if (!endpoint || (!rid && !reqId)) {
             return;
+        }
+        const body = { source_label: sourceLabel || 'ДТ' };
+        if (rid) {
+            body.rootid = rid;
+        } else {
+            body.request_id = reqId;
         }
         try {
             const response = await fetch(endpoint, {
@@ -291,10 +453,7 @@
                     'Content-Type': 'application/json',
                     'X-CSRFToken': csrfToken(),
                 },
-                body: JSON.stringify({
-                    rootid,
-                    source_label: sourceLabel || 'ДТ',
-                }),
+                body: JSON.stringify(body),
             });
             const data = await parseJson(response);
             if (seq !== detailsRequestSeq) {
@@ -340,25 +499,321 @@
     document.querySelectorAll('.personal-detail-open').forEach((button) => {
         button.addEventListener('click', () => {
             const sourceLabel = button.dataset.source || 'ДТ';
-            const rootid = button.dataset.id || '';
-            const seq = detailsRequestSeq + 1;
-            detailsRequestSeq = seq;
-            fillText('detail-passport-id', rootid);
+            const displayRootid = button.dataset.id || '';
+            const passportRootid = (button.dataset.passportRootid || '').trim();
+            const displayRequestId = button.dataset.requestId || '';
+            const drawnRequestId = (button.dataset.drawnRequestId || '').trim();
+            const drawnSource = (button.dataset.drawnSource || '').trim();
+            const hasDrawnRequest = button.dataset.hasDrawnRequest === '1' && Boolean(passportRootid) && Boolean(drawnRequestId);
+            detailContext = {
+                passportRootid,
+                displayRootid,
+                drawnRequestId,
+                displayRequestId,
+                name: button.dataset.name || '',
+                source: sourceLabel,
+                drawnSource,
+                status: button.dataset.status || '—',
+                hasDrawnRequest,
+                mode: passportRootid || displayRootid ? 'passport' : 'request',
+            };
             fillText('detail-passport-name', button.dataset.name);
             fillText('detail-approval-date', '—');
             fillText('detail-owner', '—');
             fillText('detail-oiv', '—');
             fillText('detail-area', '—');
             fillText('detail-status', button.dataset.status);
-            if (field('personal-open-rootid')) field('personal-open-rootid').value = rootid;
             if (field('personal-open-name')) field('personal-open-name').value = button.dataset.name || '';
-            if (field('personal-open-request-id')) field('personal-open-request-id').value = button.dataset.requestId || '';
-            if (field('personal-open-source')) field('personal-open-source').value = sourceLabel;
-            setAsuOdsLinkEnabled(sourceLabel !== 'ТОП' && sourceLabel !== 'TOP', rootid, sourceLabel);
+            setAsuOdsLinkEnabled(sourceLabel !== 'ТОП' && sourceLabel !== 'TOP', passportRootid || displayRootid, sourceLabel);
+            if (objectToggle) objectToggle.hidden = !hasDrawnRequest;
             if (modal) modal.style.display = 'flex';
+            if (hasDrawnRequest) {
+                applyDetailMode('passport');
+                return;
+            }
+            const seq = detailsRequestSeq + 1;
+            detailsRequestSeq = seq;
+            fillText('detail-passport-id', displayRootid || displayRequestId);
+            if (field('personal-open-rootid')) field('personal-open-rootid').value = displayRootid;
+            if (field('personal-open-request-id')) field('personal-open-request-id').value = displayRequestId;
+            if (field('personal-open-source')) field('personal-open-source').value = sourceLabel;
             renderDetailGeometry(null);
-            loadObjectDetails(rootid, sourceLabel, seq);
+            loadObjectDetails(displayRootid, sourceLabel, seq, displayRootid ? '' : displayRequestId);
         });
+    });
+
+    passportModeBtn?.addEventListener('click', () => applyDetailMode('passport'));
+    requestModeBtn?.addEventListener('click', () => applyDetailMode('request'));
+
+    const checkDgiModal = document.getElementById('check-dgi-modal');
+    const checkDgiModalBody = document.getElementById('check-dgi-modal-body');
+    const checkDgiModalClose = document.getElementById('check-dgi-modal-close');
+    const checkDgiAsuOdsLink = document.getElementById('check-dgi-asu-ods-link');
+    const checkDgiViewObjectBtn = document.getElementById('check-dgi-view-object-btn');
+    const dgiChooseModal = document.getElementById('personal-dgi-choose-modal');
+    const dgiChoosePassportBtn = document.getElementById('personal-dgi-choose-passport');
+    const dgiChooseRequestBtn = document.getElementById('personal-dgi-choose-request');
+    const dgiChooseCancelBtn = document.getElementById('personal-dgi-choose-cancel');
+    const checkDgiUrl = urls.checkDgi || '';
+    let checkDgiViewObjectProps = null;
+    let pendingDgiCheck = null;
+
+    function normalizeCheckGeometry(geometry) {
+        if (!geometry || typeof geometry !== 'object') {
+            return null;
+        }
+        if (geometry.type === 'Feature') {
+            return geometry.geometry || null;
+        }
+        if (geometry.type === 'FeatureCollection') {
+            const features = Array.isArray(geometry.features) ? geometry.features : [];
+            const geoms = features.map((item) => (item && item.geometry) || null).filter(Boolean);
+            if (!geoms.length) {
+                return null;
+            }
+            if (geoms.length === 1) {
+                return geoms[0];
+            }
+            return { type: 'GeometryCollection', geometries: geoms };
+        }
+        if (geometry.type) {
+            return geometry;
+        }
+        return null;
+    }
+
+    function setCheckDgiAsuOdsLink(url) {
+        if (!checkDgiAsuOdsLink) {
+            return;
+        }
+        const href = String(url || '').trim();
+        if (!href) {
+            checkDgiAsuOdsLink.href = '#';
+            checkDgiAsuOdsLink.style.display = 'none';
+            return;
+        }
+        checkDgiAsuOdsLink.href = href;
+        checkDgiAsuOdsLink.style.display = '';
+    }
+
+    function setCheckDgiViewObjectProps(props) {
+        const rootid = String((props && props.rootid) || '').trim();
+        const requestId = String((props && props.request_id) || '').trim();
+        const name = String((props && props.name) || '').trim();
+        const sourceLabel = String((props && props.source_label) || '').trim();
+        if (!rootid && !requestId && !name) {
+            checkDgiViewObjectProps = null;
+            if (checkDgiViewObjectBtn) {
+                checkDgiViewObjectBtn.style.display = 'none';
+            }
+            return;
+        }
+        checkDgiViewObjectProps = {
+            rootid,
+            request_id: requestId,
+            name,
+            source_label: sourceLabel || 'ДТ',
+        };
+        if (checkDgiViewObjectBtn) {
+            checkDgiViewObjectBtn.style.display = '';
+        }
+    }
+
+    function closeCheckDgiModal() {
+        if (checkDgiModal) {
+            checkDgiModal.style.display = 'none';
+        }
+        setCheckDgiAsuOdsLink(null);
+        setCheckDgiViewObjectProps(null);
+    }
+
+    function closeDgiChooseModal() {
+        if (dgiChooseModal) {
+            dgiChooseModal.style.display = 'none';
+        }
+        pendingDgiCheck = null;
+    }
+
+    function openCheckDgiModalShell(bodyText) {
+        if (!checkDgiModal || !checkDgiModalBody) {
+            return;
+        }
+        if (bodyText != null) {
+            checkDgiModalBody.textContent = bodyText;
+            setCheckDgiAsuOdsLink(null);
+            setCheckDgiViewObjectProps(null);
+        }
+        checkDgiModal.style.display = 'flex';
+    }
+
+    function showCheckDgiModal(data, viewProps) {
+        if (!checkDgiModal || !checkDgiModalBody) {
+            return;
+        }
+        if (data && data.intersects && PV.buildCheckDgiModalHtml) {
+            checkDgiModalBody.innerHTML = PV.buildCheckDgiModalHtml(data);
+        } else {
+            checkDgiModalBody.textContent = 'Пересечений с объектами ДГИ и инфоресурсами не обнаружено.';
+        }
+        setCheckDgiAsuOdsLink(data && data.asu_ods_url);
+        setCheckDgiViewObjectProps(viewProps);
+        openCheckDgiModalShell();
+    }
+
+    async function fetchPersonalGeometry(rootid, requestId, sourceLabel) {
+        const endpoint = urls.personalObjectDetails;
+        const rid = String(rootid || '').trim();
+        const reqId = String(requestId || '').trim();
+        if (!endpoint || (!rid && !reqId)) {
+            return null;
+        }
+        const body = { source_label: sourceLabel || 'ДТ' };
+        if (rid) {
+            body.rootid = rid;
+        } else {
+            body.request_id = reqId;
+        }
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken(),
+            },
+            body: JSON.stringify(body),
+        });
+        const data = await parseJson(response);
+        if (!response.ok || !data || !data.ok) {
+            throw new Error((data && data.error) || 'Не удалось загрузить геометрию объекта.');
+        }
+        return data.geometry || null;
+    }
+
+    async function runPersonalDgiCheck({ rootid, requestId, sourceLabel, name, triggerBtn }) {
+        if (!checkDgiUrl) {
+            openCheckDgiModalShell('URL проверки пересечений с ДГИ не настроен.');
+            return;
+        }
+        if (triggerBtn) {
+            triggerBtn.disabled = true;
+        }
+        openCheckDgiModalShell('Проверяем пересечения…');
+        const viewProps = {
+            rootid: rootid || '',
+            request_id: requestId || '',
+            name: name || '',
+            source_label: sourceLabel || 'ДТ',
+        };
+        try {
+            const geometry = normalizeCheckGeometry(
+                await fetchPersonalGeometry(rootid, requestId, sourceLabel)
+            );
+            if (!geometry) {
+                openCheckDgiModalShell('Геометрия объекта недоступна для проверки.');
+                return;
+            }
+            const response = await fetch(checkDgiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken(),
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    geometry,
+                    rootid: rootid || '',
+                    source_label: sourceLabel || 'ДТ',
+                }),
+            });
+            const data = await parseJson(response);
+            if (!response.ok || !data || !data.ok) {
+                throw new Error((data && data.error) || 'Ошибка проверки пересечений с ДГИ.');
+            }
+            showCheckDgiModal(data, viewProps);
+        } catch (error) {
+            openCheckDgiModalShell(error.message || 'Не удалось проверить пересечения с ДГИ.');
+        } finally {
+            if (triggerBtn) {
+                triggerBtn.disabled = false;
+            }
+        }
+    }
+
+    function dgiTargetsFromButton(button) {
+        const passportRootid = (button.dataset.passportRootid || '').trim();
+        const displayRootid = (button.dataset.id || '').trim();
+        const drawnRequestId = (button.dataset.drawnRequestId || '').trim();
+        const displayRequestId = (button.dataset.requestId || '').trim();
+        const sourceLabel = button.dataset.source || 'ДТ';
+        const drawnSource = (button.dataset.drawnSource || '').trim() || sourceLabel;
+        const name = button.dataset.name || '';
+        const hasDrawnRequest = button.dataset.hasDrawnRequest === '1' && Boolean(passportRootid) && Boolean(drawnRequestId);
+        const rootid = passportRootid || displayRootid;
+        const requestId = hasDrawnRequest ? drawnRequestId : (rootid ? '' : displayRequestId);
+        return { hasDrawnRequest, rootid, requestId, drawnRequestId, sourceLabel, drawnSource, name, triggerBtn: button };
+    }
+
+    document.querySelectorAll('.personal-dgi-check').forEach((button) => {
+        button.addEventListener('click', () => {
+            const targets = dgiTargetsFromButton(button);
+            if (targets.hasDrawnRequest) {
+                pendingDgiCheck = targets;
+                if (dgiChooseModal) {
+                    dgiChooseModal.style.display = 'flex';
+                }
+                return;
+            }
+            void runPersonalDgiCheck(targets);
+        });
+    });
+
+    dgiChoosePassportBtn?.addEventListener('click', () => {
+        const targets = pendingDgiCheck;
+        closeDgiChooseModal();
+        if (!targets) {
+            return;
+        }
+        void runPersonalDgiCheck({
+            rootid: targets.rootid,
+            requestId: '',
+            sourceLabel: targets.sourceLabel,
+            name: targets.name,
+            triggerBtn: targets.triggerBtn,
+        });
+    });
+    dgiChooseRequestBtn?.addEventListener('click', () => {
+        const targets = pendingDgiCheck;
+        closeDgiChooseModal();
+        if (!targets) {
+            return;
+        }
+        void runPersonalDgiCheck({
+            rootid: '',
+            requestId: targets.drawnRequestId,
+            sourceLabel: targets.drawnSource,
+            name: targets.name,
+            triggerBtn: targets.triggerBtn,
+        });
+    });
+    dgiChooseCancelBtn?.addEventListener('click', closeDgiChooseModal);
+    dgiChooseModal?.addEventListener('click', (event) => {
+        if (event.target === dgiChooseModal) {
+            closeDgiChooseModal();
+        }
+    });
+    checkDgiModalClose?.addEventListener('click', closeCheckDgiModal);
+    checkDgiModal?.addEventListener('click', (event) => {
+        if (event.target === checkDgiModal) {
+            closeCheckDgiModal();
+        }
+    });
+    checkDgiViewObjectBtn?.addEventListener('click', (event) => {
+        event.preventDefault();
+        const props = checkDgiViewObjectProps;
+        if (!props) {
+            return;
+        }
+        closeCheckDgiModal();
+        openOwnedObjectForView(props);
     });
 
     closeButton?.addEventListener('click', closeModal);
@@ -387,6 +842,14 @@
         if (event.key !== 'Escape') return;
         if (viewObjectModal && viewObjectModal.classList.contains('is-open')) {
             closeOwnedViewObjectModal();
+            return;
+        }
+        if (checkDgiModal && checkDgiModal.style.display === 'flex') {
+            closeCheckDgiModal();
+            return;
+        }
+        if (dgiChooseModal && dgiChooseModal.style.display === 'flex') {
+            closeDgiChooseModal();
             return;
         }
         closeModal();

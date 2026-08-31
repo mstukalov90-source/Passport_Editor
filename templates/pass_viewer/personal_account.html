@@ -7,15 +7,12 @@
 
 {% block page_styles %}
 <link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/modal.css' %}">
 {% endblock %}
 
 {% block container_class %}personal-account{% endblock %}
 
 {% block page_layout_start %}<div class="personal-account-layout">{% endblock %}
-
-{% block after_main %}
-{% include 'includes/personal_notifications_panel.html' %}
-{% endblock %}
 
 {% block page_layout_end %}</div>{% endblock %}
 
@@ -29,102 +26,152 @@
 <p class="note note--danger">{{ owned_objects_error }}</p>
 {% endif %}
 
-<section class="personal-metrics" aria-label="Метрики">
-    <div class="personal-metric-card">
-        <div class="personal-metric-card__value">{{ personal_metrics.passport_count }}</div>
-        <div class="personal-metric-card__label">Количество утверждённых паспортов</div>
-    </div>
-    <div class="personal-metric-card">
-        <div class="personal-metric-card__value">{{ personal_metrics.total_area_label }}</div>
-        <div class="personal-metric-card__label">Уборочная площадь</div>
-    </div>
-    <div class="personal-metric-card">
-        <div class="personal-metric-card__value">{{ personal_metrics.request_count }}</div>
-        <div class="personal-metric-card__label">Подано заявок</div>
-    </div>
-    <div class="personal-metric-card">
-        <div class="personal-metric-card__value">{{ personal_metrics.approval_count }}</div>
-        <div class="personal-metric-card__label">Согласование границ ОГХ</div>
-    </div>
-</section>
-
-<section class="personal-list" aria-label="Список объектов">
+<section class="personal-list" aria-label="Все паспорта и заявки на паспортизацию">
     <div class="personal-list-header">
-        <h2 class="personal-section-title">Утверждённые паспорта</h2>
+        <div class="personal-kind-filters" role="group" aria-label="Фильтр списка">
+            <button type="button" class="personal-kind-filter-btn is-active" data-kind-filter="all" aria-pressed="true">
+                Все паспорта и заявки на паспортизацию
+                <span class="personal-kind-filter-count">{{ personal_kind_counts.all|default:0 }}</span>
+            </button>
+            <button type="button" class="personal-kind-filter-btn" data-kind-filter="actualization" aria-pressed="false">
+                Заявки на актуализацию
+                <span class="personal-kind-filter-count">{{ personal_kind_counts.actualization|default:0 }}</span>
+            </button>
+            <button type="button" class="personal-kind-filter-btn" data-kind-filter="primary" aria-pressed="false">
+                Заявки на первичную паспортизацию
+                <span class="personal-kind-filter-count">{{ personal_kind_counts.primary|default:0 }}</span>
+            </button>
+            <button type="button" class="personal-kind-filter-btn" data-kind-filter="approval" aria-pressed="false">
+                Согласование границ ОГХ
+                <span class="personal-kind-filter-count">{{ personal_kind_counts.approval|default:0 }}</span>
+            </button>
+        </div>
         <button type="button" class="personal-filter-icon-btn" id="personal-filter-toggle"
                 aria-label="Фильтр" aria-expanded="false" aria-controls="personal-filter-panel">
             <img class="personal-filter-icon-btn__icon" src="{% static 'pass_viewer/filter-so_128x128.svg' %}" alt="">
         </button>
     </div>
     <div class="personal-filter-panel" id="personal-filter-panel" hidden>
-        <input type="text" data-filter-col="0" placeholder="№ Паспорта">
-        <input type="text" data-filter-col="1" placeholder="Название">
-        <input type="text" data-filter-col="2" placeholder="Площадь">
-        <input type="text" data-filter-col="3" placeholder="Тип ОГХ">
-        <input type="text" data-filter-col="4" placeholder="Год паспортизации">
-        <input type="text" data-filter-col="5" placeholder="Статус">
+        <input type="text" data-filter-col="1" placeholder="№ Паспорта">
+        <input type="text" data-filter-col="2" placeholder="№ Заявки">
+        <input type="text" data-filter-col="3" placeholder="Название">
+        <input type="text" data-filter-col="4" placeholder="Площадь">
+        <input type="text" data-filter-col="5" placeholder="Тип ОГХ">
+        <input type="text" data-filter-col="6" placeholder="Год паспортизации">
+        <input type="text" data-filter-col="7" placeholder="Вид паспортизации">
+        <input type="text" data-filter-col="8" placeholder="Статус">
         <button type="button" id="personal-filter-clear">Сброс</button>
     </div>
     <div class="personal-table-wrap">
         <table class="personal-table">
             <thead>
                 <tr>
+                    <th class="personal-row-num-col">№</th>
                     <th>№ Паспорта</th>
+                    <th>№ Заявки</th>
                     <th>Название</th>
                     <th>Площадь</th>
                     <th>Тип ОГХ</th>
                     <th>Год паспортизации</th>
+                    <th>Вид паспортизации</th>
                     <th>Статус</th>
                     <th>АСУ ОДС</th>
+                    <th>Проверить пересечения</th>
                     <th>Детальный просмотр</th>
                 </tr>
             </thead>
             <tbody>
-                {% for item in owned_objects %}
-                    {% if item.rootid %}
-                    {% with source=item.source_label|default:'ДТ' %}
-                    {% firstof item.area_label item.area '—' as area %}
-                    <tr>
-                        <td>{{ item.rootid }}</td>
+                {% for item in personal_table_items %}
+                    {% with source=item.source_label|default:'' %}
+                    {% firstof item.area_label '—' as area %}
+                    <tr data-row-kind="{{ item.row_kind }}" data-passportization-kind="{{ item.passportization_kind|default:'' }}">
+                        <td class="personal-row-num">{{ forloop.counter }}</td>
+                        <td>{% firstof item.display_rootid '—' %}</td>
+                        <td>{% firstof item.display_request_id '—' %}</td>
                         <td>{{ item.name|default:'—' }}</td>
                         <td>{{ area }}</td>
                         <td>
-                            {% if source == 'ОЗН' or source == 'ОО' %}
+                            {% if item.row_kind == 'ods' %}
+                            —
+                            {% elif source == 'ОЗН' or source == 'ОО' %}
                             <span class="personal-badge personal-badge--oo">ОО</span>
                             {% elif source == 'ОДХ' %}
                             <span class="personal-badge personal-badge--odh">ОДХ</span>
                             {% elif source == 'ТОП' %}
                             <span class="personal-badge personal-badge--top">ТОП</span>
-                            {% else %}
+                            {% elif source %}
                             <span class="personal-badge personal-badge--dt">{{ source }}</span>
+                            {% else %}
+                            —
                             {% endif %}
                         </td>
                         <td>{{ item.passportization_year|default:'—' }}</td>
-                        <td>{{ item.status|default:'—' }}</td>
+                        <td>{{ item.passportization_kind|default:'—' }}</td>
+                        <td>{{ item.display_status|default:'—' }}</td>
                         <td>
-                            {% if source == 'ТОП' %}
-                            <button type="button" class="personal-table-btn is-disabled" disabled>Открыть</button>
-                            {% else %}
+                            {% if item.asu_ods_enabled %}
                             <button type="button" class="personal-table-btn personal-asu-ods-open"
-                                    data-rootid="{{ item.rootid }}"
-                                    data-source="{{ source }}">Открыть</button>
+                                    data-rootid="{{ item.asu_ods_rootid }}"
+                                    data-source="{{ item.asu_ods_source }}">
+                                <img class="personal-table-btn__icon personal-table-btn__icon--gerb" src="{% static 'pass_viewer/moscow-gerb.svg' %}" alt="" aria-hidden="true">
+                                Открыть
+                            </button>
+                            {% else %}
+                            <button type="button" class="personal-table-btn is-disabled" disabled>
+                                <img class="personal-table-btn__icon personal-table-btn__icon--gerb" src="{% static 'pass_viewer/moscow-gerb.svg' %}" alt="" aria-hidden="true">
+                                Открыть
+                            </button>
                             {% endif %}
                         </td>
                         <td>
-                            <button type="button" class="personal-table-btn personal-detail-open"
-                                    data-id="{{ item.rootid }}"
+                            {% if item.row_kind == 'approval' %}
+                            <button type="button" class="personal-table-btn is-disabled" disabled>
+                                <img class="personal-table-btn__icon" src="{% static 'pass_viewer/intersect-polygons.svg' %}" alt="" aria-hidden="true">
+                                Проверить
+                            </button>
+                            {% else %}
+                            <button type="button" class="personal-table-btn personal-dgi-check"
+                                    data-id="{{ item.display_rootid }}"
+                                    data-passport-rootid="{{ item.rootid }}"
                                     data-name="{{ item.name }}"
-                                    data-request-id="{{ item.request_id }}"
-                                    data-source="{{ source }}"
+                                    data-request-id="{{ item.display_request_id }}"
+                                    data-drawn-request-id="{{ item.drawn_request_id|default:'' }}"
+                                    data-drawn-source="{{ item.drawn_source_label|default:'' }}"
+                                    data-has-drawn-request="{% if item.has_drawn_request %}1{% endif %}"
+                                    data-source="{{ item.asu_ods_source|default:source }}">
+                                <img class="personal-table-btn__icon" src="{% static 'pass_viewer/intersect-polygons.svg' %}" alt="" aria-hidden="true">
+                                Проверить
+                            </button>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.row_kind == 'approval' and item.approve_id %}
+                            <a class="personal-table-btn" href="{% url 'approval:landing' %}?approve={{ item.approve_id }}">
+                                <img class="personal-table-btn__icon" src="{% static 'pass_viewer/search-loupe.svg' %}" alt="" aria-hidden="true">
+                                Просмотр
+                            </a>
+                            {% else %}
+                            <button type="button" class="personal-table-btn personal-detail-open"
+                                    data-id="{{ item.display_rootid }}"
+                                    data-passport-rootid="{{ item.rootid }}"
+                                    data-name="{{ item.name }}"
+                                    data-request-id="{{ item.display_request_id }}"
+                                    data-drawn-request-id="{{ item.drawn_request_id|default:'' }}"
+                                    data-drawn-source="{{ item.drawn_source_label|default:'' }}"
+                                    data-has-drawn-request="{% if item.has_drawn_request %}1{% endif %}"
+                                    data-source="{{ item.asu_ods_source|default:source }}"
                                     data-recaps="{{ item.recap_count|default:0 }}"
                                     data-area="{{ area }}"
-                                    data-status="{{ item.status|default:'—' }}">Просмотр</button>
+                                    data-status="{{ item.display_status|default:'—' }}">
+                                <img class="personal-table-btn__icon" src="{% static 'pass_viewer/search-loupe.svg' %}" alt="" aria-hidden="true">
+                                Просмотр
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endwith %}
-                    {% endif %}
                 {% empty %}
-                <tr><td colspan="8">Объекты не найдены.</td></tr>
+                <tr><td colspan="12">Объекты не найдены.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -148,6 +195,10 @@
                     <dt>Уборочные площади</dt><dd id="detail-area">—</dd>
                     <dt>Статус</dt><dd id="detail-status">—</dd>
                 </dl>
+                <div class="personal-detail-object-toggle" id="personal-detail-object-toggle" hidden>
+                    <button type="button" class="personal-kind-filter-btn is-active" id="personal-detail-mode-passport" data-detail-mode="passport" aria-pressed="true">Паспорт</button>
+                    <button type="button" class="personal-kind-filter-btn" id="personal-detail-mode-request" data-detail-mode="request" aria-pressed="false">Заявка</button>
+                </div>
                 <div id="personal-detail-map" class="personal-detail-map" role="img" aria-label="Карта объекта"></div>
             </div>
             <div class="personal-modal__footer">
@@ -161,6 +212,39 @@
                     <input type="hidden" name="geometry_detail_mode" value="simplified">
                     <button type="submit" class="personal-table-btn">Посмотреть на карте</button>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="personal-dgi-choose-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width: 420px;">
+        <h3>Проверить пересечения</h3>
+        <p class="note" style="margin-top: 0;">Выберите объект для проверки:</p>
+        <div class="modal-actions owned-edit-choice-actions">
+            <button type="button" class="personal-table-btn" id="personal-dgi-choose-cancel" style="background:#e5e7eb;color:#111;">Отмена</button>
+            <div class="check-dgi-modal-actions__right">
+                <button type="button" class="personal-table-btn" id="personal-dgi-choose-passport">Паспорт</button>
+                <button type="button" class="personal-table-btn" id="personal-dgi-choose-request">Заявка</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="check-dgi-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+        <h3>Пересечение с объектами ДГИ</h3>
+        <div id="check-dgi-modal-body" class="note" style="margin-top: 0;"></div>
+        <div class="modal-actions check-dgi-modal-actions">
+            <a id="check-dgi-asu-ods-link"
+               class="check-dgi-asu-ods-link"
+               href="#"
+               target="_blank"
+               rel="noopener noreferrer"
+               style="display:none;">Объект в АСУ ОДС</a>
+            <div class="check-dgi-modal-actions__right">
+                <button type="button" id="check-dgi-view-object-btn" class="personal-table-btn" style="display:none;">Просмотр объекта</button>
+                <button type="button" id="check-dgi-modal-close" class="personal-table-btn">OK</button>
             </div>
         </div>
     </div>

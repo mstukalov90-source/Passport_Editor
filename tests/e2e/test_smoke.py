@@ -92,4 +92,4 @@ def test_approval_notifications_dropdown_opens(page, live_server, e2e_credential
     modal = page.locator('#approval-notifications-modal')
     assert modal.evaluate('el => !el.hidden') is True
     assert page.locator('#approval-ods-sync-section').count() == 1
-    assert page.locator('#personal-notifications-panel').count() == 1
+    assert page.locator('#personal-notifications-panel').count() == 0

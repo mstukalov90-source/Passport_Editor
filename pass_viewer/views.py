@@ -3,6 +3,7 @@ import logging
 import re
 import uuid
 import zipfile
+from collections import Counter
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -1056,6 +1057,7 @@ def _get_owned_objects(
     apply_hood=True,
     row_limit=500,
     rootid=None,
+    request_id=None,
     only_source=None,
 ):
     """
@@ -1087,6 +1089,9 @@ def _get_owned_objects(
     wanted_source = _normalize_source_label(only_source) if only_source is not None else None
     rootid_filter = str(rootid).strip() if rootid is not None else ""
     if rootid is not None and not rootid_filter:
+        return []
+    request_id_filter = str(request_id).strip() if request_id is not None else ""
+    if request_id is not None and not request_id_filter:
         return []
 
     with connection.cursor() as cursor:
@@ -1177,6 +1182,13 @@ def _get_owned_objects(
             if rootid_filter:
                 where_parts.append(f"lower({_quote_ident(rootid_col)}::text) = lower(%s)")
                 params.append(rootid_filter)
+            if request_id_filter:
+                if not request_id_col:
+                    continue
+                where_parts.append(
+                    f"lower(BTRIM({_quote_ident(request_id_col)}::text)) = lower(%s)"
+                )
+                params.append(request_id_filter)
 
             where_sql = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
 
@@ -1267,6 +1279,41 @@ def _passport_in_user_scope(scope, rootid, source_label, *, has_sup_hood=False):
     filter_mode = FILTER_DEPARTMENT if scope.filter_field == FILTER_DEPARTMENT else FILTER_OWNER
     items = _get_owned_objects(scope.owner_id, filter_mode=filter_mode, **kwargs)
     return bool(items)
+
+
+def _site_request_for_scope(scope, request_id, source_label, *, has_sup_hood=False):
+    """GIS site-request row (request_id, empty rootid) visible in the user's personal list."""
+    rid = str(request_id or "").strip()
+    if not rid:
+        return None
+    kwargs = {
+        "site_requests_only": True,
+        "row_limit": 1,
+        "request_id": rid,
+    }
+    if str(source_label or "").strip():
+        kwargs["only_source"] = source_label
+    if scope.role == ROLE_MGGT:
+        items = _get_owned_objects(None, filter_mode=FILTER_NONE, apply_hood=False, **kwargs)
+    elif scope.role == ROLE_SUP:
+        if not has_sup_hood:
+            return None
+        items = _get_owned_objects(None, filter_mode=FILTER_NONE, apply_hood=True, **kwargs)
+    elif scope.role == ROLE_DEP_PLUS:
+        if not scope.owner_ids:
+            return None
+        items = _get_owned_objects(
+            None,
+            filter_mode=FILTER_OWNER_MULTI,
+            legal_person_ids=list(scope.owner_ids),
+            **kwargs,
+        )
+    elif not scope.owner_id:
+        return None
+    else:
+        filter_mode = FILTER_DEPARTMENT if scope.filter_field == FILTER_DEPARTMENT else FILTER_OWNER
+        items = _get_owned_objects(scope.owner_id, filter_mode=filter_mode, **kwargs)
+    return items[0] if items else None
 
 
 def _owned_item_dedup_key(item):
@@ -1613,10 +1660,19 @@ def _annotate_and_filter_ods_registry_against_gis(owned_objects):
 
     ods_br_ids = {_norm_registry_id(o.get("request_id")) for o in ods_items if _norm_registry_id(o.get("request_id"))}
     ods_br_status_by_id = {}
+    ods_brid_by_root = {}
+    ods_short_root_by_brid = {}
     for o in ods_items:
         brid = _norm_registry_id(o.get("request_id"))
+        raw_brid = (o.get("request_id") or "").strip()
+        raw_sr = (o.get("short_object_root_id") or "").strip()
+        sr = _norm_registry_id(raw_sr)
         if brid and brid not in ods_br_status_by_id:
             ods_br_status_by_id[brid] = (o.get("br_status_name") or "").strip()
+        if sr and raw_brid and sr not in ods_brid_by_root:
+            ods_brid_by_root[sr] = raw_brid
+        if brid and brid not in ods_short_root_by_brid:
+            ods_short_root_by_brid[brid] = raw_sr
     ods_root_ids = {
         _norm_registry_id(o.get("short_object_root_id"))
         for o in ods_items
@@ -1641,14 +1697,22 @@ def _annotate_and_filter_ods_registry_against_gis(owned_objects):
         g.pop("ods_registry_brid_pending", None)
         g.pop("ods_registry_root_match", None)
         g.pop("ods_registry_br_status_name", None)
+        g.pop("ods_registry_brid", None)
+        g.pop("ods_registry_short_root_id", None)
         if root:
             g["ods_registry_root_match"] = root in ods_root_ids
+            if root in ods_brid_by_root:
+                g["ods_registry_brid"] = ods_brid_by_root[root]
+            brid_key = _norm_registry_id(g.get("ods_registry_brid") or req)
+            if brid_key and brid_key in ods_br_status_by_id:
+                g["ods_registry_br_status_name"] = ods_br_status_by_id[brid_key]
         elif has_ods and req:
             g["ods_registry_brid_labeled"] = True
             brid_match = req in ods_br_ids
             g["ods_registry_brid_match"] = brid_match
             if brid_match:
                 g["ods_registry_br_status_name"] = ods_br_status_by_id.get(req, "")
+                g["ods_registry_short_root_id"] = ods_short_root_by_brid.get(req, "")
             else:
                 g["ods_registry_brid_pending"] = _ods_brid_within_validation_window(g.get("created_at"))
 
@@ -4928,6 +4992,306 @@ def _build_personal_account_metrics(owned_objects, approval_items):
     }
 
 
+def _personal_row_kind(item):
+    if item.get("row_kind"):
+        return item["row_kind"]
+    if item.get("is_ods_request"):
+        return "ods"
+    if str(item.get("rootid") or "").strip():
+        return "passport"
+    return "request"
+
+
+def _personal_display_rootid(item):
+    return (
+        str(item.get("rootid") or "").strip()
+        or str(item.get("ods_matched_rootid") or "").strip()
+        or str(item.get("short_object_root_id") or "").strip()
+    )
+
+
+def _personal_display_request_id(item):
+    return str(item.get("request_id") or "").strip() or str(item.get("ods_registry_brid") or "").strip()
+
+
+def _personal_ods_rootid(item):
+    return (
+        str(item.get("ods_matched_rootid") or "").strip()
+        or str(item.get("short_object_root_id") or "").strip()
+    )
+
+
+def _merge_personal_ods_into_passports(owned_objects):
+    """Collapse ODS rows and drawn GIS requests that belong to an existing passport."""
+    items = [dict(item) for item in (owned_objects or [])]
+    passports_by_root = {}
+    for item in items:
+        if item.get("is_ods_request"):
+            continue
+        rootid = str(item.get("rootid") or "").strip().lower()
+        if rootid and rootid not in passports_by_root:
+            passports_by_root[rootid] = item
+
+    out = []
+    for item in items:
+        if not item.get("is_ods_request"):
+            out.append(item)
+            continue
+        ods_root = _personal_ods_rootid(item).lower()
+        passport = passports_by_root.get(ods_root) if ods_root else None
+        if passport is None:
+            out.append(item)
+            continue
+        brid = str(item.get("request_id") or "").strip()
+        if brid:
+            if not str(passport.get("request_id") or "").strip():
+                passport["request_id"] = brid
+            if not str(passport.get("ods_registry_brid") or "").strip():
+                passport["ods_registry_brid"] = brid
+        passport["ods_registry_root_match"] = True
+        passport["merged_from_ods"] = True
+        status = str(item.get("br_status_name") or "").strip()
+        if status and not str(passport.get("ods_registry_br_status_name") or "").strip():
+            passport["ods_registry_br_status_name"] = status
+    return _merge_personal_drawn_requests_into_passports(out)
+
+
+def _attach_drawn_request_to_passport(passport, request_item):
+    drawn_id = str(request_item.get("request_id") or "").strip()
+    passport["merged_from_drawn_request"] = True
+    passport["drawn_request_id"] = drawn_id
+    passport["drawn_request_name"] = str(request_item.get("name") or "").strip()
+    passport["drawn_source_label"] = str(request_item.get("source_label") or "").strip()
+    if drawn_id:
+        if not str(passport.get("request_id") or "").strip():
+            passport["request_id"] = drawn_id
+        if not str(passport.get("ods_registry_brid") or "").strip():
+            passport["ods_registry_brid"] = drawn_id
+    if request_item.get("ods_registry_brid_match"):
+        passport["ods_registry_brid_match"] = True
+    short_root = str(request_item.get("ods_registry_short_root_id") or "").strip()
+    if short_root and not str(passport.get("ods_registry_short_root_id") or "").strip():
+        passport["ods_registry_short_root_id"] = short_root
+    status = str(
+        request_item.get("ods_registry_br_status_name") or request_item.get("br_status_name") or ""
+    ).strip()
+    if status and not str(passport.get("ods_registry_br_status_name") or "").strip():
+        passport["ods_registry_br_status_name"] = status
+
+
+def _merge_personal_drawn_requests_into_passports(items):
+    """Fold GIS site requests into passports that already show the same request number."""
+    passports_by_brid = {}
+    for item in items:
+        if item.get("is_ods_request") or not str(item.get("rootid") or "").strip():
+            continue
+        for raw in (item.get("request_id"), item.get("ods_registry_brid"), item.get("drawn_request_id")):
+            brid = _norm_registry_id(raw)
+            if brid and brid not in passports_by_brid:
+                passports_by_brid[brid] = item
+
+    out = []
+    for item in items:
+        if item.get("is_ods_request") or str(item.get("rootid") or "").strip():
+            out.append(item)
+            continue
+        brid = _norm_registry_id(item.get("request_id"))
+        passport = passports_by_brid.get(brid) if brid else None
+        if passport is None:
+            out.append(item)
+            continue
+        _attach_drawn_request_to_passport(passport, item)
+    return out
+
+
+def _personal_is_unconfirmed_gis_request(item):
+    if item.get("is_ods_request"):
+        return False
+    if str(item.get("rootid") or "").strip():
+        return False
+    if item.get("ods_registry_brid_match"):
+        return False
+    return bool(str(item.get("request_id") or "").strip())
+
+
+def _personal_passportization_kind(item):
+    if item.get("is_ods_request"):
+        root = str(item.get("short_object_root_id") or item.get("ods_matched_rootid") or "").strip()
+        return "Актуализация" if root else "Первичная"
+    if item.get("ods_registry_brid_match"):
+        root = str(item.get("ods_registry_short_root_id") or item.get("rootid") or "").strip()
+        return "Актуализация" if root else "Первичная"
+    if item.get("merged_from_ods") or item.get("ods_registry_root_match") or item.get("merged_from_drawn_request"):
+        return "Актуализация"
+    if _personal_is_unconfirmed_gis_request(item):
+        if item.get("ods_registry_brid_pending") or _ods_brid_within_validation_window(item.get("created_at")):
+            return "Ожидает подтверждение"
+        return "Не определено"
+    return ""
+
+
+def _personal_display_status(item):
+    text = str(item.get("status") or "").strip()
+    if text and text != "—":
+        return text
+    for key in ("br_status_name", "ods_registry_br_status_name"):
+        alt = str(item.get(key) or "").strip()
+        if alt:
+            return alt
+    return text or "—"
+
+
+def _personal_asu_ods_fields(item):
+    rootid = str(item.get("rootid") or item.get("ods_matched_rootid") or "").strip()
+    source = str(item.get("ods_matched_source_label") or "").strip()
+    if not source and not item.get("is_ods_request"):
+        source = str(item.get("source_label") or "ДТ").strip() or "ДТ"
+    source_upper = source.upper()
+    enabled = bool(rootid and source and source_upper not in {"ТОП", "TOP", "ОДС", "ODS"})
+    return rootid, source or "ДТ", enabled
+
+
+def _build_personal_table_items(owned_objects, approval_items):
+    rows = []
+    for item in _merge_personal_ods_into_passports(owned_objects):
+        row = dict(item)
+        row_kind = _personal_row_kind(item)
+        asu_rootid, asu_source, asu_enabled = _personal_asu_ods_fields(item)
+        row["row_kind"] = row_kind
+        row["display_rootid"] = _personal_display_rootid(item)
+        row["display_request_id"] = _personal_display_request_id(item)
+        row["passportization_kind"] = _personal_passportization_kind(item)
+        row["display_status"] = _personal_display_status(item)
+        row["asu_ods_rootid"] = asu_rootid
+        row["asu_ods_source"] = asu_source
+        row["asu_ods_enabled"] = asu_enabled
+        drawn_id = str(item.get("drawn_request_id") or "").strip()
+        row["drawn_request_id"] = drawn_id
+        row["drawn_request_name"] = str(item.get("drawn_request_name") or "").strip()
+        row["drawn_source_label"] = str(item.get("drawn_source_label") or "").strip()
+        row["has_drawn_request"] = bool(item.get("merged_from_drawn_request") and drawn_id)
+        rows.append(row)
+    for item in approval_items or []:
+        rows.append(
+            {
+                "row_kind": "approval",
+                "display_rootid": "",
+                "display_request_id": "",
+                "rootid": "",
+                "request_id": "",
+                "name": item.get("label") or item.get("name") or "",
+                "source_label": item.get("source_label") or "",
+                "display_status": item.get("status_label") or "—",
+                "status": item.get("status_label") or "—",
+                "approve_id": item.get("id"),
+                "area_label": "",
+                "passportization_year": "—",
+                "passportization_kind": "",
+                "asu_ods_rootid": "",
+                "asu_ods_source": item.get("source_label") or "",
+                "asu_ods_enabled": False,
+                "drawn_request_id": "",
+                "drawn_request_name": "",
+                "drawn_source_label": "",
+                "has_drawn_request": False,
+            }
+        )
+    return rows
+
+
+def _personal_kind_filter_counts(items):
+    counts = {"all": 0, "actualization": 0, "primary": 0, "approval": 0}
+    for item in items or []:
+        row_kind = str(item.get("row_kind") or "")
+        passportization_kind = str(item.get("passportization_kind") or "")
+        if row_kind and row_kind != "approval":
+            counts["all"] += 1
+        if passportization_kind == "Актуализация":
+            counts["actualization"] += 1
+        if passportization_kind == "Первичная":
+            counts["primary"] += 1
+        if row_kind == "approval":
+            counts["approval"] += 1
+    return counts
+
+
+_PASSPORTIZATION_KIND_ORDER = (
+    "Актуализация",
+    "Первичная",
+    "Ожидает подтверждение",
+    "Не определено",
+    "без вида",
+)
+_OGH_TYPE_ORDER = ("ДТ", "ОДХ", "ОО", "ТОП", "прочие")
+
+
+def _personal_ogh_type_label(item):
+    source = str(item.get("source_label") or "").strip().upper()
+    if source in {"ОЗН", "ОО"}:
+        return "ОО"
+    if source == "ОДХ":
+        return "ОДХ"
+    if source in {"ТОП", "TOP"}:
+        return "ТОП"
+    if source in {"ДТ", "DT"}:
+        return "ДТ"
+    return "прочие"
+
+
+def _counter_rows(counter, order=None):
+    if order:
+        return [{"label": label, "count": int(counter.get(label, 0))} for label in order]
+    return [
+        {"label": label, "count": count}
+        for label, count in sorted(counter.items(), key=lambda item: (-item[1], str(item[0])))
+    ]
+
+
+def _build_personal_statistics(items):
+    kind_counter = Counter()
+    ogh_counter = Counter()
+    year_counter = Counter()
+    status_counter = Counter()
+    asu_ods_count = 0
+    drawn_request_count = 0
+    for item in items or []:
+        kind = str(item.get("passportization_kind") or "").strip()
+        kind_counter[kind if kind else "без вида"] += 1
+        if item.get("row_kind") != "approval":
+            ogh_counter[_personal_ogh_type_label(item)] += 1
+        year = str(item.get("passportization_year") or "").strip() or "—"
+        year_counter[year] += 1
+        status = str(item.get("display_status") or "").strip() or "—"
+        status_counter[status] += 1
+        if item.get("asu_ods_enabled"):
+            asu_ods_count += 1
+        if item.get("has_drawn_request"):
+            drawn_request_count += 1
+
+    numbered_years = []
+    other_years = []
+    for label, count in year_counter.items():
+        try:
+            numbered_years.append((int(label), label, count))
+        except (TypeError, ValueError):
+            other_years.append((label, count))
+    numbered_years.sort(key=lambda row: -row[0])
+    other_years.sort(key=lambda row: row[0])
+    year_rows = [{"label": label, "count": count} for _, label, count in numbered_years]
+    year_rows.extend({"label": label, "count": count} for label, count in other_years)
+
+    return {
+        "passportization_kinds": _counter_rows(kind_counter, _PASSPORTIZATION_KIND_ORDER),
+        "ogh_types": _counter_rows(ogh_counter, _OGH_TYPE_ORDER),
+        "years": year_rows,
+        "statuses": _counter_rows(status_counter),
+        "links": [
+            {"label": "Связь с АСУ ОДС", "count": asu_ods_count},
+            {"label": "Приклеенная заявка", "count": drawn_request_count},
+        ],
+    }
+
+
 @login_required
 def home(request):
     if request.method == "POST":
@@ -4955,6 +5319,12 @@ def home(request):
     is_personal_account = request.resolver_match.url_name == "personal_account"
     template_name = "pass_viewer/personal_account.html" if is_personal_account else "pass_viewer/home.html"
     return render(request, template_name, ctx)
+
+
+@login_required
+def statistics(request):
+    ctx = _build_home_page_context(request, EntryPointForm())
+    return render(request, "pass_viewer/statistics.html", ctx)
 
 
 @login_required
@@ -5032,7 +5402,11 @@ def _build_home_page_context(request, form, *, lists_embed=False):
         except Exception:
             hood_districts = []
 
-    is_personal_account = (not lists_embed) and request.resolver_match.url_name == "personal_account"
+    url_name = getattr(request.resolver_match, "url_name", "") or ""
+    is_personal_account = (not lists_embed) and url_name == "personal_account"
+    is_statistics = (not lists_embed) and url_name == "statistics"
+    needs_personal_rows = url_name in {"personal_account", "statistics"}
+    needs_map_geojson = (not lists_embed) and not is_statistics
 
     try:
         if owner_id is not None:
@@ -5048,10 +5422,10 @@ def _build_home_page_context(request, form, *, lists_embed=False):
             for item in owned_objects:
                 request_id = (item.get("request_id") or "").strip()
                 item["recap_count"] = recap_counts.get(request_id, 0)
-            if is_personal_account:
+            if needs_personal_rows:
                 _annotate_personal_total_areas(owned_objects)
                 _annotate_personal_ogh_statuses(owned_objects)
-            if not lists_embed:
+            if needs_map_geojson:
                 owned_passports_geojson = _build_owned_passports_geojson(owned_objects)
                 hood_work_area_geojson = _get_hood_work_area_geojson(request, scope)
     except Exception:
@@ -5071,7 +5445,7 @@ def _build_home_page_context(request, form, *, lists_embed=False):
         accessible_approves = []
         approval_items = []
 
-    if accessible_approves and not is_personal_account and not lists_embed:
+    if accessible_approves and needs_map_geojson and not is_personal_account:
         try:
             owned_approvals_geojson = build_home_approval_feature_collection(accessible_approves)
         except Exception:
@@ -5088,6 +5462,29 @@ def _build_home_page_context(request, form, *, lists_embed=False):
     else:
         lists_active_tab = "passports" if scope.role != ROLE_MGGT else "requests"
 
+    personal_table_items = (
+        _build_personal_table_items(owned_objects, approval_items) if needs_personal_rows else None
+    )
+
+    if is_personal_account:
+        page_config = personal_page_config()
+    elif is_statistics:
+        page_config = {"page": "statistics"}
+    else:
+        page_config = home_page_config(
+            need_entry_request_id=need_entry_request_id,
+            ods_source_label=getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
+            owner_id=owner_id,
+            username=request.user.username,
+            user_role=scope.role,
+            can_write=scope.can_write,
+            show_passports_tab=scope.role != ROLE_MGGT,
+            show_approvals_mine_all_filter=scope.role == ROLE_MGGT,
+            need_sup_hood_modal=need_sup_hood_modal,
+            sup_hood_gid=sup_hood_gid,
+            sup_hood_label=sup_hood_label,
+        )
+
     return {
         "form": form,
         "owner_id": owner_id,
@@ -5102,7 +5499,14 @@ def _build_home_page_context(request, form, *, lists_embed=False):
         "ods_user_brids": ods_user_brids,
         "approval_items": approval_items,
         "personal_metrics": _build_personal_account_metrics(owned_objects, approval_items)
+        if needs_personal_rows
+        else None,
+        "personal_table_items": personal_table_items,
+        "personal_kind_counts": _personal_kind_filter_counts(personal_table_items)
         if is_personal_account
+        else None,
+        "personal_statistics": _build_personal_statistics(personal_table_items)
+        if is_statistics
         else None,
         "user_role": scope.role,
         "display_name": scope.display_name,
@@ -5115,21 +5519,7 @@ def _build_home_page_context(request, form, *, lists_embed=False):
         "sup_hood_label": sup_hood_label,
         "lists_embed": lists_embed,
         "lists_active_tab": lists_active_tab,
-        "page_config": personal_page_config()
-        if is_personal_account
-        else home_page_config(
-            need_entry_request_id=need_entry_request_id,
-            ods_source_label=getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
-            owner_id=owner_id,
-            username=request.user.username,
-            user_role=scope.role,
-            can_write=scope.can_write,
-            show_passports_tab=scope.role != ROLE_MGGT,
-            show_approvals_mine_all_filter=scope.role == ROLE_MGGT,
-            need_sup_hood_modal=need_sup_hood_modal,
-            sup_hood_gid=sup_hood_gid,
-            sup_hood_label=sup_hood_label,
-        ),
+        "page_config": page_config,
         "user_guide_html": "" if lists_embed else load_user_guide_html(),
     }
 
@@ -6454,6 +6844,23 @@ def _format_personal_date(value):
         return text
 
 
+def _personal_master_lookup_key(item):
+    """(source, rootid) for master.TotalArea / ogh lookups, including ODS-matched passports."""
+    rootid = str(item.get("rootid") or "").strip()
+    source = _normalize_source_label(item.get("source_label"))
+    if rootid and source in _PERSONAL_MASTER_TABLE_BY_SOURCE:
+        return source, rootid
+    matched_root = str(item.get("ods_matched_rootid") or item.get("short_object_root_id") or "").strip()
+    if not matched_root:
+        return None, None
+    matched_source = _normalize_source_label(
+        item.get("ods_matched_source_label") or item.get("source_label")
+    )
+    if matched_source not in _PERSONAL_MASTER_TABLE_BY_SOURCE:
+        return None, None
+    return matched_source, matched_root
+
+
 def _format_personal_area(value):
     if value is None or value == "":
         return ""
@@ -6492,16 +6899,13 @@ def _format_personal_area_hectares(value_m2):
 
 
 def _annotate_personal_total_areas(owned_objects):
-    """Fill area_label from master.TotalArea (m² → ha) for personal-account rows."""
+    """Fill area_label from master.TotalArea (m²) for personal-account rows."""
     if not owned_objects:
         return owned_objects
     rootids_by_source: dict[str, list[str]] = {}
     for item in owned_objects:
-        rootid = str(item.get("rootid") or "").strip()
+        source, rootid = _personal_master_lookup_key(item)
         if not rootid:
-            continue
-        source = _normalize_source_label(item.get("source_label"))
-        if source not in _PERSONAL_MASTER_TABLE_BY_SOURCE:
             continue
         rootids_by_source.setdefault(source, []).append(rootid)
 
@@ -6559,12 +6963,11 @@ def _annotate_personal_total_areas(owned_objects):
                         pass
 
     for item in owned_objects:
-        rootid = str(item.get("rootid") or "").strip().lower()
+        source, rootid = _personal_master_lookup_key(item)
         if not rootid:
             continue
-        source = _normalize_source_label(item.get("source_label"))
-        key = (source, rootid)
-        item["area_label"] = _format_personal_area_hectares(areas.get(key))
+        key = (source, rootid.lower())
+        item["area_label"] = _format_personal_area(areas.get(key))
         item["clean_area_m2"] = clean_areas.get(key)
     return owned_objects
 
@@ -6603,9 +7006,14 @@ def _annotate_personal_ogh_statuses(owned_objects):
         return owned_objects
     unique_ids = list(
         dict.fromkeys(
-            str(item.get("rootid") or "").strip()
+            rid
             for item in owned_objects
-            if str(item.get("rootid") or "").strip()
+            for rid in (
+                str(item.get("rootid") or "").strip(),
+                str(item.get("ods_matched_rootid") or "").strip(),
+                str(item.get("short_object_root_id") or "").strip(),
+            )
+            if rid
         )
     )
     if not unique_ids:
@@ -6651,13 +7059,21 @@ def _annotate_personal_ogh_statuses(owned_objects):
     except Exception:
         logger.exception("personal_account: failed to load OghStatus from gis.ogh_analiz")
         for item in owned_objects:
-            if str(item.get("rootid") or "").strip():
+            if (
+                str(item.get("rootid") or "").strip()
+                or str(item.get("ods_matched_rootid") or "").strip()
+                or str(item.get("short_object_root_id") or "").strip()
+            ):
                 item["status"] = "—"
                 item["passportization_year"] = "—"
         return owned_objects
 
     for item in owned_objects:
-        rootid = str(item.get("rootid") or "").strip().lower()
+        rootid = (
+            str(item.get("rootid") or "").strip()
+            or str(item.get("ods_matched_rootid") or "").strip()
+            or str(item.get("short_object_root_id") or "").strip()
+        ).lower()
         if not rootid:
             continue
         item["status"] = _format_personal_ogh_status(
@@ -6751,12 +7167,38 @@ def personal_object_details(request):
         return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
 
     rootid = (payload.get("rootid") or "").strip()
+    request_id = (payload.get("request_id") or "").strip()
     source_label = payload.get("source_label")
+    scope = resolve_user_scope(request.user.username)
+    has_sup_hood = bool((request.session.get(SUP_HOOD_SESSION_GID) or "").strip())
+
+    if request_id and not rootid:
+        item = _site_request_for_scope(
+            scope, request_id, source_label, has_sup_hood=has_sup_hood
+        )
+        if not item:
+            return JsonResponse({"ok": False, "error": "Объект не найден."}, status=404)
+        geometry = None
+        geom_json = item.get("geom_json") or ""
+        if geom_json:
+            try:
+                geometry = json.loads(geom_json)
+            except (TypeError, json.JSONDecodeError, ValueError):
+                geometry = None
+        return JsonResponse(
+            {
+                "ok": True,
+                "approval_date": _format_personal_date(item.get("startdate")),
+                "owner_name": "",
+                "oiv_name": "",
+                "area_label": "",
+                "geometry": geometry,
+            }
+        )
+
     if not rootid:
         return JsonResponse({"ok": False, "error": "Не передан rootid."}, status=400)
 
-    scope = resolve_user_scope(request.user.username)
-    has_sup_hood = bool((request.session.get(SUP_HOOD_SESSION_GID) or "").strip())
     if not _passport_in_user_scope(scope, rootid, source_label, has_sup_hood=has_sup_hood):
         return JsonResponse({"ok": False, "error": "Объект не найден."}, status=404)
 

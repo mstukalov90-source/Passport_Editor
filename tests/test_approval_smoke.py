@@ -209,13 +209,10 @@ def test_personal_notifications_panel_shows_all_events(client):
                                 response = client.get(reverse('personal_account'))
     assert response.status_code == 200
     content = response.content.decode('utf-8')
-    assert 'id="personal-notifications-panel"' in content
-    assert 'id="personal-notifications-title"' in content
-    assert '>События</h3>' in content
-    assert 'id="personal-notifications-feed"' in content
-    assert 'Событие для панели personal' in content
+    assert 'id="personal-notifications-panel"' not in content
     assert 'id="approval-notifications-btn"' in content
     assert 'id="approval-notifications-modal"' in content
+    assert 'Событие для панели personal' in content
     assert 'class="site-header__icon-link" href="/" aria-label="Уведомления"' not in content
     assert 'personal-account-layout' in content
 

@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Статистика{% endblock %}
+
+{% block body_class %}personal-account-page{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}">
+{% endblock %}
+
+{% block container_class %}personal-account{% endblock %}
+
+{% block page_layout_start %}<div class="personal-account-layout">{% endblock %}
+
+{% block page_layout_end %}</div>{% endblock %}
+
+{% block content %}
+<h1 class="personal-account__title">Статистика</h1>
+
+{% if owned_objects_error %}
+<p class="note note--danger">{{ owned_objects_error }}</p>
+{% endif %}
+
+<section class="personal-metrics" aria-label="Метрики">
+    <div class="personal-metric-card">
+        <div class="personal-metric-card__value">{{ personal_metrics.passport_count }}</div>
+        <div class="personal-metric-card__label">Количество утверждённых паспортов</div>
+    </div>
+    <div class="personal-metric-card">
+        <div class="personal-metric-card__value">{{ personal_metrics.total_area_label }}</div>
+        <div class="personal-metric-card__label">Уборочная площадь</div>
+    </div>
+    <div class="personal-metric-card">
+        <div class="personal-metric-card__value">{{ personal_metrics.request_count }}</div>
+        <div class="personal-metric-card__label">Подано заявок</div>
+    </div>
+    <div class="personal-metric-card">
+        <div class="personal-metric-card__value">{{ personal_metrics.approval_count }}</div>
+        <div class="personal-metric-card__label">Согласование границ ОГХ</div>
+    </div>
+</section>
+
+<section class="personal-stat-section" aria-label="Вид паспортизации">
+    <h2 class="personal-stat-section__title">Вид паспортизации</h2>
+    <table class="personal-stat-table">
+        <thead>
+            <tr>
+                <th>Показатель</th>
+                <th>Число</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in personal_statistics.passportization_kinds %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.count }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="2">Нет данных</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section class="personal-stat-section" aria-label="Тип ОГХ">
+    <h2 class="personal-stat-section__title">Тип ОГХ</h2>
+    <table class="personal-stat-table">
+        <thead>
+            <tr>
+                <th>Показатель</th>
+                <th>Число</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in personal_statistics.ogh_types %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.count }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="2">Нет данных</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section class="personal-stat-section" aria-label="Год паспортизации">
+    <h2 class="personal-stat-section__title">Год паспортизации</h2>
+    <table class="personal-stat-table">
+        <thead>
+            <tr>
+                <th>Показатель</th>
+                <th>Число</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in personal_statistics.years %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.count }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="2">Нет данных</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section class="personal-stat-section" aria-label="Статус">
+    <h2 class="personal-stat-section__title">Статус</h2>
+    <table class="personal-stat-table">
+        <thead>
+            <tr>
+                <th>Показатель</th>
+                <th>Число</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in personal_statistics.statuses %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.count }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="2">Нет данных</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section class="personal-stat-section" aria-label="Связи">
+    <h2 class="personal-stat-section__title">Связи</h2>
+    <table class="personal-stat-table">
+        <thead>
+            <tr>
+                <th>Показатель</th>
+                <th>Число</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in personal_statistics.links %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.count }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="2">Нет данных</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}
