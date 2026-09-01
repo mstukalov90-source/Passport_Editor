@@ -167,6 +167,13 @@
 
 .site-header__more-wrap {
     position: relative;
+    z-index: 2;
+    flex-shrink: 0;
+}
+
+.site-header__more-btn {
+    position: relative;
+    z-index: 2;
 }
 
 .site-header__actions {
@@ -235,7 +242,7 @@
     font-family: inherit;
     font-size: 14px;
     font-weight: 500;
-    transition: background 0.15s ease;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
     border: 0;
     background: transparent;
     cursor: pointer;
@@ -245,6 +252,18 @@
 .site-header__icon-link:focus-visible {
     background: var(--pv-header-hover, rgba(255, 255, 255, 0.12));
     outline: none;
+}
+
+.site-header__icon-link.is-active {
+    background: var(--pv-red, #BA3034);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(186, 48, 52, 0.25);
+}
+
+.site-header__icon-link.is-active:hover,
+.site-header__icon-link.is-active:focus-visible {
+    background: var(--pv-red, #BA3034);
 }
 
 .site-header__icon {

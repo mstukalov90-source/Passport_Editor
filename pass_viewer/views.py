@@ -1760,6 +1760,10 @@ def _build_owned_passports_geojson(owned_objects):
                 "from_ods_registry": True,
                 "map_row_key": (item.get("map_row_key") or "").strip(),
                 "brid": request_id,
+                "row_kind": item.get("row_kind") or _personal_row_kind(item),
+                "passportization_kind": item.get("passportization_kind")
+                or _personal_passportization_kind(item),
+                "folded_into_passport": bool(item.get("folded_into_passport")),
             }
         else:
             props = {
@@ -1771,6 +1775,11 @@ def _build_owned_passports_geojson(owned_objects):
                 "startdate": item.get("startdate") or "",
                 "datesurvey": item.get("datesurvey") or "",
                 "createtype": item.get("createtype") or "",
+                "row_kind": item.get("row_kind") or _personal_row_kind(item),
+                "passportization_kind": item.get("passportization_kind")
+                or _personal_passportization_kind(item),
+                "folded_into_passport": bool(item.get("folded_into_passport")),
+                "ods_registry_brid": (item.get("ods_registry_brid") or "").strip(),
             }
         features.append(
             {
@@ -5104,6 +5113,95 @@ def _merge_personal_drawn_requests_into_passports(items):
     return out
 
 
+_KIND_FILTER_MERGE_KEYS = (
+    "merged_from_ods",
+    "ods_registry_root_match",
+    "ods_registry_brid_match",
+    "ods_registry_short_root_id",
+    "merged_from_drawn_request",
+    "request_id",
+    "ods_registry_brid",
+    "ods_registry_br_status_name",
+)
+
+
+def _attach_folded_ods_action_to_passport(passport, ods_item):
+    """Keep the ODS request number and click-to-workflow on the surviving passport."""
+    brid = str(ods_item.get("request_id") or "").strip()
+    if brid:
+        if not str(passport.get("request_id") or "").strip():
+            passport["request_id"] = brid
+        if not str(passport.get("ods_registry_brid") or "").strip():
+            passport["ods_registry_brid"] = brid
+    passport["merged_from_ods"] = True
+    passport["ods_registry_root_match"] = True
+    status = str(ods_item.get("br_status_name") or "").strip()
+    if status and not str(passport.get("ods_registry_br_status_name") or "").strip():
+        passport["ods_registry_br_status_name"] = status
+    if passport.get("ods_click_scenario"):
+        return
+    try:
+        scenario = int(ods_item.get("ods_click_scenario") or 0)
+    except (TypeError, ValueError):
+        scenario = 0
+    if not scenario:
+        return
+    passport["ods_click_scenario"] = scenario
+    passport["ods_gis_ready"] = bool(ods_item.get("ods_gis_ready"))
+    passport["ods_matched_rootid"] = str(
+        ods_item.get("ods_matched_rootid") or passport.get("rootid") or ""
+    ).strip()
+    passport["ods_matched_name"] = str(
+        ods_item.get("ods_matched_name") or passport.get("name") or ""
+    ).strip()
+    passport["ods_matched_source_label"] = str(
+        ods_item.get("ods_matched_source_label") or passport.get("source_label") or "ДТ"
+    ).strip()
+    passport["short_object_root_id"] = str(
+        ods_item.get("short_object_root_id") or passport.get("rootid") or ""
+    ).strip()
+
+
+def _annotate_kind_filter_membership(owned_objects):
+    """Mark ODS/GIS request rows that personal-account merge would fold into a passport.
+
+    Home keeps those rows in the raw list (modal, ODS click, merge checkboxes),
+    but kind filters, counts, and the map treat them as already represented by
+    the matching passport. The folded ODS request number and click scenario stay
+    on that passport so the object is still actionable.
+    """
+    originals = list(owned_objects or [])
+    for index, item in enumerate(originals):
+        item["_kind_idx"] = index
+    merged_by_idx = {
+        item["_kind_idx"]: item
+        for item in _merge_personal_ods_into_passports(originals)
+        if "_kind_idx" in item
+    }
+    passports_by_root = {}
+    for item in originals:
+        if item.get("is_ods_request"):
+            continue
+        rootid = str(item.get("rootid") or "").strip().lower()
+        if rootid and rootid not in passports_by_root:
+            passports_by_root[rootid] = item
+    for index, item in enumerate(originals):
+        item.pop("_kind_idx", None)
+        merged_item = merged_by_idx.get(index)
+        if merged_item is None:
+            item["folded_into_passport"] = True
+            if item.get("is_ods_request"):
+                passport = passports_by_root.get(_personal_ods_rootid(item).lower())
+                if passport is not None:
+                    _attach_folded_ods_action_to_passport(passport, item)
+            continue
+        item["folded_into_passport"] = False
+        for key in _KIND_FILTER_MERGE_KEYS:
+            if merged_item.get(key):
+                item[key] = merged_item[key]
+
+
+
 def _personal_is_unconfirmed_gis_request(item):
     if item.get("is_ods_request"):
         return False
@@ -5200,16 +5298,19 @@ def _build_personal_table_items(owned_objects, approval_items):
 
 
 def _personal_kind_filter_counts(items):
-    counts = {"all": 0, "actualization": 0, "primary": 0, "approval": 0}
+    counts = {"all": 0, "actualization": 0, "primary": 0, "drawn": 0, "approval": 0}
     for item in items or []:
         row_kind = str(item.get("row_kind") or "")
         passportization_kind = str(item.get("passportization_kind") or "")
-        if row_kind and row_kind != "approval":
-            counts["all"] += 1
+        if not row_kind:
+            continue
+        counts["all"] += 1
         if passportization_kind == "Актуализация":
             counts["actualization"] += 1
         if passportization_kind == "Первичная":
             counts["primary"] += 1
+        if row_kind == "request":
+            counts["drawn"] += 1
         if row_kind == "approval":
             counts["approval"] += 1
     return counts
@@ -5328,6 +5429,27 @@ def statistics(request):
 
 
 @login_required
+def actions(request):
+    display_name = ""
+    user_role = "BD"
+    try:
+        scope = resolve_user_scope(request.user.username)
+        display_name = scope.display_name
+        user_role = scope.role
+    except Exception:
+        pass
+    return render(
+        request,
+        "pass_viewer/actions.html",
+        {
+            "display_name": display_name,
+            "user_role": user_role,
+            "page_config": {"page": "actions"},
+        },
+    )
+
+
+@login_required
 @require_GET
 def owned_lists_partial(request):
     """HTML fragment of home lists + footer for the shared header modal."""
@@ -5422,6 +5544,13 @@ def _build_home_page_context(request, form, *, lists_embed=False):
             for item in owned_objects:
                 request_id = (item.get("request_id") or "").strip()
                 item["recap_count"] = recap_counts.get(request_id, 0)
+            _annotate_kind_filter_membership(owned_objects)
+            for item in owned_objects:
+                request_id = (item.get("request_id") or "").strip()
+                if request_id:
+                    item["recap_count"] = recap_counts.get(request_id, item.get("recap_count") or 0)
+                item["row_kind"] = _personal_row_kind(item)
+                item["passportization_kind"] = _personal_passportization_kind(item)
             if needs_personal_rows:
                 _annotate_personal_total_areas(owned_objects)
                 _annotate_personal_ogh_statuses(owned_objects)
@@ -5465,6 +5594,15 @@ def _build_home_page_context(request, form, *, lists_embed=False):
     personal_table_items = (
         _build_personal_table_items(owned_objects, approval_items) if needs_personal_rows else None
     )
+    if lists_embed or is_statistics:
+        personal_kind_counts = None
+    else:
+        kind_count_items = (
+            personal_table_items
+            if personal_table_items is not None
+            else _build_personal_table_items(owned_objects, approval_items)
+        )
+        personal_kind_counts = _personal_kind_filter_counts(kind_count_items)
 
     if is_personal_account:
         page_config = personal_page_config()
@@ -5502,9 +5640,7 @@ def _build_home_page_context(request, form, *, lists_embed=False):
         if needs_personal_rows
         else None,
         "personal_table_items": personal_table_items,
-        "personal_kind_counts": _personal_kind_filter_counts(personal_table_items)
-        if is_personal_account
-        else None,
+        "personal_kind_counts": personal_kind_counts,
         "personal_statistics": _build_personal_statistics(personal_table_items)
         if is_statistics
         else None,
@@ -6967,6 +7103,7 @@ def _annotate_personal_total_areas(owned_objects):
         if not rootid:
             continue
         key = (source, rootid.lower())
+        item["total_area_m2"] = areas.get(key)
         item["area_label"] = _format_personal_area(areas.get(key))
         item["clean_area_m2"] = clean_areas.get(key)
     return owned_objects

@@ -2,6 +2,7 @@ from django.urls import path
 
 from .tile_proxy import proxy_mggt_tile
 from .views import (
+    actions,
     add_object,
     add_recap,
     auto_remove_intersections,
@@ -45,6 +46,7 @@ urlpatterns = [
     path("", home, name="home"),
     path("personal/", home, name="personal_account"),
     path("statistics/", statistics, name="statistics"),
+    path("actions/", actions, name="actions"),
     path("owned/lists-partial/", owned_lists_partial, name="owned_lists_partial"),
     path("home/select-hood/", select_sup_hood, name="select_sup_hood"),
     path("home/clear-hood/", clear_sup_hood, name="clear_sup_hood"),

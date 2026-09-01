@@ -21,6 +21,8 @@ from pass_viewer.views import (
     _build_personal_statistics,
     _build_personal_table_items,
     _personal_kind_filter_counts,
+    _annotate_kind_filter_membership,
+    _personal_row_kind,
     _fetch_personal_master_details,
     _format_personal_area,
     _format_personal_area_hectares,
@@ -85,6 +87,7 @@ def test_annotate_personal_total_areas_uses_square_meters() -> None:
         _annotate_personal_total_areas(items)
 
     assert items[0]["area_label"] == "7 617 м²"
+    assert items[0]["total_area_m2"] == 7617
     assert items[0]["clean_area_m2"] == 7617
     sql = mock_cursor.execute.call_args[0][0]
     assert '"OznPoly"' in sql
@@ -608,9 +611,10 @@ def test_build_personal_table_items_includes_requests_and_approvals() -> None:
     assert by_name["Согласование 46998"]["approve_id"] == "ap-1"
     assert by_name["Согласование 46998"]["passportization_kind"] == ""
     assert _personal_kind_filter_counts(rows) == {
-        "all": 3,
+        "all": 4,
         "actualization": 1,
         "primary": 1,
+        "drawn": 1,
         "approval": 1,
     }
 
@@ -658,6 +662,65 @@ def test_build_personal_table_items_merges_ods_with_matching_passport() -> None:
     assert ods_only["display_request_id"] == "111"
     assert ods_only["passportization_kind"] == "Первичная"
     assert not any(row.get("name") == "Валовая ул. 10 (ODS)" for row in rows)
+
+
+def test_annotate_kind_filter_membership_folds_matching_ods() -> None:
+    owned = [
+        {
+            "rootid": "4280571",
+            "name": "Валовая ул. 10",
+            "source_label": "ОЗН",
+            "request_id": "",
+            "status": "Полевые работы",
+        },
+        {
+            "is_ods_request": True,
+            "rootid": "",
+            "name": "Валовая ул. 10 (ODS)",
+            "source_label": "ОДС",
+            "request_id": "78467",
+            "short_object_root_id": "4280571",
+            "ods_matched_rootid": "4280571",
+            "ods_matched_source_label": "ОЗН",
+            "ods_click_scenario": 2,
+            "ods_gis_ready": True,
+            "br_status_name": "Включена в график",
+        },
+        {
+            "is_ods_request": True,
+            "rootid": "",
+            "name": "Первичная ODS",
+            "source_label": "ОДС",
+            "request_id": "111",
+            "short_object_root_id": "",
+        },
+    ]
+    _annotate_kind_filter_membership(owned)
+    passport, folded, primary = owned
+    assert passport["folded_into_passport"] is False
+    assert passport["merged_from_ods"] is True
+    assert passport["request_id"] == "78467"
+    assert passport["ods_registry_brid"] == "78467"
+    assert passport["ods_click_scenario"] == 2
+    assert passport["ods_gis_ready"] is True
+    assert folded["folded_into_passport"] is True
+    assert primary["folded_into_passport"] is False
+    for item in owned:
+        item["row_kind"] = _personal_row_kind(item)
+        item["passportization_kind"] = _personal_passportization_kind(item)
+    assert passport["passportization_kind"] == "Актуализация"
+    assert folded["passportization_kind"] == "Актуализация"
+    assert primary["passportization_kind"] == "Первичная"
+    counts = _personal_kind_filter_counts(
+        _build_personal_table_items(owned, [{"id": "ap-1", "label": "Согласование"}])
+    )
+    assert counts == {
+        "all": 3,
+        "actualization": 1,
+        "primary": 1,
+        "drawn": 0,
+        "approval": 1,
+    }
 
 
 def test_build_personal_table_items_merges_drawn_request_with_passport() -> None:

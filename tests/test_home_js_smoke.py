@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HOME_JS = ROOT / "pass_viewer/static/pass_viewer/js/home.js"
 NOTIFICATIONS_JS = ROOT / "pass_viewer/static/pass_viewer/js/notifications.js"
-HOME_HTML = ROOT / "templates/pass_viewer/home.html"
+OWNED_HOME_LISTS_HTML = ROOT / "templates/pass_viewer/includes/owned_home_lists.html"
 
 REQUIRED_SYMBOLS = [
     "function getMergeCheckboxPayload",
@@ -27,11 +27,26 @@ REQUIRED_SYMBOLS = [
     "cfg.urls.deleteRecap",
     "cfg.urls.listDgiIntersections",
     "function loadDgiIntersectionsTable",
+    "function bindOwnedCheckDgiButton",
+    "function bindOwnedAsuOdsButton",
+    "function bindOwnedListIconActions",
+    "owned-popup-actions",
+    "owned-list-icon-btn",
+    "owned-asu-ods-btn",
+    "cfg.urls.resolveAsuOdsUrl",
+    'title="Пересечения"',
+    "<span>Просмотр</span>",
+    "<span>Пересечения</span>",
+    "<span>АСУ ОДС</span>",
     "function openDgiIntersectionDetail",
     "dgi-intersections-table-btn",
     "check-dgi-view-object-btn",
     "setCheckDgiViewObjectProps",
     ".owned-recaps-open-btn",
+    "function syncViewObjectHeaderActions",
+    "function submitViewObjectOpen",
+    "owned-view-object-split-btn",
+    "owned-view-object-aktualize-btn",
 ]
 
 NOTIFICATIONS_SYMBOLS = [
@@ -60,7 +75,7 @@ def test_notifications_js_contains_feed_symbols() -> None:
 
 
 def test_home_html_ods_recap_buttons_require_geometry() -> None:
-    html = HOME_HTML.read_text(encoding="utf-8")
+    html = OWNED_HOME_LISTS_HTML.read_text(encoding="utf-8")
     idx = html.find("item.ods_uses_gis_geometry")
     assert idx != -1
     snippet = html[idx : idx + 2500]

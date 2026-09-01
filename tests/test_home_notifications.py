@@ -9,6 +9,8 @@ from unittest.mock import patch
 import pytest
 from approval.events_service import build_home_notification_events
 from approval.models import Approve, Case, CaseMessage, CaseServiceEvent
+from django.contrib.auth.models import User
+from django.urls import reverse
 from django.utils import timezone
 from pass_viewer.models import ExternalUser
 
@@ -274,3 +276,49 @@ def test_build_home_notification_events_mggt_only_mine(
         item.get("case_id") != str(other_case.id) for item in events if item.get("case_id")
     )
     assert all(item.get("author") != mggt.login for item in events if item["kind"] == "message")
+
+
+@pytest.mark.django_db
+def test_actions_page_requires_login(client):
+    response = client.get(reverse("actions"))
+    assert response.status_code == 302
+    assert "/accounts/login/" in response["Location"]
+
+
+@pytest.mark.django_db
+@patch(
+    "approval.events_service.lookup_task_poly_meta",
+    return_value={"source_label": "", "object_name": "", "table": ""},
+)
+@patch(
+    "approval.events_service.batch_lookup_task_poly_meta",
+    return_value={},
+)
+@patch(
+    "approval.events_service.lookup_task_survey_fields",
+    return_value=("", ""),
+)
+@patch(
+    "approval.events_service.resolve_root_object_names",
+    return_value={},
+)
+def test_actions_page_shows_all_events_and_modal_link(
+    _mock_roots, _mock_survey, _mock_batch, _mock_poly, client, approve_open, owner_a
+):
+    user = User.objects.create_user(username=owner_a.login, password="pass")
+    _secondary(approve=approve_open, n_root="ROOT-1", title="Событие по паспорту")
+    client.force_login(user)
+
+    response = client.get(reverse("actions"))
+    assert response.status_code == 200
+    html = response.content.decode("utf-8")
+    assert "Все события" in html
+    assert 'class="approval-notifications-all-link"' in html
+    assert reverse("actions") in html
+    assert 'id="actions-events-feed"' in html
+    assert 'id="actions-ods-sync-section"' in html
+    assert 'id="actions-ods-sync-list"' in html
+    assert "АСУ ОДС" in html
+    assert "Событие по паспорту" in html
+    assert "Нет событий" in html
+

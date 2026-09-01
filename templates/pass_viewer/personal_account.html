@@ -26,30 +26,19 @@
 <p class="note note--danger">{{ owned_objects_error }}</p>
 {% endif %}
 
+{% include 'pass_viewer/includes/personal_metrics.html' %}
+
 <section class="personal-list" aria-label="Все паспорта и заявки на паспортизацию">
     <div class="personal-list-header">
-        <div class="personal-kind-filters" role="group" aria-label="Фильтр списка">
-            <button type="button" class="personal-kind-filter-btn is-active" data-kind-filter="all" aria-pressed="true">
-                Все паспорта и заявки на паспортизацию
-                <span class="personal-kind-filter-count">{{ personal_kind_counts.all|default:0 }}</span>
-            </button>
-            <button type="button" class="personal-kind-filter-btn" data-kind-filter="actualization" aria-pressed="false">
-                Заявки на актуализацию
-                <span class="personal-kind-filter-count">{{ personal_kind_counts.actualization|default:0 }}</span>
-            </button>
-            <button type="button" class="personal-kind-filter-btn" data-kind-filter="primary" aria-pressed="false">
-                Заявки на первичную паспортизацию
-                <span class="personal-kind-filter-count">{{ personal_kind_counts.primary|default:0 }}</span>
-            </button>
-            <button type="button" class="personal-kind-filter-btn" data-kind-filter="approval" aria-pressed="false">
-                Согласование границ ОГХ
-                <span class="personal-kind-filter-count">{{ personal_kind_counts.approval|default:0 }}</span>
+        {% include 'pass_viewer/includes/personal_kind_filters.html' %}
+        <div class="personal-list-header-tools">
+            <input type="search" id="personal-global-search" class="personal-global-search"
+                   placeholder="Глобальный поиск" aria-label="Глобальный поиск">
+            <button type="button" class="personal-filter-icon-btn" id="personal-filter-toggle"
+                    aria-label="Фильтр" aria-expanded="false" aria-controls="personal-filter-panel">
+                <img class="personal-filter-icon-btn__icon" src="{% static 'pass_viewer/filter-so_128x128.svg' %}" alt="">
             </button>
         </div>
-        <button type="button" class="personal-filter-icon-btn" id="personal-filter-toggle"
-                aria-label="Фильтр" aria-expanded="false" aria-controls="personal-filter-panel">
-            <img class="personal-filter-icon-btn__icon" src="{% static 'pass_viewer/filter-so_128x128.svg' %}" alt="">
-        </button>
     </div>
     <div class="personal-filter-panel" id="personal-filter-panel" hidden>
         <input type="text" data-filter-col="1" placeholder="№ Паспорта">
@@ -78,6 +67,7 @@
                     <th>АСУ ОДС</th>
                     <th>Проверить пересечения</th>
                     <th>Детальный просмотр</th>
+                    <th>Отрисовка границ</th>
                 </tr>
             </thead>
             <tbody>
@@ -168,10 +158,29 @@
                             </button>
                             {% endif %}
                         </td>
+                        <td>
+                            {% if item.row_kind == 'approval' %}
+                            <button type="button" class="personal-table-btn is-disabled" disabled>
+                                <img class="personal-table-btn__icon" src="{% static 'pass_viewer/pencil.svg' %}" alt="" aria-hidden="true">
+                                Перейти
+                            </button>
+                            {% else %}
+                            <button type="button" class="personal-table-btn personal-draw-open"
+                                    data-rootid="{% firstof item.rootid item.display_rootid '' %}"
+                                    data-name="{{ item.name|default:'' }}"
+                                    data-request-id="{{ item.display_request_id|default:'' }}"
+                                    data-drawn-request-id="{{ item.drawn_request_id|default:'' }}"
+                                    data-source="{{ item.asu_ods_source|default:source }}"
+                                    data-has-request="{% if item.display_request_id or item.drawn_request_id %}1{% endif %}">
+                                <img class="personal-table-btn__icon" src="{% static 'pass_viewer/pencil.svg' %}" alt="" aria-hidden="true">
+                                Перейти
+                            </button>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endwith %}
                 {% empty %}
-                <tr><td colspan="12">Объекты не найдены.</td></tr>
+                <tr><td colspan="13">Объекты не найдены.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -274,7 +283,55 @@
                 class="owned-view-object-modal__frame"
                 title="Просмотр объекта"
                 src="about:blank"
-            ></iframe>
+            >            </iframe>
+        </div>
+    </div>
+</div>
+
+<form id="personal-draw-form" method="post" action="{% url 'open_owned_object' %}" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="rootid" id="personal-draw-rootid" value="">
+    <input type="hidden" name="name" id="personal-draw-name" value="">
+    <input type="hidden" name="request_id" id="personal-draw-request-id" value="">
+    <input type="hidden" name="source_label" id="personal-draw-source" value="ДТ">
+    <input type="hidden" name="geometry_detail_mode" id="personal-draw-geom-mode" value="full">
+    <input type="hidden" name="redirect_to" id="personal-draw-redirect-to" value="">
+</form>
+
+<div id="personal-draw-choice-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width: 420px;" role="dialog" aria-modal="true" aria-labelledby="personal-draw-choice-title">
+        <h3 id="personal-draw-choice-title">Редактировать объект</h3>
+        <p class="note" style="margin-top: 0;">Выберите действие:</p>
+        <div class="modal-actions owned-edit-choice-actions">
+            <button type="button" class="personal-table-btn" id="personal-draw-choice-cancel" style="background:#e5e7eb;color:#111;">Отмена</button>
+            <div class="owned-edit-choice-actions__right">
+                <button type="button" class="personal-table-btn" id="personal-draw-choice-aktualize">Актуализировать</button>
+                {% if can_write %}
+                <button type="button" class="personal-table-btn" id="personal-draw-choice-split">Разделить</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="personal-draw-request-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width: 460px;" role="dialog" aria-modal="true" aria-labelledby="personal-draw-request-title">
+        <h3 id="personal-draw-request-title">Заявка на актуализацию</h3>
+        <p class="note" style="margin-top: 0;">У объекта не указан номер заявки в базе. Введите номер заявки, чтобы продолжить.</p>
+        <label class="note" for="personal-draw-request-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер заявки</label>
+        <input
+            id="personal-draw-request-input"
+            type="text"
+            maxlength="100"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            autocomplete="off"
+            style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
+        >
+        <p id="personal-draw-request-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+        <div class="modal-actions">
+            <button type="button" class="personal-table-btn" id="personal-draw-request-cancel" style="background:#e5e7eb;color:#111;">Отмена</button>
+            <button type="button" class="personal-table-btn" id="personal-draw-request-submit">Продолжить</button>
         </div>
     </div>
 </div>
@@ -284,6 +341,7 @@
 {{ page_config|json_script:"page-config" }}
 {% include 'pass_viewer/includes/map_leaflet_vendor.html' %}
 <script src="{% static 'pass_viewer/js/utils.js' %}"></script>
+<script src="{% static 'pass_viewer/js/kind-filters.js' %}"></script>
 <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
 <script src="{% static 'pass_viewer/js/personal-account.js' %}"></script>
 {% endblock %}

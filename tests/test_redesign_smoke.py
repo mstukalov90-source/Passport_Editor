@@ -22,6 +22,7 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "approval-notifications-btn" in header
     assert "site-header__icon-label" in header
     assert ">Уведомления</span>" in header
+    assert "route_name == 'actions'" in header
     assert 'href="{% url \'home\' %}" aria-label="Уведомления"' not in header
     assert 'data-header-open-list="requests"' in header
     assert 'data-header-open-list="approvals"' in header
@@ -35,19 +36,43 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "personal_account' or route_name == 'home' %} is-active" in header
     assert "Статистика" in header
     assert "{% url 'statistics' %}" in header
+    assert "Дополнительно" in header
+    assert ">Ещё</button>" not in header
     assert "split_object" not in header
-    assert "personal-metrics" not in personal
-    assert "personal-metrics" in statistics
+    assert "includes/personal_metrics.html" in personal
+    assert "includes/personal_metrics.html" in statistics
+    metrics_include = (ROOT / "templates/pass_viewer/includes/personal_metrics.html").read_text(encoding="utf-8")
+    assert "personal-metrics" in metrics_include
     assert "personal-stat-table" in statistics
     assert "Статистика" in statistics
     home = (ROOT / "templates/pass_viewer/home.html").read_text(encoding="utf-8")
     partial = (ROOT / "templates/pass_viewer/owned_lists_partial.html").read_text(encoding="utf-8")
     assert 'id="owned-lists-home-slot"' in home
     assert "owned_home_lists.html" in home
-    assert "owned_home_footer.html" in home
+    lists_actions = (ROOT / "templates/pass_viewer/includes/owned_list_row_actions.html").read_text(encoding="utf-8")
+    assert "owned-check-dgi-btn" in lists_actions
+    assert "owned-asu-ods-btn" in lists_actions
+    assert "owned-view-object-btn" in lists_actions
+    assert "intersect-polygons.svg" in lists_actions
+    assert "moscow-gerb.svg" in lists_actions
+    assert "search-loupe.svg" in lists_actions
+    assert "owned_home_footer.html" not in home
+    assert "owned-home-header-tabs" not in home
+    assert "personal_kind_filters.html" in home
+    assert 'id="owned-view-object-split-btn"' in home
+    assert 'id="owned-view-object-aktualize-btn"' in home
+    assert "owned-view-object-edit-btn" not in home
+    lists_html = (ROOT / "templates/pass_viewer/includes/owned_home_lists.html").read_text(encoding="utf-8")
+    assert "data-folded-into-passport" in lists_html
+    assert "item.ods_click_scenario" in lists_html
+    assert "owned_list_row_actions.html" in lists_html
+    assert "owned-split-btn" not in lists_html
+    assert "owned-confirm-open-btn" not in lists_html
+    assert "№ Заявки" in lists_html
     assert "owned_lists_modal.html" in base
     modal_include = (ROOT / "templates/pass_viewer/includes/owned_lists_modal.html").read_text(encoding="utf-8")
     assert 'id="owned-lists-modal"' in modal_include
+    assert "owned_home_footer.html" in modal_include
     assert "owned-lists.js" in base
     assert "owned-lists.css" in base
     assert "lists_embed" not in base
@@ -61,9 +86,14 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "openOwnedListsModal" in home_js
     assert "window.openOwnedListsModal" in home_js
     assert "lists-embed" not in home_js
+    assert "bindKindFilters" in home_js
+    assert "foldedOdsBtn" in home_js
+    assert "ownedFooterHomeSlot" not in home_js
     header_js = (ROOT / "pass_viewer/static/pass_viewer/js/site-header.js").read_text(encoding="utf-8")
     assert "openRemoteListsModal" not in header_js
     assert "openOwnedListsModal" in header_js
+    assert "placeMenu" in header_js
+    assert "position = 'fixed'" in header_js
     owned_lists_js = (ROOT / "pass_viewer/static/pass_viewer/js/owned-lists.js").read_text(encoding="utf-8")
     assert "fetchFragment" in owned_lists_js
     assert "getModalListPanels" in owned_lists_js
@@ -99,18 +129,32 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert 'class="personal-row-num-col">№</th>' in personal
     assert "personal-row-num" in personal
     assert 'data-filter-col="1"' in personal
-    assert 'colspan="12"' in personal
+    assert "personal-global-search" in personal
+    assert 'placeholder="Глобальный поиск"' in personal
+    assert "personal-list-header-tools" in personal
+    assert 'colspan="13"' in personal
+    assert "Отрисовка границ" in personal
+    assert "personal-draw-open" in personal
+    assert "pencil.svg" in personal
+    assert "Перейти" in personal
+    assert "personal-draw-choice-modal" in personal
+    assert "personal-draw-form" in personal
     assert "Вид паспортизации" in personal
     assert "personal_table_items" in personal
-    assert "personal-kind-filter-btn" in personal
-    assert 'data-kind-filter="all"' in personal
-    assert 'data-kind-filter="actualization"' in personal
-    assert 'data-kind-filter="primary"' in personal
-    assert 'data-kind-filter="approval"' in personal
-    assert "personal-kind-filter-count" in personal
-    assert "Все паспорта и заявки на паспортизацию" in personal
-    assert "Заявки на актуализацию" in personal
-    assert "Заявки на первичную паспортизацию" in personal
+    assert "personal_kind_filters.html" in personal
+    assert "kind-filters.js" in personal
+    kind_filters = (ROOT / "templates/pass_viewer/includes/personal_kind_filters.html").read_text(encoding="utf-8")
+    assert "personal-kind-filter-btn" in kind_filters
+    assert 'data-kind-filter="all"' in kind_filters
+    assert 'data-kind-filter="actualization"' in kind_filters
+    assert 'data-kind-filter="primary"' in kind_filters
+    assert 'data-kind-filter="drawn"' in kind_filters
+    assert "Отрисованные заявки" in kind_filters
+    assert 'data-kind-filter="approval"' in kind_filters
+    assert "personal-kind-filter-count" in kind_filters
+    assert "Все паспорта и заявки на паспортизацию" in kind_filters
+    assert "Заявки на актуализацию" in kind_filters
+    assert "Заявки на первичную паспортизацию" in kind_filters
     assert "Список объектов" not in personal
     assert "|default:item.area" not in personal
     assert "personal-asu-ods-open" in personal
@@ -118,6 +162,7 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "moscow-gerb.svg" in personal
     assert "intersect-polygons.svg" in personal
     assert "search-loupe.svg" in personal
+    assert "pencil.svg" in personal
     assert "Проверить пересечения" in personal
     assert "personal-dgi-check" in personal
     assert "check-dgi-modal" in personal
@@ -128,20 +173,32 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "personal-detail-mode-request" in personal
     assert "Год паспортизации" in personal
     js = (ROOT / "pass_viewer/static/pass_viewer/js/personal-account.js").read_text(encoding="utf-8")
+    kind_filters_js = (ROOT / "pass_viewer/static/pass_viewer/js/kind-filters.js").read_text(encoding="utf-8")
     assert "createBasemapLayers" in js
     assert "attachBasemapControl" not in js
     assert "openOwnedObjectForView" in js
     assert "view_only" in js
     assert "applyPersonalTableFilters" in js
+    assert "personal-global-search" in js
     assert "renumberVisiblePersonalRows" in js
     assert "updateKindFilterCounts" in js
     assert "data-kind-filter" in js
-    assert "setKindFilterPressed(allKindBtn, false)" in js
-    assert "setKindFilterPressed(item, item === btn)" in js
+    assert "bindKindFilters" in js
+    assert "pv-kind-filters" in kind_filters_js
+    assert "rowMatchesKindFilter" in kind_filters_js
+    assert "if (keys.has('all'))" in kind_filters_js
+    assert "rowKind !== 'approval'" not in kind_filters_js
+    assert "foldedIntoPassport" in kind_filters_js
+    assert "'drawn'" in kind_filters_js
+    assert "setKindFilterPressed(allKindBtn, false)" in kind_filters_js
+    assert "setKindFilterPressed(item, item === btn)" in kind_filters_js
     assert "applyDetailMode" in js
     assert "personal-detail-object-toggle" in js
     assert "runPersonalDgiCheck" in js
     assert "personal-dgi-check" in js
+    assert "personal-draw-open" in js
+    assert "submitDrawForm" in js
+    assert "split_object" in js
     assert "owned-view-object-modal" in personal
 
 
@@ -156,6 +213,7 @@ def test_personal_account_renders_owned_object_without_area() -> None:
                     "row_kind": "passport",
                     "display_rootid": "924695948",
                     "display_request_id": "",
+                    "rootid": "924695948",
                     "name": "1-й Щипковский пер.",
                     "source_label": "ОЗН",
                     "area_label": "7 617 м²",
@@ -211,6 +269,7 @@ def test_personal_account_renders_owned_object_without_area() -> None:
                 "all": 2,
                 "actualization": 0,
                 "primary": 1,
+                "drawn": 0,
                 "approval": 1,
             },
             "page_config": {
@@ -218,14 +277,19 @@ def test_personal_account_renders_owned_object_without_area() -> None:
                 "urls": {
                     "resolveAsuOdsUrl": "/owned/resolve-asu-ods-url/",
                     "personalObjectDetails": "/personal/object-details/",
+                    "openOwned": "/owned/open/",
                 },
             },
+            "can_write": True,
         },
         request=request,
     )
     assert "1-й Щипковский пер." in html
     assert "ОЗН" in html
     assert "7 617 м²" in html
+    assert "7 717 м²" in html
+    assert "personal-metrics" in html
+    assert "Количество утверждённых паспортов" in html
     assert "personal-badge" in html
     assert "personal-asu-ods-open" in html
     assert "personal-table-btn__icon" in html
@@ -256,7 +320,17 @@ def test_personal_account_renders_owned_object_without_area() -> None:
     assert "personal-kind-filter-count" in html
     assert ">2</span>" in html
     assert ">1</span>" in html
-    assert "personal-metrics" not in html
+    assert "Отрисовка границ" in html
+    assert "personal-draw-open" in html
+    assert 'data-has-request=""' in html
+    assert 'data-has-request="1"' in html
+    assert "pencil.svg" in html
+    assert "Перейти" in html
+    assert "personal-draw-choice-modal" in html
+    assert "Актуализировать" in html
+    assert "Разделить" in html
+    assert 'id="personal-draw-form"' in html
+    assert "open_owned_object" in html or "/owned/open/" in html
 
 
 def test_statistics_page_renders_metrics_and_tables() -> None:

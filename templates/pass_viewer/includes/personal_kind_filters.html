@@ -1,0 +1,22 @@
+        <div class="personal-kind-filters" role="group" aria-label="Фильтр списка">
+            <button type="button" class="personal-kind-filter-btn is-active" data-kind-filter="all" aria-pressed="true">
+                Все паспорта и заявки на паспортизацию
+                <span class="personal-kind-filter-count">{{ personal_kind_counts.all|default:0 }}</span>
+            </button>
+            <button type="button" class="personal-kind-filter-btn" data-kind-filter="actualization" aria-pressed="false">
+                Заявки на актуализацию
+                <span class="personal-kind-filter-count">{{ personal_kind_counts.actualization|default:0 }}</span>
+            </button>
+            <button type="button" class="personal-kind-filter-btn" data-kind-filter="primary" aria-pressed="false">
+                Заявки на первичную паспортизацию
+                <span class="personal-kind-filter-count">{{ personal_kind_counts.primary|default:0 }}</span>
+            </button>
+            <button type="button" class="personal-kind-filter-btn" data-kind-filter="drawn" aria-pressed="false">
+                Отрисованные заявки
+                <span class="personal-kind-filter-count">{{ personal_kind_counts.drawn|default:0 }}</span>
+            </button>
+            <button type="button" class="personal-kind-filter-btn" data-kind-filter="approval" aria-pressed="false">
+                Согласование границ ОГХ
+                <span class="personal-kind-filter-count">{{ personal_kind_counts.approval|default:0 }}</span>
+            </button>
+        </div>
