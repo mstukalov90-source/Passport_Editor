@@ -306,6 +306,74 @@
         );
     }
 
+    PassViewer.INTERSECS_ANALIZ_STORAGE_PREFIX = 'pv-intersecs-analiz:';
+
+    PassViewer.setCheckDgiAnalizEnabled = function setCheckDgiAnalizEnabled(btn, enabled) {
+        if (!btn) {
+            return;
+        }
+        btn.style.display = enabled ? '' : 'none';
+        btn.disabled = !enabled;
+    };
+
+    PassViewer.openIntersecsAnalizPage = function openIntersecsAnalizPage(opts) {
+        const options = opts || {};
+        const pageUrl = String(options.pageUrl || '').trim();
+        if (!pageUrl) {
+            return;
+        }
+        const sid = (global.crypto && typeof global.crypto.randomUUID === 'function')
+            ? global.crypto.randomUUID()
+            : String(Date.now()) + '-' + Math.random().toString(16).slice(2);
+        const payload = {
+            geometry: options.geometry || null,
+            percents: options.percents || null,
+            rootid: String(options.rootid || '').trim(),
+            request_id: String(options.request_id || '').trim(),
+            source_label: String(options.source_label || '').trim(),
+            name: String(options.name || '').trim(),
+        };
+        try {
+            localStorage.setItem(
+                PassViewer.INTERSECS_ANALIZ_STORAGE_PREFIX + sid,
+                JSON.stringify(payload),
+            );
+        } catch (error) {
+            // quota / private mode — страница попробует загрузить геометрию по query
+        }
+        const params = new URLSearchParams();
+        params.set('sid', sid);
+        if (payload.rootid) {
+            params.set('rootid', payload.rootid);
+        }
+        if (payload.request_id) {
+            params.set('request_id', payload.request_id);
+        }
+        if (payload.source_label) {
+            params.set('source', payload.source_label);
+        }
+        const sep = pageUrl.indexOf('?') >= 0 ? '&' : '?';
+        window.open(pageUrl + sep + params.toString(), '_blank', 'noopener,noreferrer');
+    };
+
+    PassViewer.readIntersecsAnalizPayload = function readIntersecsAnalizPayload(sid) {
+        const token = String(sid || '').trim();
+        if (!token) {
+            return null;
+        }
+        const key = PassViewer.INTERSECS_ANALIZ_STORAGE_PREFIX + token;
+        try {
+            const raw = localStorage.getItem(key);
+            if (!raw) {
+                return null;
+            }
+            localStorage.removeItem(key);
+            return JSON.parse(raw);
+        } catch (error) {
+            return null;
+        }
+    };
+
     PassViewer.buildCheckDgiModalHtml = function buildCheckDgiModalHtml(data) {
         const src = data || {};
         const moscowRent = _dgiPctNumber(src.percent_moscow_rent);

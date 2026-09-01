@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Пространственный анализ пересечений{% endblock %}
+
+{% block body_class %}personal-account-page{% endblock %}
+
+{% block page_styles %}
+{% include 'pass_viewer/includes/map_vendor_styles.html' %}
+<link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/map-toolbar.css' %}">
+{% endblock %}
+
+{% block container_class %}personal-account container--wide{% endblock %}
+
+{% block page_layout_start %}<div class="personal-account-layout">{% endblock %}
+
+{% block page_layout_end %}</div>{% endblock %}
+
+{% block page_scripts %}
+    {{ page_config|json_script:"page-config" }}
+    {% include 'pass_viewer/includes/map_leaflet_vendor.html' %}
+    <script src="{% static 'pass_viewer/js/utils.js' %}?v=dgi-renovation-1"></script>
+    <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
+    <script src="{% static 'pass_viewer/js/intersecs-analiz.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<h1 class="personal-account__title">Пространственный анализ пересечений</h1>
+<p id="intersecs-analiz-meta" class="note" style="margin-top: 0;"></p>
+<p id="intersecs-analiz-status" class="note">Загрузка…</p>
+
+<div class="intersecs-analiz-layout">
+    <section class="intersecs-analiz-table-panel" aria-label="Пересечения по слоям">
+        <div id="intersecs-analiz-table-wrap"></div>
+    </section>
+    <section class="intersecs-analiz-map-panel" aria-label="Карта пересечений">
+        <div id="intersecs-analiz-map" class="intersecs-analiz-map"></div>
+    </section>
+</div>
+{% endblock %}

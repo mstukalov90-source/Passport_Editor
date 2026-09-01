@@ -557,14 +557,16 @@
     const checkDgiModal = document.getElementById('check-dgi-modal');
     const checkDgiModalBody = document.getElementById('check-dgi-modal-body');
     const checkDgiModalClose = document.getElementById('check-dgi-modal-close');
-    const checkDgiAsuOdsLink = document.getElementById('check-dgi-asu-ods-link');
+    const checkDgiAnalizBtn = document.getElementById('check-dgi-analiz-btn');
     const checkDgiViewObjectBtn = document.getElementById('check-dgi-view-object-btn');
     const dgiChooseModal = document.getElementById('personal-dgi-choose-modal');
     const dgiChoosePassportBtn = document.getElementById('personal-dgi-choose-passport');
     const dgiChooseRequestBtn = document.getElementById('personal-dgi-choose-request');
     const dgiChooseCancelBtn = document.getElementById('personal-dgi-choose-cancel');
     const checkDgiUrl = urls.checkDgi || '';
+    const intersecsAnalizUrl = urls.intersecsAnaliz || '';
     let checkDgiViewObjectProps = null;
+    let lastCheckDgiContext = null;
     let pendingDgiCheck = null;
 
     function normalizeCheckGeometry(geometry) {
@@ -591,18 +593,18 @@
         return null;
     }
 
-    function setCheckDgiAsuOdsLink(url) {
-        if (!checkDgiAsuOdsLink) {
-            return;
+    function setCheckDgiAnalizContext(ctx) {
+        const hasPayload = !!(
+            ctx &&
+            (ctx.geometry || String(ctx.rootid || '').trim() || String(ctx.request_id || '').trim())
+        );
+        lastCheckDgiContext = hasPayload ? ctx : null;
+        if (PV.setCheckDgiAnalizEnabled) {
+            PV.setCheckDgiAnalizEnabled(checkDgiAnalizBtn, hasPayload);
+        } else if (checkDgiAnalizBtn) {
+            checkDgiAnalizBtn.style.display = hasPayload ? '' : 'none';
+            checkDgiAnalizBtn.disabled = !hasPayload;
         }
-        const href = String(url || '').trim();
-        if (!href) {
-            checkDgiAsuOdsLink.href = '#';
-            checkDgiAsuOdsLink.style.display = 'none';
-            return;
-        }
-        checkDgiAsuOdsLink.href = href;
-        checkDgiAsuOdsLink.style.display = '';
     }
 
     function setCheckDgiViewObjectProps(props) {
@@ -632,7 +634,7 @@
         if (checkDgiModal) {
             checkDgiModal.style.display = 'none';
         }
-        setCheckDgiAsuOdsLink(null);
+        setCheckDgiAnalizContext(null);
         setCheckDgiViewObjectProps(null);
     }
 
@@ -649,13 +651,13 @@
         }
         if (bodyText != null) {
             checkDgiModalBody.textContent = bodyText;
-            setCheckDgiAsuOdsLink(null);
+            setCheckDgiAnalizContext(null);
             setCheckDgiViewObjectProps(null);
         }
         checkDgiModal.style.display = 'flex';
     }
 
-    function showCheckDgiModal(data, viewProps) {
+    function showCheckDgiModal(data, viewProps, geometry) {
         if (!checkDgiModal || !checkDgiModalBody) {
             return;
         }
@@ -664,7 +666,15 @@
         } else {
             checkDgiModalBody.textContent = 'Пересечений с объектами ДГИ и инфоресурсами не обнаружено.';
         }
-        setCheckDgiAsuOdsLink(data && data.asu_ods_url);
+        const props = viewProps || {};
+        setCheckDgiAnalizContext({
+            geometry: geometry || null,
+            percents: data,
+            rootid: props.rootid || '',
+            request_id: props.request_id || '',
+            source_label: props.source_label || '',
+            name: props.name || '',
+        });
         setCheckDgiViewObjectProps(viewProps);
         openCheckDgiModalShell();
     }
@@ -737,7 +747,7 @@
             if (!response.ok || !data || !data.ok) {
                 throw new Error((data && data.error) || 'Ошибка проверки пересечений с ДГИ.');
             }
-            showCheckDgiModal(data, viewProps);
+            showCheckDgiModal(data, viewProps, geometry);
         } catch (error) {
             openCheckDgiModalShell(error.message || 'Не удалось проверить пересечения с ДГИ.');
         } finally {
@@ -810,6 +820,16 @@
         }
     });
     checkDgiModalClose?.addEventListener('click', closeCheckDgiModal);
+    checkDgiAnalizBtn?.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (!lastCheckDgiContext || !PV.openIntersecsAnalizPage) {
+            return;
+        }
+        PV.openIntersecsAnalizPage({
+            pageUrl: intersecsAnalizUrl,
+            ...lastCheckDgiContext,
+        });
+    });
     checkDgiModal?.addEventListener('click', (event) => {
         if (event.target === checkDgiModal) {
             closeCheckDgiModal();

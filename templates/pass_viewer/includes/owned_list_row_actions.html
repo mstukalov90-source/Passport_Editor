@@ -1,9 +1,9 @@
 {% load static %}
 <div class="owned-list-row-actions">
-    <button type="button" class="owned-list-icon-btn owned-view-object-btn" title="Просмотр" aria-label="Просмотр" data-rootid="{{ item.rootid|default_if_none:'' }}" data-name="{{ item.name|default:'' }}" data-request-id="{{ item.request_id|default:'' }}" data-source-label="{{ item.source_label|default:'ДТ' }}">
+    <button type="button" class="owned-list-icon-btn owned-view-object-btn" title="Просмотр объекта" aria-label="Просмотр объекта" data-rootid="{{ item.rootid|default_if_none:'' }}" data-name="{{ item.name|default:'' }}" data-request-id="{{ item.request_id|default:'' }}" data-source-label="{{ item.source_label|default:'ДТ' }}">
         <img class="owned-list-icon-btn__icon" src="{% static 'pass_viewer/search-loupe.svg' %}" alt="" aria-hidden="true">
     </button>
-    <button type="button" class="owned-list-icon-btn owned-check-dgi-btn" title="Пересечения" aria-label="Пересечения" data-rootid="{{ item.rootid|default_if_none:'' }}" data-source-label="{{ item.source_label|default:'ДТ' }}">
+    <button type="button" class="owned-list-icon-btn owned-check-dgi-btn" title="Проверка пересечений" aria-label="Проверка пересечений" data-rootid="{{ item.rootid|default_if_none:'' }}" data-source-label="{{ item.source_label|default:'ДТ' }}">
         <img class="owned-list-icon-btn__icon" src="{% static 'pass_viewer/intersect-polygons.svg' %}" alt="" aria-hidden="true">
     </button>
     {% with src=item.source_label|default:'ДТ'|upper %}

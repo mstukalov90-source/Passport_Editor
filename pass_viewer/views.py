@@ -47,6 +47,7 @@ from .models import ExternalUser
 from .page_config import (
     add_object_page_config,
     add_recap_page_config,
+    build_page_config,
     home_page_config,
     main_page_config,
     personal_page_config,
@@ -3279,6 +3280,202 @@ def _get_dgi_intersection_percents_split(geometry):
     for layer_key, extra_where in layer_filters.items():
         result[layer_key] = _get_layer_intersection_percent(geometry_norm, dgi_table, extra_where)
     return result
+
+
+_LAYER_INTERSECTION_OBJECT_LIMIT = 200
+
+_ANALIZ_LAYER_ROWS = (
+    ("dgi_moscow_rent", "З/У г. Москва с арендой", "percent_moscow_rent"),
+    ("dgi_private_rent", "З/У Частная или федеральная собственность с арендой", "percent_private_rent"),
+    ("dgi_private_no_rent", "З/У Частная или федеральная собственность без аренды", "percent_private_no_rent"),
+    ("dgi_renovation", "З/У Реновация", "percent_dgi_renovation"),
+    ("dgi_moscow_no_rent", "З/У г. Москва без аренды", "percent_moscow_no_rent"),
+    ("renew", "Реновация", "percent_renew"),
+    ("oozt", "ООЗТ", "percent_oozt"),
+    ("rzd", "Полосы отвода ЖД", "percent_rzd"),
+)
+
+
+def _dgi_check_payload_from_percents(percents):
+    percent_moscow = round(float(percents.get("moscow") or 0), 2)
+    percent_private = round(float(percents.get("private") or 0), 2)
+    percent_moscow_rent = round(float(percents.get("dgi_moscow_rent") or 0), 2)
+    percent_moscow_no_rent = round(float(percents.get("dgi_moscow_no_rent") or 0), 2)
+    percent_private_rent = round(float(percents.get("dgi_private_rent") or 0), 2)
+    percent_private_no_rent = round(float(percents.get("dgi_private_no_rent") or 0), 2)
+    percent_dgi_renovation = round(float(percents.get("dgi_renovation") or 0), 2)
+    percent_renew = round(float(percents.get("renew") or 0), 2)
+    percent_oozt = round(float(percents.get("oozt") or 0), 2)
+    percent_rzd = round(float(percents.get("rzd") or 0), 2)
+    percent_sum = round(
+        percent_moscow_rent + percent_private_rent + percent_private_no_rent + percent_dgi_renovation,
+        2,
+    )
+    intersects_moscow = percent_moscow > 0
+    intersects_private = percent_private > 0
+    intersects_info = percent_renew > 0 or percent_oozt > 0 or percent_rzd > 0
+    return {
+        "ok": True,
+        "intersects": (
+            intersects_moscow
+            or intersects_private
+            or percent_dgi_renovation > 0
+            or intersects_info
+        ),
+        "percent_moscow": percent_moscow,
+        "percent_private": percent_private,
+        "percent_moscow_rent": percent_moscow_rent,
+        "percent_moscow_no_rent": percent_moscow_no_rent,
+        "percent_private_rent": percent_private_rent,
+        "percent_private_no_rent": percent_private_no_rent,
+        "percent_dgi_renovation": percent_dgi_renovation,
+        "percent_sum": percent_sum,
+        "percent_renew": percent_renew,
+        "percent_oozt": percent_oozt,
+        "percent_rzd": percent_rzd,
+        "intersects_moscow": intersects_moscow,
+        "intersects_private": intersects_private,
+    }
+
+
+def _optional_table_text_expr(cursor, table_name, preferred, alias):
+    if not table_name or not preferred or not _column_exists(cursor, table_name, preferred):
+        return "NULL::text"
+    col = _resolve_column_name(cursor, table_name, preferred)
+    return f"{alias}.{_quote_ident(col)}::text"
+
+
+def _parse_geojson_maybe(value):
+    if not value:
+        return None
+    if isinstance(value, dict):
+        return value
+    try:
+        parsed = json.loads(value)
+    except (TypeError, json.JSONDecodeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _list_layer_intersection_features(geometry, table_name, extra_where_sql="", *, table_alias="d"):
+    geometry_norm = _to_intersection_geometry(geometry)
+    if not geometry_norm or not table_name:
+        return []
+    geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
+    name_field_pref = settings.GIS_OBJECT_NAME_FIELD
+    geometry_json = json.dumps(geometry_norm)
+    alias = table_alias or "d"
+    try:
+        with connection.cursor() as cursor:
+            if not _table_exists(cursor, table_name):
+                return []
+            if not _column_exists(cursor, table_name, geom_field_pref):
+                return []
+            geom_field = _resolve_column_name(cursor, table_name, geom_field_pref)
+            raw_geom = f"{alias}.{_quote_ident(geom_field)}"
+            geom_expr = f"ST_MakeValid({raw_geom})"
+            hood_suf, hood_params = get_hood_intersects_sql_suffix(geom_expr)
+            descr_expr = _optional_table_text_expr(cursor, table_name, "descr", alias)
+            address_expr = _optional_table_text_expr(cursor, table_name, "address", alias)
+            vri_expr = _optional_table_text_expr(cursor, table_name, "vri", alias)
+            name_expr = _optional_table_text_expr(cursor, table_name, name_field_pref, alias)
+            owner_expr = "NULL::text"
+            for candidate in ("short_sobstv_rr", "sobstv_rr"):
+                if _column_exists(cursor, table_name, candidate):
+                    owner_expr = _optional_table_text_expr(cursor, table_name, candidate, alias)
+                    break
+            if owner_expr == "NULL::text":
+                owner_expr = name_expr
+            limit = int(_LAYER_INTERSECTION_OBJECT_LIMIT)
+            query = (
+                "WITH input AS ("
+                f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+                "), input_area AS ("
+                " SELECT geom, ST_Area(geom::geography) AS total_area FROM input"
+                "), hits AS ("
+                f" SELECT {descr_expr} AS descr, {address_expr} AS address, {vri_expr} AS vri,"
+                f" {name_expr} AS name, {owner_expr} AS owner,"
+                f" ST_CollectionExtract(ST_MakeValid(ST_Intersection({geom_expr}, i.geom)), 3) AS ix,"
+                f" ST_CollectionExtract({geom_expr}, 3) AS parcel"
+                f" FROM {_quote_ident(table_name)} {alias}"
+                " CROSS JOIN input_area i"
+                f" WHERE {raw_geom} && i.geom"
+                f" AND ST_Intersects({geom_expr}, i.geom)"
+                f"{hood_suf}"
+                f"{extra_where_sql}"
+                ") "
+                "SELECT descr, address, vri, name, owner,"
+                " CASE WHEN i.total_area IS NULL OR i.total_area = 0 THEN 0 "
+                " ELSE LEAST(100.0, (ST_Area(h.ix::geography) * 100.0) / i.total_area) END AS pct,"
+                " ST_Area(h.ix::geography) AS intersection_area_m2,"
+                " ST_AsGeoJSON(h.parcel)::text, ST_AsGeoJSON(h.ix)::text "
+                "FROM hits h CROSS JOIN input_area i "
+                "WHERE h.ix IS NOT NULL AND NOT ST_IsEmpty(h.ix) "
+                "ORDER BY pct DESC NULLS LAST "
+                f"LIMIT {limit}"
+            )
+            cursor.execute(query, [geometry_json] + list(hood_params))
+            objects = []
+            for idx, row in enumerate(cursor.fetchall()):
+                pct = round(float(row[5] or 0), 2)
+                area_m2 = round(float(row[6] or 0), 1)
+                objects.append(
+                    {
+                        "id": idx,
+                        "descr": (row[0] or "").strip(),
+                        "address": (row[1] or "").strip(),
+                        "vri": (row[2] or "").strip(),
+                        "name": (row[3] or "").strip(),
+                        "owner": (row[4] or "").strip(),
+                        "pct": pct,
+                        "intersection_area_m2": area_m2,
+                        "geometry": _parse_geojson_maybe(row[7]),
+                        "intersection_geometry": _parse_geojson_maybe(row[8]),
+                    }
+                )
+            return objects
+    except Exception:
+        logger.exception(
+            "_list_layer_intersection_features failed for table=%s",
+            table_name,
+        )
+        return []
+
+
+def _analiz_layers_for_geometry(geometry, percents_payload):
+    dgi_table = getattr(settings, "GIS_DGI_TABLE", "dgi")
+    table_by_key = {
+        "dgi_moscow_rent": dgi_table,
+        "dgi_moscow_no_rent": dgi_table,
+        "dgi_private_rent": dgi_table,
+        "dgi_private_no_rent": dgi_table,
+        "dgi_renovation": dgi_table,
+        "renew": getattr(settings, "GIS_RENEW_TABLE", "renew"),
+        "oozt": getattr(settings, "GIS_OOZT_TABLE", "oozt"),
+        "rzd": getattr(settings, "GIS_RZD_TABLE", "rzd"),
+    }
+    layer_filters = {}
+    with connection.cursor() as cursor:
+        for layer_key in DGI_LAYER_KEYS:
+            layer_filters[layer_key] = _sql_dgi_layer_filter(
+                cursor, dgi_table, layer_key, table_alias="d"
+            )
+    layers = []
+    for layer_key, label, percent_field in _ANALIZ_LAYER_ROWS:
+        extra_where = layer_filters.get(layer_key, "")
+        table_name = table_by_key.get(layer_key)
+        objects = _list_layer_intersection_features(
+            geometry, table_name, extra_where, table_alias="d"
+        )
+        layers.append(
+            {
+                "key": layer_key,
+                "label": label,
+                "percent": round(float(percents_payload.get(percent_field) or 0), 2),
+                "objects": objects,
+            }
+        )
+    return layers
 
 
 def _is_meaningful_gis_rootid(rootid):
@@ -7382,45 +7579,7 @@ def check_dgi_intersections(request):
             status=500,
         )
 
-    percent_moscow = round(float(percents.get("moscow") or 0), 2)
-    percent_private = round(float(percents.get("private") or 0), 2)
-    percent_moscow_rent = round(float(percents.get("dgi_moscow_rent") or 0), 2)
-    percent_moscow_no_rent = round(float(percents.get("dgi_moscow_no_rent") or 0), 2)
-    percent_private_rent = round(float(percents.get("dgi_private_rent") or 0), 2)
-    percent_private_no_rent = round(float(percents.get("dgi_private_no_rent") or 0), 2)
-    percent_dgi_renovation = round(float(percents.get("dgi_renovation") or 0), 2)
-    percent_renew = round(float(percents.get("renew") or 0), 2)
-    percent_oozt = round(float(percents.get("oozt") or 0), 2)
-    percent_rzd = round(float(percents.get("rzd") or 0), 2)
-    percent_sum = round(
-        percent_moscow_rent + percent_private_rent + percent_private_no_rent + percent_dgi_renovation,
-        2,
-    )
-    intersects_moscow = percent_moscow > 0
-    intersects_private = percent_private > 0
-    intersects_info = percent_renew > 0 or percent_oozt > 0 or percent_rzd > 0
-    response = {
-        "ok": True,
-        "intersects": (
-            intersects_moscow
-            or intersects_private
-            or percent_dgi_renovation > 0
-            or intersects_info
-        ),
-        "percent_moscow": percent_moscow,
-        "percent_private": percent_private,
-        "percent_moscow_rent": percent_moscow_rent,
-        "percent_moscow_no_rent": percent_moscow_no_rent,
-        "percent_private_rent": percent_private_rent,
-        "percent_private_no_rent": percent_private_no_rent,
-        "percent_dgi_renovation": percent_dgi_renovation,
-        "percent_sum": percent_sum,
-        "percent_renew": percent_renew,
-        "percent_oozt": percent_oozt,
-        "percent_rzd": percent_rzd,
-        "intersects_moscow": intersects_moscow,
-        "intersects_private": intersects_private,
-    }
+    response = _dgi_check_payload_from_percents(percents)
     if for_export:
         response["available"] = True
     else:
@@ -7430,6 +7589,49 @@ def check_dgi_intersections(request):
         )
         if asu_ods_url:
             response["asu_ods_url"] = asu_ods_url
+    return JsonResponse(response)
+
+
+@login_required
+def intersecs_analiz(request):
+    return render(
+        request,
+        "pass_viewer/intersecs_analiz.html",
+        {
+            "page_config": build_page_config(
+                "intersecs_analiz",
+                urls={
+                    "intersecsAnalizData": reverse("intersecs_analiz_data"),
+                    "personalObjectDetails": reverse("personal_object_details"),
+                },
+            ),
+        },
+    )
+
+
+@login_required
+@require_POST
+def intersecs_analiz_data(request):
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
+
+    geometry = _to_intersection_geometry(payload.get("geometry"))
+    if not geometry:
+        return JsonResponse({"ok": False, "error": "Геометрия не передана."}, status=400)
+
+    try:
+        percents = _get_dgi_intersection_percents_split(geometry)
+        response = _dgi_check_payload_from_percents(percents)
+        response["selected_geometry"] = geometry
+        response["layers"] = _analiz_layers_for_geometry(geometry, response)
+    except Exception:
+        logger.exception("intersecs_analiz_data: failed")
+        return JsonResponse(
+            {"ok": False, "error": "Не удалось посчитать пространственный анализ пересечений."},
+            status=500,
+        )
     return JsonResponse(response)
 
 

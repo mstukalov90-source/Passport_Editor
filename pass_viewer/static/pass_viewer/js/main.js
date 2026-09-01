@@ -134,6 +134,9 @@ function formatDgiShortSobstvRr(value) {
         const checkDgiModal = document.getElementById('check-dgi-modal');
         const checkDgiModalBody = document.getElementById('check-dgi-modal-body');
         const checkDgiModalClose = document.getElementById('check-dgi-modal-close');
+        const checkDgiAnalizBtn = document.getElementById('check-dgi-analiz-btn');
+        const intersecsAnalizUrl = (cfg.urls && cfg.urls.intersecsAnaliz) || '';
+        let lastCheckDgiContext = null;
         const dbLoadingModal = document.getElementById('db-loading-modal');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
         const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
@@ -1454,13 +1457,25 @@ function formatDgiShortSobstvRr(value) {
             checkRelations();
         });
 
+        function setCheckDgiAnalizContext(ctx) {
+            const hasPayload = !!(ctx && ctx.geometry);
+            lastCheckDgiContext = hasPayload ? ctx : null;
+            if (PV.setCheckDgiAnalizEnabled) {
+                PV.setCheckDgiAnalizEnabled(checkDgiAnalizBtn, hasPayload);
+            } else if (checkDgiAnalizBtn) {
+                checkDgiAnalizBtn.style.display = hasPayload ? '' : 'none';
+                checkDgiAnalizBtn.disabled = !hasPayload;
+            }
+        }
+
         function closeCheckDgiModal() {
             if (checkDgiModal) {
                 checkDgiModal.style.display = 'none';
             }
+            setCheckDgiAnalizContext(null);
         }
 
-        function showCheckDgiModal(data) {
+        function showCheckDgiModal(data, geometry) {
             if (!checkDgiModal || !checkDgiModalBody) {
                 return;
             }
@@ -1469,6 +1484,14 @@ function formatDgiShortSobstvRr(value) {
             } else {
                 checkDgiModalBody.textContent = 'Пересечений с объектами ДГИ и инфоресурсами не обнаружено.';
             }
+            setCheckDgiAnalizContext({
+                geometry: geometry || null,
+                percents: data,
+                rootid: selectedRootid,
+                request_id: selectedRequestId,
+                source_label: selectedSourceLabel,
+                name: selectedName,
+            });
             checkDgiModal.style.display = 'flex';
         }
 
@@ -1493,7 +1516,7 @@ function formatDgiShortSobstvRr(value) {
                 if (!response.ok || !data.ok) {
                     throw new Error(data.error || 'Ошибка проверки пересечений с ДГИ.');
                 }
-                showCheckDgiModal(data);
+                showCheckDgiModal(data, geometry);
                 statusEl.textContent = 'Проверка пересечений с ДГИ завершена.';
             } catch (error) {
                 statusEl.textContent = error.message || 'Не удалось проверить пересечения с ДГИ.';
@@ -1504,6 +1527,17 @@ function formatDgiShortSobstvRr(value) {
 
         if (checkDgiModalClose) {
             checkDgiModalClose.addEventListener('click', closeCheckDgiModal);
+        }
+        if (checkDgiAnalizBtn) {
+            checkDgiAnalizBtn.addEventListener('click', () => {
+                if (!lastCheckDgiContext || !PV.openIntersecsAnalizPage) {
+                    return;
+                }
+                PV.openIntersecsAnalizPage({
+                    pageUrl: intersecsAnalizUrl,
+                    ...lastCheckDgiContext,
+                });
+            });
         }
 
         checkDgiIntersectionsButton.addEventListener('click', () => {
