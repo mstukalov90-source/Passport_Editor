@@ -16,6 +16,13 @@
     const approvalChatPreviewThread = document.getElementById('approval-chat-preview-thread');
     const approvalChatPreviewOpenLink = document.getElementById('approval-chat-preview-open-link');
     const approvalNotificationsTitleModeInput = document.getElementById('approval-notifications-title-mode');
+    const actionsPage = document.getElementById('actions-page');
+    const actionsApprovalsSection = document.getElementById('actions-approvals-section');
+    const actionsFeed = document.getElementById('actions-events-feed');
+    const actionsOdsSection = document.getElementById('actions-ods-sync-section');
+    const actionsOdsList = document.getElementById('actions-ods-sync-list');
+    const actionsEmpty = document.getElementById('actions-events-empty');
+    const actionsTitleModeInput = document.getElementById('actions-title-mode');
 
     let notificationsTitleMode = 'numbers';
     let notificationsPreviousOverflow = '';
@@ -85,26 +92,32 @@
         }
     }
 
+    function emptyNotificationsSeenState() {
+        return { seen: {}, baseline: false, ods_active: [], ods_history: [], ods_baseline: false };
+    }
+
     function readNotificationsSeenState() {
         try {
             const raw = localStorage.getItem(getHomeNotificationsSeenStorageKey());
             if (!raw) {
-                return { seen: {}, baseline: false, ods_active: [], ods_baseline: false };
+                return emptyNotificationsSeenState();
             }
             const parsed = JSON.parse(raw);
             if (!parsed || typeof parsed !== 'object') {
-                return { seen: {}, baseline: false, ods_active: [], ods_baseline: false };
+                return emptyNotificationsSeenState();
             }
             const seen = parsed.seen && typeof parsed.seen === 'object' ? parsed.seen : {};
             const odsActive = Array.isArray(parsed.ods_active) ? parsed.ods_active : [];
+            const odsHistory = Array.isArray(parsed.ods_history) ? parsed.ods_history : odsActive.slice();
             return {
                 seen,
                 baseline: parsed.baseline === true,
                 ods_active: odsActive,
+                ods_history: odsHistory,
                 ods_baseline: parsed.ods_baseline === true,
             };
         } catch (e) {
-            return { seen: {}, baseline: false, ods_active: [], ods_baseline: false };
+            return emptyNotificationsSeenState();
         }
     }
 
@@ -116,6 +129,7 @@
                     seen: state.seen || {},
                     baseline: state.baseline === true,
                     ods_active: Array.isArray(state.ods_active) ? state.ods_active : [],
+                    ods_history: Array.isArray(state.ods_history) ? state.ods_history : [],
                     ods_baseline: state.ods_baseline === true,
                 })
             );
@@ -174,6 +188,38 @@
         return ids;
     }
 
+    function buildOdsEventMessage(kind, brid) {
+        const normalized = String(brid || '').trim();
+        if (!normalized) {
+            return null;
+        }
+        if (kind === 'ods_ok') {
+            return {
+                id: `ods_ok:${normalized}`,
+                kind: 'ods_ok',
+                brid: normalized,
+                title: `Заявка № ${normalized} подтверждена АСУ ОДС`,
+                subtitle: 'Подтверждена',
+            };
+        }
+        if (kind === 'ods_bad') {
+            return {
+                id: `ods_bad:${normalized}`,
+                kind: 'ods_bad',
+                brid: normalized,
+                title: `Заявка № ${normalized} не подтверждена АСУ ОДС`,
+                subtitle: 'Не подтверждена',
+            };
+        }
+        return {
+            id: `ods_new:${normalized}`,
+            kind: 'ods_new',
+            brid: normalized,
+            title: `Новая заявка № ${normalized}`,
+            subtitle: 'Появилась в списке',
+        };
+    }
+
     function buildOdsSyncChangeMessages(prev, current) {
         const messages = [];
         Object.keys(current).forEach((brid) => {
@@ -181,22 +227,11 @@
                 return;
             }
             const next = current[brid];
-            if (next === 'ok') {
-                messages.push({
-                    id: `ods_ok:${brid}`,
-                    kind: 'ods_ok',
-                    brid,
-                    title: `Заявка № ${brid} подтверждена АСУ ОДС`,
-                    subtitle: 'Подтверждена',
-                });
-            } else if (next === 'bad') {
-                messages.push({
-                    id: `ods_bad:${brid}`,
-                    kind: 'ods_bad',
-                    brid,
-                    title: `Заявка № ${brid} не подтверждена АСУ ОДС`,
-                    subtitle: 'Не подтверждена',
-                });
+            if (next === 'ok' || next === 'bad') {
+                const msg = buildOdsEventMessage(next === 'ok' ? 'ods_ok' : 'ods_bad', brid);
+                if (msg) {
+                    messages.push(msg);
+                }
             }
         });
         messages.sort((a, b) => a.brid.localeCompare(b.brid, 'ru', { numeric: true }));
@@ -213,20 +248,47 @@
         });
         const messages = [];
         (currentIds || []).forEach((id) => {
-            const brid = String(id || '').trim();
-            if (!brid || prevSet[brid]) {
+            const msg = buildOdsEventMessage('ods_new', id);
+            if (!msg || prevSet[msg.brid]) {
                 return;
             }
-            messages.push({
-                id: `ods_new:${brid}`,
-                kind: 'ods_new',
-                brid,
-                title: `Новая заявка № ${brid}`,
-                subtitle: 'Появилась в списке',
-            });
+            messages.push(msg);
         });
         messages.sort((a, b) => a.brid.localeCompare(b.brid, 'ru', { numeric: true }));
         return messages;
+    }
+
+    function odsEventsFromCurrentState(requestIds, syncStatuses) {
+        const messages = [];
+        const statusBrids = {};
+        Object.keys(syncStatuses || {}).forEach((brid) => {
+            const status = syncStatuses[brid];
+            if (status !== 'ok' && status !== 'bad') {
+                return;
+            }
+            const msg = buildOdsEventMessage(status === 'ok' ? 'ods_ok' : 'ods_bad', brid);
+            if (msg) {
+                statusBrids[msg.brid] = true;
+                messages.push(msg);
+            }
+        });
+        (requestIds || []).forEach((id) => {
+            const msg = buildOdsEventMessage('ods_new', id);
+            if (!msg || statusBrids[msg.brid]) {
+                return;
+            }
+            messages.push(msg);
+        });
+        messages.sort((a, b) => String(a.brid || '').localeCompare(String(b.brid || ''), 'ru', { numeric: true }));
+        return messages;
+    }
+
+    function loadAllOdsEvents() {
+        const state = readNotificationsSeenState();
+        return mergeActiveOdsEvents(
+            mergeActiveOdsEvents(state.ods_history, state.ods_active),
+            odsEventsFromCurrentState(readOdsRequestIdsSnapshot(), readOdsSyncSnapshot())
+        );
     }
 
     function odsFingerprintIds(requestIds, syncStatuses) {
@@ -383,6 +445,44 @@
         listEl.appendChild(li);
     }
 
+    function appendOdsEventRow(listEl, msg) {
+        const li = document.createElement('li');
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = msg.kind === 'ods_ok'
+            ? 'approval-notifications-item approval-ods-sync-item--ok'
+            : (msg.kind === 'ods_bad'
+                ? 'approval-notifications-item approval-ods-sync-item--bad'
+                : 'approval-notifications-item approval-ods-sync-item--new');
+        item.dataset.eventId = msg.id || '';
+        item.dataset.odsBrid = msg.brid || '';
+        item.setAttribute('role', 'option');
+        const kind = document.createElement('span');
+        kind.className = 'approval-notifications-item__kind';
+        kind.textContent = notificationKindLabel(msg.kind);
+        const title = document.createElement('span');
+        title.className = 'approval-notifications-item__title';
+        title.textContent = msg.title || '';
+        const status = document.createElement('span');
+        status.className = 'approval-notifications-item__status';
+        status.textContent = msg.subtitle || '';
+        item.appendChild(kind);
+        item.appendChild(title);
+        item.appendChild(status);
+        li.appendChild(item);
+        listEl.appendChild(li);
+    }
+
+    function renderOdsEventList(listEl, odsEvents) {
+        if (!listEl) {
+            return;
+        }
+        listEl.replaceChildren();
+        (odsEvents || []).forEach((msg) => {
+            appendOdsEventRow(listEl, msg);
+        });
+    }
+
     function renderApprovalNotificationFeed(serverEvents, odsEvents) {
         const approvalsSection = document.getElementById('approval-notifications-approvals-section');
         const approvalsList = document.getElementById('approval-notifications-feed');
@@ -398,34 +498,7 @@
         }
 
         if (odsList) {
-            odsList.replaceChildren();
-            (odsEvents || []).forEach((msg) => {
-                const li = document.createElement('li');
-                const item = document.createElement('button');
-                item.type = 'button';
-                item.className = msg.kind === 'ods_ok'
-                    ? 'approval-notifications-item approval-ods-sync-item--ok'
-                    : (msg.kind === 'ods_bad'
-                        ? 'approval-notifications-item approval-ods-sync-item--bad'
-                        : 'approval-notifications-item approval-ods-sync-item--new');
-                item.dataset.eventId = msg.id || '';
-                item.dataset.odsBrid = msg.brid || '';
-                item.setAttribute('role', 'option');
-                const kind = document.createElement('span');
-                kind.className = 'approval-notifications-item__kind';
-                kind.textContent = notificationKindLabel(msg.kind);
-                const title = document.createElement('span');
-                title.className = 'approval-notifications-item__title';
-                title.textContent = msg.title || '';
-                const status = document.createElement('span');
-                status.className = 'approval-notifications-item__status';
-                status.textContent = msg.subtitle || '';
-                item.appendChild(kind);
-                item.appendChild(title);
-                item.appendChild(status);
-                li.appendChild(item);
-                odsList.appendChild(li);
-            });
+            renderOdsEventList(odsList, odsEvents);
         }
 
         const hasApprovals = !!(serverEvents && serverEvents.length);
@@ -458,6 +531,10 @@
                 });
                 state.ods_baseline = true;
                 state.ods_active = [];
+                state.ods_history = mergeActiveOdsEvents(
+                    state.ods_history,
+                    odsEventsFromCurrentState(currentRequestIds, currentSync)
+                );
                 writeOdsSyncSnapshot(currentSync);
                 writeOdsRequestIdsSnapshot(currentRequestIds);
             } else {
@@ -465,6 +542,7 @@
                     ...buildOdsNewMessages(prevRequestIds, currentRequestIds),
                     ...buildOdsSyncChangeMessages(prevSync, currentSync),
                 ];
+                state.ods_history = mergeActiveOdsEvents(state.ods_history, detectedOds);
                 state.ods_active = mergeActiveOdsEvents(state.ods_active, detectedOds)
                     .filter((item) => item && item.id && !state.seen[item.id]);
                 writeOdsSyncSnapshot(currentSync);
@@ -483,6 +561,7 @@
                 seen,
                 baseline: true,
                 ods_active: state.ods_active || [],
+                ods_history: state.ods_history || [],
                 ods_baseline: state.ods_baseline === true,
             };
             writeNotificationsSeenState(state);
@@ -534,11 +613,11 @@
         return numbers || names || el.dataset.caseTitle || '';
     }
 
-    function applyNotificationsTitleMode() {
-        if (!approvalNotificationsModal) {
+    function applyNotificationsTitleModeTo(root) {
+        if (!root) {
             return;
         }
-        approvalNotificationsModal.querySelectorAll('.approval-notifications-case').forEach((row) => {
+        root.querySelectorAll('.approval-notifications-case').forEach((row) => {
             const titleEl = row.querySelector('.approval-notifications-item__title');
             if (titleEl) {
                 titleEl.textContent = notificationCaseTitle(row);
@@ -550,25 +629,60 @@
         });
     }
 
+    function applyNotificationsTitleMode() {
+        applyNotificationsTitleModeTo(approvalNotificationsModal);
+        applyNotificationsTitleModeTo(actionsPage);
+    }
+
     function setTitleModeInputs(mode) {
         const isNames = mode === 'names';
         if (approvalNotificationsTitleModeInput) {
             approvalNotificationsTitleModeInput.checked = isNames;
         }
+        if (actionsTitleModeInput) {
+            actionsTitleModeInput.checked = isNames;
+        }
+    }
+
+    function bindTitleModeInput(input) {
+        if (!input) {
+            return;
+        }
+        input.addEventListener('change', () => {
+            notificationsTitleMode = input.checked ? 'names' : 'numbers';
+            persistNotificationsTitleMode(notificationsTitleMode);
+            setTitleModeInputs(notificationsTitleMode);
+            applyNotificationsTitleMode();
+        });
     }
 
     function initNotificationsTitleModeSwitch() {
         notificationsTitleMode = readNotificationsTitleMode();
         setTitleModeInputs(notificationsTitleMode);
-        if (approvalNotificationsTitleModeInput) {
-            approvalNotificationsTitleModeInput.addEventListener('change', () => {
-                notificationsTitleMode = approvalNotificationsTitleModeInput.checked ? 'names' : 'numbers';
-                persistNotificationsTitleMode(notificationsTitleMode);
-                setTitleModeInputs(notificationsTitleMode);
-                applyNotificationsTitleMode();
+        bindTitleModeInput(approvalNotificationsTitleModeInput);
+        bindTitleModeInput(actionsTitleModeInput);
+        applyNotificationsTitleMode();
+    }
+
+    function renderActionsFeed(serverEvents, odsEvents) {
+        if (actionsFeed) {
+            actionsFeed.replaceChildren();
+            (serverEvents || []).forEach((event) => {
+                appendServerEventRow(actionsFeed, event);
             });
         }
-        applyNotificationsTitleMode();
+        renderOdsEventList(actionsOdsList, odsEvents);
+        const hasApprovals = !!(serverEvents && serverEvents.length);
+        const hasOds = !!(odsEvents && odsEvents.length);
+        if (actionsApprovalsSection) {
+            actionsApprovalsSection.hidden = !hasApprovals;
+        }
+        if (actionsOdsSection) {
+            actionsOdsSection.hidden = !hasOds;
+        }
+        if (actionsEmpty) {
+            actionsEmpty.hidden = hasApprovals || hasOds;
+        }
     }
 
     function approvalCaseUrl(approveId, caseId) {
@@ -834,4 +948,10 @@
 
     initNotificationsTitleModeSwitch();
     applyHomeWorkflowOdsSyncNotifications();
+    if (actionsPage) {
+        renderActionsFeed(loadServerNotificationEvents(), loadAllOdsEvents());
+        applyNotificationsTitleMode();
+        actionsPage.addEventListener('click', handleFeedClick);
+        actionsPage.addEventListener('keydown', handleFeedKeydown);
+    }
 })();

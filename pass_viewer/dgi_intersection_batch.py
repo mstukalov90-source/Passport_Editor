@@ -598,8 +598,44 @@ def serialize_result_row(row: dict[str, Any]) -> dict[str, Any]:
         "pct_rzd": float(row.get("pct_rzd") or 0),
         "calculated_at": calculated_at_str,
         "skipped": skipped,
+        "total_area_m2": row.get("total_area_m2"),
+        "intersection_area_m2": row.get("intersection_area_m2"),
+        "intersection_area_label": row.get("intersection_area_label") or "",
         "modal": row_to_modal_payload(row),
     }
+
+
+def intersection_area_from_total(total_area_m2: Any, pct_sum: Any, *, skipped: bool = False) -> tuple[Any, str]:
+    """Return (intersection_area_m2, label) from master.TotalArea and pct_sum."""
+    from pass_viewer.views import _format_personal_area
+
+    if skipped:
+        return None, ""
+    if total_area_m2 is None or total_area_m2 == "":
+        return None, ""
+    try:
+        area = float(total_area_m2) * float(pct_sum or 0) / 100.0
+    except (TypeError, ValueError):
+        return None, ""
+    return area, _format_personal_area(area)
+
+
+def annotate_intersection_areas(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Fill TotalArea-based intersection labels on serialized list rows."""
+    from pass_viewer.views import _annotate_personal_total_areas
+
+    if not rows:
+        return rows
+    _annotate_personal_total_areas(rows)
+    for row in rows:
+        area, label = intersection_area_from_total(
+            row.get("total_area_m2"),
+            row.get("pct_sum"),
+            skipped=bool(row.get("skipped")),
+        )
+        row["intersection_area_m2"] = area
+        row["intersection_area_label"] = label
+    return rows
 
 
 def list_dgi_intersection_results_for_scope(
@@ -699,7 +735,9 @@ def _fetch_results(where_sql: str, params: list[Any]) -> list[dict[str, Any]]:
     with connection.cursor() as cursor:
         cursor.execute(query, params)
         columns = [col[0] for col in cursor.description]
-        return [serialize_result_row(dict(zip(columns, row))) for row in cursor.fetchall()]
+        return annotate_intersection_areas(
+            [serialize_result_row(dict(zip(columns, row))) for row in cursor.fetchall()]
+        )
 
 
 def _fetch_results_matching_keys(

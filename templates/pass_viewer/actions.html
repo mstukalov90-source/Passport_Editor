@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Все события{% endblock %}
+
+{% block body_class %}actions-events-page{% endblock %}
+
+{% block container_class %}actions-page-container{% endblock %}
+
+{% block content %}
+<div id="actions-page" class="actions-page">
+    <div class="actions-page__header">
+        <h1>Все события</h1>
+        <label
+            class="approval-title-mode-switch"
+            for="actions-title-mode"
+            title="Отображение заголовков событий: номера или имена объектов"
+        >
+            <input type="checkbox" id="actions-title-mode" />
+            <span class="approval-title-mode-switch__label approval-title-mode-switch__label--left">Номера</span>
+            <span class="approval-title-mode-switch__track" aria-hidden="true"></span>
+            <span class="approval-title-mode-switch__label approval-title-mode-switch__label--right">Имена</span>
+        </label>
+    </div>
+    <div class="actions-page__body">
+        <section
+            id="actions-approvals-section"
+            class="approval-notifications-section"
+            {% if not home_notification_events %}hidden{% endif %}
+            aria-labelledby="actions-approvals-title"
+        >
+            <h4 id="actions-approvals-title" class="approval-notifications-panel__header">Согласования</h4>
+            <ul id="actions-events-feed" class="approval-notifications-list">
+                {% for event in home_notification_events %}
+                    <li>
+                        <div
+                            class="approval-notifications-case"
+                            data-event-id="{{ event.id }}"
+                            data-event-kind="{{ event.kind }}"
+                            data-approve-id="{{ event.approve_id }}"
+                            data-case-id="{{ event.case_id }}"
+                            data-title-numbers="{{ event.title }}"
+                            data-title-names="{{ event.title_named|default:event.title }}"
+                            role="button"
+                            tabindex="0"
+                        >
+                            <div class="approval-notifications-case__main">
+                                <span class="approval-notifications-item__title">{{ event.title }}</span>
+                                {% if event.subtitle %}
+                                    <span class="approval-notifications-case__meta">{{ event.subtitle }}</span>
+                                {% endif %}
+                                {% if event.created_at %}
+                                    <span class="approval-notifications-case__meta">{{ event.created_at }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+        </section>
+        <section
+            id="actions-ods-sync-section"
+            class="approval-notifications-section approval-ods-sync-section"
+            hidden
+            aria-labelledby="actions-ods-title"
+        >
+            <h4 id="actions-ods-title" class="approval-notifications-panel__header">АСУ ОДС</h4>
+            <ul id="actions-ods-sync-list" class="approval-notifications-list"></ul>
+        </section>
+        <p id="actions-events-empty" class="approval-notifications-empty"{% if home_notification_events %} hidden{% endif %}>Нет событий</p>
+    </div>
+</div>
+{% endblock %}

@@ -336,7 +336,7 @@ python manage.py compute_dgi_intersections --chunk-size 50 --object-timeout 30
 - `TRUNCATE` один раз в начале, затем `INSERT` чанками (`--chunk-size`, по умолчанию 50) — при обрыве уже записанные строки остаются в таблице.
 - на каждый объект ставится PostgreSQL `statement_timeout` (`--object-timeout`, по умолчанию 30 с); «залипшие» / ошибочные объекты всё равно пишутся в таблицу с префиксом в `name` (`[пропущен: таймаут]` / `[пропущен: ошибка]`, проценты 0) и в UI показываются чёрным.
 
-Результат пишется в `public.dgi_intersection_results`. На home кнопка «Таблица пересечений» читает этот снимок через `GET /owned/dgi-intersections/`.
+Результат пишется в `public.dgi_intersection_results`. На home кнопка «Проверить все пересечения» читает этот снимок через `GET /owned/dgi-intersections/`.
 
 **Cron на хосте** (`crontab -e` у `root`):
 

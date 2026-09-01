@@ -7,11 +7,16 @@
 
     const filterToggle = document.getElementById('personal-filter-toggle');
     const filterPanel = document.getElementById('personal-filter-panel');
+    const globalSearch = document.getElementById('personal-global-search');
     const table = document.querySelector('.personal-table');
     const clearButton = document.getElementById('personal-filter-clear');
     const kindFilterButtons = Array.from(document.querySelectorAll('.personal-kind-filter-btn[data-kind-filter]'));
+    const KF = PV.kindFilters || {};
 
     function activeKindFilters() {
+        if (typeof KF.activeFromButtons === 'function') {
+            return KF.activeFromButtons(kindFilterButtons);
+        }
         return new Set(
             kindFilterButtons
                 .filter((btn) => btn.getAttribute('aria-pressed') === 'true')
@@ -20,6 +25,9 @@
     }
 
     function rowMatchesKindFilter(row, active) {
+        if (typeof KF.rowMatchesKindFilter === 'function') {
+            return KF.rowMatchesKindFilter(row, active);
+        }
         const rowKind = row.dataset.rowKind || '';
         if (!rowKind) {
             return true;
@@ -28,13 +36,16 @@
             return true;
         }
         const passportizationKind = row.dataset.passportizationKind || '';
-        if (active.has('all') && rowKind !== 'approval') {
+        if (active.has('all')) {
             return true;
         }
         if (active.has('actualization') && passportizationKind === 'Актуализация') {
             return true;
         }
         if (active.has('primary') && passportizationKind === 'Первичная') {
+            return true;
+        }
+        if (active.has('drawn') && rowKind === 'request') {
             return true;
         }
         if (active.has('approval') && rowKind === 'approval') {
@@ -56,12 +67,30 @@
                 return;
             }
             const cells = row.querySelectorAll('td');
-            row.hidden = Array.from(inputs).some((input) => {
+            const columnMismatch = Array.from(inputs).some((input) => {
                 const value = input.value.trim().toLocaleLowerCase('ru');
                 if (!value) return false;
                 const cell = cells[Number(input.dataset.filterCol)];
                 return !cell || !cell.textContent.toLocaleLowerCase('ru').includes(value);
             });
+            if (columnMismatch) {
+                row.hidden = true;
+                return;
+            }
+            const query = globalSearch ? globalSearch.value.trim().toLocaleLowerCase('ru') : '';
+            if (!query) {
+                row.hidden = false;
+                return;
+            }
+            let matchesGlobal = false;
+            for (let index = 1; index <= 8; index += 1) {
+                const cell = cells[index];
+                if (cell && cell.textContent.toLocaleLowerCase('ru').includes(query)) {
+                    matchesGlobal = true;
+                    break;
+                }
+            }
+            row.hidden = !matchesGlobal;
         });
         renumberVisiblePersonalRows();
         updateKindFilterCounts();
@@ -103,34 +132,11 @@
 
     if (table) {
         const inputs = filterPanel ? filterPanel.querySelectorAll('input[data-filter-col]') : [];
-        const allKindBtn = kindFilterButtons.find((item) => item.dataset.kindFilter === 'all');
-
-        function setKindFilterPressed(btn, pressed) {
-            btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
-            btn.classList.toggle('is-active', pressed);
+        if (typeof KF.bindKindFilters === 'function' && kindFilterButtons.length) {
+            KF.bindKindFilters(kindFilterButtons, applyPersonalTableFilters);
+        } else {
+            applyPersonalTableFilters();
         }
-
-        kindFilterButtons.forEach((btn) => {
-            btn.addEventListener('click', () => {
-                const filter = btn.dataset.kindFilter;
-                if (filter === 'all') {
-                    kindFilterButtons.forEach((item) => {
-                        setKindFilterPressed(item, item === btn);
-                    });
-                    applyPersonalTableFilters();
-                    return;
-                }
-                const nextPressed = btn.getAttribute('aria-pressed') !== 'true';
-                setKindFilterPressed(btn, nextPressed);
-                if (nextPressed && allKindBtn) {
-                    setKindFilterPressed(allKindBtn, false);
-                }
-                if (!kindFilterButtons.some((item) => item.getAttribute('aria-pressed') === 'true') && allKindBtn) {
-                    setKindFilterPressed(allKindBtn, true);
-                }
-                applyPersonalTableFilters();
-            });
-        });
         if (filterToggle && filterPanel) {
             filterToggle.addEventListener('click', () => {
                 const open = filterPanel.hidden;
@@ -139,11 +145,14 @@
             });
         }
         inputs.forEach((input) => input.addEventListener('input', applyPersonalTableFilters));
+        globalSearch?.addEventListener('input', applyPersonalTableFilters);
         clearButton?.addEventListener('click', () => {
             inputs.forEach((input) => { input.value = ''; });
+            if (globalSearch) {
+                globalSearch.value = '';
+            }
             applyPersonalTableFilters();
         });
-        applyPersonalTableFilters();
     }
 
     const modal = document.getElementById('personal-detail-modal');
@@ -829,6 +838,164 @@
             source_label: field('personal-open-source')?.value || 'ДТ',
         });
     });
+    const drawForm = document.getElementById('personal-draw-form');
+    const drawChoiceModal = document.getElementById('personal-draw-choice-modal');
+    const drawRequestModal = document.getElementById('personal-draw-request-modal');
+    const drawRequestInput = document.getElementById('personal-draw-request-input');
+    const drawRequestError = document.getElementById('personal-draw-request-error');
+    let pendingDrawPayload = null;
+
+    function setModalOpen(modal, open) {
+        if (!modal) {
+            return;
+        }
+        modal.style.display = open ? 'flex' : 'none';
+    }
+
+    function closeDrawChoiceModal() {
+        setModalOpen(drawChoiceModal, false);
+    }
+
+    function closeDrawRequestModal() {
+        setModalOpen(drawRequestModal, false);
+        if (drawRequestError) {
+            drawRequestError.textContent = '';
+        }
+        if (drawRequestInput) {
+            drawRequestInput.value = '';
+        }
+    }
+
+    function submitDrawForm(payload) {
+        if (!drawForm) {
+            window.alert('Форма открытия объекта не найдена.');
+            return;
+        }
+        const rootid = String((payload && payload.rootid) || '').trim();
+        const name = String((payload && payload.name) || '').trim();
+        const requestId = String((payload && payload.requestId) || '').trim();
+        const sourceLabel = String((payload && payload.sourceLabel) || 'ДТ').trim() || 'ДТ';
+        const geometryMode = String((payload && payload.geometryMode) || 'full').trim() || 'full';
+        const redirectTo = String((payload && payload.redirectTo) || '').trim();
+        document.getElementById('personal-draw-rootid').value = rootid;
+        document.getElementById('personal-draw-name').value = name;
+        document.getElementById('personal-draw-request-id').value = requestId;
+        document.getElementById('personal-draw-source').value = sourceLabel;
+        document.getElementById('personal-draw-geom-mode').value = geometryMode;
+        document.getElementById('personal-draw-redirect-to').value = redirectTo;
+        drawForm.submit();
+    }
+
+    function payloadFromDrawButton(btn) {
+        const requestId = String(btn.dataset.requestId || '').trim();
+        const drawnRequestId = String(btn.dataset.drawnRequestId || '').trim();
+        return {
+            rootid: String(btn.dataset.rootid || '').trim(),
+            name: String(btn.dataset.name || '').trim(),
+            requestId: requestId || drawnRequestId,
+            sourceLabel: String(btn.dataset.source || 'ДТ').trim() || 'ДТ',
+            hasRequest: btn.dataset.hasRequest === '1' || Boolean(requestId || drawnRequestId),
+        };
+    }
+
+    document.querySelectorAll('.personal-draw-open').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+            event.preventDefault();
+            const payload = payloadFromDrawButton(btn);
+            if (payload.hasRequest) {
+                submitDrawForm({
+                    ...payload,
+                    geometryMode: 'full',
+                    redirectTo: '',
+                });
+                return;
+            }
+            pendingDrawPayload = payload;
+            setModalOpen(drawChoiceModal, true);
+        });
+    });
+
+    document.getElementById('personal-draw-choice-cancel')?.addEventListener('click', () => {
+        pendingDrawPayload = null;
+        closeDrawChoiceModal();
+    });
+    drawChoiceModal?.addEventListener('click', (event) => {
+        if (event.target === drawChoiceModal) {
+            pendingDrawPayload = null;
+            closeDrawChoiceModal();
+        }
+    });
+    document.getElementById('personal-draw-choice-aktualize')?.addEventListener('click', () => {
+        closeDrawChoiceModal();
+        if (drawRequestError) {
+            drawRequestError.textContent = '';
+        }
+        if (drawRequestInput) {
+            drawRequestInput.value = '';
+        }
+        setModalOpen(drawRequestModal, true);
+        setTimeout(() => drawRequestInput && drawRequestInput.focus(), 0);
+    });
+    document.getElementById('personal-draw-choice-split')?.addEventListener('click', () => {
+        const payload = pendingDrawPayload;
+        pendingDrawPayload = null;
+        closeDrawChoiceModal();
+        if (!payload) {
+            return;
+        }
+        submitDrawForm({
+            ...payload,
+            geometryMode: 'simplified',
+            redirectTo: 'split_object',
+        });
+    });
+
+    function submitDrawRequestModal() {
+        const raw = (drawRequestInput && drawRequestInput.value ? drawRequestInput.value : '').trim();
+        if (!raw) {
+            if (drawRequestError) {
+                drawRequestError.textContent = 'Введите номер заявки.';
+            }
+            return;
+        }
+        if (!/^\d+$/.test(raw)) {
+            if (drawRequestError) {
+                drawRequestError.textContent = 'Номер заявки должен содержать только цифры.';
+            }
+            return;
+        }
+        const payload = pendingDrawPayload;
+        pendingDrawPayload = null;
+        closeDrawRequestModal();
+        if (!payload) {
+            return;
+        }
+        submitDrawForm({
+            ...payload,
+            requestId: raw,
+            geometryMode: 'simplified',
+            redirectTo: '',
+        });
+    }
+
+    document.getElementById('personal-draw-request-cancel')?.addEventListener('click', () => {
+        closeDrawRequestModal();
+        setModalOpen(drawChoiceModal, true);
+    });
+    document.getElementById('personal-draw-request-submit')?.addEventListener('click', submitDrawRequestModal);
+    drawRequestInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            submitDrawRequestModal();
+        }
+    });
+    drawRequestModal?.addEventListener('click', (event) => {
+        if (event.target === drawRequestModal) {
+            closeDrawRequestModal();
+            setModalOpen(drawChoiceModal, true);
+        }
+    });
+
     viewObjectCloseBtn?.addEventListener('click', (event) => {
         event.preventDefault();
         closeOwnedViewObjectModal();
@@ -850,6 +1017,16 @@
         }
         if (dgiChooseModal && dgiChooseModal.style.display === 'flex') {
             closeDgiChooseModal();
+            return;
+        }
+        if (drawRequestModal && drawRequestModal.style.display === 'flex') {
+            closeDrawRequestModal();
+            setModalOpen(drawChoiceModal, true);
+            return;
+        }
+        if (drawChoiceModal && drawChoiceModal.style.display === 'flex') {
+            pendingDrawPayload = null;
+            closeDrawChoiceModal();
             return;
         }
         closeModal();

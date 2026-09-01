@@ -37,6 +37,9 @@
                                 data-request-id="{{ item.request_id|default_if_none:''|lower }}"
                                 data-name="{{ item.name|default:''|lower }}"
                                 data-source-label="{{ item.source_label|default:'ДТ' }}"
+                                data-row-kind="{{ item.row_kind|default:'passport' }}"
+                                data-passportization-kind="{{ item.passportization_kind|default:'' }}"
+                                data-folded-into-passport="{% if item.folded_into_passport %}1{% else %}0{% endif %}"
                             >
                                 <input
                                     type="checkbox"
@@ -48,6 +51,33 @@
                                     style="display: none; width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; align-self: flex-start; cursor: pointer;"
                                     aria-label="Выбрать паспорт для объединения"
                                 />
+                                {% if item.ods_click_scenario %}
+                                <div style="margin: 0; flex: 1;">
+                                    <button
+                                        type="button"
+                                        class="owned-list-open-btn owned-ods-action-btn"
+                                        title="Действие по заявке из реестра ОДС"
+                                        data-ods-scenario="{{ item.ods_click_scenario|default:0 }}"
+                                        data-ods-gis-ready="{% if item.ods_gis_ready %}1{% else %}0{% endif %}"
+                                        data-ods-brid="{{ item.ods_registry_brid|default:item.request_id }}"
+                                        data-short-root="{{ item.short_object_root_id|default:item.rootid }}"
+                                        data-matched-rootid="{{ item.ods_matched_rootid|default:item.rootid }}"
+                                        data-matched-name="{{ item.ods_matched_name|default:item.name }}"
+                                        data-matched-source="{{ item.ods_matched_source_label|default:item.source_label|default:'ДТ' }}"
+                                    >
+                                        <span class="owned-request-id-row">
+                                            <strong>№ Паспорта:</strong> {{ item.rootid }}
+                                            {% if item.ods_registry_brid or item.request_id %}
+                                                <br><strong>№ Заявки:</strong> {{ item.ods_registry_brid|default:item.request_id }}
+                                            {% endif %}
+                                        </span><br>
+                                        <span style="font-size: 13px; color: #4a5565;"><strong>Название:</strong> {{ item.name|default:"-" }}</span>
+                                        {% if item.ods_registry_br_status_name %}
+                                            <span class="ods-registry-status">Статус: {{ item.ods_registry_br_status_name }}</span>
+                                        {% endif %}
+                                    </button>
+                                </div>
+                                {% else %}
                                 <form
                                     class="owned-open-form"
                                     method="post"
@@ -64,33 +94,24 @@
                                     <button type="submit" class="owned-list-open-btn">
                                         <span class="owned-request-id-row">
                                             <strong>№ Паспорта:</strong> {{ item.rootid }}
-                                            {% if item.ods_registry_root_match %}
+                                            {% if item.ods_registry_brid or item.request_id %}
+                                                <br><strong>№ Заявки:</strong> {{ item.ods_registry_brid|default:item.request_id }}
+                                            {% endif %}
+                                            {% if item.ods_registry_root_match and not item.ods_registry_brid and not item.request_id %}
                                                 <span class="ods-registry-passport-note">Для этого паспорта есть заявка в АСУ ОДС</span>
                                             {% endif %}
                                         </span><br>
                                         <span style="font-size: 13px; color: #4a5565;"><strong>Название:</strong> {{ item.name|default:"-" }}</span>
+                                        {% if item.ods_registry_br_status_name %}
+                                            <span class="ods-registry-status">Статус: {{ item.ods_registry_br_status_name }}</span>
+                                        {% endif %}
                                     </button>
                                 </form>
-                                <form
-                                    class="owned-split-form"
-                                    method="post"
-                                    action="{% url 'open_owned_object' %}"
-                                >
-                                    {% csrf_token %}
-                                    <input type="hidden" name="rootid" value="{{ item.rootid|default_if_none:'' }}">
-                                    <input type="hidden" name="name" value="{{ item.name }}">
-                                    <input type="hidden" name="request_id" value="{{ item.request_id|default:'' }}">
-                                    <input type="hidden" name="source_label" value="{{ item.source_label|default:'ДТ' }}">
-                                    <input type="hidden" name="geometry_detail_mode" value="simplified">
-                                    <input type="hidden" name="redirect_to" value="split_object">
-                                    {% if can_write %}<button type="submit" class="owned-split-btn">Разделить</button>{% endif %}
-                                </form>
+                                {% endif %}
+                                {% include 'pass_viewer/includes/owned_list_row_actions.html' with item=item %}
                                 <span class="source-badge owned-source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% elif item.source_label == 'ТОП' %}source-badge--top{% else %}source-badge--dt{% endif %}">
                                     {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
                                 </span>
-                                {% if can_write %}
-                                <button type="button" class="owned-confirm-open-btn">Актуализировать</button>
-                                {% endif %}
                             </div>
                         {% endif %}
                     {% endfor %}
@@ -105,6 +126,9 @@
                                 data-request-id="{{ item.request_id|default_if_none:''|lower }}"
                                 data-name="{{ item.name|default:''|lower }}"
                                 data-source-label="{{ item.source_label|default:'ДТ' }}"
+                                data-row-kind="{{ item.row_kind|default:'request' }}"
+                                data-passportization-kind="{{ item.passportization_kind|default:'' }}"
+                                data-folded-into-passport="{% if item.folded_into_passport %}1{% else %}0{% endif %}"
                                 data-request-status="{% if item.is_ods_request %}{{ item.br_status_name|default:'' }}{% elif item.ods_registry_brid_match %}{{ item.ods_registry_br_status_name|default:'' }}{% endif %}"
                                 {% if item.map_row_key %}data-map-row-key="{{ item.map_row_key|escape }}"{% endif %}
                                 {% if item.ods_registry_brid_labeled %}data-ods-sync-status="{% if item.ods_registry_brid_match %}ok{% elif item.ods_registry_brid_pending %}pending{% else %}bad{% endif %}"{% endif %}
@@ -288,6 +312,8 @@
                             data-rootid="{{ item.incoming_guid|lower }}"
                             data-name="{{ item.label|default:item.name|lower }}"
                             data-source-label="{{ item.source_label|default:'' }}"
+                            data-row-kind="approval"
+                            data-passportization-kind=""
                         >
                             <a
                                 href="{% url 'approval:landing' %}?approve={{ item.id }}"

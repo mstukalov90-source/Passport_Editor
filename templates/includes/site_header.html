@@ -31,7 +31,7 @@
             <li><span class="site-header__link site-header__link--disabled" aria-disabled="true">Согласование ЦГ</span></li>
             <li class="site-header__more-wrap">
                 <button type="button" class="site-header__link site-header__more-btn" data-header-dropdown-toggle
-                        aria-haspopup="menu" aria-expanded="false" aria-controls="site-header-more-menu">Ещё</button>
+                        aria-haspopup="menu" aria-expanded="false" aria-controls="site-header-more-menu">Дополнительно</button>
                 <ul class="site-header__dropdown" id="site-header-more-menu" hidden>
                     {% if route_name == 'home' %}
                     <li><button type="button" class="site-header__dropdown-link site-header__dropdown-button" id="user-guide-open-btn">Инструкция пользователя</button></li>
@@ -46,7 +46,7 @@
     </nav>
 
     <div class="site-header__actions">
-        <button type="button" class="site-header__icon-link" id="approval-notifications-btn"
+        <button type="button" class="site-header__icon-link{% if route_name == 'actions' %} is-active{% endif %}" id="approval-notifications-btn"
                 aria-label="Уведомления" aria-haspopup="dialog" aria-expanded="false"
                 aria-controls="approval-notifications-modal">
             <span class="site-header__icon-label">Уведомления</span>

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from unittest.mock import patch
+
 import pytest
 from django.contrib.auth.models import User
 from django.db import connection
@@ -14,7 +16,9 @@ from pass_viewer.dgi_intersection_batch import (
     RESULTS_TABLE,
     SKIPPED_TIMEOUT_MARKER,
     _is_statement_timeout_error,
+    annotate_intersection_areas,
     compute_pct_sum,
+    intersection_area_from_total,
     is_skipped_result_name,
     list_dgi_intersection_results_for_scope,
     percents_dict_to_row_fields,
@@ -108,6 +112,8 @@ def test_serialize_result_row_includes_modal():
     assert row["modal"]["percent_moscow_rent"] == 1.1
     assert row["skipped"] is False
     assert "2026-08-06" in row["calculated_at"]
+    assert row["intersection_area_label"] == ""
+    assert row["total_area_m2"] is None
 
 
 def test_skipped_display_name_and_serialize_flag():
@@ -138,6 +144,43 @@ def test_skipped_display_name_and_serialize_flag():
     )
     assert row["skipped"] is True
     assert "[пропущен: ошибка]" in row["name"]
+
+
+def test_intersection_area_from_total_matches_personal_format():
+    area, label = intersection_area_from_total(733, 10)
+    assert area == 73.3
+    assert label == "73 м²"
+    skipped_area, skipped_label = intersection_area_from_total(733, 10, skipped=True)
+    assert skipped_area is None
+    assert skipped_label == ""
+    missing_area, missing_label = intersection_area_from_total(None, 10)
+    assert missing_area is None
+    assert missing_label == ""
+
+
+def test_annotate_intersection_areas_uses_total_area():
+    rows = [
+        {
+            "rootid": "918167521",
+            "source_label": "ОЗН",
+            "pct_sum": 10,
+            "skipped": False,
+        }
+    ]
+
+    def fake_annotate(items):
+        items[0]["total_area_m2"] = 733
+        return items
+
+    with patch(
+        "pass_viewer.views._annotate_personal_total_areas",
+        side_effect=fake_annotate,
+    ):
+        annotate_intersection_areas(rows)
+
+    assert rows[0]["total_area_m2"] == 733
+    assert rows[0]["intersection_area_m2"] == 73.3
+    assert rows[0]["intersection_area_label"] == "73 м²"
 
 
 def _ensure_results_table():

@@ -560,8 +560,6 @@ body.home--merge-passports #add-object-entry-btn {
     display: none;
 }
 
-.owned-home-shell:has(.owned-home-header-tabs [data-owned-list-tab="requests"].is-active) #merge-passports-btn,
-.owned-home-shell:has(.owned-home-header-tabs [data-owned-list-tab="requests"].is-active) #add-object-entry-btn,
 body.owned-lists-modal-open[data-owned-lists-tab="requests"] #merge-passports-btn,
 body.owned-lists-modal-open[data-owned-lists-tab="requests"] #add-object-entry-btn {
     display: inline-flex;
