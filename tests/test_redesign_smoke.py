@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_redesign_routes_and_templates_are_wired() -> None:
     assert reverse("personal_account") == "/personal/"
     assert reverse("statistics") == "/statistics/"
+    assert reverse("intersecs_analiz") == "/intersecs-analiz/"
     base = (ROOT / "templates/base.html").read_text(encoding="utf-8")
     header = (ROOT / "templates/includes/site_header.html").read_text(encoding="utf-8")
     personal = (ROOT / "templates/pass_viewer/personal_account.html").read_text(encoding="utf-8")
@@ -56,6 +57,11 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "intersect-polygons.svg" in lists_actions
     assert "moscow-gerb.svg" in lists_actions
     assert "search-loupe.svg" in lists_actions
+    assert "Пересечения с объектами и З/У" in home
+    assert "Пространственный анализ пересечений" in home
+    assert "check-dgi-analiz-btn" in home
+    assert "Объект в АСУ ОДС" not in home
+    assert "check-dgi-asu-ods-link" not in home
     assert "owned_home_footer.html" not in home
     assert "owned-home-header-tabs" not in home
     assert "personal_kind_filters.html" in home
@@ -166,6 +172,11 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "Проверить пересечения" in personal
     assert "personal-dgi-check" in personal
     assert "check-dgi-modal" in personal
+    assert "Пересечения с объектами и З/У" in personal
+    assert "Пространственный анализ пересечений" in personal
+    assert "check-dgi-analiz-btn" in personal
+    assert "Объект в АСУ ОДС" not in personal
+    assert "check-dgi-asu-ods-link" not in personal
     assert "personal-dgi-choose-modal" in personal
     assert "personal-detail-map" in personal
     assert "personal-detail-object-toggle" in personal
@@ -299,6 +310,8 @@ def test_personal_account_renders_owned_object_without_area() -> None:
     assert "personal-dgi-check" in html
     assert "Проверить пересечения" in html
     assert "check-dgi-modal" in html
+    assert "Пространственный анализ пересечений" in html
+    assert "check-dgi-analiz-btn" in html
     assert "personal-detail-map" in html
     assert "page-config" in html
     assert "owned-view-object-modal" in html

@@ -90,10 +90,12 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const checkDgiModal = document.getElementById('check-dgi-modal');
         const checkDgiModalBody = document.getElementById('check-dgi-modal-body');
         const checkDgiModalClose = document.getElementById('check-dgi-modal-close');
-        const checkDgiAsuOdsLink = document.getElementById('check-dgi-asu-ods-link');
+        const checkDgiAnalizBtn = document.getElementById('check-dgi-analiz-btn');
         const checkDgiViewObjectBtn = document.getElementById('check-dgi-view-object-btn');
         let checkDgiViewObjectProps = null;
+        let lastCheckDgiContext = null;
         const checkDgiUrl = (cfg.urls && "{% url 'check_dgi_intersections' %}") || '';
+        const intersecsAnalizUrl = (cfg.urls && cfg.urls.intersecsAnaliz) || '';
         const resolveAsuOdsUrl = (cfg.urls && cfg.urls.resolveAsuOdsUrl) || '';
         const openOwnedUrl = (cfg.urls && cfg.urls.openOwned) || '';
         const viewObjectModal = document.getElementById('owned-view-object-modal');
@@ -281,18 +283,18 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
         });
 
-        function setCheckDgiAsuOdsLink(url) {
-            if (!checkDgiAsuOdsLink) {
-                return;
+        function setCheckDgiAnalizContext(ctx) {
+            const hasPayload = !!(
+                ctx &&
+                (ctx.geometry || String(ctx.rootid || '').trim() || String(ctx.request_id || '').trim())
+            );
+            lastCheckDgiContext = hasPayload ? ctx : null;
+            if (PV.setCheckDgiAnalizEnabled) {
+                PV.setCheckDgiAnalizEnabled(checkDgiAnalizBtn, hasPayload);
+            } else if (checkDgiAnalizBtn) {
+                checkDgiAnalizBtn.style.display = hasPayload ? '' : 'none';
+                checkDgiAnalizBtn.disabled = !hasPayload;
             }
-            const href = String(url || '').trim();
-            if (!href) {
-                checkDgiAsuOdsLink.href = '#';
-                checkDgiAsuOdsLink.style.display = 'none';
-                return;
-            }
-            checkDgiAsuOdsLink.href = href;
-            checkDgiAsuOdsLink.style.display = '';
         }
 
         function setCheckDgiViewObjectProps(props) {
@@ -324,7 +326,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (checkDgiModal) {
                 checkDgiModal.style.display = 'none';
             }
-            setCheckDgiAsuOdsLink(null);
+            setCheckDgiAnalizContext(null);
             setCheckDgiViewObjectProps(null);
         }
 
@@ -334,22 +336,32 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (bodyText != null) {
                 checkDgiModalBody.textContent = bodyText;
-                setCheckDgiAsuOdsLink(null);
+                setCheckDgiAnalizContext(null);
                 setCheckDgiViewObjectProps(null);
             }
             checkDgiModal.style.display = 'flex';
         }
 
-        function showCheckDgiModal(data) {
+        function showCheckDgiModal(data, extra) {
             if (!checkDgiModal || !checkDgiModalBody) {
                 return;
             }
+            const ctx = extra || {};
             if (data.intersects) {
                 checkDgiModalBody.innerHTML = PV.buildCheckDgiModalHtml(data);
             } else {
                 checkDgiModalBody.textContent = 'Пересечений с объектами ДГИ и инфоресурсами не обнаружено.';
             }
-            setCheckDgiAsuOdsLink(data && data.asu_ods_url);
+            const viewObject = (data && data.view_object) || {};
+            setCheckDgiAnalizContext({
+                geometry: ctx.geometry || null,
+                percents: data,
+                rootid: ctx.rootid || viewObject.rootid || '',
+                request_id: ctx.request_id || viewObject.request_id || '',
+                source_label:
+                    ctx.source_label || viewObject.source_label || viewObject.source || '',
+                name: ctx.name || viewObject.name || '',
+            });
             // Map popup DGI check has no stored list row — hide view button unless props set earlier.
             if (!(data && data.view_object)) {
                 setCheckDgiViewObjectProps(null);
@@ -375,6 +387,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             openCheckDgiModalShell('Проверяем пересечения…');
             const rootid = String((meta && meta.rootid) || '').trim();
             const sourceLabel = String((meta && meta.source_label) || '').trim();
+            const requestId = String((meta && meta.request_id) || '').trim();
+            const name = String((meta && meta.name) || '').trim();
             try {
                 const response = await fetch(checkDgiUrl, {
                     method: 'POST',
@@ -395,7 +409,13 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 if (!response.ok || !data.ok) {
                     throw new Error(data.error || 'Ошибка проверки пересечений с ДГИ.');
                 }
-                showCheckDgiModal(data);
+                showCheckDgiModal(data, {
+                    geometry: geometryNorm,
+                    rootid,
+                    request_id: requestId,
+                    source_label: sourceLabel,
+                    name,
+                });
             } catch (error) {
                 openCheckDgiModalShell(error.message || 'Не удалось проверить пересечения с ДГИ.');
             } finally {
@@ -710,6 +730,19 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 event.preventDefault();
                 event.stopPropagation();
                 closeCheckDgiModal();
+            });
+        }
+        if (checkDgiAnalizBtn) {
+            checkDgiAnalizBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!lastCheckDgiContext || !PV.openIntersecsAnalizPage) {
+                    return;
+                }
+                PV.openIntersecsAnalizPage({
+                    pageUrl: intersecsAnalizUrl,
+                    ...lastCheckDgiContext,
+                });
             });
         }
         if (checkDgiViewObjectBtn) {
@@ -1192,13 +1225,13 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     const asuMeta = asuOdsPopupMeta(props);
                     popupHtml += '<div class="owned-popup-actions">';
                     popupHtml +=
-                        '<button type="button" class="owned-list-icon-btn owned-view-object-btn" title="Просмотр" aria-label="Просмотр">' +
+                        '<button type="button" class="owned-list-icon-btn owned-view-object-btn" title="Просмотр объекта" aria-label="Просмотр объекта">' +
                         ownedActionIconImgHtml('view') +
-                        '<span>Просмотр</span></button>';
+                        '<span>Просмотр объекта</span></button>';
                     popupHtml +=
-                        '<button type="button" class="owned-list-icon-btn owned-check-dgi-btn" title="Пересечения" aria-label="Пересечения">' +
+                        '<button type="button" class="owned-list-icon-btn owned-check-dgi-btn" title="Проверка пересечений" aria-label="Проверка пересечений">' +
                         ownedActionIconImgHtml('dgi') +
-                        '<span>Пересечения</span></button>';
+                        '<span>Проверка пересечений</span></button>';
                     if (asuMeta) {
                         popupHtml +=
                             '<button type="button" class="owned-list-icon-btn owned-asu-ods-btn" title="АСУ ОДС" aria-label="АСУ ОДС"' +
@@ -3091,7 +3124,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 percent_rzd: row.pct_rzd,
             };
             checkDgiModalBody.innerHTML = PV.buildCheckDgiModalHtml(modalData);
-            setCheckDgiAsuOdsLink(null);
+            setCheckDgiAnalizContext({
+                geometry: null,
+                percents: modalData,
+                rootid: row.rootid || '',
+                request_id: row.request_id || '',
+                source_label: row.source_label || 'ДТ',
+                name: row.name || '',
+            });
             setCheckDgiViewObjectProps({
                 rootid: row.rootid || '',
                 request_id: row.request_id || '',

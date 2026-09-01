@@ -45,6 +45,7 @@ def test_personal_page_config_has_open_owned() -> None:
     assert config["urls"]["openOwned"] == reverse("open_owned_object")
     assert config["urls"]["personalObjectDetails"] == reverse("personal_object_details")
     assert config["urls"]["checkDgi"] == reverse("check_dgi_intersections")
+    assert config["urls"]["intersecsAnaliz"] == reverse("intersecs_analiz")
 
 
 def test_format_personal_date_and_area() -> None:
