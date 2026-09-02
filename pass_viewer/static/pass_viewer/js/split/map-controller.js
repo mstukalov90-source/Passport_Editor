@@ -18,6 +18,9 @@
         );
 
         PV.attachBasemapControl(map);
+        if (PV.attachMapUtilityControls) {
+            PV.attachMapUtilityControls(map);
+        }
         map.invalidateSize();
 
         const selectedGroup = L.featureGroup().addTo(map);
@@ -167,6 +170,9 @@
         }
 
         function startCutMode() {
+            if (PV.stopMeasureMode) {
+                PV.stopMeasureMode(map);
+            }
             cancelSelectionPolygonMode();
             cancelCutMode();
             state.cutObjectMode = true;
@@ -181,6 +187,9 @@
         }
 
         function startSelectionPolygonMode() {
+            if (PV.stopMeasureMode) {
+                PV.stopMeasureMode(map);
+            }
             cancelCutMode();
             cancelSelectionPolygonMode();
             state.selectionPolygonMode = true;

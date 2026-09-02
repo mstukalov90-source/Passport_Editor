@@ -218,6 +218,16 @@ try:
 except (TypeError, ValueError):
     GIS_ADJACENT_NEARBY_METERS = 25.0
 
+# Бесхоз: минимальная полуширина кармана (м) и площадь ядра после эрозии (м²).
+try:
+    GIS_BESKHOZ_MIN_HALF_WIDTH_M = float(os.getenv("GIS_BESKHOZ_MIN_HALF_WIDTH_M", "2"))
+except (TypeError, ValueError):
+    GIS_BESKHOZ_MIN_HALF_WIDTH_M = 2.0
+try:
+    GIS_BESKHOZ_MIN_CORE_AREA_M2 = float(os.getenv("GIS_BESKHOZ_MIN_CORE_AREA_M2", "8"))
+except (TypeError, ValueError):
+    GIS_BESKHOZ_MIN_CORE_AREA_M2 = 8.0
+
 # На main: не грузить смежные ДТ и reference-слои в HTML — подгрузка через AJAX после открытия страницы.
 GIS_DEFER_MAP_CONTEXT_LAYERS = os.getenv("GIS_DEFER_MAP_CONTEXT_LAYERS", "1")
 

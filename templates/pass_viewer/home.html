@@ -14,7 +14,7 @@
     {{ hood_work_area_geojson|json_script:"hood-work-area-geojson-data" }}
     {% include 'pass_viewer/includes/map_home_scripts.html' %}
     {% load static %}
-    <script src="{% static 'pass_viewer/js/home.js' %}"></script>
+    <script src="{% static 'pass_viewer/js/home.js' %}?v=beskhoz-1"></script>
 {% endblock %}
 
 {% block container_class %}container--wide{% endblock %}
@@ -162,8 +162,8 @@
                     Пространственный анализ пересечений
                 </button>
                 <div class="check-dgi-modal-actions__right">
-                    <button type="button" id="check-dgi-view-object-btn" class="map-toolbar-btn map-toolbar-btn--primary" style="display:none;">Просмотр объекта</button>
-                    <button type="button" id="check-dgi-modal-close" class="map-toolbar-btn map-toolbar-btn--primary">OK</button>
+                    <button type="button" id="check-dgi-view-object-btn" class="map-toolbar-btn" style="display:none;">Просмотр объекта</button>
+                    <button type="button" id="check-dgi-modal-close" class="map-toolbar-btn">OK</button>
                 </div>
             </div>
         </div>
@@ -181,6 +181,13 @@
             <div class="owned-view-object-modal__header">
                 <h3 id="owned-view-object-modal-title">Просмотр объекта</h3>
                 <div class="owned-view-object-modal__header-actions">
+                    <button type="button" id="owned-view-object-analiz-btn" class="map-toolbar-btn check-dgi-analiz-btn" hidden>
+                        <img class="check-dgi-analiz-btn__icon" src="{% static 'pass_viewer/intersect-polygons.svg' %}" alt="" aria-hidden="true">
+                        Пространственный анализ пересечений
+                    </button>
+                    <button type="button" id="owned-view-object-beskhoz-btn" class="map-toolbar-btn check-dgi-analiz-btn" hidden>
+                        Поиск бесхозов
+                    </button>
                     {% if can_write %}
                     <button type="button" id="owned-view-object-split-btn" class="owned-split-btn owned-view-object-modal__action-btn" hidden>Разделить</button>
                     <button type="button" id="owned-view-object-aktualize-btn" class="owned-confirm-open-btn owned-view-object-modal__action-btn" hidden>Актуализировать</button>

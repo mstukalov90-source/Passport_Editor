@@ -333,13 +333,26 @@
             source_label: String(options.source_label || '').trim(),
             name: String(options.name || '').trim(),
         };
+        const key = PassViewer.INTERSECS_ANALIZ_STORAGE_PREFIX + sid;
+        const meta = {
+            rootid: payload.rootid,
+            request_id: payload.request_id,
+            source_label: payload.source_label,
+            name: payload.name,
+        };
         try {
-            localStorage.setItem(
-                PassViewer.INTERSECS_ANALIZ_STORAGE_PREFIX + sid,
-                JSON.stringify(payload),
-            );
+            sessionStorage.setItem(key + ':meta', JSON.stringify(meta));
         } catch (error) {
-            // quota / private mode — страница попробует загрузить геометрию по query
+            /* private mode */
+        }
+        try {
+            localStorage.setItem(key, JSON.stringify(payload));
+        } catch (error) {
+            try {
+                localStorage.setItem(key, JSON.stringify(Object.assign({ geometry: null, percents: null }, meta)));
+            } catch (error2) {
+                /* quota / private mode — страница попробует загрузить геометрию по query */
+            }
         }
         const params = new URLSearchParams();
         params.set('sid', sid);
@@ -352,8 +365,67 @@
         if (payload.source_label) {
             params.set('source', payload.source_label);
         }
+        if (payload.name) {
+            params.set('name', payload.name);
+        }
         const sep = pageUrl.indexOf('?') >= 0 ? '&' : '?';
         window.open(pageUrl + sep + params.toString(), '_blank', 'noopener,noreferrer');
+    };
+
+    PassViewer.SHOW_INTERSECS_ANALIZ_MSG = 'pv-show-intersecs-analiz';
+    PassViewer.SHOW_BESKHOZ_MSG = 'pv-show-beskhoz';
+    PassViewer.INTERSECS_ANALIZ_STATUS_MSG = 'pv-intersecs-analiz-status';
+
+    PassViewer.requestIframeMapFn = function requestIframeMapFn(iframe, fnName, messageType) {
+        const win = iframe && iframe.contentWindow;
+        if (!win) {
+            return false;
+        }
+        const tryCall = function tryCall() {
+            try {
+                if (win.PassViewer && typeof win.PassViewer[fnName] === 'function') {
+                    void win.PassViewer[fnName]();
+                    return true;
+                }
+            } catch (error) {
+                /* iframe not same-origin or not ready */
+            }
+            return false;
+        };
+        if (tryCall()) {
+            return true;
+        }
+        let attempts = 0;
+        const timer = global.setInterval(function () {
+            attempts += 1;
+            if (tryCall() || attempts >= 25) {
+                global.clearInterval(timer);
+                if (attempts >= 25) {
+                    try {
+                        win.postMessage({ type: messageType }, '*');
+                    } catch (error) {
+                        /* ignore */
+                    }
+                }
+            }
+        }, 120);
+        return true;
+    };
+
+    PassViewer.requestShowIntersecsAnalizOnMap = function requestShowIntersecsAnalizOnMap(iframe) {
+        return PassViewer.requestIframeMapFn(
+            iframe,
+            'showIntersecsAnalizOnMap',
+            PassViewer.SHOW_INTERSECS_ANALIZ_MSG,
+        );
+    };
+
+    PassViewer.requestShowBeskhozOnMap = function requestShowBeskhozOnMap(iframe) {
+        return PassViewer.requestIframeMapFn(
+            iframe,
+            'showBeskhozOnMap',
+            PassViewer.SHOW_BESKHOZ_MSG,
+        );
     };
 
     PassViewer.readIntersecsAnalizPayload = function readIntersecsAnalizPayload(sid) {
@@ -362,16 +434,39 @@
             return null;
         }
         const key = PassViewer.INTERSECS_ANALIZ_STORAGE_PREFIX + token;
+        let stored = null;
         try {
             const raw = localStorage.getItem(key);
-            if (!raw) {
-                return null;
+            if (raw) {
+                localStorage.removeItem(key);
+                stored = JSON.parse(raw);
             }
-            localStorage.removeItem(key);
-            return JSON.parse(raw);
         } catch (error) {
-            return null;
+            stored = null;
         }
+        try {
+            const metaRaw = sessionStorage.getItem(key + ':meta');
+            if (metaRaw) {
+                sessionStorage.removeItem(key + ':meta');
+                const meta = JSON.parse(metaRaw) || {};
+                stored = stored && typeof stored === 'object' ? stored : {};
+                if (!String(stored.name || '').trim() && meta.name) {
+                    stored.name = meta.name;
+                }
+                if (!String(stored.rootid || '').trim() && meta.rootid) {
+                    stored.rootid = meta.rootid;
+                }
+                if (!String(stored.request_id || '').trim() && meta.request_id) {
+                    stored.request_id = meta.request_id;
+                }
+                if (!String(stored.source_label || '').trim() && meta.source_label) {
+                    stored.source_label = meta.source_label;
+                }
+            }
+        } catch (error) {
+            /* ignore */
+        }
+        return stored;
     };
 
     PassViewer.buildCheckDgiModalHtml = function buildCheckDgiModalHtml(data) {

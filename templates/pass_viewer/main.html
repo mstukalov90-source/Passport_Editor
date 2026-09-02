@@ -27,7 +27,7 @@
     {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
     {% include 'pass_viewer/includes/map_editor_scripts.html' %}
     {% load static %}
-    <script src="{% static 'pass_viewer/js/main.js' %}?v=dgi-renovation-1"></script>
+    <script src="{% static 'pass_viewer/js/main.js' %}?v=beskhoz-1"></script>
 {% endblock %}
 
 {% block container_class %}container--wide{% endblock %}
@@ -316,7 +316,7 @@
                     Пространственный анализ пересечений
                 </button>
                 <div class="check-dgi-modal-actions__right">
-                    <button type="button" id="check-dgi-modal-close" class="map-toolbar-btn map-toolbar-btn--primary">OK</button>
+                    <button type="button" id="check-dgi-modal-close" class="map-toolbar-btn">OK</button>
                 </div>
             </div>
         </div>

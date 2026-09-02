@@ -81,6 +81,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         });
 
         PV.attachBasemapControl(map);
+        if (PV.attachMapUtilityControls) {
+            PV.attachMapUtilityControls(map);
+        }
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
@@ -371,6 +374,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
 
         function setCommentPointMode(enabled) {
             commentPointMode = enabled;
+            if (enabled && PV.stopMeasureMode) {
+                PV.stopMeasureMode(map);
+            }
             if (addCommentPointButton) {
                 addCommentPointButton.classList.toggle('is-active', enabled);
             }
@@ -1244,6 +1250,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         }
 
         function openDrawMode() {
+            if (PV.stopMeasureMode) {
+                PV.stopMeasureMode(map);
+            }
             areaInfoVisible = true;
             if (polygonDrawer) {
                 polygonDrawer.disable();

@@ -42,6 +42,8 @@ def _editor_api_urls():
         "checkRelations": reverse("check_new_object_relations"),
         "checkDgi": reverse("check_dgi_intersections"),
         "intersecsAnaliz": reverse("intersecs_analiz"),
+        "intersecsAnalizData": reverse("intersecs_analiz_data"),
+        "findBeskhoz": reverse("find_beskhoz"),
         "autoRemove": reverse("auto_remove_intersections"),
         "cutGeometry": reverse("cut_edited_geometry"),
         "saveNewObject": reverse("save_new_object"),

@@ -163,12 +163,15 @@
     const viewObjectFrame = document.getElementById('owned-view-object-frame');
     const viewObjectStatus = document.getElementById('owned-view-object-status');
     const viewObjectCloseBtn = document.getElementById('owned-view-object-close-btn');
+    const viewObjectAnalizBtn = document.getElementById('owned-view-object-analiz-btn');
+    const viewObjectBeskhozBtn = document.getElementById('owned-view-object-beskhoz-btn');
     const viewObjectLoading = document.getElementById('owned-view-object-loading');
     const field = (id) => document.getElementById(id);
 
     let detailMap = null;
     let detailLayer = null;
     let detailsRequestSeq = 0;
+    let currentViewObjectProps = null;
 
     function csrfToken() {
         if (PV.getCookie) {
@@ -224,9 +227,14 @@
                 attributionControl: false,
                 maxZoom: 30,
             });
-            if (PV.createBasemapLayers) {
+            if (PV.attachBasemapControl) {
+                PV.attachBasemapControl(detailMap, { scopeRoot: el.parentElement });
+            } else if (PV.createBasemapLayers) {
                 const { mggtLayer } = PV.createBasemapLayers();
                 mggtLayer.addTo(detailMap);
+            }
+            if (PV.attachMapUtilityControls) {
+                PV.attachMapUtilityControls(detailMap);
             }
             detailMap.setView([55.75, 37.62], 10);
         }
@@ -277,7 +285,24 @@
         }
     }
 
+    function syncViewObjectAnalizBtn() {
+        const p = currentViewObjectProps || {};
+        const show = Boolean(
+            String(p.rootid || '').trim() ||
+            String(p.request_id || '').trim() ||
+            String(p.name || '').trim()
+        );
+        if (viewObjectAnalizBtn) {
+            viewObjectAnalizBtn.hidden = !show;
+        }
+        if (viewObjectBeskhozBtn) {
+            viewObjectBeskhozBtn.hidden = !show;
+        }
+    }
+
     function closeOwnedViewObjectModal() {
+        currentViewObjectProps = null;
+        syncViewObjectAnalizBtn();
         if (viewObjectModal) {
             viewObjectModal.classList.remove('is-open');
             viewObjectModal.style.display = 'none';
@@ -325,6 +350,13 @@
             window.alert('Не удалось определить объект для просмотра.');
             return;
         }
+        currentViewObjectProps = {
+            rootid,
+            request_id: requestId,
+            name,
+            source_label: sourceLabel,
+        };
+        syncViewObjectAnalizBtn();
         const body = new URLSearchParams();
         body.set('rootid', rootid);
         body.set('request_id', requestId);
@@ -1019,6 +1051,62 @@
     viewObjectCloseBtn?.addEventListener('click', (event) => {
         event.preventDefault();
         closeOwnedViewObjectModal();
+    });
+    viewObjectAnalizBtn?.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const p = currentViewObjectProps || {};
+        const ctx = {
+            rootid: String(p.rootid || '').trim(),
+            request_id: String(p.request_id || '').trim(),
+            name: String(p.name || '').trim(),
+            source_label: String(p.source_label || p.source || 'ДТ').trim() || 'ДТ',
+        };
+        if (!ctx.rootid && !ctx.request_id && !ctx.name) {
+            return;
+        }
+        if (viewObjectStatus) {
+            viewObjectStatus.textContent = 'Показываем пересечения на карте…';
+        }
+        if (!PV.requestShowIntersecsAnalizOnMap || !PV.requestShowIntersecsAnalizOnMap(viewObjectFrame)) {
+            if (viewObjectStatus) {
+                viewObjectStatus.textContent = 'Карта ещё загружается.';
+            }
+        }
+    });
+    viewObjectBeskhozBtn?.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const p = currentViewObjectProps || {};
+        const ctx = {
+            rootid: String(p.rootid || '').trim(),
+            request_id: String(p.request_id || '').trim(),
+            name: String(p.name || '').trim(),
+        };
+        if (!ctx.rootid && !ctx.request_id && !ctx.name) {
+            return;
+        }
+        if (viewObjectStatus) {
+            viewObjectStatus.textContent = 'Ищем бесхозы на карте…';
+            viewObjectStatus.classList.remove('note--danger');
+        }
+        if (!PV.requestShowBeskhozOnMap || !PV.requestShowBeskhozOnMap(viewObjectFrame)) {
+            if (viewObjectStatus) {
+                viewObjectStatus.textContent = 'Карта ещё загружается.';
+            }
+        }
+    });
+    window.addEventListener('message', (event) => {
+        if (!viewObjectFrame || event.source !== viewObjectFrame.contentWindow) {
+            return;
+        }
+        if (!event.data || event.data.type !== (PV.INTERSECS_ANALIZ_STATUS_MSG || 'pv-intersecs-analiz-status')) {
+            return;
+        }
+        if (viewObjectStatus) {
+            viewObjectStatus.textContent = event.data.text || '';
+            viewObjectStatus.classList.toggle('note--danger', !!event.data.isError);
+        }
     });
     viewObjectModal?.addEventListener('click', (event) => {
         if (event.target === viewObjectModal) {
