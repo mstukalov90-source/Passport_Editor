@@ -21,6 +21,9 @@
             );
             PassViewer.bindPopupHighlight(map);
             PassViewer.attachBasemapControl(map);
+            if (PassViewer.attachMapUtilityControls) {
+                PassViewer.attachMapUtilityControls(map);
+            }
             return map;
         },
     };

@@ -122,6 +122,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const viewObjectCloseBtn = document.getElementById('owned-view-object-close-btn');
         const viewObjectSplitBtn = document.getElementById('owned-view-object-split-btn');
         const viewObjectAktualizeBtn = document.getElementById('owned-view-object-aktualize-btn');
+        const viewObjectAnalizBtn = document.getElementById('owned-view-object-analiz-btn');
+        const viewObjectBeskhozBtn = document.getElementById('owned-view-object-beskhoz-btn');
         const viewObjectLoading = document.getElementById('owned-view-object-loading');
         let currentViewObjectProps = null;
         const listTabButtons = Array.from(document.querySelectorAll('.owned-list-tab-btn'));
@@ -168,12 +170,20 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         }
 
         function syncViewObjectHeaderActions() {
-            const show = Boolean(homeCanWrite && viewObjectActionCtx().rootid);
+            const ctx = viewObjectActionCtx();
+            const showWrite = Boolean(homeCanWrite && ctx.rootid);
+            const showAnaliz = Boolean(ctx.rootid || ctx.request_id || ctx.name);
+            if (viewObjectAnalizBtn) {
+                viewObjectAnalizBtn.hidden = !showAnaliz;
+            }
+            if (viewObjectBeskhozBtn) {
+                viewObjectBeskhozBtn.hidden = !showAnaliz;
+            }
             if (viewObjectSplitBtn) {
-                viewObjectSplitBtn.hidden = !show;
+                viewObjectSplitBtn.hidden = !showWrite;
             }
             if (viewObjectAktualizeBtn) {
-                viewObjectAktualizeBtn.hidden = !show;
+                viewObjectAktualizeBtn.hidden = !showWrite;
             }
         }
 
@@ -288,6 +298,56 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 closeOwnedViewObjectModal();
             });
         }
+        if (viewObjectAnalizBtn) {
+            viewObjectAnalizBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const ctx = viewObjectActionCtx();
+                if (!ctx.rootid && !ctx.request_id && !ctx.name) {
+                    return;
+                }
+                if (viewObjectStatus) {
+                    viewObjectStatus.textContent = 'Показываем пересечения на карте…';
+                    viewObjectStatus.classList.remove('note--danger');
+                }
+                if (!PV.requestShowIntersecsAnalizOnMap || !PV.requestShowIntersecsAnalizOnMap(viewObjectFrame)) {
+                    if (viewObjectStatus) {
+                        viewObjectStatus.textContent = 'Карта ещё загружается.';
+                    }
+                }
+            });
+        }
+        if (viewObjectBeskhozBtn) {
+            viewObjectBeskhozBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const ctx = viewObjectActionCtx();
+                if (!ctx.rootid && !ctx.request_id && !ctx.name) {
+                    return;
+                }
+                if (viewObjectStatus) {
+                    viewObjectStatus.textContent = 'Ищем бесхозы на карте…';
+                    viewObjectStatus.classList.remove('note--danger');
+                }
+                if (!PV.requestShowBeskhozOnMap || !PV.requestShowBeskhozOnMap(viewObjectFrame)) {
+                    if (viewObjectStatus) {
+                        viewObjectStatus.textContent = 'Карта ещё загружается.';
+                    }
+                }
+            });
+        }
+        window.addEventListener('message', (event) => {
+            if (!viewObjectFrame || event.source !== viewObjectFrame.contentWindow) {
+                return;
+            }
+            if (!event.data || event.data.type !== (PV.INTERSECS_ANALIZ_STATUS_MSG || 'pv-intersecs-analiz-status')) {
+                return;
+            }
+            if (viewObjectStatus) {
+                viewObjectStatus.textContent = event.data.text || '';
+                viewObjectStatus.classList.toggle('note--danger', !!event.data.isError);
+            }
+        });
         if (viewObjectModal) {
             viewObjectModal.addEventListener('click', (event) => {
                 if (event.target === viewObjectModal) {
@@ -490,6 +550,73 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             );
         }
 
+        function readOwnedObjectName(props, row, popupEl) {
+            const fromProps = String((props && (props.name || props.Name)) || '').trim();
+            if (fromProps && fromProps !== '-') {
+                return fromProps;
+            }
+            const nameInput = row && row.querySelector('input[name="name"]');
+            const fromInput = String((nameInput && nameInput.value) || '').trim();
+            if (fromInput && fromInput !== '-') {
+                return fromInput;
+            }
+            const root = popupEl || row;
+            if (root) {
+                const nodes = root.querySelectorAll('span, div');
+                for (let i = 0; i < nodes.length; i += 1) {
+                    const text = String(nodes[i].textContent || '').replace(/\s+/g, ' ').trim();
+                    if (text.indexOf('Название:') === 0) {
+                        const value = text.slice('Название:'.length).trim();
+                        if (value && value !== '-') {
+                            return value;
+                        }
+                    }
+                }
+            }
+            const fromDataset = String((row && row.dataset && row.dataset.name) || '').trim();
+            return fromDataset && fromDataset !== '-' ? fromDataset : '';
+        }
+
+        function findOwnedFeatureLayer(row, btn) {
+            if (!ownedFeatureLayerByKey) {
+                return null;
+            }
+            const mapKey = String((row && row.dataset.mapKey) || '').trim();
+            if (mapKey && ownedFeatureLayerByKey.has(mapKey)) {
+                return ownedFeatureLayerByKey.get(mapKey);
+            }
+            const rootid = String(
+                (btn && btn.dataset.rootid) || (row && row.dataset.rootid) || '',
+            )
+                .trim()
+                .toLowerCase();
+            const requestId = String(
+                (btn && btn.dataset.requestId) || (row && row.dataset.requestId) || '',
+            )
+                .trim()
+                .toLowerCase();
+            const source = normalizeOwnedSourceLabel(
+                (btn && btn.dataset.sourceLabel) || (row && row.dataset.sourceLabel) || 'ДТ',
+            );
+            let found = null;
+            ownedFeatureLayerByKey.forEach((layer) => {
+                if (found || !layer || !layer.feature) {
+                    return;
+                }
+                const p = layer.feature.properties || {};
+                const pr = String(p.rootid || '').trim().toLowerCase();
+                const preq = String(p.request_id || '').trim().toLowerCase();
+                const psrc = normalizeOwnedSourceLabel(p.source_label || p.source || 'ДТ');
+                if (psrc !== source) {
+                    return;
+                }
+                if ((rootid && pr === rootid) || (!rootid && requestId && preq === requestId)) {
+                    found = layer;
+                }
+            });
+            return found;
+        }
+
         function bindOwnedCheckDgiButton(featureLayer, feature) {
             const popup = featureLayer.getPopup && featureLayer.getPopup();
             const popupEl = popup && typeof popup.getElement === 'function' ? popup.getElement() : null;
@@ -522,10 +649,20 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 if (featureLayer.closePopup) {
                     featureLayer.closePopup();
                 }
-                const props = (feature && feature.properties) || {};
+                const props = Object.assign(
+                    {},
+                    (featureLayer && featureLayer.feature && featureLayer.feature.properties) || {},
+                    (feature && feature.properties) || {},
+                );
+                const popupName = readOwnedObjectName(props, null, popupEl);
+                if (popupName) {
+                    btn.dataset.name = popupName;
+                }
                 void checkOwnedFeatureDgiIntersections(geometry, btn, {
                     rootid: props.rootid || '',
+                    request_id: props.request_id || '',
                     source_label: props.source_label || props.source || 'ДТ',
+                    name: popupName,
                 });
             };
             if (typeof L !== 'undefined' && L.DomEvent) {
@@ -676,18 +813,26 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 event.stopPropagation();
                 const row = btn.closest('.owned-list-item');
                 if (btn.classList.contains('owned-check-dgi-btn')) {
-                    const key = row && row.dataset.mapKey ? row.dataset.mapKey : '';
-                    const featureLayer =
-                        key && ownedFeatureLayerByKey ? ownedFeatureLayerByKey.get(key) : null;
+                    const featureLayer = findOwnedFeatureLayer(row, btn);
                     let geometry = featureLayer && featureLayer.feature && featureLayer.feature.geometry
                         ? featureLayer.feature.geometry
                         : null;
                     if (!geometry && featureLayer && typeof featureLayer.toGeoJSON === 'function') {
                         geometry = featureLayer.toGeoJSON();
                     }
+                    const featureProps =
+                        featureLayer && featureLayer.feature && featureLayer.feature.properties
+                            ? featureLayer.feature.properties
+                            : {};
                     void checkOwnedFeatureDgiIntersections(geometry, btn, {
-                        rootid: String(btn.dataset.rootid || '').trim(),
-                        source_label: String(btn.dataset.sourceLabel || 'ДТ').trim(),
+                        rootid: String(btn.dataset.rootid || (row && row.dataset.rootid) || '').trim(),
+                        request_id: String(
+                            btn.dataset.requestId || (row && row.dataset.requestId) || featureProps.request_id || '',
+                        ).trim(),
+                        source_label: String(
+                            btn.dataset.sourceLabel || (row && row.dataset.sourceLabel) || 'ДТ',
+                        ).trim(),
+                        name: readOwnedObjectName(featureProps, row, null) || String(btn.dataset.name || '').trim(),
                     });
                     return;
                 }
@@ -990,6 +1135,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
             const map = L.map(ownedMapEl, { zoomControl: true, preferCanvas: true });
             PV.attachBasemapControl(map, { scopeRoot: ownedMapEl.parentElement });
+            if (PV.attachMapUtilityControls) {
+                PV.attachMapUtilityControls(map);
+            }
 
             function parseHoodWorkAreaGeoData() {
                 if (!hoodWorkAreaGeoEl) {

@@ -407,6 +407,20 @@ def _adjacent_nearby_meters():
         return 25.0
 
 
+def _beskhoz_min_half_width_m():
+    try:
+        return float(getattr(settings, "GIS_BESKHOZ_MIN_HALF_WIDTH_M", 2))
+    except (TypeError, ValueError):
+        return 2.0
+
+
+def _beskhoz_min_core_area_m2():
+    try:
+        return float(getattr(settings, "GIS_BESKHOZ_MIN_CORE_AREA_M2", 8))
+    except (TypeError, ValueError):
+        return 8.0
+
+
 def _defer_map_context_layers():
     return str(getattr(settings, "GIS_DEFER_MAP_CONTEXT_LAYERS", "1")).lower() not in (
         "0",
@@ -7633,6 +7647,142 @@ def intersecs_analiz_data(request):
             status=500,
         )
     return JsonResponse(response)
+
+
+def _find_beskhoz_features(geometry):
+    """Unoccupied buffer pieces that touch S and have a usable core (min width/area)."""
+    geometry_norm = _to_intersection_geometry(geometry)
+    if not geometry_norm:
+        return []
+    distance_meters = _adjacent_nearby_meters()
+    half_width_m = _beskhoz_min_half_width_m()
+    min_core_area_m2 = _beskhoz_min_core_area_m2()
+    geometry_json = json.dumps(geometry_norm)
+    geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
+    dgi_table = getattr(settings, "GIS_DGI_TABLE", "dgi")
+    occupied_unions = []
+    query_params = [geometry_json, distance_meters]
+
+    with connection.cursor() as cursor:
+        table_specs = list(_gis_municipal_table_specs())
+        table_specs.append(("ДГИ", dgi_table, []))
+        seen_tables = set()
+        for _label, table_name, _owners in table_specs:
+            if table_name in seen_tables:
+                continue
+            seen_tables.add(table_name)
+            if not _table_exists(cursor, table_name):
+                continue
+            if not _column_exists(cursor, table_name, geom_field_pref):
+                continue
+            geom_field = _resolve_column_name(cursor, table_name, geom_field_pref)
+            geom_q = _quote_ident(geom_field)
+            raw_geom = f"t.{geom_q}"
+            geom_v = _sql_table_geom_valid_expr(raw_geom)
+            hood_suf, hood_prm = get_hood_intersects_sql_suffix(raw_geom)
+            occupied_unions.append(
+                f"SELECT ST_CollectionExtract({geom_v}, 3) AS geom "
+                f"FROM {_quote_ident(table_name)} t, buf b "
+                f"WHERE {raw_geom} IS NOT NULL AND NOT ST_IsEmpty({raw_geom}) "
+                f"AND {raw_geom} && b.geom AND ST_Intersects({geom_v}, b.geom)"
+                f"{hood_suf}"
+            )
+            query_params.extend(hood_prm)
+
+        occupied_sql = " UNION ALL ".join(occupied_unions) if occupied_unions else "SELECT NULL::geometry AS geom WHERE FALSE"
+        query = (
+            "WITH input AS ("
+            f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
+            "), buf AS ("
+            " SELECT ST_Buffer(i.geom::geography, %s)::geometry AS geom,"
+            " i.geom AS s_geom,"
+            " COALESCE(ST_Area(i.geom::geography), 0) AS s_area"
+            " FROM input i"
+            "), occupied_parts AS ("
+            " SELECT ST_CollectionExtract(s_geom, 3) AS geom FROM buf"
+            " UNION ALL "
+            + occupied_sql
+            + "), occupied AS ("
+            " SELECT ST_UnaryUnion(ST_Collect(geom)) AS geom"
+            " FROM occupied_parts"
+            " WHERE geom IS NOT NULL AND NOT ST_IsEmpty(geom)"
+            "), empty AS ("
+            " SELECT CASE"
+            "  WHEN o.geom IS NULL OR ST_IsEmpty(o.geom) THEN b.geom"
+            "  ELSE ST_CollectionExtract(ST_MakeValid(ST_Difference(b.geom, o.geom)), 3)"
+            " END AS geom"
+            " FROM buf b CROSS JOIN occupied o"
+            "), parts AS ("
+            " SELECT (ST_Dump(e.geom)).geom AS geom FROM empty e"
+            " WHERE e.geom IS NOT NULL AND NOT ST_IsEmpty(e.geom)"
+            "), cores AS ("
+            " SELECT p.geom,"
+            " ST_Buffer(p.geom::geography, -1 * %s)::geometry AS core"
+            " FROM parts p"
+            ") "
+            "SELECT ST_AsGeoJSON(c.geom)::text,"
+            " ROUND(ST_Area(c.geom::geography)::numeric, 1),"
+            " ROUND((100.0 * ST_Area(c.geom::geography) / NULLIF(b.s_area, 0))::numeric, 2) "
+            "FROM cores c CROSS JOIN buf b "
+            "WHERE c.core IS NOT NULL AND NOT ST_IsEmpty(c.core) "
+            "AND COALESCE(ST_Area(c.core::geography), 0) >= %s "
+            "AND ("
+            " ST_Touches(c.geom, b.s_geom)"
+            " OR ("
+            "  ST_Intersects(c.geom, ST_Boundary(b.s_geom))"
+            "  AND COALESCE("
+            "    ST_Area(ST_Intersection(ST_MakeValid(c.geom), ST_MakeValid(b.s_geom))::geography),"
+            "    0"
+            "  ) < 0.001 * NULLIF(b.s_area, 0)"
+            " )"
+            ")"
+        )
+        query_params.extend([half_width_m, min_core_area_m2])
+        cursor.execute(query, query_params)
+        rows = cursor.fetchall()
+
+    features = []
+    for row in rows or []:
+        raw_geom, area_m2, pct = row[0], row[1], row[2]
+        if not raw_geom:
+            continue
+        try:
+            geom = json.loads(raw_geom) if isinstance(raw_geom, str) else raw_geom
+        except (TypeError, json.JSONDecodeError, ValueError):
+            continue
+        if not isinstance(geom, dict):
+            continue
+        features.append(
+            {
+                "geometry": geom,
+                "area_m2": float(area_m2 or 0),
+                "pct": float(pct or 0),
+            }
+        )
+    return features
+
+
+@login_required
+@require_POST
+def find_beskhoz(request):
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
+
+    geometry = _to_intersection_geometry(payload.get("geometry"))
+    if not geometry:
+        return JsonResponse({"ok": False, "error": "Геометрия не передана."}, status=400)
+
+    try:
+        features = _find_beskhoz_features(geometry)
+    except Exception:
+        logger.exception("find_beskhoz: failed")
+        return JsonResponse(
+            {"ok": False, "error": "Не удалось найти бесхозные площади."},
+            status=500,
+        )
+    return JsonResponse({"ok": True, "features": features})
 
 
 @login_required

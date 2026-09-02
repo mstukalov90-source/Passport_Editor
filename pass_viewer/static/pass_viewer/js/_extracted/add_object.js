@@ -62,6 +62,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         });
 
         PV.attachBasemapControl(map);
+        if (PV.attachMapUtilityControls) {
+            PV.attachMapUtilityControls(map);
+        }
 
         function parseHoodWorkAreaGeoData() {
             const el = document.getElementById('hood-work-area-geojson-data');
@@ -400,6 +403,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
 
         function setCommentPointMode(enabled) {
             commentPointMode = enabled;
+            if (enabled && PV.stopMeasureMode) {
+                PV.stopMeasureMode(map);
+            }
             if (addCommentPointButton) {
                 addCommentPointButton.classList.toggle('is-active', enabled);
             }
@@ -1644,7 +1650,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 rootid: selectedRootid,
                 request_id: effectiveEntryRequestId,
                 source_label: selectedSourceLabel,
-                name: '',
+                name: (newObjectNameInput && newObjectNameInput.value) || '',
             });
             checkDgiModal.style.display = 'flex';
         }
@@ -2005,6 +2011,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
 
         function setAddObjectButtonMode(enabled) {
             addObjectMode = enabled;
+            if (enabled && PV.stopMeasureMode) {
+                PV.stopMeasureMode(map);
+            }
             addPolygonButton.textContent = enabled ? 'Отменить добавление' : 'Добавить полигон';
             addPolygonButton.classList.toggle('map-toolbar-btn--danger', enabled);
             addPolygonButton.classList.toggle('map-toolbar-btn--accent', !enabled);
@@ -2015,6 +2024,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
 
         function setCutObjectButtonMode(enabled) {
             cutObjectMode = enabled;
+            if (enabled && PV.stopMeasureMode) {
+                PV.stopMeasureMode(map);
+            }
             cutPolygonButton.textContent = enabled ? 'Отменить обрезку' : 'Обрезать полигон';
             cutPolygonButton.classList.toggle('map-toolbar-btn--danger', enabled);
             cutPolygonButton.classList.toggle('map-toolbar-btn--accent', !enabled);

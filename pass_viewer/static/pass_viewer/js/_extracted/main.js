@@ -112,6 +112,8 @@ function formatDgiShortSobstvRr(value) {
         const checkDgiModalClose = document.getElementById('check-dgi-modal-close');
         const checkDgiAnalizBtn = document.getElementById('check-dgi-analiz-btn');
         const intersecsAnalizUrl = (cfg.urls && cfg.urls.intersecsAnaliz) || '';
+        const intersecsAnalizDataUrl = (cfg.urls && cfg.urls.intersecsAnalizData) || '';
+        const findBeskhozUrl = (cfg.urls && cfg.urls.findBeskhoz) || '';
         let lastCheckDgiContext = null;
         const dbLoadingModal = document.getElementById('db-loading-modal');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
@@ -143,6 +145,11 @@ function formatDgiShortSobstvRr(value) {
         const selectedSourceLabel = "{{ selected_source_label|default:'ДТ'|escapejs }}";
         const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.61], 10);
         const signalTapeRenderer = L.svg({padding: 0.5});
+        map.createPane('overlapPane');
+        map.getPane('overlapPane').style.zIndex = 650;
+        map.createPane('analizOverlapPane');
+        map.getPane('analizOverlapPane').style.zIndex = 750;
+        const analizSvgRenderer = L.svg({padding: 0.5, pane: 'analizOverlapPane'});
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
@@ -236,6 +243,19 @@ function formatDgiShortSobstvRr(value) {
         const rzdSignalGroup = L.featureGroup().addTo(map);
         const recapsGroup = L.featureGroup().addTo(map);
         const commentPointsGroup = L.featureGroup().addTo(map);
+        const analizParcelsGroup = L.featureGroup();
+        const analizOverlapGroup = L.featureGroup();
+        const beskhozGroup = L.featureGroup();
+        const ANALIZ_LAYER_STYLES = {
+            dgi_moscow_rent: { color: '#dc2626', fillColor: '#f87171' },
+            dgi_moscow_no_rent: { color: '#ea580c', fillColor: '#fdba74' },
+            dgi_private_rent: { color: '#7c3aed', fillColor: '#c4b5fd' },
+            dgi_private_no_rent: { color: '#2563eb', fillColor: '#93c5fd' },
+            dgi_renovation: { color: '#0d9488', fillColor: '#5eead4' },
+            renew: { color: '#b45309', fillColor: '#fbbf24' },
+            oozt: { color: '#16a34a', fillColor: '#86efac' },
+            rzd: { color: '#be123c', fillColor: '#fb7185' },
+        };
         let drawControl = null;
         let editToolbar = null;
         let isEditing = false;
@@ -438,6 +458,9 @@ function formatDgiShortSobstvRr(value) {
 
         function setCommentPointMode(enabled) {
             commentPointMode = enabled;
+            if (enabled && PV.stopMeasureMode) {
+                PV.stopMeasureMode(map);
+            }
             if (addCommentPointButton) {
                 addCommentPointButton.classList.toggle('is-active', enabled);
             }
@@ -479,6 +502,9 @@ function formatDgiShortSobstvRr(value) {
         }
 
         PV.attachBasemapControl(map);
+        if (PV.attachMapUtilityControls) {
+            PV.attachMapUtilityControls(map);
+        }
 
         const selectedGeometry = parseGeometryData('selected-geometry-data');
         const selectedGeometryForEditing = parseGeometryData('selected-geometry-for-editing-data') || selectedGeometry;
@@ -2321,6 +2347,9 @@ function formatDgiShortSobstvRr(value) {
 
         function setAddObjectButtonMode(enabled) {
             addObjectMode = enabled;
+            if (enabled && PV.stopMeasureMode) {
+                PV.stopMeasureMode(map);
+            }
             addPolygonButton.textContent = enabled ? 'Отменить добавление' : 'Добавить полигон';
             addPolygonButton.classList.toggle('map-toolbar-btn--danger', enabled);
             addPolygonButton.classList.toggle('map-toolbar-btn--accent', !enabled);
@@ -2331,6 +2360,9 @@ function formatDgiShortSobstvRr(value) {
 
         function setCutObjectButtonMode(enabled) {
             cutObjectMode = enabled;
+            if (enabled && PV.stopMeasureMode) {
+                PV.stopMeasureMode(map);
+            }
             cutPolygonButton.textContent = enabled ? 'Отменить обрезку' : 'Обрезать полигон';
             cutPolygonButton.classList.toggle('map-toolbar-btn--danger', enabled);
             cutPolygonButton.classList.toggle('map-toolbar-btn--accent', !enabled);
@@ -3336,3 +3368,224 @@ function formatDgiShortSobstvRr(value) {
         updateRelationsButtonState();
         loadInitialMapContextLayers();
         refreshMapSizeForViewOnly();
+
+        let analizBlinkBusy = false;
+
+        function reportAnalizStatus(text, isError) {
+            if (statusEl) {
+                statusEl.textContent = text || '';
+            }
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage(
+                        {
+                            type: PV.INTERSECS_ANALIZ_STATUS_MSG || 'pv-intersecs-analiz-status',
+                            text: text || '',
+                            isError: !!isError,
+                        },
+                        '*',
+                    );
+                }
+            } catch (error) {
+                /* ignore */
+            }
+        }
+
+        async function showIntersecsAnalizOnMap() {
+            const geometry = toIntersectionGeometry(
+                buildCurrentGeometry() || selectedGeometry || selectedGeo,
+            );
+            if (!geometry) {
+                reportAnalizStatus('Нет геометрии для анализа пересечений.', true);
+                return;
+            }
+            if (!intersecsAnalizDataUrl) {
+                reportAnalizStatus('URL анализа пересечений не настроен.', true);
+                return;
+            }
+            if (analizBlinkBusy) {
+                return;
+            }
+            analizBlinkBusy = true;
+            reportAnalizStatus('Считаем пересечения по слоям…');
+            analizParcelsGroup.clearLayers();
+            analizOverlapGroup.clearLayers();
+            if (!map.hasLayer(analizParcelsGroup)) {
+                analizParcelsGroup.addTo(map);
+            }
+            if (!map.hasLayer(analizOverlapGroup)) {
+                analizOverlapGroup.addTo(map);
+            }
+            try {
+                const response = await fetch(intersecsAnalizDataUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || '',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ geometry }),
+                });
+                const data = await parseJsonResponse(response);
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Не удалось выполнить пространственный анализ.');
+                }
+                let objectCount = 0;
+                (data.layers || []).forEach((layer) => {
+                    const style = ANALIZ_LAYER_STYLES[layer.key] || {
+                        color: '#64748b',
+                        fillColor: '#94a3b8',
+                    };
+                    (layer.objects || []).forEach((obj) => {
+                        objectCount += 1;
+                        if (obj.geometry) {
+                            L.geoJSON(obj.geometry, {
+                                renderer: analizSvgRenderer,
+                                pane: 'analizOverlapPane',
+                                style: {
+                                    color: style.color,
+                                    weight: 2,
+                                    fillColor: style.fillColor,
+                                    fillOpacity: 0.22,
+                                    dashArray: '10 8',
+                                },
+                            }).addTo(analizParcelsGroup);
+                        }
+                        if (obj.intersection_geometry) {
+                            L.geoJSON(obj.intersection_geometry, {
+                                renderer: analizSvgRenderer,
+                                pane: 'analizOverlapPane',
+                                style: {
+                                    color: '#dc2626',
+                                    weight: 2,
+                                    fillColor: '#ef4444',
+                                    fillOpacity: 0.85,
+                                    className: 'intersecs-overlap-blink',
+                                },
+                            }).addTo(analizOverlapGroup);
+                        }
+                    });
+                });
+                if (typeof analizParcelsGroup.bringToFront === 'function') {
+                    analizParcelsGroup.bringToFront();
+                }
+                if (typeof analizOverlapGroup.bringToFront === 'function') {
+                    analizOverlapGroup.bringToFront();
+                }
+                const bounds = L.featureGroup([analizParcelsGroup, analizOverlapGroup]).getBounds();
+                if (bounds.isValid()) {
+                    map.fitBounds(bounds, { padding: [24, 24], maxZoom: 17 });
+                }
+                reportAnalizStatus(
+                    objectCount
+                        ? 'На карте объекты на пересечении (' + objectCount + ').'
+                        : 'Пересечений не найдено.',
+                );
+                refreshMapSizeForViewOnly();
+            } catch (error) {
+                reportAnalizStatus(
+                    error.message || 'Не удалось показать пересечения на карте.',
+                    true,
+                );
+            } finally {
+                analizBlinkBusy = false;
+            }
+        }
+
+        PV.showIntersecsAnalizOnMap = showIntersecsAnalizOnMap;
+        window.addEventListener('message', (event) => {
+            if (window.parent && event.source !== window.parent) {
+                return;
+            }
+            if (!event.data || event.data.type !== (PV.SHOW_INTERSECS_ANALIZ_MSG || 'pv-show-intersecs-analiz')) {
+                return;
+            }
+            void showIntersecsAnalizOnMap();
+        });
+
+        let beskhozBusy = false;
+
+        async function showBeskhozOnMap() {
+            const geometry = toIntersectionGeometry(
+                buildCurrentGeometry() || selectedGeometry || selectedGeo,
+            );
+            if (!geometry) {
+                reportAnalizStatus('Нет геометрии для поиска бесхозов.', true);
+                return;
+            }
+            if (!findBeskhozUrl) {
+                reportAnalizStatus('URL поиска бесхозов не настроен.', true);
+                return;
+            }
+            if (beskhozBusy) {
+                return;
+            }
+            beskhozBusy = true;
+            reportAnalizStatus('Ищем бесхозные площади…');
+            beskhozGroup.clearLayers();
+            if (!map.hasLayer(beskhozGroup)) {
+                beskhozGroup.addTo(map);
+            }
+            try {
+                const response = await fetch(findBeskhozUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || '',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ geometry }),
+                });
+                const data = await parseJsonResponse(response);
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Не удалось найти бесхозы.');
+                }
+                const features = data.features || [];
+                features.forEach((item) => {
+                    if (!item || !item.geometry) {
+                        return;
+                    }
+                    L.geoJSON(item.geometry, {
+                        renderer: analizSvgRenderer,
+                        pane: 'analizOverlapPane',
+                        style: {
+                            color: '#16a34a',
+                            weight: 2,
+                            fillColor: '#86efac',
+                            fillOpacity: 0.75,
+                            className: 'beskhoz-gap-blink',
+                        },
+                    }).addTo(beskhozGroup);
+                });
+                if (typeof beskhozGroup.bringToFront === 'function') {
+                    beskhozGroup.bringToFront();
+                }
+                const bounds = beskhozGroup.getBounds();
+                if (bounds.isValid()) {
+                    map.fitBounds(bounds, { padding: [24, 24], maxZoom: 17 });
+                }
+                const count = features.length;
+                reportAnalizStatus(
+                    count ? ('Найдено ' + count + ' бесхозов') : 'Бесхозов не найдено',
+                );
+                refreshMapSizeForViewOnly();
+            } catch (error) {
+                reportAnalizStatus(
+                    error.message || 'Не удалось показать бесхозы на карте.',
+                    true,
+                );
+            } finally {
+                beskhozBusy = false;
+            }
+        }
+
+        PV.showBeskhozOnMap = showBeskhozOnMap;
+        window.addEventListener('message', (event) => {
+            if (window.parent && event.source !== window.parent) {
+                return;
+            }
+            if (!event.data || event.data.type !== (PV.SHOW_BESKHOZ_MSG || 'pv-show-beskhoz')) {
+                return;
+            }
+            void showBeskhozOnMap();
+        });

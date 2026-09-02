@@ -8,6 +8,7 @@
 {% block page_styles %}
 <link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}">
 <link rel="stylesheet" href="{% static 'pass_viewer/css/modal.css' %}">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}?v=beskhoz-1">
 {% endblock %}
 
 {% block container_class %}personal-account{% endblock %}
@@ -268,7 +269,16 @@
     <div class="owned-view-object-modal__card">
         <div class="owned-view-object-modal__header">
             <h3 id="owned-view-object-modal-title">Просмотр объекта</h3>
-            <button type="button" id="owned-view-object-close-btn" class="owned-view-object-modal__close" aria-label="Закрыть">×</button>
+            <div class="owned-view-object-modal__header-actions">
+                <button type="button" id="owned-view-object-analiz-btn" class="personal-table-btn check-dgi-analiz-btn" hidden>
+                    <img class="check-dgi-analiz-btn__icon personal-table-btn__icon" src="{% static 'pass_viewer/intersect-polygons.svg' %}" alt="" aria-hidden="true">
+                    Пространственный анализ пересечений
+                </button>
+                <button type="button" id="owned-view-object-beskhoz-btn" class="personal-table-btn check-dgi-analiz-btn" hidden>
+                    Поиск бесхозов
+                </button>
+                <button type="button" id="owned-view-object-close-btn" class="owned-view-object-modal__close" aria-label="Закрыть">×</button>
+            </div>
         </div>
         <p id="owned-view-object-status" class="note owned-view-object-modal__status"></p>
         <div class="owned-view-object-modal__body">
@@ -338,8 +348,9 @@
 {% block page_scripts %}
 {{ page_config|json_script:"page-config" }}
 {% include 'pass_viewer/includes/map_leaflet_vendor.html' %}
-<script src="{% static 'pass_viewer/js/utils.js' %}"></script>
+<script src="{% static 'pass_viewer/js/utils.js' %}?v=beskhoz-1"></script>
 <script src="{% static 'pass_viewer/js/kind-filters.js' %}"></script>
 <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
-<script src="{% static 'pass_viewer/js/personal-account.js' %}"></script>
+<script src="{% static 'pass_viewer/js/map-tools.js' %}"></script>
+<script src="{% static 'pass_viewer/js/personal-account.js' %}?v=beskhoz-1"></script>
 {% endblock %}

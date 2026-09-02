@@ -61,10 +61,6 @@
     DGI_SUBLAYER_SPECS.forEach(function (spec) {
         dgiSubKeyChecked[spec.key] = true;
     });
-    let measureModeActive = false;
-    let measurePoints = [];
-    let measureGroup = null;
-    let measureBtnEl = null;
     const ADJACENT_ACTIVE_STROKE_SOFT = '#fde68a';
     const ADJACENT_ACTIVE_STROKE_STRONG = '#ca8a04';
     const ADJACENT_ACTIVE_WEIGHT = 4;
@@ -2442,266 +2438,12 @@
         fitGeometryLayers(keys);
     }
 
-    function formatMeasureMeters(meters) {
-        if (!Number.isFinite(meters) || meters < 0) {
-            return '0 м';
-        }
-        if (meters < 10) {
-            return String(Math.round(meters * 10) / 10) + ' м';
-        }
-        return Math.round(meters) + ' м';
-    }
-
-    function isMeasureUiTarget(target) {
-        if (!target || typeof target.closest !== 'function') {
-            return false;
-        }
-        return Boolean(
-            target.closest(
-                '.leaflet-control, .approval-map-tools, .approval-draw-toolbar, .approval-map-notice'
-            )
+    function isMeasureModeActive() {
+        return !!(
+            window.PassViewer &&
+            typeof window.PassViewer.isMeasureMode === 'function' &&
+            window.PassViewer.isMeasureMode(map)
         );
-    }
-
-    function clearMeasureGraphics() {
-        if (measureGroup && map) {
-            map.removeLayer(measureGroup);
-        }
-        measureGroup = null;
-        measurePoints = [];
-    }
-
-    function rebuildMeasureGraphics() {
-        if (!map) {
-            return;
-        }
-        if (!measureGroup) {
-            measureGroup = L.featureGroup().addTo(map);
-        } else {
-            measureGroup.clearLayers();
-        }
-        if (!measurePoints.length) {
-            return;
-        }
-
-        measurePoints.forEach(function (latlng) {
-            L.circleMarker(latlng, {
-                radius: 4,
-                color: '#9a3412',
-                weight: 2,
-                fillColor: '#fff',
-                fillOpacity: 1,
-                interactive: false,
-            }).addTo(measureGroup);
-        });
-
-        if (measurePoints.length < 2) {
-            return;
-        }
-
-        L.polyline(measurePoints, {
-            color: '#ea580c',
-            weight: 3,
-            dashArray: '6 4',
-            interactive: false,
-        }).addTo(measureGroup);
-
-        let total = 0;
-        for (let i = 1; i < measurePoints.length; i += 1) {
-            const prev = measurePoints[i - 1];
-            const next = measurePoints[i];
-            const segment = prev.distanceTo(next);
-            total += segment;
-            const mid = L.latLng((prev.lat + next.lat) / 2, (prev.lng + next.lng) / 2);
-            L.marker(mid, {
-                interactive: false,
-                keyboard: false,
-                icon: L.divIcon({
-                    className: 'approval-measure-label',
-                    html: '<span>' + formatMeasureMeters(segment) + '</span>',
-                    iconSize: null,
-                }),
-            }).addTo(measureGroup);
-        }
-
-        L.marker(measurePoints[measurePoints.length - 1], {
-            interactive: false,
-            keyboard: false,
-            icon: L.divIcon({
-                className: 'approval-measure-label approval-measure-label--total',
-                html: '<span>Σ ' + formatMeasureMeters(total) + '</span>',
-                iconSize: null,
-            }),
-        }).addTo(measureGroup);
-    }
-
-    function syncMeasureButtonState() {
-        if (!measureBtnEl) {
-            return;
-        }
-        measureBtnEl.classList.toggle('is-active', measureModeActive);
-        measureBtnEl.setAttribute('aria-pressed', measureModeActive ? 'true' : 'false');
-        measureBtnEl.title = measureModeActive
-            ? 'Выключить линейку (Esc)'
-            : 'Линейка (метры)';
-    }
-
-    function onMeasureCaptureClick(domEvent) {
-        if (!measureModeActive || !map) {
-            return;
-        }
-        if (domEvent.button != null && domEvent.button !== 0) {
-            return;
-        }
-        if (isMeasureUiTarget(domEvent.target)) {
-            return;
-        }
-        const latlng = map.mouseEventToLatLng(domEvent);
-        if (!latlng) {
-            return;
-        }
-        L.DomEvent.stop(domEvent);
-        map.closePopup();
-        measurePoints.push(latlng);
-        rebuildMeasureGraphics();
-    }
-
-    function onMeasureKeyDown(event) {
-        if (!measureModeActive) {
-            return;
-        }
-        if (event.key === 'Escape') {
-            stopMeasureMode();
-        }
-    }
-
-    function stopMeasureMode() {
-        if (!measureModeActive && !measurePoints.length) {
-            syncMeasureButtonState();
-            return;
-        }
-        measureModeActive = false;
-        if (map) {
-            map.getContainer().removeEventListener('click', onMeasureCaptureClick, true);
-            map.doubleClickZoom.enable();
-            if (
-                !(
-                    window.ApprovalEventDraw &&
-                    typeof window.ApprovalEventDraw.isDrawMode === 'function' &&
-                    window.ApprovalEventDraw.isDrawMode()
-                )
-            ) {
-                map.getContainer().style.cursor = '';
-            }
-        }
-        document.removeEventListener('keydown', onMeasureKeyDown);
-        clearMeasureGraphics();
-        syncMeasureButtonState();
-    }
-
-    function startMeasureMode() {
-        if (!map) {
-            return;
-        }
-        if (
-            window.ApprovalEventDraw &&
-            typeof window.ApprovalEventDraw.stopDrawMode === 'function'
-        ) {
-            window.ApprovalEventDraw.stopDrawMode();
-        }
-        if (measureModeActive) {
-            return;
-        }
-        measureModeActive = true;
-        clearMeasureGraphics();
-        measureGroup = L.featureGroup().addTo(map);
-        map.closePopup();
-        map.doubleClickZoom.disable();
-        map.getContainer().style.cursor = 'crosshair';
-        // Capture phase: clicks on features never reach layer popups,
-        // and still register measure points (unlike pointer-events:none).
-        map.getContainer().addEventListener('click', onMeasureCaptureClick, true);
-        document.addEventListener('keydown', onMeasureKeyDown);
-        syncMeasureButtonState();
-    }
-
-    function toggleMeasureMode() {
-        if (measureModeActive) {
-            stopMeasureMode();
-        } else {
-            startMeasureMode();
-        }
-    }
-
-    function openCurrentViewInYandexMaps() {
-        if (!map) {
-            return;
-        }
-        const center = map.getCenter();
-        const zoom = Math.max(1, Math.min(21, Math.round(map.getZoom())));
-        const url =
-            'https://yandex.ru/maps/?ll=' +
-            center.lng.toFixed(6) +
-            ',' +
-            center.lat.toFixed(6) +
-            '&z=' +
-            zoom;
-        window.open(url, '_blank', 'noopener,noreferrer');
-    }
-
-    function attachMapUtilityControls(targetMap) {
-        if (!targetMap || typeof L === 'undefined') {
-            return;
-        }
-        const control = L.control({ position: 'bottomright' });
-        control.onAdd = function () {
-            const container = L.DomUtil.create('div', 'approval-map-tools leaflet-bar');
-            L.DomEvent.disableClickPropagation(container);
-            L.DomEvent.disableScrollPropagation(container);
-
-            const measureBtn = L.DomUtil.create(
-                'button',
-                'approval-map-tools__btn approval-map-tools__btn--measure',
-                container
-            );
-            measureBtn.type = 'button';
-            measureBtn.title = 'Линейка (метры)';
-            measureBtn.setAttribute('aria-label', 'Линейка в метрах');
-            measureBtn.setAttribute('aria-pressed', 'false');
-            measureBtn.innerHTML =
-                '<span class="approval-map-tools__icon" aria-hidden="true">' +
-                '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-                '<path d="M3 12h18"/><path d="M6 9v6"/><path d="M10 10v4"/><path d="M14 9v6"/><path d="M18 10v4"/>' +
-                '</svg></span><span class="approval-map-tools__caption">Линейка</span>';
-            measureBtnEl = measureBtn;
-            L.DomEvent.on(measureBtn, 'click', function (event) {
-                L.DomEvent.stop(event);
-                toggleMeasureMode();
-            });
-
-            const yandexBtn = L.DomUtil.create(
-                'button',
-                'approval-map-tools__btn approval-map-tools__btn--yandex',
-                container
-            );
-            yandexBtn.type = 'button';
-            yandexBtn.title = 'Открыть это место в Яндекс.Картах';
-            yandexBtn.setAttribute('aria-label', 'Открыть в Яндекс.Картах');
-            yandexBtn.innerHTML =
-                '<span class="approval-map-tools__icon" aria-hidden="true">' +
-                '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">' +
-                '<rect width="24" height="24" rx="5" fill="#FC3F1D"/>' +
-                '<text x="12" y="17" text-anchor="middle" fill="#fff" font-size="14" font-weight="700" font-family="YS Text, Arial, sans-serif">Я</text>' +
-                '</svg></span><span class="approval-map-tools__caption">Я.Карты</span>';
-            L.DomEvent.on(yandexBtn, 'click', function (event) {
-                L.DomEvent.stop(event);
-                openCurrentViewInYandexMaps();
-            });
-
-            return container;
-        };
-        control.addTo(targetMap);
-        syncMeasureButtonState();
     }
 
     function initMap() {
@@ -2748,7 +2490,26 @@
                 scopeRoot: mapEl.parentElement,
             });
         }
-        attachMapUtilityControls(map);
+        if (window.PassViewer && typeof window.PassViewer.attachMapUtilityControls === 'function') {
+            window.PassViewer.attachMapUtilityControls(map, {
+                extraUiSelectors: '.approval-draw-toolbar, .approval-map-notice',
+                onStartMeasure: function () {
+                    if (
+                        window.ApprovalEventDraw &&
+                        typeof window.ApprovalEventDraw.stopDrawMode === 'function'
+                    ) {
+                        window.ApprovalEventDraw.stopDrawMode();
+                    }
+                },
+                shouldPreserveCursor: function () {
+                    return !!(
+                        window.ApprovalEventDraw &&
+                        typeof window.ApprovalEventDraw.isDrawMode === 'function' &&
+                        window.ApprovalEventDraw.isDrawMode()
+                    );
+                },
+            });
+        }
 
         managedLayers = {};
         mapUnitMarkers = [];
@@ -2843,7 +2604,7 @@
 
             layer.bindPopup(html);
             layer.on('popupopen', function () {
-                if (isDrawModeActive() || measureModeActive) {
+                if (isDrawModeActive() || isMeasureModeActive()) {
                     layer.closePopup();
                     return;
                 }
@@ -2895,7 +2656,7 @@
             } else {
                 layer.bindPopup(featurePopupHtml(feature));
                 layer.on('popupopen', function () {
-                    if (isDrawModeActive() || measureModeActive) {
+                    if (isDrawModeActive() || isMeasureModeActive()) {
                         layer.closePopup();
                     }
                 });
@@ -3205,9 +2966,13 @@
         highlightPendingGeometry: highlightPendingGeometry,
         clearPendingGeometryHighlight: clearPendingGeometryHighlight,
         getPendingMessageGeometry: getPendingMessageGeometry,
-        stopMeasureMode: stopMeasureMode,
+        stopMeasureMode: function () {
+            if (window.PassViewer && typeof window.PassViewer.stopMeasureMode === 'function') {
+                window.PassViewer.stopMeasureMode(map);
+            }
+        },
         isMeasureMode: function () {
-            return measureModeActive;
+            return isMeasureModeActive();
         },
         invalidateMapSize: invalidateMapSize,
         getConfig: function () {

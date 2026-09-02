@@ -25,6 +25,8 @@ def test_intersecs_analiz_page_ok(client):
     html = response.content.decode("utf-8")
     assert "Пространственный анализ пересечений" in html
     assert "intersecs-analiz-map" in html
+    assert "owned-map-legend" in html
+    assert "Область пересечения" in html
     assert "intersecsAnalizData" in html
 
 

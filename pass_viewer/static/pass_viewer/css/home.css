@@ -1176,11 +1176,13 @@ body.home--merge-passports #add-object-entry-btn {
     flex-shrink: 0;
 }
 .owned-view-object-modal__header-actions .owned-split-btn,
-.owned-view-object-modal__header-actions .owned-confirm-open-btn {
+.owned-view-object-modal__header-actions .owned-confirm-open-btn,
+.owned-view-object-modal__header-actions .check-dgi-analiz-btn {
     display: inline-flex;
 }
 .owned-view-object-modal__header-actions .owned-split-btn[hidden],
-.owned-view-object-modal__header-actions .owned-confirm-open-btn[hidden] {
+.owned-view-object-modal__header-actions .owned-confirm-open-btn[hidden],
+.owned-view-object-modal__header-actions .check-dgi-analiz-btn[hidden] {
     display: none !important;
 }
 body.home--ogh-boundaries-edit .owned-view-object-modal__header-actions .owned-split-btn {

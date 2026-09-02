@@ -106,7 +106,7 @@
         };
         const parts = [];
         if (mggtAvailable) {
-            parts.push(btn('mggt', 'МГГТ'), btn('scale2000', '1:2000'));
+            parts.push(btn('mggt', '1:10000'), btn('scale2000', '1:2000'));
         }
         parts.push(btn('topo', 'OSM'), btn('sat', 'Спутник'), btn('none', 'Без подложки'));
         return parts.join('');
