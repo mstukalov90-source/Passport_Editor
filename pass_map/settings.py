@@ -256,7 +256,7 @@ MGGT_TILE_UPSTREAM_BASE = os.getenv(
     "MGGT_TILE_UPSTREAM_BASE",
     "http://ngtst.mggt:8080/api/component/render/tile",
 )
-MGGT_TILE_RESOURCE_ID = os.getenv("MGGT_TILE_RESOURCE_ID", "248465")
+MGGT_TILE_RESOURCE_ID = os.getenv("MGGT_TILE_RESOURCE_ID", "296153")
 SCALE_2000_TILE_RESOURCE_ID = os.getenv("SCALE_2000_TILE_RESOURCE_ID", "232992")
 MGGT_TILE_ND = os.getenv("MGGT_TILE_ND", "204")
 try:
