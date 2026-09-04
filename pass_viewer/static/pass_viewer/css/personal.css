@@ -96,6 +96,11 @@
     line-height: 1.2;
 }
 
+.personal-metric-card__value--areas {
+    font-size: 22px;
+    word-break: break-word;
+}
+
 .personal-metric-card__label {
     margin-top: 6px;
     font-size: 13px;

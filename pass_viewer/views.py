@@ -5195,20 +5195,30 @@ def _build_personal_account_metrics(owned_objects, approval_items):
         if not (item.get("rootid") or "").strip() and (item.get("request_id") or "").strip()
     ]
     total_clean_area_m2 = 0.0
+    total_area_m2 = 0.0
     for item in passports:
-        value = item.get("clean_area_m2")
-        if value is None or value == "":
-            continue
-        try:
-            total_clean_area_m2 += float(value)
-        except (TypeError, ValueError):
-            continue
+        clean_value = item.get("clean_area_m2")
+        if clean_value is not None and clean_value != "":
+            try:
+                total_clean_area_m2 += float(clean_value)
+            except (TypeError, ValueError):
+                pass
+        area_value = item.get("total_area_m2")
+        if area_value is not None and area_value != "":
+            try:
+                total_area_m2 += float(area_value)
+            except (TypeError, ValueError):
+                pass
 
+    clean_label = _format_personal_area(total_clean_area_m2) or "—"
+    overall_label = _format_personal_area(total_area_m2) or "—"
     return {
         "passport_count": len(passports),
         "request_count": len(requests),
         "approval_count": len(approval_items),
-        "total_area_label": _format_personal_area(total_clean_area_m2) or "—",
+        "clean_area_label": clean_label,
+        "overall_area_label": overall_label,
+        "total_area_label": f"{clean_label} / {overall_label}",
     }
 
 
