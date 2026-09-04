@@ -39,6 +39,11 @@
         if (active.has('all')) {
             return true;
         }
+        const oghType = (row.dataset.sourceLabel || '').trim();
+        const approvedOgh = oghType === 'ОЗН' || oghType === 'ОО' || oghType === 'ОДХ' || oghType === 'ТОП' || oghType === 'ДТ' || oghType === 'DT' || oghType === 'TOP';
+        if (active.has('approved') && rowKind === 'passport' && approvedOgh) {
+            return true;
+        }
         if (active.has('actualization') && passportizationKind === 'Актуализация') {
             return true;
         }
@@ -54,32 +59,176 @@
         return false;
     }
 
+    function filterControls() {
+        return filterPanel ? Array.from(filterPanel.querySelectorAll('[data-filter-col]')) : [];
+    }
+
+    function cellText(cell) {
+        return (cell && cell.textContent ? cell.textContent : '').replace(/\s+/g, ' ').trim();
+    }
+
+    function sortFilterValues(values, col) {
+        return values.sort((a, b) => {
+            if (col === 6) {
+                const na = Number.parseInt(a, 10);
+                const nb = Number.parseInt(b, 10);
+                const aNum = String(na) === a;
+                const bNum = String(nb) === b;
+                if (aNum && bNum) {
+                    return nb - na;
+                }
+                if (aNum) {
+                    return -1;
+                }
+                if (bNum) {
+                    return 1;
+                }
+            }
+            return a.localeCompare(b, 'ru');
+        });
+    }
+
+    function populateFilterSelects() {
+        if (!table || !filterPanel) {
+            return;
+        }
+        const rows = table.querySelectorAll('tbody tr[data-row-kind]');
+        filterPanel.querySelectorAll('select[data-filter-col]').forEach((select) => {
+            const col = Number(select.dataset.filterCol);
+            const values = new Set();
+            rows.forEach((row) => {
+                const text = cellText(row.querySelectorAll('td')[col]);
+                if (text) {
+                    values.add(text);
+                }
+            });
+            sortFilterValues(Array.from(values), col).forEach((value) => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                select.appendChild(option);
+            });
+        });
+    }
+
+    function columnMismatch(control, cells) {
+        const value = control.value.trim();
+        if (!value) {
+            return false;
+        }
+        const cell = cells[Number(control.dataset.filterCol)];
+        const text = cellText(cell).toLocaleLowerCase('ru');
+        const needle = value.toLocaleLowerCase('ru');
+        if (control.tagName === 'SELECT') {
+            return text !== needle;
+        }
+        return !text.includes(needle);
+    }
+
+    function escapeRegExp(value) {
+        return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function ensureSearchHtml(cell) {
+        if (cell.dataset.searchHtml == null) {
+            cell.dataset.searchHtml = cell.innerHTML;
+        }
+    }
+
+    function restoreSearchHtml(cell) {
+        if (cell.dataset.searchHtml != null) {
+            cell.innerHTML = cell.dataset.searchHtml;
+        }
+    }
+
+    function highlightTextNodes(root, query) {
+        const re = new RegExp(escapeRegExp(query), 'gi');
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode(node) {
+                if (!node.nodeValue) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                const parent = node.parentElement;
+                if (parent && (parent.closest('mark.personal-search-hit') || parent.closest('.personal-table-btn'))) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return NodeFilter.FILTER_ACCEPT;
+            },
+        });
+        const nodes = [];
+        while (walker.nextNode()) {
+            nodes.push(walker.currentNode);
+        }
+        nodes.forEach((node) => {
+            const text = node.nodeValue;
+            re.lastIndex = 0;
+            if (!re.test(text)) {
+                return;
+            }
+            re.lastIndex = 0;
+            const frag = document.createDocumentFragment();
+            let last = 0;
+            let match = re.exec(text);
+            while (match) {
+                if (match.index > last) {
+                    frag.appendChild(document.createTextNode(text.slice(last, match.index)));
+                }
+                const mark = document.createElement('mark');
+                mark.className = 'personal-search-hit';
+                mark.textContent = match[0];
+                frag.appendChild(mark);
+                last = match.index + match[0].length;
+                if (!match[0].length) {
+                    break;
+                }
+                match = re.exec(text);
+            }
+            if (last < text.length) {
+                frag.appendChild(document.createTextNode(text.slice(last)));
+            }
+            node.parentNode.replaceChild(frag, node);
+        });
+    }
+
+    function updateRowSearchHighlights(row, query) {
+        const cells = row.querySelectorAll('td');
+        for (let index = 1; index <= 8; index += 1) {
+            const cell = cells[index];
+            if (!cell || cell.querySelector('.personal-table-btn')) {
+                continue;
+            }
+            ensureSearchHtml(cell);
+            restoreSearchHtml(cell);
+            if (query) {
+                highlightTextNodes(cell, query);
+            }
+        }
+    }
+
     function applyPersonalTableFilters() {
         if (!table) {
             return;
         }
         const rows = table.querySelectorAll('tbody tr');
-        const inputs = filterPanel ? filterPanel.querySelectorAll('input[data-filter-col]') : [];
+        const controls = filterControls();
         const active = activeKindFilters();
+        const queryRaw = globalSearch ? globalSearch.value.trim() : '';
+        const query = queryRaw.toLocaleLowerCase('ru');
         rows.forEach((row) => {
             if (!rowMatchesKindFilter(row, active)) {
                 row.hidden = true;
+                updateRowSearchHighlights(row, '');
                 return;
             }
             const cells = row.querySelectorAll('td');
-            const columnMismatch = Array.from(inputs).some((input) => {
-                const value = input.value.trim().toLocaleLowerCase('ru');
-                if (!value) return false;
-                const cell = cells[Number(input.dataset.filterCol)];
-                return !cell || !cell.textContent.toLocaleLowerCase('ru').includes(value);
-            });
-            if (columnMismatch) {
+            if (controls.some((control) => columnMismatch(control, cells))) {
                 row.hidden = true;
+                updateRowSearchHighlights(row, '');
                 return;
             }
-            const query = globalSearch ? globalSearch.value.trim().toLocaleLowerCase('ru') : '';
             if (!query) {
                 row.hidden = false;
+                updateRowSearchHighlights(row, '');
                 return;
             }
             let matchesGlobal = false;
@@ -91,6 +240,7 @@
                 }
             }
             row.hidden = !matchesGlobal;
+            updateRowSearchHighlights(row, matchesGlobal ? queryRaw : '');
         });
         renumberVisiblePersonalRows();
         updateKindFilterCounts();
@@ -131,7 +281,8 @@
     }
 
     if (table) {
-        const inputs = filterPanel ? filterPanel.querySelectorAll('input[data-filter-col]') : [];
+        const controls = filterControls();
+        populateFilterSelects();
         if (typeof KF.bindKindFilters === 'function' && kindFilterButtons.length) {
             KF.bindKindFilters(kindFilterButtons, applyPersonalTableFilters);
         } else {
@@ -144,10 +295,13 @@
                 filterToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
             });
         }
-        inputs.forEach((input) => input.addEventListener('input', applyPersonalTableFilters));
+        controls.forEach((control) => {
+            const eventName = control.tagName === 'SELECT' ? 'change' : 'input';
+            control.addEventListener(eventName, applyPersonalTableFilters);
+        });
         globalSearch?.addEventListener('input', applyPersonalTableFilters);
         clearButton?.addEventListener('click', () => {
-            inputs.forEach((input) => { input.value = ''; });
+            controls.forEach((control) => { control.value = ''; });
             if (globalSearch) {
                 globalSearch.value = '';
             }

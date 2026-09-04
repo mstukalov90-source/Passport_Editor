@@ -613,6 +613,7 @@ def test_build_personal_table_items_includes_requests_and_approvals() -> None:
     assert by_name["Согласование 46998"]["passportization_kind"] == ""
     assert _personal_kind_filter_counts(rows) == {
         "all": 4,
+        "approved": 1,
         "actualization": 1,
         "primary": 1,
         "drawn": 1,
@@ -717,6 +718,7 @@ def test_annotate_kind_filter_membership_folds_matching_ods() -> None:
     )
     assert counts == {
         "all": 3,
+        "approved": 1,
         "actualization": 1,
         "primary": 1,
         "drawn": 0,

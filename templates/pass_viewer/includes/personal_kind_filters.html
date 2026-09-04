@@ -3,6 +3,10 @@
                 Все паспорта и заявки на паспортизацию
                 <span class="personal-kind-filter-count">{{ personal_kind_counts.all|default:0 }}</span>
             </button>
+            <button type="button" class="personal-kind-filter-btn" data-kind-filter="approved" aria-pressed="false">
+                Утверждённые паспорта
+                <span class="personal-kind-filter-count">{{ personal_kind_counts.approved|default:0 }}</span>
+            </button>
             <button type="button" class="personal-kind-filter-btn" data-kind-filter="actualization" aria-pressed="false">
                 Заявки на актуализацию
                 <span class="personal-kind-filter-count">{{ personal_kind_counts.actualization|default:0 }}</span>

@@ -19,8 +19,18 @@
 
 {% block content %}
 <div class="personal-view-toggle" role="tablist" aria-label="Режим просмотра">
-    <span class="personal-view-toggle__btn is-active" role="tab" aria-selected="true">Список</span>
-    <a class="personal-view-toggle__btn" href="{% url 'home' %}" role="tab" aria-selected="false">Просмотр на карте</a>
+    <span class="personal-view-toggle__btn is-active" role="tab" aria-selected="true">
+        Список
+        <svg class="personal-view-toggle__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M2 3h12v1.5H2V3zm0 4.25h12v1.5H2v-1.5zm0 4.25h12V13H2v-1.5z"/>
+        </svg>
+    </span>
+    <a class="personal-view-toggle__btn" href="{% url 'home' %}" role="tab" aria-selected="false">
+        Просмотр на карте
+        <svg class="personal-view-toggle__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M8 1.5a4.25 4.25 0 0 0-4.25 4.25c0 3.19 4.25 8.75 4.25 8.75s4.25-5.56 4.25-8.75A4.25 4.25 0 0 0 8 1.5zm0 5.75a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+        </svg>
+    </a>
 </div>
 
 {% if owned_objects_error %}
@@ -33,23 +43,34 @@
     <div class="personal-list-header">
         {% include 'pass_viewer/includes/personal_kind_filters.html' %}
         <div class="personal-list-header-tools">
-            <input type="search" id="personal-global-search" class="personal-global-search"
-                   placeholder="Глобальный поиск" aria-label="Глобальный поиск">
+            <div class="personal-global-search-wrap">
+                <input type="search" id="personal-global-search" class="personal-global-search"
+                       placeholder="Глобальный поиск" aria-label="Глобальный поиск">
+                <img class="personal-global-search__icon" src="{% static 'pass_viewer/search-loupe.svg' %}" alt="" aria-hidden="true">
+            </div>
             <button type="button" class="personal-filter-icon-btn" id="personal-filter-toggle"
-                    aria-label="Фильтр" aria-expanded="false" aria-controls="personal-filter-panel">
+                    aria-label="Фильтры" aria-expanded="false" aria-controls="personal-filter-panel">
+                Фильтры
                 <img class="personal-filter-icon-btn__icon" src="{% static 'pass_viewer/filter-so_128x128.svg' %}" alt="">
             </button>
         </div>
     </div>
     <div class="personal-filter-panel" id="personal-filter-panel" hidden>
-        <input type="text" data-filter-col="1" placeholder="№ Паспорта">
-        <input type="text" data-filter-col="2" placeholder="№ Заявки">
-        <input type="text" data-filter-col="3" placeholder="Название">
-        <input type="text" data-filter-col="4" placeholder="Площадь">
-        <input type="text" data-filter-col="5" placeholder="Тип ОГХ">
-        <input type="text" data-filter-col="6" placeholder="Год паспортизации">
-        <input type="text" data-filter-col="7" placeholder="Вид паспортизации">
-        <input type="text" data-filter-col="8" placeholder="Статус">
+        <input type="text" data-filter-col="1" placeholder="ID Паспорта">
+        <input type="text" data-filter-col="2" placeholder="ID Заявки">
+        <input type="text" data-filter-col="3" placeholder="Наименование">
+        <select data-filter-col="5" aria-label="Тип ОГХ">
+            <option value="">Тип ОГХ</option>
+        </select>
+        <select data-filter-col="6" aria-label="Год паспортизации">
+            <option value="">Год паспортизации</option>
+        </select>
+        <select data-filter-col="7" aria-label="Вид паспортизации">
+            <option value="">Вид паспортизации</option>
+        </select>
+        <select data-filter-col="8" aria-label="Статус">
+            <option value="">Статус</option>
+        </select>
         <button type="button" id="personal-filter-clear">Сброс</button>
     </div>
     <div class="personal-table-wrap">
@@ -57,9 +78,9 @@
             <thead>
                 <tr>
                     <th class="personal-row-num-col">№</th>
-                    <th>№ Паспорта</th>
-                    <th>№ Заявки</th>
-                    <th>Название</th>
+                    <th>ID Паспорта</th>
+                    <th>ID Заявки</th>
+                    <th>Наименование</th>
                     <th>Площадь</th>
                     <th>Тип ОГХ</th>
                     <th>Год паспортизации</th>
@@ -75,7 +96,7 @@
                 {% for item in personal_table_items %}
                     {% with source=item.source_label|default:'' %}
                     {% firstof item.area_label '—' as area %}
-                    <tr data-row-kind="{{ item.row_kind }}" data-passportization-kind="{{ item.passportization_kind|default:'' }}">
+                    <tr data-row-kind="{{ item.row_kind }}" data-passportization-kind="{{ item.passportization_kind|default:'' }}" data-source-label="{{ source }}">
                         <td class="personal-row-num">{{ forloop.counter }}</td>
                         <td>{% firstof item.display_rootid '—' %}</td>
                         <td>{% firstof item.display_request_id '—' %}</td>

@@ -3,11 +3,29 @@
 
     const PV = (global.PassViewer = global.PassViewer || {});
     const STORAGE_KEY = 'pv-kind-filters';
-    const VALID_KEYS = new Set(['all', 'actualization', 'primary', 'drawn', 'approval']);
+    const VALID_KEYS = new Set(['all', 'approved', 'actualization', 'primary', 'drawn', 'approval']);
+    const APPROVED_OGH = new Set(['ДТ', 'ОДХ', 'ОО', 'ТОП']);
+
+    function oghTypeFromSource(sourceLabel) {
+        const source = String(sourceLabel || '').trim().toUpperCase();
+        if (source === 'ОЗН' || source === 'ОО') {
+            return 'ОО';
+        }
+        if (source === 'ОДХ') {
+            return 'ОДХ';
+        }
+        if (source === 'ТОП' || source === 'TOP') {
+            return 'ТОП';
+        }
+        if (source === 'ДТ' || source === 'DT') {
+            return 'ДТ';
+        }
+        return 'прочие';
+    }
 
     function kindFields(source) {
         if (!source) {
-            return { rowKind: '', passportizationKind: '', folded: false };
+            return { rowKind: '', passportizationKind: '', folded: false, oghType: '' };
         }
         const ds = source.dataset;
         if (ds) {
@@ -15,17 +33,19 @@
                 rowKind: ds.rowKind || '',
                 passportizationKind: ds.passportizationKind || '',
                 folded: ds.foldedIntoPassport === '1',
+                oghType: oghTypeFromSource(ds.sourceLabel || ds.oghType || ''),
             };
         }
         return {
             rowKind: String(source.rowKind || source.row_kind || ''),
             passportizationKind: String(source.passportizationKind || source.passportization_kind || ''),
             folded: Boolean(source.foldedIntoPassport || source.folded_into_passport),
+            oghType: oghTypeFromSource(source.sourceLabel || source.source_label || source.oghType || source.ogh_type || ''),
         };
     }
 
     function rowMatchesKindFilter(source, active) {
-        const { rowKind, passportizationKind, folded } = kindFields(source);
+        const { rowKind, passportizationKind, folded, oghType } = kindFields(source);
         if (folded) {
             return false;
         }
@@ -37,6 +57,9 @@
             return true;
         }
         if (keys.has('all')) {
+            return true;
+        }
+        if (keys.has('approved') && rowKind === 'passport' && APPROVED_OGH.has(oghType)) {
             return true;
         }
         if (keys.has('actualization') && passportizationKind === 'Актуализация') {
@@ -115,6 +138,9 @@
         if (keys.has('all') || keys.has('actualization') || keys.has('primary')) {
             groups.add('passports');
             groups.add('requests');
+        }
+        if (keys.has('approved')) {
+            groups.add('passports');
         }
         if (keys.has('drawn')) {
             groups.add('requests');

@@ -23,8 +23,18 @@
     <div class="owned-home-shell">
     <div class="owned-home-header">
         <div class="personal-view-toggle" role="tablist" aria-label="Режим просмотра">
-            <a class="personal-view-toggle__btn" href="{% url 'personal_account' %}" role="tab" aria-selected="false">Список</a>
-            <span class="personal-view-toggle__btn is-active" role="tab" aria-selected="true">Просмотр на карте</span>
+            <a class="personal-view-toggle__btn" href="{% url 'personal_account' %}" role="tab" aria-selected="false">
+                Список
+                <svg class="personal-view-toggle__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M2 3h12v1.5H2V3zm0 4.25h12v1.5H2v-1.5zm0 4.25h12V13H2v-1.5z"/>
+                </svg>
+            </a>
+            <span class="personal-view-toggle__btn is-active" role="tab" aria-selected="true">
+                Просмотр на карте
+                <svg class="personal-view-toggle__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M8 1.5a4.25 4.25 0 0 0-4.25 4.25c0 3.19 4.25 8.75 4.25 8.75s4.25-5.56 4.25-8.75A4.25 4.25 0 0 0 8 1.5zm0 5.75a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                </svg>
+            </span>
         </div>
         {% include 'pass_viewer/includes/personal_kind_filters.html' %}
         <div class="owned-home-header-actions">

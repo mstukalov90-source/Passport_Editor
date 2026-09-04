@@ -47,6 +47,7 @@
 .personal-view-toggle__btn {
     display: inline-flex;
     align-items: center;
+    gap: 6px;
     padding: 8px 16px;
     border-radius: 6px;
     color: #334155;
@@ -63,6 +64,13 @@
 .personal-view-toggle__btn.is-active {
     background: var(--pv-red, #BA3034);
     color: #fff;
+}
+
+.personal-view-toggle__icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    display: block;
 }
 
 /* Metrics */
@@ -244,11 +252,17 @@
     flex-shrink: 0;
 }
 
-.personal-global-search {
+.personal-global-search-wrap {
+    position: relative;
     width: 260px;
     max-width: 40vw;
+    flex-shrink: 0;
+}
+
+.personal-global-search {
+    width: 100%;
     height: 36px;
-    padding: 0 10px;
+    padding: 0 36px 0 10px;
     border: 1px solid var(--pv-border, #e3e6ec);
     border-radius: 8px;
     font: inherit;
@@ -256,19 +270,34 @@
     box-sizing: border-box;
 }
 
+.personal-global-search__icon {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    width: 16px;
+    height: 16px;
+    transform: translateY(-50%);
+    pointer-events: none;
+    filter: brightness(0) saturate(100%) invert(27%) sepia(12%) saturate(746%) hue-rotate(176deg) brightness(94%) contrast(88%);
+}
+
 .personal-filter-icon-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
+    gap: 6px;
+    width: auto;
     height: 36px;
     border: none;
     border-radius: 8px;
     background: var(--pv-blue, #165391);
     color: #fff;
     cursor: pointer;
-    padding: 0;
+    padding: 0 12px;
     flex-shrink: 0;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
 }
 
 .personal-filter-icon-btn__icon {
@@ -293,7 +322,8 @@
     display: none;
 }
 
-.personal-filter-panel input[type="text"] {
+.personal-filter-panel input[type="text"],
+.personal-filter-panel select {
     flex: 1;
     min-width: 120px;
     padding: 6px 8px;
@@ -301,6 +331,7 @@
     border-radius: 6px;
     font: inherit;
     box-sizing: border-box;
+    background: #fff;
 }
 
 .personal-filter-panel button {
@@ -457,6 +488,13 @@
     border-bottom: 1px solid var(--pv-border, #e3e6ec);
 }
 
+.personal-search-hit {
+    background: #fde68a;
+    color: inherit;
+    padding: 0 1px;
+    border-radius: 2px;
+}
+
 .personal-table td:nth-last-child(-n+3) {
     text-align: center;
 }
@@ -513,6 +551,7 @@
 .personal-table-btn__icon--gerb {
     width: 18px;
     height: 18px;
+    filter: brightness(0) invert(1);
 }
 
 button.personal-table-btn {
