@@ -5509,13 +5509,15 @@ def _build_personal_table_items(owned_objects, approval_items):
 
 
 def _personal_kind_filter_counts(items):
-    counts = {"all": 0, "actualization": 0, "primary": 0, "drawn": 0, "approval": 0}
+    counts = {"all": 0, "approved": 0, "actualization": 0, "primary": 0, "drawn": 0, "approval": 0}
     for item in items or []:
         row_kind = str(item.get("row_kind") or "")
         passportization_kind = str(item.get("passportization_kind") or "")
         if not row_kind:
             continue
         counts["all"] += 1
+        if row_kind == "passport" and _personal_ogh_type_label(item) in _APPROVED_OGH_TYPES:
+            counts["approved"] += 1
         if passportization_kind == "Актуализация":
             counts["actualization"] += 1
         if passportization_kind == "Первичная":
@@ -5535,6 +5537,7 @@ _PASSPORTIZATION_KIND_ORDER = (
     "без вида",
 )
 _OGH_TYPE_ORDER = ("ДТ", "ОДХ", "ОО", "ТОП", "прочие")
+_APPROVED_OGH_TYPES = frozenset(("ДТ", "ОДХ", "ОО", "ТОП"))
 
 
 def _personal_ogh_type_label(item):

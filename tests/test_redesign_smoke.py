@@ -131,10 +131,20 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "personal_notifications_panel.html" not in personal
     assert "personal-notifications-panel" not in personal
     assert "personal-account-layout" in personal
-    assert "№ Заявки" in personal
+    assert "ID Заявки" in personal
+    assert "ID Паспорта" in personal
+    assert "Наименование" in personal
     assert 'class="personal-row-num-col">№</th>' in personal
     assert "personal-row-num" in personal
     assert 'data-filter-col="1"' in personal
+    assert 'data-filter-col="4"' not in personal
+    assert '<select data-filter-col="5"' in personal
+    assert '<select data-filter-col="6"' in personal
+    assert '<select data-filter-col="7"' in personal
+    assert '<select data-filter-col="8"' in personal
+    assert "personal-global-search-wrap" in personal
+    assert "personal-view-toggle__icon" in personal
+    assert 'aria-label="Фильтры"' in personal
     assert "personal-global-search" in personal
     assert 'placeholder="Глобальный поиск"' in personal
     assert "personal-list-header-tools" in personal
@@ -152,6 +162,8 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     kind_filters = (ROOT / "templates/pass_viewer/includes/personal_kind_filters.html").read_text(encoding="utf-8")
     assert "personal-kind-filter-btn" in kind_filters
     assert 'data-kind-filter="all"' in kind_filters
+    assert 'data-kind-filter="approved"' in kind_filters
+    assert "Утверждённые паспорта" in kind_filters
     assert 'data-kind-filter="actualization"' in kind_filters
     assert 'data-kind-filter="primary"' in kind_filters
     assert 'data-kind-filter="drawn"' in kind_filters
@@ -190,6 +202,8 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "openOwnedObjectForView" in js
     assert "view_only" in js
     assert "applyPersonalTableFilters" in js
+    assert "populateFilterSelects" in js
+    assert "updateRowSearchHighlights" in js
     assert "personal-global-search" in js
     assert "renumberVisiblePersonalRows" in js
     assert "updateKindFilterCounts" in js
@@ -200,6 +214,7 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "if (keys.has('all'))" in kind_filters_js
     assert "rowKind !== 'approval'" not in kind_filters_js
     assert "foldedIntoPassport" in kind_filters_js
+    assert "'approved'" in kind_filters_js
     assert "'drawn'" in kind_filters_js
     assert "setKindFilterPressed(allKindBtn, false)" in kind_filters_js
     assert "setKindFilterPressed(item, item === btn)" in kind_filters_js
@@ -278,6 +293,7 @@ def test_personal_account_renders_owned_object_without_area() -> None:
             },
             "personal_kind_counts": {
                 "all": 2,
+                "approved": 1,
                 "actualization": 0,
                 "primary": 1,
                 "drawn": 0,
@@ -318,7 +334,7 @@ def test_personal_account_renders_owned_object_without_area() -> None:
     assert "owned-view-object-frame" in html
     assert "personal-notifications-panel" not in html
     assert "personal-account-layout" in html
-    assert "№ Заявки" in html
+    assert "ID Заявки" in html
     assert 'class="personal-row-num">' in html
     assert "Вид паспортизации" in html
     assert "78467" in html

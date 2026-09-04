@@ -1601,6 +1601,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                                     rowKind: meta.rowKind || '',
                                     passportizationKind: meta.passportizationKind || '',
                                     foldedIntoPassport: meta.foldedIntoPassport,
+                                    source_label: meta.sourceLabel || '',
                                 },
                                 activeKinds
                             );
