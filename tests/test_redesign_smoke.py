@@ -287,7 +287,7 @@ def test_personal_account_renders_owned_object_without_area() -> None:
             "owned_objects_error": "",
             "personal_metrics": {
                 "passport_count": 1,
-                "total_area_label": "7 717 м²",
+                "total_area_label": "7 717 м² / 8 200 м²",
                 "request_count": 0,
                 "approval_count": 0,
             },
@@ -314,7 +314,8 @@ def test_personal_account_renders_owned_object_without_area() -> None:
     assert "1-й Щипковский пер." in html
     assert "ОЗН" in html
     assert "7 617 м²" in html
-    assert "7 717 м²" in html
+    assert "7 717 м² / 8 200 м²" in html
+    assert "Уборочная площадь / Общая площадь" in html
     assert "personal-metrics" in html
     assert "Количество утверждённых паспортов" in html
     assert "personal-badge" in html
@@ -373,7 +374,7 @@ def test_statistics_page_renders_metrics_and_tables() -> None:
                 "passport_count": 2,
                 "request_count": 1,
                 "approval_count": 3,
-                "total_area_label": "7 717 м²",
+                "total_area_label": "7 717 м² / 8 200 м²",
             },
             "personal_statistics": {
                 "passportization_kinds": [
@@ -403,7 +404,8 @@ def test_statistics_page_renders_metrics_and_tables() -> None:
     assert "Статистика" in html
     assert "personal-metrics" in html
     assert "Количество утверждённых паспортов" in html
-    assert "7 717 м²" in html
+    assert "7 717 м² / 8 200 м²" in html
+    assert "Уборочная площадь / Общая площадь" in html
     assert "personal-stat-table" in html
     assert "Вид паспортизации" in html
     assert "Тип ОГХ" in html

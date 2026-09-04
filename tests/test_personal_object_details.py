@@ -181,15 +181,17 @@ def test_annotate_personal_total_areas_isolates_source_errors() -> None:
 def test_personal_metrics_sum_clean_area() -> None:
     metrics = _build_personal_account_metrics(
         [
-            {"rootid": "1", "clean_area_m2": 7617},
-            {"rootid": "2", "clean_area_m2": 100.4},
+            {"rootid": "1", "clean_area_m2": 7617, "total_area_m2": 8000},
+            {"rootid": "2", "clean_area_m2": 100.4, "total_area_m2": 200},
             {"rootid": "", "request_id": "9"},
         ],
         [],
     )
     assert metrics["passport_count"] == 2
     assert metrics["request_count"] == 1
-    assert metrics["total_area_label"] == "7 717 м²"
+    assert metrics["clean_area_label"] == "7 717 м²"
+    assert metrics["overall_area_label"] == "8 200 м²"
+    assert metrics["total_area_label"] == "7 717 м² / 8 200 м²"
 
 
 def test_build_personal_statistics_groups_fixture_rows() -> None:
