@@ -5,7 +5,7 @@
     const MGGT_HTTPS_TILE_URL = '/tiles/mggt/{z}/{x}/{y}.png';
     const SCALE_2000_HTTPS_TILE_URL = '/tiles/scale2000/{z}/{x}/{y}.png';
     const MGGT_HTTP_TILE_URL =
-        'http://ngtst.mggt:8080/api/component/render/tile?resource=248465&nd=204&z={z}&x={x}&y={y}';
+        'http://ngtst.mggt:8080/api/component/render/tile?resource=296153&nd=204&z={z}&x={x}&y={y}';
     const SCALE_2000_HTTP_TILE_URL =
         'http://ngtst.mggt:8080/api/component/render/tile?resource=232992&nd=204&z={z}&x={x}&y={y}';
     const ERROR_TILE_URL =
@@ -13,7 +13,7 @@
     /** Максимальный z, на котором сервер МГГТ отдаёт реальные тайлы; выше — Leaflet масштабирует уже загруженные. */
     const MGGT_MAX_NATIVE_ZOOM = 17;
     const MAP_MAX_ZOOM = 30;
-    const MGGT_PROBE_CACHE_KEY = 'passviewer:mggt_available_v3';
+    const MGGT_PROBE_CACHE_KEY = 'passviewer:mggt_available_v4';
     const MGGT_PROBE_TIMEOUT_MS = 3000;
     /** Тайл в центре Москвы для проверки доступности сервера МГГТ. */
     const MGGT_PROBE_TILE = { z: 10, x: 618, y: 319 };

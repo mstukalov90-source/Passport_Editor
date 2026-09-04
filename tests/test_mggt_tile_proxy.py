@@ -114,7 +114,7 @@ def test_successful_proxy_returns_png_and_allowlisted_upstream():
 
     upstream = _request_url(mock_urlopen)
     assert upstream.startswith("http://ngtst.mggt:8080/api/component/render/tile?")
-    assert "resource=248465" in upstream
+    assert "resource=296153" in upstream
     assert "nd=204" in upstream
     assert "z=10" in upstream
     assert "x=618" in upstream
@@ -132,7 +132,7 @@ def test_scale2000_uses_allowlisted_resource_id():
     assert response.status_code == 200
     upstream = _request_url(mock_urlopen)
     assert "resource=232992" in upstream
-    assert "resource=248465" not in upstream
+    assert "resource=296153" not in upstream
 
 
 def test_upstream_timeout_returns_404():
@@ -158,9 +158,9 @@ def test_upstream_http_error_returns_404():
 
 def test_build_upstream_url_does_not_accept_client_host(settings):
     settings.MGGT_TILE_UPSTREAM_BASE = "http://ngtst.mggt:8080/api/component/render/tile"
-    url = build_upstream_url("248465", 10, 618, 319)
+    url = build_upstream_url("296153", 10, 618, 319)
     assert url.startswith("http://ngtst.mggt:8080/")
-    assert "resource=248465" in url
+    assert "resource=296153" in url
     assert "http://evil.example" not in url
 
 
@@ -169,10 +169,10 @@ def test_basemap_js_splits_tile_urls_by_protocol():
     assert "/tiles/mggt/{z}/{x}/{y}.png" in source
     assert "/tiles/scale2000/{z}/{x}/{y}.png" in source
     assert "http://ngtst.mggt" in source
-    assert "resource=248465" in source
+    assert "resource=296153" in source
     assert "resource=232992" in source
     assert "location.protocol === 'https:'" in source
-    assert "passviewer:mggt_available_v3" in source
+    assert "passviewer:mggt_available_v4" in source
 
 
 def test_pdf_export_skips_same_origin_cors():
