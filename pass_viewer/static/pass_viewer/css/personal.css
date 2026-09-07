@@ -34,14 +34,57 @@
     color: var(--pv-dark-blue, #1A3F6E);
 }
 
+.personal-view-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
 .personal-view-toggle {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     padding: 4px;
-    margin-bottom: 24px;
     background: #eef2f7;
     border-radius: 8px;
+}
+
+.personal-export-xlsx-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 8px;
+    background: var(--pv-blue, #165391);
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.personal-export-xlsx-btn__icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    display: block;
+}
+
+.personal-export-xlsx-btn:hover,
+.personal-export-xlsx-btn:focus-visible {
+    background: var(--pv-dark-blue, #1A3F6E);
+    outline: none;
+}
+
+.personal-export-xlsx-btn:disabled {
+    background: #94a3b8;
+    cursor: default;
 }
 
 .personal-view-toggle__btn {
@@ -471,15 +514,31 @@
 
 .personal-table {
     width: 100%;
+    min-width: 1280px;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 14px;
 }
+
+.personal-col-num { width: 3.5%; }
+.personal-col-passport { width: 8%; }
+.personal-col-request { width: 7%; }
+.personal-col-name { width: 9%; }
+.personal-col-create-type { width: 7%; }
+.personal-col-survey-date { width: 8%; }
+.personal-col-approval-date { width: 7%; }
+.personal-col-area { width: 6.5%; }
+.personal-col-ogh { width: 5.5%; }
+.personal-col-year { width: 8%; }
+.personal-col-status { width: 11%; }
+.personal-col-action { width: 7.5%; }
 
 .personal-table th,
 .personal-table td {
     padding: 10px 12px;
     text-align: left;
     vertical-align: middle;
+    overflow-wrap: anywhere;
 }
 
 .personal-table th {
@@ -500,17 +559,36 @@
     border-radius: 2px;
 }
 
-.personal-table td:nth-last-child(-n+3) {
+.personal-table th:nth-child(4),
+.personal-table td:nth-child(4),
+.personal-table th:nth-child(11),
+.personal-table td:nth-child(11) {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    overflow: hidden;
+}
+
+.personal-table th:nth-child(n+12) {
     text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    overflow: hidden;
+    line-height: 1.25;
+}
+
+.personal-table td:nth-child(n+12) {
+    text-align: center;
+    white-space: nowrap;
+    overflow-wrap: normal;
 }
 
 .personal-row-num-col,
 .personal-table td.personal-row-num {
-    width: 3rem;
     text-align: center;
     color: #64748b;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+    overflow-wrap: normal;
 }
 
 .personal-table tr:last-child td {

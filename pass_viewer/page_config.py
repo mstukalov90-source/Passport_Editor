@@ -70,6 +70,7 @@ def personal_page_config():
         urls={
             "resolveAsuOdsUrl": reverse("resolve_asu_ods_url"),
             "personalObjectDetails": reverse("personal_object_details"),
+            "personalExportXlsx": reverse("personal_export_xlsx"),
             "openOwned": reverse("open_owned_object"),
             "checkDgi": reverse("check_dgi_intersections"),
             "intersecsAnaliz": reverse("intersecs_analiz"),
