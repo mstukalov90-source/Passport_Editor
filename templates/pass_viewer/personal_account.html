@@ -18,19 +18,27 @@
 {% block page_layout_end %}</div>{% endblock %}
 
 {% block content %}
-<div class="personal-view-toggle" role="tablist" aria-label="Режим просмотра">
-    <span class="personal-view-toggle__btn is-active" role="tab" aria-selected="true">
-        Список
-        <svg class="personal-view-toggle__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            <path fill="currentColor" d="M2 3h12v1.5H2V3zm0 4.25h12v1.5H2v-1.5zm0 4.25h12V13H2v-1.5z"/>
+<div class="personal-view-toolbar">
+    <div class="personal-view-toggle" role="tablist" aria-label="Режим просмотра">
+        <span class="personal-view-toggle__btn is-active" role="tab" aria-selected="true">
+            Список
+            <svg class="personal-view-toggle__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M2 3h12v1.5H2V3zm0 4.25h12v1.5H2v-1.5zm0 4.25h12V13H2v-1.5z"/>
+            </svg>
+        </span>
+        <a class="personal-view-toggle__btn" href="{% url 'home' %}" role="tab" aria-selected="false">
+            Просмотр на карте
+            <svg class="personal-view-toggle__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M8 1.5a4.25 4.25 0 0 0-4.25 4.25c0 3.19 4.25 8.75 4.25 8.75s4.25-5.56 4.25-8.75A4.25 4.25 0 0 0 8 1.5zm0 5.75a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+            </svg>
+        </a>
+    </div>
+    <button type="button" class="personal-export-xlsx-btn" id="personal-export-xlsx">
+        <span class="personal-export-xlsx-btn__label">Выгрузить в Excel</span>
+        <svg class="personal-export-xlsx-btn__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M9.2 1.5H3.25A1.75 1.75 0 0 0 1.5 3.25v9.5c0 .97.78 1.75 1.75 1.75h9.5c.97 0 1.75-.78 1.75-1.75V6.3L9.2 1.5zm.55 1.2 3.55 3.55h-3.55V2.7zM4.15 12.2 6 9.55 4.2 7h1.35L6.7 8.9 8.05 7H9.4L7.5 9.55 9.4 12.2H8.05L6.7 10.2 5.5 12.2H4.15z"/>
         </svg>
-    </span>
-    <a class="personal-view-toggle__btn" href="{% url 'home' %}" role="tab" aria-selected="false">
-        Просмотр на карте
-        <svg class="personal-view-toggle__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            <path fill="currentColor" d="M8 1.5a4.25 4.25 0 0 0-4.25 4.25c0 3.19 4.25 8.75 4.25 8.75s4.25-5.56 4.25-8.75A4.25 4.25 0 0 0 8 1.5zm0 5.75a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
-        </svg>
-    </a>
+    </button>
 </div>
 
 {% if owned_objects_error %}
@@ -59,37 +67,51 @@
         <input type="text" data-filter-col="1" placeholder="ID Паспорта">
         <input type="text" data-filter-col="2" placeholder="ID Заявки">
         <input type="text" data-filter-col="3" placeholder="Наименование">
-        <select data-filter-col="5" aria-label="Тип ОГХ">
+        <select data-filter-col="8" aria-label="Тип ОГХ">
             <option value="">Тип ОГХ</option>
         </select>
-        <select data-filter-col="6" aria-label="Год паспортизации">
+        <select data-filter-col="9" aria-label="Год паспортизации">
             <option value="">Год паспортизации</option>
         </select>
-        <select data-filter-col="7" aria-label="Вид паспортизации">
-            <option value="">Вид паспортизации</option>
-        </select>
-        <select data-filter-col="8" aria-label="Статус">
+        <select data-filter-col="10" aria-label="Статус">
             <option value="">Статус</option>
         </select>
         <button type="button" id="personal-filter-clear">Сброс</button>
     </div>
     <div class="personal-table-wrap">
         <table class="personal-table">
+            <colgroup>
+                <col class="personal-col-num">
+                <col class="personal-col-passport">
+                <col class="personal-col-request">
+                <col class="personal-col-name">
+                <col class="personal-col-create-type">
+                <col class="personal-col-survey-date">
+                <col class="personal-col-approval-date">
+                <col class="personal-col-area">
+                <col class="personal-col-ogh">
+                <col class="personal-col-year">
+                <col class="personal-col-status">
+                <col class="personal-col-action">
+                <col class="personal-col-action">
+                <col class="personal-col-action">
+            </colgroup>
             <thead>
                 <tr>
                     <th class="personal-row-num-col">№</th>
                     <th>ID Паспорта</th>
                     <th>ID Заявки</th>
                     <th>Наименование</th>
+                    <th>Тип создания</th>
+                    <th>Дата полевого обследования</th>
+                    <th>Дата утверждения</th>
                     <th>Площадь</th>
                     <th>Тип ОГХ</th>
                     <th>Год паспортизации</th>
-                    <th>Вид паспортизации</th>
                     <th>Статус</th>
                     <th>АСУ ОДС</th>
                     <th>Проверить пересечения</th>
                     <th>Детальный просмотр</th>
-                    <th>Отрисовка границ</th>
                 </tr>
             </thead>
             <tbody>
@@ -101,6 +123,9 @@
                         <td>{% firstof item.display_rootid '—' %}</td>
                         <td>{% firstof item.display_request_id '—' %}</td>
                         <td>{{ item.name|default:'—' }}</td>
+                        <td>{{ item.create_type_label|default:'—' }}</td>
+                        <td>{{ item.survey_date_label|default:'—' }}</td>
+                        <td>{{ item.approval_date_label|default:'—' }}</td>
                         <td>{{ area }}</td>
                         <td>
                             {% if item.row_kind == 'ods' %}
@@ -118,8 +143,10 @@
                             {% endif %}
                         </td>
                         <td>{{ item.passportization_year|default:'—' }}</td>
-                        <td>{{ item.passportization_kind|default:'—' }}</td>
-                        <td>{{ item.display_status|default:'—' }}</td>
+                        <td class="personal-status-cell"
+                            data-status-combined="{{ item.display_status|default:'—' }}"
+                            data-status-ogh="{{ item.ogh_status_label|default:'—' }}"
+                            data-status-ods="{{ item.ods_status_label|default:'—' }}">{{ item.display_status|default:'—' }}</td>
                         <td>
                             {% if item.asu_ods_enabled %}
                             <button type="button" class="personal-table-btn personal-asu-ods-open"
@@ -174,35 +201,17 @@
                                     data-source="{{ item.asu_ods_source|default:source }}"
                                     data-recaps="{{ item.recap_count|default:0 }}"
                                     data-area="{{ area }}"
-                                    data-status="{{ item.display_status|default:'—' }}">
+                                    data-status="{{ item.display_status|default:'—' }}"
+                                    data-has-request="{% if item.display_request_id or item.drawn_request_id %}1{% endif %}">
                                 <img class="personal-table-btn__icon" src="{% static 'pass_viewer/search-loupe.svg' %}" alt="" aria-hidden="true">
                                 Просмотр
-                            </button>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if item.row_kind == 'approval' %}
-                            <button type="button" class="personal-table-btn is-disabled" disabled>
-                                <img class="personal-table-btn__icon" src="{% static 'pass_viewer/pencil.svg' %}" alt="" aria-hidden="true">
-                                Перейти
-                            </button>
-                            {% else %}
-                            <button type="button" class="personal-table-btn personal-draw-open"
-                                    data-rootid="{% firstof item.rootid item.display_rootid '' %}"
-                                    data-name="{{ item.name|default:'' }}"
-                                    data-request-id="{{ item.display_request_id|default:'' }}"
-                                    data-drawn-request-id="{{ item.drawn_request_id|default:'' }}"
-                                    data-source="{{ item.asu_ods_source|default:source }}"
-                                    data-has-request="{% if item.display_request_id or item.drawn_request_id %}1{% endif %}">
-                                <img class="personal-table-btn__icon" src="{% static 'pass_viewer/pencil.svg' %}" alt="" aria-hidden="true">
-                                Перейти
                             </button>
                             {% endif %}
                         </td>
                     </tr>
                     {% endwith %}
                 {% empty %}
-                <tr><td colspan="13">Объекты не найдены.</td></tr>
+                <tr><td colspan="14">Объекты не найдены.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -234,6 +243,10 @@
             </div>
             <div class="personal-modal__footer">
                 <button type="button" class="personal-table-btn is-disabled" id="personal-asu-ods-link" disabled>Перейти в АСУ ОДС</button>
+                <button type="button" class="personal-table-btn personal-draw-open is-disabled" id="personal-modal-draw-open" disabled>
+                    <img class="personal-table-btn__icon" src="{% static 'pass_viewer/pencil.svg' %}" alt="" aria-hidden="true">
+                    Перейти к отрисовке
+                </button>
                 <form method="post" action="{% url 'open_owned_object' %}" id="personal-open-form">
                     {% csrf_token %}
                     <input type="hidden" name="rootid" id="personal-open-rootid">
@@ -373,5 +386,5 @@
 <script src="{% static 'pass_viewer/js/kind-filters.js' %}"></script>
 <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
 <script src="{% static 'pass_viewer/js/map-tools.js' %}"></script>
-<script src="{% static 'pass_viewer/js/personal-account.js' %}?v=beskhoz-1"></script>
+<script src="{% static 'pass_viewer/js/personal-account.js' %}?v=status-mode-2"></script>
 {% endblock %}

@@ -30,6 +30,7 @@ from pass_viewer.views import (
     _format_personal_ogh_status,
     _format_personal_passportization_year,
     _personal_display_status,
+    _personal_status_parts,
     _personal_passportization_kind,
     _personal_rootid_any_match_sql,
     _personal_rootid_values_are_int,
@@ -40,10 +41,15 @@ def test_personal_object_details_url() -> None:
     assert reverse("personal_object_details") == "/personal/object-details/"
 
 
+def test_personal_export_xlsx_url() -> None:
+    assert reverse("personal_export_xlsx") == "/personal/export-xlsx/"
+
+
 def test_personal_page_config_has_open_owned() -> None:
     config = personal_page_config()
     assert config["urls"]["openOwned"] == reverse("open_owned_object")
     assert config["urls"]["personalObjectDetails"] == reverse("personal_object_details")
+    assert config["urls"]["personalExportXlsx"] == reverse("personal_export_xlsx")
     assert config["urls"]["checkDgi"] == reverse("check_dgi_intersections")
     assert config["urls"]["intersecsAnaliz"] == reverse("intersecs_analiz")
 
@@ -78,7 +84,9 @@ def test_personal_rootid_match_sql_uses_bigint_without_lower() -> None:
 
 def test_annotate_personal_total_areas_uses_square_meters() -> None:
     mock_cursor = MagicMock()
-    mock_cursor.fetchall.return_value = [("924695948", 7617, 7617)]
+    mock_cursor.fetchall.return_value = [
+        ("924695948", 7617, 7617, date(2025, 5, 22), "АСУ ОДС 2.0", date(2025, 11, 11))
+    ]
     mock_db = MagicMock()
     mock_db.cursor.return_value.__enter__.return_value = mock_cursor
     items = [{"rootid": "924695948", "source_label": "ОЗН", "name": "Test"}]
@@ -90,10 +98,16 @@ def test_annotate_personal_total_areas_uses_square_meters() -> None:
     assert items[0]["area_label"] == "7 617 м²"
     assert items[0]["total_area_m2"] == 7617
     assert items[0]["clean_area_m2"] == 7617
+    assert items[0]["create_type_label"] == "АСУ ОДС 2.0"
+    assert items[0]["approval_date_label"] == "22.05.2025"
+    assert items[0]["survey_date_label"] == "11.11.2025"
     sql = mock_cursor.execute.call_args[0][0]
     assert '"OznPoly"' in sql
     assert '"TotalArea"' in sql
     assert '"TotalCleanArea"' in sql
+    assert '"StartDate"' in sql
+    assert '"CreateType"' in sql
+    assert '"DateSurvey"' in sql
     assert "lower(" not in sql
     assert "ANY(%s::bigint[])" in sql
     assert mock_cursor.execute.call_args[0][1] == [[924695948]]
@@ -101,7 +115,7 @@ def test_annotate_personal_total_areas_uses_square_meters() -> None:
 
 def test_annotate_personal_total_areas_uses_ods_matched_rootid() -> None:
     mock_cursor = MagicMock()
-    mock_cursor.fetchall.return_value = [("4280571", 5000, 4000)]
+    mock_cursor.fetchall.return_value = [("4280571", 5000, 4000, None, None, None)]
     mock_db = MagicMock()
     mock_db.cursor.return_value.__enter__.return_value = mock_cursor
     items = [
@@ -130,7 +144,7 @@ def test_annotate_personal_total_areas_uses_ods_matched_rootid() -> None:
 def test_annotate_personal_total_areas_skips_missing_clean_area_column() -> None:
     mock_cursor = MagicMock()
     mock_cursor.fetchone.return_value = None
-    mock_cursor.fetchall.return_value = [("54", 10000, None)]
+    mock_cursor.fetchall.return_value = [("54", 10000, None, None, None, None)]
     mock_db = MagicMock()
     mock_db.cursor.return_value.__enter__.return_value = mock_cursor
     items = [{"rootid": "54", "source_label": "ОДХ", "name": "odh"}]
@@ -145,7 +159,10 @@ def test_annotate_personal_total_areas_skips_missing_clean_area_column() -> None
     assert any("information_schema.columns" in sql for sql in sqls)
     select_sql = next(sql for sql in sqls if '"OdhPoly"' in sql and "SELECT t." in sql)
     assert '"TotalArea"' in select_sql
+    assert '"StartDate"' in select_sql
     assert '"TotalCleanArea"' not in select_sql
+    assert '"CreateType"' not in select_sql
+    assert '"DateSurvey"' not in select_sql
     assert ", NULL " in select_sql
 
 
@@ -155,7 +172,7 @@ def test_annotate_personal_total_areas_isolates_source_errors() -> None:
     def execute(sql, _params=None):
         if '"YardPoly"' in sql:
             raise RuntimeError("timeout")
-        mock_cursor.fetchall.return_value = [("924695948", 7617, 7617)]
+        mock_cursor.fetchall.return_value = [("924695948", 7617, 7617, None, None, None)]
 
     mock_cursor.execute.side_effect = execute
     mock_db = MagicMock()
@@ -277,8 +294,8 @@ def test_build_personal_statistics_groups_fixture_rows() -> None:
 
 def test_format_personal_ogh_status() -> None:
     assert _format_personal_ogh_status(None, found=False) == "—"
-    assert _format_personal_ogh_status(None, found=True) == "Утверждён"
-    assert _format_personal_ogh_status("  ", found=True) == "Утверждён"
+    assert _format_personal_ogh_status(None, found=True) == "Утвержден в АСУ ОДС"
+    assert _format_personal_ogh_status("  ", found=True) == "Утвержден в АСУ ОДС"
     assert _format_personal_ogh_status("На согласовании", found=True) == "На согласовании"
     assert _format_personal_passportization_year(None, found=False) == "—"
     assert _format_personal_passportization_year(None, found=True) == "—"
@@ -304,7 +321,7 @@ def test_annotate_personal_ogh_statuses() -> None:
         mock_connections.__getitem__.return_value = mock_db
         _annotate_personal_ogh_statuses(items)
 
-    assert items[0]["status"] == "Утверждён"
+    assert items[0]["status"] == "Утвержден в АСУ ОДС"
     assert items[0]["passportization_year"] == "—"
     assert items[1]["status"] == "На согласовании"
     assert items[1]["passportization_year"] == "2026"
@@ -784,7 +801,19 @@ def test_build_personal_table_items_unconfirmed_request_keeps_own_row() -> None:
 
 
 def test_personal_display_status_falls_back_to_ods() -> None:
+    assert _personal_status_parts({"status": "—"}) == {
+        "ogh_status_label": "—",
+        "ods_status_label": "—",
+        "display_status": "—",
+    }
     assert _personal_display_status({"status": "—"}) == "—"
+    assert _personal_status_parts(
+        {"status": "—", "ods_registry_br_status_name": "Включена в график"}
+    ) == {
+        "ogh_status_label": "—",
+        "ods_status_label": "Включена в график",
+        "display_status": "Включена в график",
+    }
     assert (
         _personal_display_status(
             {"status": "—", "ods_registry_br_status_name": "Включена в график"}
@@ -792,7 +821,29 @@ def test_personal_display_status_falls_back_to_ods() -> None:
         == "Включена в график"
     )
     assert _personal_display_status({"status": "", "br_status_name": "В работе"}) == "В работе"
-    assert _personal_display_status({"status": "Полевые работы", "br_status_name": "В работе"}) == "Полевые работы"
+    assert (
+        _personal_display_status({"status": "Полевые работы", "br_status_name": "В работе"})
+        == "Полевые работы / В работе"
+    )
+    assert _personal_status_parts(
+        {
+            "status": "Утвержден в АСУ ОДС",
+            "ods_registry_br_status_name": "Согласована МКА",
+        }
+    ) == {
+        "ogh_status_label": "Утвержден в АСУ ОДС",
+        "ods_status_label": "Согласована МКА",
+        "display_status": "Утвержден в АСУ ОДС / Согласована МКА",
+    }
+    assert (
+        _personal_display_status(
+            {
+                "status": "Утвержден в АСУ ОДС",
+                "ods_registry_br_status_name": "Согласована МКА",
+            }
+        )
+        == "Утвержден в АСУ ОДС / Согласована МКА"
+    )
 
 
 def test_build_personal_table_items_uses_ods_status_when_gis_empty() -> None:
@@ -812,6 +863,8 @@ def test_build_personal_table_items_uses_ods_status_when_gis_empty() -> None:
         [],
     )
     assert rows[0]["display_status"] == "Включена в график"
+    assert rows[0]["ogh_status_label"] == "—"
+    assert rows[0]["ods_status_label"] == "Включена в график"
 
     merged = _build_personal_table_items(
         [
@@ -837,3 +890,118 @@ def test_build_personal_table_items_uses_ods_status_when_gis_empty() -> None:
     )
     assert len(merged) == 1
     assert merged[0]["display_status"] == "Включена в график"
+
+
+@pytest.mark.django_db
+def test_personal_export_xlsx_requires_login(client) -> None:
+    response = client.post(
+        reverse("personal_export_xlsx"),
+        data=json.dumps({"rows": []}),
+        content_type="application/json",
+    )
+    assert response.status_code == 302
+
+
+@pytest.mark.django_db
+def test_personal_export_xlsx_builds_links_and_skips_action_columns(client) -> None:
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    user = User.objects.create_user(username="personal_export_user", password="pass")
+    ExternalUser.objects.create(
+        login="personal_export_user",
+        password="pass",
+        owner_legal_person_id="OWNER_A",
+    )
+    client.force_login(user)
+    payload = {
+        "rows": [
+            {
+                "cells": [
+                    "1",
+                    "924695948",
+                    "—",
+                    "1-й Щипковский",
+                    "Паспорт",
+                    "11.11.2025",
+                    "01.01.2024",
+                    "100 м²",
+                    "ДТ",
+                    "2024",
+                    "Утверждён",
+                    "Открыть",
+                    "Проверить",
+                    "Просмотр",
+                ],
+                "asu_ods_rootid": "924695948",
+                "asu_ods_source": "ДТ",
+            },
+            {
+                "cells": [
+                    "2",
+                    "—",
+                    "55",
+                    "Заявка",
+                    "Заявка",
+                    "—",
+                    "—",
+                    "—",
+                    "—",
+                    "—",
+                    "В работе",
+                    "Открыть",
+                ],
+            },
+        ]
+    }
+
+    with patch(
+        "pass_viewer.views._build_asu_ods_url",
+        return_value="https://asu.example/object/1",
+    ) as mocked_url:
+        response = client.post(
+            reverse("personal_export_xlsx"),
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 200
+    assert (
+        response["Content-Type"]
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert "attachment; filename=" in response["Content-Disposition"]
+    assert "personal-account-" in response["Content-Disposition"]
+    mocked_url.assert_called_once_with("ДТ", "924695948")
+
+    workbook = load_workbook(BytesIO(response.content))
+    sheet = workbook.active
+    headers = [cell.value for cell in sheet[1]]
+    assert headers == [
+        "№",
+        "ID Паспорта",
+        "ID Заявки",
+        "Наименование",
+        "Тип создания",
+        "Дата полевого обследования",
+        "Дата утверждения",
+        "Площадь",
+        "Тип ОГХ",
+        "Год паспортизации",
+        "Статус",
+        "АСУ ОДС",
+    ]
+    assert "Вид паспортизации" not in headers
+    assert "Проверить пересечения" not in headers
+    assert "Детальный просмотр" not in headers
+    assert sheet.max_column == 12
+    assert sheet.max_row == 3
+    assert sheet["L2"].value == "Открыть"
+    assert sheet["L2"].hyperlink is not None
+    assert sheet["L2"].hyperlink.target == "https://asu.example/object/1"
+    assert sheet["L3"].value == "—"
+    assert sheet["L3"].hyperlink is None
+    assert sheet["D2"].value == "1-й Щипковский"
+    assert sheet["E2"].value == "Паспорт"
+    assert sheet["F2"].value == "11.11.2025"

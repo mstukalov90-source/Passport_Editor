@@ -138,24 +138,35 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "personal-row-num" in personal
     assert 'data-filter-col="1"' in personal
     assert 'data-filter-col="4"' not in personal
-    assert '<select data-filter-col="5"' in personal
-    assert '<select data-filter-col="6"' in personal
-    assert '<select data-filter-col="7"' in personal
     assert '<select data-filter-col="8"' in personal
+    assert '<select data-filter-col="9"' in personal
+    assert '<select data-filter-col="10"' in personal
+    assert '<select data-filter-col="11"' not in personal
     assert "personal-global-search-wrap" in personal
     assert "personal-view-toggle__icon" in personal
     assert 'aria-label="Фильтры"' in personal
     assert "personal-global-search" in personal
     assert 'placeholder="Глобальный поиск"' in personal
     assert "personal-list-header-tools" in personal
-    assert 'colspan="13"' in personal
-    assert "Отрисовка границ" in personal
+    assert 'colspan="14"' in personal
+    assert "<colgroup>" in personal
+    assert "personal-col-action" in personal
+    assert "personal-col-create-type" in personal
+    assert "personal-col-survey-date" in personal
+    assert "Тип создания" in personal
+    assert "Дата полевого обследования" in personal
+    assert "Дата утверждения" in personal
+    css_personal = (ROOT / "pass_viewer/static/pass_viewer/css/personal.css").read_text(encoding="utf-8")
+    assert "table-layout: fixed" in css_personal
+    assert "<th>Отрисовка границ</th>" not in personal
+    assert "personal-modal-draw-open" in personal
     assert "personal-draw-open" in personal
     assert "pencil.svg" in personal
-    assert "Перейти" in personal
+    assert "Перейти к отрисовке" in personal
     assert "personal-draw-choice-modal" in personal
     assert "personal-draw-form" in personal
-    assert "Вид паспортизации" in personal
+    assert "Вид паспортизации" not in personal
+    assert "data-passportization-kind" in personal
     assert "personal_table_items" in personal
     assert "personal_kind_filters.html" in personal
     assert "kind-filters.js" in personal
@@ -195,6 +206,10 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "personal-detail-mode-passport" in personal
     assert "personal-detail-mode-request" in personal
     assert "Год паспортизации" in personal
+    assert "personal-status-cell" in personal
+    assert "data-status-ogh" in personal
+    assert "data-status-ods" in personal
+    assert "data-status-combined" in personal
     js = (ROOT / "pass_viewer/static/pass_viewer/js/personal-account.js").read_text(encoding="utf-8")
     kind_filters_js = (ROOT / "pass_viewer/static/pass_viewer/js/kind-filters.js").read_text(encoding="utf-8")
     assert "createBasemapLayers" in js
@@ -223,6 +238,8 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "runPersonalDgiCheck" in js
     assert "personal-dgi-check" in js
     assert "personal-draw-open" in js
+    assert "syncModalDrawButton" in js
+    assert "index <= 10" in js
     assert "submitDrawForm" in js
     assert "split_object" in js
     assert "owned-view-object-modal" in personal
@@ -337,7 +354,7 @@ def test_personal_account_renders_owned_object_without_area() -> None:
     assert "personal-account-layout" in html
     assert "ID Заявки" in html
     assert 'class="personal-row-num">' in html
-    assert "Вид паспортизации" in html
+    assert "data-passportization-kind" in html
     assert "78467" in html
     assert "Первичная" in html
     assert "Согласование заявки из графика паспортизации 46998" in html
@@ -350,12 +367,18 @@ def test_personal_account_renders_owned_object_without_area() -> None:
     assert "personal-kind-filter-count" in html
     assert ">2</span>" in html
     assert ">1</span>" in html
-    assert "Отрисовка границ" in html
+    assert "<th>Отрисовка границ</th>" not in html
+    assert "personal-modal-draw-open" in html
     assert "personal-draw-open" in html
+    assert "Тип создания" in html
+    assert "Дата полевого обследования" in html
+    assert "Дата утверждения" in html
+    assert "personal-status-cell" in html
+    assert "data-status-ogh" in html
     assert 'data-has-request=""' in html
     assert 'data-has-request="1"' in html
     assert "pencil.svg" in html
-    assert "Перейти" in html
+    assert "Перейти к отрисовке" in html
     assert "personal-draw-choice-modal" in html
     assert "Актуализировать" in html
     assert "Разделить" in html

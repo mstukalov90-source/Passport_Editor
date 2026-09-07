@@ -5,6 +5,7 @@ import uuid
 import zipfile
 from collections import Counter
 from datetime import date, datetime, timedelta
+from io import BytesIO
 from pathlib import Path
 
 from approval.access import get_accessible_approves
@@ -15,7 +16,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.gis.geos import GEOSGeometry
 from django.db import connection, connections
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -5449,15 +5450,29 @@ def _personal_passportization_kind(item):
     return ""
 
 
-def _personal_display_status(item):
-    text = str(item.get("status") or "").strip()
-    if text and text != "—":
-        return text
-    for key in ("br_status_name", "ods_registry_br_status_name"):
+def _personal_status_parts(item):
+    ogh = str(item.get("status") or "").strip()
+    if ogh == "—":
+        ogh = ""
+    ods = ""
+    for key in ("ods_registry_br_status_name", "br_status_name"):
         alt = str(item.get(key) or "").strip()
         if alt:
-            return alt
-    return text or "—"
+            ods = alt
+            break
+    if ogh and ods:
+        combined = f"{ogh} / {ods}"
+    else:
+        combined = ogh or ods or "—"
+    return {
+        "ogh_status_label": ogh or "—",
+        "ods_status_label": ods or "—",
+        "display_status": combined,
+    }
+
+
+def _personal_display_status(item):
+    return _personal_status_parts(item)["display_status"]
 
 
 def _personal_asu_ods_fields(item):
@@ -5476,11 +5491,14 @@ def _build_personal_table_items(owned_objects, approval_items):
         row = dict(item)
         row_kind = _personal_row_kind(item)
         asu_rootid, asu_source, asu_enabled = _personal_asu_ods_fields(item)
+        status_parts = _personal_status_parts(item)
         row["row_kind"] = row_kind
         row["display_rootid"] = _personal_display_rootid(item)
         row["display_request_id"] = _personal_display_request_id(item)
         row["passportization_kind"] = _personal_passportization_kind(item)
-        row["display_status"] = _personal_display_status(item)
+        row["display_status"] = status_parts["display_status"]
+        row["ogh_status_label"] = status_parts["ogh_status_label"]
+        row["ods_status_label"] = status_parts["ods_status_label"]
         row["asu_ods_rootid"] = asu_rootid
         row["asu_ods_source"] = asu_source
         row["asu_ods_enabled"] = asu_enabled
@@ -5501,11 +5519,16 @@ def _build_personal_table_items(owned_objects, approval_items):
                 "name": item.get("label") or item.get("name") or "",
                 "source_label": item.get("source_label") or "",
                 "display_status": item.get("status_label") or "—",
+                "ogh_status_label": "—",
+                "ods_status_label": "—",
                 "status": item.get("status_label") or "—",
                 "approve_id": item.get("id"),
                 "area_label": "",
                 "passportization_year": "—",
                 "passportization_kind": "",
+                "create_type_label": "—",
+                "approval_date_label": "—",
+                "survey_date_label": "—",
                 "asu_ods_rootid": "",
                 "asu_ods_source": item.get("source_label") or "",
                 "asu_ods_enabled": False,
@@ -7149,6 +7172,102 @@ def resolve_asu_ods_url(request):
     return JsonResponse(response)
 
 
+_PERSONAL_EXPORT_HEADERS = (
+    "№",
+    "ID Паспорта",
+    "ID Заявки",
+    "Наименование",
+    "Тип создания",
+    "Дата полевого обследования",
+    "Дата утверждения",
+    "Площадь",
+    "Тип ОГХ",
+    "Год паспортизации",
+    "Статус",
+    "АСУ ОДС",
+)
+_PERSONAL_EXPORT_MAX_ROWS = 20000
+_PERSONAL_EXPORT_MAX_CELL_LEN = 4000
+
+
+def _personal_export_cell_text(value):
+    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+
+    text = str(value if value is not None else "")
+    text = ILLEGAL_CHARACTERS_RE.sub("", text)
+    if len(text) > _PERSONAL_EXPORT_MAX_CELL_LEN:
+        text = text[:_PERSONAL_EXPORT_MAX_CELL_LEN]
+    return text
+
+
+@login_required
+@require_POST
+def personal_export_xlsx(request):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
+
+    rows = payload.get("rows") if isinstance(payload, dict) else None
+    if rows is None:
+        rows = []
+    if not isinstance(rows, list):
+        return JsonResponse({"ok": False, "error": "Некорректный список строк."}, status=400)
+    if len(rows) > _PERSONAL_EXPORT_MAX_ROWS:
+        return JsonResponse(
+            {"ok": False, "error": "Слишком много строк для выгрузки."},
+            status=400,
+        )
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Личный кабинет"
+    sheet.append(list(_PERSONAL_EXPORT_HEADERS))
+    header_font = Font(bold=True)
+    for cell in sheet[1]:
+        cell.font = header_font
+    link_font = Font(color="0563C1", underline="single")
+    url_cache = {}
+
+    for item in rows:
+        if not isinstance(item, dict):
+            cells = []
+            rootid = ""
+            source = ""
+        else:
+            cells = item.get("cells") or []
+            if not isinstance(cells, list):
+                cells = []
+            rootid = str(item.get("asu_ods_rootid") or "").strip()
+            source = str(item.get("asu_ods_source") or "").strip() or "ДТ"
+        values = [_personal_export_cell_text(cells[i] if i < len(cells) else "") for i in range(11)]
+        asu_url = None
+        if rootid:
+            cache_key = (rootid, source)
+            if cache_key not in url_cache:
+                url_cache[cache_key] = _build_asu_ods_url(source, rootid)
+            asu_url = url_cache[cache_key]
+        values.append("Открыть" if asu_url else "—")
+        sheet.append(values)
+        if asu_url:
+            link_cell = sheet.cell(row=sheet.max_row, column=12)
+            link_cell.hyperlink = asu_url
+            link_cell.font = link_font
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    filename = f"personal-account-{timezone.now().date().isoformat()}.xlsx"
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
 _PERSONAL_MASTER_TABLE_BY_SOURCE = {
     "ДТ": "YardPoly",
     "ОДХ": "OdhPoly",
@@ -7271,6 +7390,9 @@ def _annotate_personal_total_areas(owned_objects):
 
     areas: dict[tuple[str, str], object] = {}
     clean_areas: dict[tuple[str, str], object] = {}
+    start_dates: dict[tuple[str, str], object] = {}
+    create_types: dict[tuple[str, str], object] = {}
+    survey_dates: dict[tuple[str, str], object] = {}
     schema = getattr(settings, "APPROVAL_ADJACENT_SCHEMA", "master")
     try:
         cursor_cm = connections["qgis"].cursor()
@@ -7292,23 +7414,51 @@ def _annotate_personal_total_areas(owned_objects):
                         if has_clean_area
                         else "NULL"
                     )
+                    has_create_type = _column_exists(
+                        cursor, table_name, "CreateType", schema=schema
+                    )
+                    create_type_sql = (
+                        f"t.{_quote_ident('CreateType')}"
+                        if has_create_type
+                        else "NULL"
+                    )
+                    has_date_survey = _column_exists(
+                        cursor, table_name, "DateSurvey", schema=schema
+                    )
+                    date_survey_sql = (
+                        f"t.{_quote_ident('DateSurvey')}"
+                        if has_date_survey
+                        else "NULL"
+                    )
                     for offset in range(0, len(unique_ids), _PERSONAL_ROOTID_CHUNK_SIZE):
                         chunk = unique_ids[offset : offset + _PERSONAL_ROOTID_CHUNK_SIZE]
                         where_sql, params = _personal_rootid_any_match_sql(chunk)
                         cursor.execute(
                             (
                                 f"SELECT t.{_quote_ident('RootId')}::text, "
-                                f"t.{_quote_ident('TotalArea')}, {clean_area_sql} "
+                                f"t.{_quote_ident('TotalArea')}, {clean_area_sql}, "
+                                f"t.{_quote_ident('StartDate')}, {create_type_sql}, "
+                                f"{date_survey_sql} "
                                 f"FROM {_quote_ident(schema)}.{_quote_ident(table_name)} t "
                                 f"WHERE {where_sql}"
                             ),
                             params,
                         )
-                        for rootid_key, total_area, clean_area in cursor.fetchall():
+                        for (
+                            rootid_key,
+                            total_area,
+                            clean_area,
+                            start_date,
+                            create_type,
+                            date_survey,
+                        ) in cursor.fetchall():
                             if rootid_key:
                                 key = (source, str(rootid_key).strip().lower())
                                 areas[key] = total_area
                                 clean_areas[key] = clean_area
+                                start_dates[key] = start_date
+                                create_types[key] = create_type
+                                survey_dates[key] = date_survey
                 except Exception:
                     logger.exception(
                         "personal_account: failed to load TotalArea from %s.%s (source=%s, ids=%s)",
@@ -7325,16 +7475,23 @@ def _annotate_personal_total_areas(owned_objects):
     for item in owned_objects:
         source, rootid = _personal_master_lookup_key(item)
         if not rootid:
+            item.setdefault("create_type_label", "—")
+            item.setdefault("approval_date_label", "—")
+            item.setdefault("survey_date_label", "—")
             continue
         key = (source, rootid.lower())
         item["total_area_m2"] = areas.get(key)
         item["area_label"] = _format_personal_area(areas.get(key))
         item["clean_area_m2"] = clean_areas.get(key)
+        create_type = str(create_types.get(key) or "").strip()
+        item["create_type_label"] = create_type or "—"
+        item["approval_date_label"] = _format_personal_date(start_dates.get(key)) or "—"
+        item["survey_date_label"] = _format_personal_date(survey_dates.get(key)) or "—"
     return owned_objects
 
 
 _PERSONAL_MISSING_OGH_STATUS = object()
-_PERSONAL_DEFAULT_OGH_STATUS = "Утверждён"
+_PERSONAL_DEFAULT_OGH_STATUS = "Утвержден в АСУ ОДС"
 
 
 def _format_personal_ogh_status(value, *, found):

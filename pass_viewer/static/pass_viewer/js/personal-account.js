@@ -95,6 +95,9 @@
         const rows = table.querySelectorAll('tbody tr[data-row-kind]');
         filterPanel.querySelectorAll('select[data-filter-col]').forEach((select) => {
             const col = Number(select.dataset.filterCol);
+            if (col === 10) {
+                return;
+            }
             const values = new Set();
             rows.forEach((row) => {
                 const text = cellText(row.querySelectorAll('td')[col]);
@@ -192,7 +195,7 @@
 
     function updateRowSearchHighlights(row, query) {
         const cells = row.querySelectorAll('td');
-        for (let index = 1; index <= 8; index += 1) {
+        for (let index = 1; index <= 10; index += 1) {
             const cell = cells[index];
             if (!cell || cell.querySelector('.personal-table-btn')) {
                 continue;
@@ -205,6 +208,82 @@
         }
     }
 
+    function statusDisplayMode(active) {
+        const keys = active instanceof Set ? active : new Set(active || []);
+        if (!keys.size || keys.has('all')) {
+            return 'combined';
+        }
+        const hasApproved = keys.has('approved');
+        const hasRequest = keys.has('actualization') || keys.has('primary') || keys.has('drawn');
+        const hasApproval = keys.has('approval');
+        if (hasApproved && !hasRequest && !hasApproval) {
+            return 'ogh';
+        }
+        if (hasRequest && !hasApproved && !hasApproval) {
+            return 'ods';
+        }
+        return 'combined';
+    }
+
+    function statusTextForCell(cell, mode) {
+        const combined = String((cell && cell.dataset.statusCombined) || '').trim();
+        const ogh = String((cell && cell.dataset.statusOgh) || '').trim();
+        const ods = String((cell && cell.dataset.statusOds) || '').trim();
+        if (mode === 'ogh') {
+            return ogh || '—';
+        }
+        if (mode === 'ods') {
+            return ods || '—';
+        }
+        return combined || ogh || ods || '—';
+    }
+
+    function applyStatusModeToRows(mode) {
+        if (!table) {
+            return;
+        }
+        table.querySelectorAll('tbody tr[data-row-kind]').forEach((row) => {
+            const cell = row.querySelector('td.personal-status-cell');
+            if (!cell) {
+                return;
+            }
+            cell.textContent = statusTextForCell(cell, mode);
+            delete cell.dataset.searchHtml;
+        });
+    }
+
+    function rebuildStatusFilterSelect() {
+        if (!table || !filterPanel) {
+            return;
+        }
+        const select = filterPanel.querySelector('select[data-filter-col="10"]');
+        if (!select) {
+            return;
+        }
+        const previous = select.value;
+        const placeholderLabel = (select.options[0] && select.options[0].textContent) || 'Статус';
+        select.innerHTML = '';
+        const blank = document.createElement('option');
+        blank.value = '';
+        blank.textContent = placeholderLabel;
+        select.appendChild(blank);
+        const values = new Set();
+        table.querySelectorAll('tbody tr[data-row-kind]').forEach((row) => {
+            const text = cellText(row.querySelector('td.personal-status-cell'));
+            if (text) {
+                values.add(text);
+            }
+        });
+        sortFilterValues(Array.from(values), 10).forEach((value) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            select.appendChild(option);
+        });
+        const stillThere = Array.from(select.options).some((option) => option.value === previous);
+        select.value = stillThere ? previous : '';
+    }
+
     function applyPersonalTableFilters() {
         if (!table) {
             return;
@@ -212,6 +291,8 @@
         const rows = table.querySelectorAll('tbody tr');
         const controls = filterControls();
         const active = activeKindFilters();
+        applyStatusModeToRows(statusDisplayMode(active));
+        rebuildStatusFilterSelect();
         const queryRaw = globalSearch ? globalSearch.value.trim() : '';
         const query = queryRaw.toLocaleLowerCase('ru');
         rows.forEach((row) => {
@@ -232,7 +313,7 @@
                 return;
             }
             let matchesGlobal = false;
-            for (let index = 1; index <= 8; index += 1) {
+            for (let index = 1; index <= 10; index += 1) {
                 const cell = cells[index];
                 if (cell && cell.textContent.toLocaleLowerCase('ru').includes(query)) {
                     matchesGlobal = true;
@@ -308,6 +389,100 @@
             applyPersonalTableFilters();
         });
     }
+
+    const EXPORT_COLUMN_COUNT = 12;
+    const exportButton = document.getElementById('personal-export-xlsx');
+
+    function visiblePersonalExportRows() {
+        if (!table) {
+            return [];
+        }
+        return Array.from(table.querySelectorAll('tbody tr[data-row-kind]')).filter((row) => !row.hidden);
+    }
+
+    function collectPersonalExportPayload() {
+        return visiblePersonalExportRows().map((row) => {
+            const cells = row.querySelectorAll('td');
+            const values = [];
+            for (let index = 0; index < EXPORT_COLUMN_COUNT; index += 1) {
+                values.push(cellText(cells[index]));
+            }
+            const asuBtn = row.querySelector('.personal-asu-ods-open');
+            const payload = { cells: values };
+            if (asuBtn) {
+                payload.asu_ods_rootid = String(asuBtn.dataset.rootid || '').trim();
+                payload.asu_ods_source = String(asuBtn.dataset.source || '').trim();
+            }
+            return payload;
+        });
+    }
+
+    function filenameFromDisposition(header) {
+        if (!header) {
+            return '';
+        }
+        const utfMatch = header.match(/filename\*=UTF-8''([^;]+)/i);
+        if (utfMatch) {
+            try {
+                return decodeURIComponent(utfMatch[1]);
+            } catch (error) {
+                return utfMatch[1];
+            }
+        }
+        const plain = header.match(/filename="?([^";]+)"?/i);
+        return plain ? plain[1] : '';
+    }
+
+    function downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename || 'personal-account.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    async function exportPersonalTableXlsx() {
+        const endpoint = urls.personalExportXlsx;
+        if (!endpoint || !exportButton) {
+            return;
+        }
+        const exportLabel = exportButton.querySelector('.personal-export-xlsx-btn__label') || exportButton;
+        const originalLabel = exportLabel.textContent;
+        exportButton.disabled = true;
+        exportLabel.textContent = 'Выгрузка…';
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken(),
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ rows: collectPersonalExportPayload() }),
+            });
+            if (!response.ok) {
+                const data = await parseJson(response).catch(() => null);
+                throw new Error((data && data.error) || 'Не удалось выгрузить таблицу в Excel.');
+            }
+            const blob = await response.blob();
+            const filename = filenameFromDisposition(response.headers.get('Content-Disposition'));
+            downloadBlob(blob, filename);
+        } catch (error) {
+            window.alert(error.message || 'Не удалось выгрузить таблицу в Excel.');
+        } finally {
+            exportButton.disabled = false;
+            exportLabel.textContent = originalLabel;
+        }
+    }
+
+    exportButton?.addEventListener('click', () => {
+        exportPersonalTableXlsx().catch((error) => {
+            console.error('personal-account: excel export failed', error);
+        });
+    });
 
     const modal = document.getElementById('personal-detail-modal');
     const closeButton = document.getElementById('personal-detail-close');
@@ -691,6 +866,31 @@
         resolveAndOpenAsuOds(asuOdsLink.dataset.rootid, asuOdsLink.dataset.source);
     });
 
+    function syncModalDrawButton(button) {
+        const drawBtn = document.getElementById('personal-modal-draw-open');
+        if (!drawBtn) {
+            return;
+        }
+        const rowKind = button.closest('tr') && button.closest('tr').dataset.rowKind;
+        if (rowKind === 'approval') {
+            drawBtn.disabled = true;
+            drawBtn.classList.add('is-disabled');
+            return;
+        }
+        const requestId = String(button.dataset.requestId || '').trim();
+        const drawnRequestId = String(button.dataset.drawnRequestId || '').trim();
+        drawBtn.disabled = false;
+        drawBtn.classList.remove('is-disabled');
+        drawBtn.dataset.rootid = String(button.dataset.passportRootid || button.dataset.id || '').trim();
+        drawBtn.dataset.name = String(button.dataset.name || '').trim();
+        drawBtn.dataset.requestId = requestId;
+        drawBtn.dataset.drawnRequestId = drawnRequestId;
+        drawBtn.dataset.source = String(button.dataset.source || 'ДТ').trim() || 'ДТ';
+        drawBtn.dataset.hasRequest = button.dataset.hasRequest === '1' || Boolean(requestId || drawnRequestId)
+            ? '1'
+            : '';
+    }
+
     document.querySelectorAll('.personal-detail-open').forEach((button) => {
         button.addEventListener('click', () => {
             const sourceLabel = button.dataset.source || 'ДТ';
@@ -700,6 +900,7 @@
             const drawnRequestId = (button.dataset.drawnRequestId || '').trim();
             const drawnSource = (button.dataset.drawnSource || '').trim();
             const hasDrawnRequest = button.dataset.hasDrawnRequest === '1' && Boolean(passportRootid) && Boolean(drawnRequestId);
+            syncModalDrawButton(button);
             detailContext = {
                 passportRootid,
                 displayRootid,
