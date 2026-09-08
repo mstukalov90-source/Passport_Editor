@@ -107,22 +107,22 @@
 .layer-panel-swatch--dgi {
     border-color: #dc2626;
     border-style: dashed;
-    background: repeating-linear-gradient(45deg, #dc2626 0 6px, #ffffff 6px 12px);
+    background: repeating-linear-gradient(-45deg, #dc2626 0 6px, #ffffff 6px 12px);
 }
 .layer-panel-swatch--renew {
     border-color: #b45309;
     border-style: dashed;
-    background: repeating-linear-gradient(45deg, #f59e0b 0 6px, #ffffff 6px 12px);
+    background: repeating-linear-gradient(-45deg, #f59e0b 0 6px, #ffffff 6px 12px);
 }
 .layer-panel-swatch--oozt {
     border-color: #16a34a;
     border-style: dashed;
-    background: repeating-linear-gradient(45deg, #16a34a 0 6px, #ffffff 6px 12px);
+    background: repeating-linear-gradient(-45deg, #16a34a 0 6px, #ffffff 6px 12px);
 }
 .layer-panel-swatch--rzd {
     border-color: #dc2626;
     border-style: dashed;
-    background: repeating-linear-gradient(45deg, #dc2626 0 6px, #16a34a 6px 12px);
+    background: repeating-linear-gradient(-45deg, #dc2626 0 6px, #16a34a 6px 12px);
 }
 .layer-panel-swatch--requests {
     border-color: var(--pv-layer-requests);

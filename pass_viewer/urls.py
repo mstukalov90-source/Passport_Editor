@@ -1,5 +1,13 @@
 from django.urls import path
 
+from .request_attachment_views import (
+    delete_request_attachment,
+    download_request_attachment,
+    list_request_attachments,
+    request_bid_comments,
+    request_ods_status,
+    upload_request_attachment,
+)
 from .tile_proxy import proxy_mggt_tile
 from .views import (
     actions,
@@ -66,8 +74,22 @@ urlpatterns = [
     path("personal/export-xlsx/", personal_export_xlsx, name="personal_export_xlsx"),
     path("add-object/auto-remove-intersections/", auto_remove_intersections, name="auto_remove_intersections"),
     path("add-object/cut-geometry/", cut_edited_geometry, name="cut_edited_geometry"),
-    path("add-object/comment-points/", list_comment_points, name="list_comment_points"),
+    path("add-object/request-status/", request_ods_status, name="request_ods_status"),
+    path("add-object/request-comments/", request_bid_comments, name="request_bid_comments"),
+    path("add-object/request-attachments/", list_request_attachments, name="list_request_attachments"),
+    path("add-object/request-attachments/upload/", upload_request_attachment, name="upload_request_attachment"),
+    path(
+        "add-object/request-attachments/<int:attachment_id>/download/",
+        download_request_attachment,
+        name="download_request_attachment",
+    ),
+    path(
+        "add-object/request-attachments/<int:attachment_id>/delete/",
+        delete_request_attachment,
+        name="delete_request_attachment",
+    ),
     path("add-object/comment-point/", save_comment_point, name="save_comment_point"),
+    path("add-object/comment-points/", list_comment_points, name="list_comment_points"),
     path("add-object/comment-point/delete/", delete_comment_point, name="delete_comment_point"),
     path("add-object/export-geometry/", export_new_object_geometry, name="export_new_object_geometry"),
     path("add-object/repair-geometry/", repair_save_geometry, name="repair_save_geometry"),

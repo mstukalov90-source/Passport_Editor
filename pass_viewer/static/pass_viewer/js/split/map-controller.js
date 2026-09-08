@@ -13,6 +13,9 @@
         const state = Split.createSplitState(cfg);
 
         const map = L.map(dom.mapEl, { maxZoom: 30 }).setView([55.75, 37.61], 10);
+        PV._editorMap = map;
+        map.getContainer()._leaflet_map = map;
+        window.setTimeout(() => map.invalidateSize(false), 80);
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
         );
@@ -107,7 +110,7 @@
                 cutDrawer = null;
             }
             state.cutObjectMode = false;
-            dom.cutButton.textContent = 'Разрезать полигон';
+            PV.setMapToolbarLabel(dom.cutButton, 'Разрезать полигон');
             dom.cutButton.classList.remove('map-toolbar-btn--danger');
             dom.cutButton.classList.add('map-toolbar-btn--accent');
             clearSplitDrawFinishFlag();
@@ -119,7 +122,7 @@
                 selectionDrawer = null;
             }
             state.selectionPolygonMode = false;
-            dom.selectByPolygonButton.textContent = 'Выборка полигоном';
+            PV.setMapToolbarLabel(dom.selectByPolygonButton, 'Выборка полигоном');
             dom.selectByPolygonButton.classList.remove('map-toolbar-btn--danger');
             dom.selectByPolygonButton.classList.add('map-toolbar-btn--teal');
             clearSplitDrawFinishFlag();
@@ -151,23 +154,28 @@
         }
         ctx.refreshToolbar = refreshToolbar;
 
-        function setEditMode(enabled) {
+        function setEditMode(enabled, options) {
             state.isEditing = enabled;
             map.getContainer().classList.toggle('edit-mode', enabled);
-            dom.cancelButton.style.display = enabled ? 'inline-block' : 'none';
-            dom.saveButton.style.display = enabled ? 'inline-block' : 'none';
-            dom.editButton.textContent = enabled ? 'Режим редактирования включён' : 'Начать редактирование';
+            dom.cancelButton.hidden = !enabled;
+            PV.setMapToolbarLabel(
+                dom.editButton,
+                enabled ? 'Режим редактирования включён' : 'Начать редактирование'
+            );
             if (!enabled) {
                 cancelCutMode();
                 cancelSelectionPolygonMode();
                 clearSplitDrawFinishFlag();
                 state.lastOutsideRequestId = '';
-                dom.exportLinksEl.innerHTML = '';
+                if (!(options && options.keepExportLinks)) {
+                    dom.exportLinksEl.innerHTML = '';
+                }
                 state.setModeFromPolygonCount(0);
                 state.resetPartIdCounter();
             }
             refreshToolbar();
         }
+        ctx.setEditMode = setEditMode;
 
         function startCutMode() {
             if (PV.stopMeasureMode) {
@@ -176,7 +184,7 @@
             cancelSelectionPolygonMode();
             cancelCutMode();
             state.cutObjectMode = true;
-            dom.cutButton.textContent = 'Отменить разрезание';
+            PV.setMapToolbarLabel(dom.cutButton, 'Отменить разрезание');
             dom.cutButton.classList.remove('map-toolbar-btn--accent');
             dom.cutButton.classList.add('map-toolbar-btn--danger');
             cutDrawer = new L.Draw.Polyline(map, {
@@ -193,7 +201,7 @@
             cancelCutMode();
             cancelSelectionPolygonMode();
             state.selectionPolygonMode = true;
-            dom.selectByPolygonButton.textContent = 'Отменить выборку';
+            PV.setMapToolbarLabel(dom.selectByPolygonButton, 'Отменить выборку');
             dom.selectByPolygonButton.classList.remove('map-toolbar-btn--teal');
             dom.selectByPolygonButton.classList.add('map-toolbar-btn--danger');
             selectionDrawer = new L.Draw.Polygon(map, {

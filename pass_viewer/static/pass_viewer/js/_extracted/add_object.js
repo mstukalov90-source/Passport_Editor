@@ -1,4 +1,7 @@
 const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.61], 12);
+        PV._editorMap = map;
+        map.getContainer()._leaflet_map = map;
+        window.setTimeout(() => map.invalidateSize(false), 80);
         const signalTapeRenderer = L.svg({padding: 0.5});
         map.attributionControl.setPrefix(
             '<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> 🇷🇺'
@@ -599,6 +602,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 }
             });
             syncLayerPanelCheckboxes();
+            if (PV.LayerPanel) {
+                PV.LayerPanel.refresh();
+            }
         }
 
         layerPanelCheckboxes.forEach((checkbox) => {
@@ -619,6 +625,10 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
 
         function refreshObjectLayersControl() {
             refreshLayerPanelCounts();
+        }
+
+        if (PV.LayerPanel) {
+            PV.LayerPanel.init({ map: map, managedLayers: managedLayers });
         }
 
         function addSignalTapeLayer(targetGroup, geojsonObject, sourceLabel) {
@@ -1984,20 +1994,22 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             if (!enabled) {
                 editableAreaInfoEl.textContent = 'Площадь редактируемого объекта: -';
             }
-            cancelEditButton.style.display = enabled ? 'inline-block' : 'none';
-            saveButton.style.display = enabled ? 'inline-block' : 'none';
+            cancelEditButton.hidden = !enabled;
             autoRemoveIntersectionsButton.disabled = !enabled;
-            editButton.textContent = enabled ? 'Режим редактирования включён' : 'Начать редактирование';
+            PV.setMapToolbarLabel(
+                editButton,
+                enabled ? 'Режим редактирования включён' : 'Начать редактирование'
+            );
             addPolygonButton.disabled = !enabled;
             cutPolygonButton.disabled = !enabled;
             if (!enabled) {
                 drawModeToggleLocked = false;
                 addObjectMode = false;
                 cutObjectMode = false;
-                addPolygonButton.textContent = 'Добавить полигон';
+                PV.setMapToolbarLabel(addPolygonButton, 'Добавить полигон');
                 addPolygonButton.classList.remove('map-toolbar-btn--danger');
                 addPolygonButton.classList.add('map-toolbar-btn--accent');
-                cutPolygonButton.textContent = 'Обрезать полигон';
+                PV.setMapToolbarLabel(cutPolygonButton, 'Обрезать полигон');
                 cutPolygonButton.classList.remove('map-toolbar-btn--danger');
                 cutPolygonButton.classList.add('map-toolbar-btn--accent');
             }
@@ -2014,7 +2026,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             if (enabled && PV.stopMeasureMode) {
                 PV.stopMeasureMode(map);
             }
-            addPolygonButton.textContent = enabled ? 'Отменить добавление' : 'Добавить полигон';
+            PV.setMapToolbarLabel(addPolygonButton, enabled ? 'Отменить добавление' : 'Добавить полигон');
             addPolygonButton.classList.toggle('map-toolbar-btn--danger', enabled);
             addPolygonButton.classList.toggle('map-toolbar-btn--accent', !enabled);
             if (!enabled) {
@@ -2027,7 +2039,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             if (enabled && PV.stopMeasureMode) {
                 PV.stopMeasureMode(map);
             }
-            cutPolygonButton.textContent = enabled ? 'Отменить обрезку' : 'Обрезать полигон';
+            PV.setMapToolbarLabel(cutPolygonButton, enabled ? 'Отменить обрезку' : 'Обрезать полигон');
             cutPolygonButton.classList.toggle('map-toolbar-btn--danger', enabled);
             cutPolygonButton.classList.toggle('map-toolbar-btn--accent', !enabled);
             if (!enabled) {
@@ -2824,6 +2836,15 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 });
                 closeSaveModal();
                 pendingDgiApprove = null;
+                if (editToolbar) {
+                    editToolbar.disable();
+                }
+                if (polygonDrawer) {
+                    polygonDrawer.disable();
+                    polygonDrawer = null;
+                }
+                stopFreehandMode();
+                setEditMode(false);
                 const savedTableLabel = saveTargetLabel === 'ОЗН'
                     ? 'ОО'
                     : (saveTargetLabel === 'ОДХ' ? 'ОДХ' : 'ДТ');
@@ -2840,9 +2861,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     source_label: saveTargetLabel,
                 };
                 exportLinksEl.innerHTML =
-                    '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
-                    '<a class="button-link" href="' + exportResult.shapefile_url + '">Скачать SHP (ZIP)</a> ' +
-                    '<a class="button-link" href="#" data-export-pdf-link="1">Скачать PDF (карта и пересечения)</a>';
+                    PV.buildExportFileButtonHtml(exportResult.geojson_url, 'Скачать GeoJSON', 'download') +
+                    PV.buildExportFileButtonHtml(exportResult.shapefile_url, 'Скачать SHP (ZIP)') +
+                    PV.buildExportFileButtonHtml('#', 'Скачать PDF (карта и пересечения)', 'data-export-pdf-link="1"');
                 bindPdfExportLink();
             } catch (error) {
                 setSaveModalGeometryError(error.message || 'Ошибка сохранения объекта.');
