@@ -317,7 +317,7 @@
         if (entryRequestModal) {
             entryRequestModal.style.display = 'flex';
         }
-        setTimeout(() => entryRequestInput && entryRequestInput.focus(), 0);
+        setTimeout(() => entryRequestInput && entryRequestInput.focus({ preventScroll: true }), 0);
     }
 
     function closeEntryRequestModal() {

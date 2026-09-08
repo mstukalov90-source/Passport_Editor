@@ -799,6 +799,10 @@
         if (field('personal-open-request-id')) field('personal-open-request-id').value = requestId;
         if (field('personal-open-source')) field('personal-open-source').value = sourceLabel;
         fillText('detail-passport-id', rootid || requestId);
+        fillText('detail-request-id', detailContext.displayRequestId || detailContext.drawnRequestId);
+        fillText('detail-source', sourceLabel);
+        fillText('detail-survey-date', '—');
+        fillText('detail-create-type', '—');
         renderDetailGeometry(null);
         loadObjectDetails(rootid, sourceLabel, seq, requestId);
     }
@@ -834,6 +838,8 @@
                 fillText('detail-owner', '—');
                 fillText('detail-oiv', '—');
                 fillText('detail-area', '—');
+                fillText('detail-survey-date', '—');
+                fillText('detail-create-type', '—');
                 renderDetailGeometry(null);
                 return;
             }
@@ -841,6 +847,17 @@
             fillText('detail-owner', data.owner_name);
             fillText('detail-oiv', data.oiv_name);
             fillText('detail-area', data.area_label);
+            fillText('detail-survey-date', data.survey_date);
+            fillText('detail-create-type', data.create_type);
+            if (data.source_label) {
+                fillText('detail-source', data.source_label);
+            }
+            if (data.request_id) {
+                fillText('detail-request-id', data.request_id);
+            }
+            if (data.status) {
+                fillText('detail-status', data.status);
+            }
             renderDetailGeometry(data.geometry);
         } catch (error) {
             if (seq !== detailsRequestSeq) {
@@ -851,6 +868,8 @@
             fillText('detail-owner', '—');
             fillText('detail-oiv', '—');
             fillText('detail-area', '—');
+            fillText('detail-survey-date', '—');
+            fillText('detail-create-type', '—');
             renderDetailGeometry(null);
         }
     }
@@ -914,7 +933,11 @@
                 mode: passportRootid || displayRootid ? 'passport' : 'request',
             };
             fillText('detail-passport-name', button.dataset.name);
+            fillText('detail-request-id', displayRequestId);
+            fillText('detail-source', sourceLabel);
             fillText('detail-approval-date', '—');
+            fillText('detail-survey-date', button.dataset.surveyDate);
+            fillText('detail-create-type', button.dataset.createType);
             fillText('detail-owner', '—');
             fillText('detail-oiv', '—');
             fillText('detail-area', '—');

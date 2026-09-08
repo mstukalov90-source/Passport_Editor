@@ -104,6 +104,7 @@ def home_page_config(
             "intersecsAnaliz": reverse("intersecs_analiz"),
             "listDgiIntersections": reverse("list_dgi_intersections"),
             "resolveAsuOdsUrl": reverse("resolve_asu_ods_url"),
+            "personalObjectDetails": reverse("personal_object_details"),
             "openOwned": reverse("open_owned_object"),
             "approvalLanding": reverse("approval:landing"),
             "selectSupHood": reverse("select_sup_hood"),

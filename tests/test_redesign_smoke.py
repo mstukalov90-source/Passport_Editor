@@ -74,7 +74,7 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "owned_list_row_actions.html" in lists_html
     assert "owned-split-btn" not in lists_html
     assert "owned-confirm-open-btn" not in lists_html
-    assert "№ Заявки" in lists_html
+    assert "ID Заявки" in lists_html
     assert "owned_lists_modal.html" in base
     modal_include = (ROOT / "templates/pass_viewer/includes/owned_lists_modal.html").read_text(encoding="utf-8")
     assert 'id="owned-lists-modal"' in modal_include

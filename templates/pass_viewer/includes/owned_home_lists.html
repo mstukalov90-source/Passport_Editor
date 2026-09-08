@@ -1,7 +1,7 @@
 {% load static %}
             <div class="owned-home-lists-stack">
                 <div class="owned-filter-toolbar">
-                    <input type="text" id="owned-filter-rootid" placeholder="Фильтр по № Паспорта/Заявки">
+                    <input type="text" id="owned-filter-rootid" placeholder="Фильтр по ID Паспорта/Заявки">
                     <input type="text" id="owned-filter-name" placeholder="Фильтр по Названию">
                     <button type="button" id="owned-filter-clear">Сброс</button>
                     <button type="button" id="owned-filter-more" class="owned-filter-more-btn" aria-label="Дополнительные фильтры">
@@ -66,9 +66,9 @@
                                         data-matched-source="{{ item.ods_matched_source_label|default:item.source_label|default:'ДТ' }}"
                                     >
                                         <span class="owned-request-id-row">
-                                            <strong>№ Паспорта:</strong> {{ item.rootid }}
+                                            <strong>ID Паспорта:</strong> {{ item.rootid }}
                                             {% if item.ods_registry_brid or item.request_id %}
-                                                <br><strong>№ Заявки:</strong> {{ item.ods_registry_brid|default:item.request_id }}
+                                                <br><strong>ID Заявки:</strong> {{ item.ods_registry_brid|default:item.request_id }}
                                             {% endif %}
                                         </span><br>
                                         <span style="font-size: 13px; color: #4a5565;"><strong>Название:</strong> {{ item.name|default:"-" }}</span>
@@ -93,9 +93,9 @@
                                     <input type="hidden" name="geometry_detail_mode" value="simplified">
                                     <button type="submit" class="owned-list-open-btn">
                                         <span class="owned-request-id-row">
-                                            <strong>№ Паспорта:</strong> {{ item.rootid }}
+                                            <strong>ID Паспорта:</strong> {{ item.rootid }}
                                             {% if item.ods_registry_brid or item.request_id %}
-                                                <br><strong>№ Заявки:</strong> {{ item.ods_registry_brid|default:item.request_id }}
+                                                <br><strong>ID Заявки:</strong> {{ item.ods_registry_brid|default:item.request_id }}
                                             {% endif %}
                                             {% if item.ods_registry_root_match and not item.ods_registry_brid and not item.request_id %}
                                                 <span class="ods-registry-passport-note">Для этого паспорта есть заявка в АСУ ОДС</span>
@@ -108,10 +108,10 @@
                                     </button>
                                 </form>
                                 {% endif %}
-                                {% include 'pass_viewer/includes/owned_list_row_actions.html' with item=item %}
                                 <span class="source-badge owned-source-badge {% if item.source_label == 'ОЗН' %}source-badge--oo{% elif item.source_label == 'ОДХ' %}source-badge--odh{% elif item.source_label == 'ТОП' %}source-badge--top{% else %}source-badge--dt{% endif %}">
                                     {% if item.source_label == 'ОЗН' %}ОО{% else %}{{ item.source_label|default:'ДТ' }}{% endif %}
                                 </span>
+                                {% include 'pass_viewer/includes/owned_list_row_actions.html' with item=item %}
                             </div>
                         {% endif %}
                     {% endfor %}
@@ -159,10 +159,10 @@
                                             data-matched-name="{{ item.ods_matched_name|default:'' }}"
                                             data-matched-source="{{ item.ods_matched_source_label|default:'ДТ' }}"
                                         >
-                                            <strong>№ Заявки:</strong> {{ item.request_id|default:"-" }}<br>
+                                            <strong>ID Заявки:</strong> {{ item.request_id|default:"-" }}<br>
                                             <span style="font-size: 13px; color: #4a5565;"><strong>Название:</strong> {{ item.name|default:"-" }}</span>
                                             {% if item.short_object_root_id %}
-                                                <br><span style="font-size: 12px; color: #64748b;"><strong>№ паспорта:</strong> {{ item.short_object_root_id }}</span>
+                                                <br><span style="font-size: 12px; color: #64748b;"><strong>ID паспорта:</strong> {{ item.short_object_root_id }}</span>
                                             {% endif %}
                                             {% if item.br_status_name %}
                                                 <span class="ods-registry-status">Статус: {{ item.br_status_name }}</span>
@@ -232,7 +232,7 @@
                                     <input type="hidden" name="geometry_detail_mode" value="full">
                                     <button type="submit" class="owned-list-open-btn">
                                         <span class="owned-request-id-row">
-                                            <strong>№ Заявки:</strong> {{ item.request_id|default:"-" }}
+                                            <strong>ID Заявки:</strong> {{ item.request_id|default:"-" }}
                                             {% if item.ods_registry_brid_labeled %}
                                                 <span class="ods-registry-indicator{% if item.ods_registry_brid_match %} ods-registry-indicator--ok{% elif item.ods_registry_brid_pending %} ods-registry-indicator--pending{% else %} ods-registry-indicator--bad{% endif %}">
                                                     <span class="ods-registry-indicator__icon" aria-hidden="true">{% if item.ods_registry_brid_match %}✅{% elif item.ods_registry_brid_pending %}🔄{% else %}❌{% endif %}</span>
