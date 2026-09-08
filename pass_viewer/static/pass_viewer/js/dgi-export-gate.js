@@ -97,15 +97,22 @@
         }
 
         let gateResult = null;
-        const originalLabel = exportButton.textContent;
+        const labelEl = exportButton.querySelector('.map-toolbar-btn__label');
+        const originalLabel = labelEl ? labelEl.textContent : exportButton.textContent;
+
+        function setExportLabel(text) {
+            if (PV.setMapToolbarLabel) {
+                PV.setMapToolbarLabel(exportButton, text);
+            } else if (labelEl) {
+                labelEl.textContent = text;
+            } else {
+                exportButton.textContent = text;
+            }
+        }
 
         function setButtonLoading(loading) {
             exportButton.disabled = !!loading;
-            if (loading) {
-                exportButton.textContent = 'Проверка…';
-            } else {
-                exportButton.textContent = originalLabel;
-            }
+            setExportLabel(loading ? 'Проверка…' : originalLabel);
         }
 
         function closeConfirmModal() {

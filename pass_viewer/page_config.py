@@ -52,6 +52,10 @@ def _editor_api_urls():
         "listCommentPoints": reverse("list_comment_points"),
         "saveCommentPoint": reverse("save_comment_point"),
         "deleteCommentPoint": reverse("delete_comment_point"),
+        "odsRequestStatus": reverse("request_ods_status"),
+        "bidComments": reverse("request_bid_comments"),
+        "listAttachments": reverse("list_request_attachments"),
+        "uploadAttachment": reverse("upload_request_attachment"),
     }
 
 
@@ -222,6 +226,7 @@ def split_object_page_config(
 ):
     return build_page_config(
         "split",
+        urls=_editor_api_urls(),
         selectedName=selected_name or "",
         selectedRequestId=selected_request_id or "",
         selectedSourceLabel=selected_source_label or "ДТ",

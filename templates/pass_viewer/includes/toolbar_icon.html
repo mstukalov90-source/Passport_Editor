@@ -1,0 +1,35 @@
+{% if name == 'edit' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M11.2 2.4l2.4 2.4L5.2 13H2.8v-2.4zM9.6 4l2.4 2.4"/></svg>
+{% elif name == 'add-polygon' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M3 11.5L8 2.5l5 9H3z"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M12.5 1.5v4M10.5 3.5h4"/></svg>
+{% elif name == 'cut' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><circle cx="4" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M6 11.2L13 2.5M10 11.2L3 2.5"/></svg>
+{% elif name == 'select-polygon' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M3 4h7l3 4-3 4H3z"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M6.5 6.5v3M5 8h3"/></svg>
+{% elif name == 'vertices' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M3 12.5L8 3.5l5 9H3z"/><circle cx="8" cy="3.5" r="1.2" fill="currentColor"/><circle cx="3" cy="12.5" r="1.2" fill="currentColor"/><circle cx="13" cy="12.5" r="1.2" fill="currentColor"/></svg>
+{% elif name == 'brush' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M9.5 2.5l4 4-6 6H3.5V8.5zM4 13.5c1.5 0 2-.8 2-2"/></svg>
+{% elif name == 'snap-apart' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" d="M1.3 12.4L2.8 4.2h3.5L7.7 12.4H1.3z"/><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" d="M8.3 12.4L9.8 4.2h3.5L14.7 12.4H8.3z"/></svg>
+{% elif name == 'snap-together' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" d="M1.3 12.4L3 4.2H8v8.2H1.3z"/><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" d="M8 4.2h5L14.7 12.4H8z"/></svg>
+{% elif name == 'snap' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M4.5 3.5v6.2a3.5 3.5 0 007 0V3.5M8 13.5V15"/></svg>
+{% elif name == 'relations' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M12.5 5.5A5 5 0 105.5 12.5M12.5 5.5V2.5M12.5 5.5H9.5"/></svg>
+{% elif name == 'dgi' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><rect x="2" y="4" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="6" y="2" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+{% elif name == 'erase' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M3 10.5L8.5 5l3.5 3.5-4.2 4.2H4.2zM2 14h12"/></svg>
+{% elif name == 'comment' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M8 14s5-3.2 5-7.2A5 5 0 008 2a5 5 0 00-5 4.8C3 10.8 8 14 8 14z"/><circle cx="8" cy="6.8" r="1.2" fill="currentColor"/></svg>
+{% elif name == 'export' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M8 2.5v8M5 7.5L8 10.5l3-3M3 13.5h10"/></svg>
+{% elif name == 'cancel' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M4 4l8 8M12 4l-8 8"/></svg>
+{% elif name == 'clear' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M3.5 5h9l-.8 8.2H4.3zM6 5V3.5h4V5M2.5 5h11"/></svg>
+{% elif name == 'save' %}
+<svg class="map-toolbar-btn__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M3 3h8.5L13 4.5V13H3z"/><path fill="none" stroke="currentColor" stroke-width="1.5" d="M5 3v4h6V3M5 13v-4h6v4"/></svg>
+{% endif %}

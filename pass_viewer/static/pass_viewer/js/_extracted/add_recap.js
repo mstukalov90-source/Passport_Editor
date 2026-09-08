@@ -1,4 +1,7 @@
 const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.61], 12);
+        PV._editorMap = map;
+        map.getContainer()._leaflet_map = map;
+        window.setTimeout(() => map.invalidateSize(false), 80);
         const signalTapeRenderer = L.svg({padding: 0.5});
 
         let popupHighlightLayer = null;
@@ -601,6 +604,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 }
             });
             syncLayerPanelCheckboxes();
+            if (PV.LayerPanel) {
+                PV.LayerPanel.refresh();
+            }
         }
 
         layerPanelCheckboxes.forEach((checkbox) => {
@@ -621,6 +627,10 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
 
         function refreshObjectLayersControl() {
             refreshLayerPanelCounts();
+        }
+
+        if (PV.LayerPanel) {
+            PV.LayerPanel.init({ map: map, managedLayers: managedLayers });
         }
 
         
@@ -1241,8 +1251,8 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 polygonDrawer = null;
                 freehandMode = true;
                 map.getContainer().style.cursor = 'crosshair';
-                cancelDrawButton.style.display = 'inline-block';
-                saveDossierButton.style.display = 'inline-block';
+                cancelDrawButton.hidden = false;
+                saveDossierButton.style.display = 'flex';
                 exportLinksEl.innerHTML = '';
                 statusEl.textContent = 'Режим кисти: зажмите левую кнопку мыши и обведите контур.';
                 rebuildSnapGuideLines();
@@ -1259,8 +1269,8 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             });
             polygonDrawer.enable();
             clearStartVertexFlag();
-            cancelDrawButton.style.display = 'inline-block';
-            saveDossierButton.style.display = 'inline-block';
+            cancelDrawButton.hidden = false;
+            saveDossierButton.style.display = 'flex';
             exportLinksEl.innerHTML = '';
             statusEl.textContent = 'Нарисуйте новый полигон досъёма.';
             rebuildSnapGuideLines();
@@ -1285,6 +1295,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             clearPendingRepairedGeometry();
             statusEl.textContent = 'Добавление досъёма отменено.';
             areaInfoVisible = false;
+            cancelDrawButton.hidden = true;
             updateDossierToolbarState();
         });
 
@@ -2052,9 +2063,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     name: objectName,
                 };
                 exportLinksEl.innerHTML =
-                    '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
-                    '<a class="button-link" href="' + exportResult.shapefile_url + '">Скачать SHP (ZIP)</a> ' +
-                    '<a class="button-link" href="#" data-export-pdf-link="1">Скачать PDF (карта и пересечения)</a>';
+                    PV.buildExportFileButtonHtml(exportResult.geojson_url, 'Скачать GeoJSON', 'download') +
+                    PV.buildExportFileButtonHtml(exportResult.shapefile_url, 'Скачать SHP (ZIP)') +
+                    PV.buildExportFileButtonHtml('#', 'Скачать PDF (карта и пересечения)', 'data-export-pdf-link="1"');
                 bindPdfExportLink();
                 statusEl.textContent = 'Досъём сохранён в recaps, файлы выгружены.';
             } catch (error) {
@@ -2195,6 +2206,64 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 if (event.target === commentPointModal) {
                     closeCommentPointModal();
                     cancelCommentPointMode();
+                }
+            });
+        }
+
+        const exportSelectedButton = document.getElementById('save-geometry-btn');
+        if (exportSelectedButton) {
+            exportSelectedButton.addEventListener('click', async () => {
+                const normalized = normalizeGeoJson(selectedGeometry);
+                const geometry = normalized ? buildExportGeometry(normalized) : null;
+                if (!geometry) {
+                    statusEl.textContent = 'Нет геометрии для выгрузки.';
+                    return;
+                }
+                exportSelectedButton.disabled = true;
+                statusEl.textContent = 'Формируем файлы...';
+                try {
+                    const response = await fetch("{% url 'export_new_object_geometry' %}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken') || '',
+                        },
+                        body: JSON.stringify({
+                            geometry: geometry,
+                            properties: {
+                                name: objectName,
+                                request_id: requestId,
+                            },
+                        }),
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.ok) {
+                        throw new Error(result.error || 'Не удалось сформировать файлы.');
+                    }
+                    lastPdfExportContext = {
+                        geometry: geometry,
+                        requestId: requestId,
+                        passportNo: selectedRootid,
+                        name: objectName,
+                    };
+                    exportLinksEl.innerHTML =
+                        PV.buildExportFileButtonHtml(result.geojson_url, 'Скачать GeoJSON', 'download') +
+                        PV.buildExportFileButtonHtml(result.shapefile_url, 'Скачать SHP (ZIP)') +
+                        PV.buildExportFileButtonHtml('#', 'Скачать PDF (карта и пересечения)', 'data-export-pdf-link="1"');
+                    bindPdfExportLink();
+                    statusEl.textContent = 'Файлы сформированы.';
+                    if (polygonDrawer) {
+                        polygonDrawer.disable();
+                        polygonDrawer = null;
+                    }
+                    stopFreehandMode();
+                    if (editToolbar) {
+                        editToolbar.disable();
+                    }
+                } catch (error) {
+                    statusEl.textContent = error.message || 'Не удалось выгрузить объект.';
+                } finally {
+                    exportSelectedButton.disabled = false;
                 }
             });
         }

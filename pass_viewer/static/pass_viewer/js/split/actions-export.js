@@ -124,24 +124,21 @@
             }
 
             exportLinksEl.innerHTML = links
-                .map(
-                    (item) =>
-                        '<div style="margin:6px 0;">' +
-                        '<strong>Заявка ' +
+                .map((item) => {
+                    const caption =
+                        'Заявка ' +
                         escapeHtml(String(item.requestId)) +
-                        '</strong>' +
                         (item.partCount > 1 ? ' (' + item.partCount + ' полигонов)' : '') +
-                        ', название: ' +
-                        escapeHtml(item.name) +
-                        ' — ' +
-                        '<a class="button-link" href="' +
-                        item.geojson +
-                        '" download>GeoJSON</a> ' +
-                        '<a class="button-link" href="' +
-                        item.shp +
-                        '">SHP (ZIP)</a>' +
-                        '</div>'
-                )
+                        ', ' +
+                        escapeHtml(item.name);
+                    return (
+                        '<p class="add-object-tools__export-caption">' +
+                        caption +
+                        '</p>' +
+                        PV.buildExportFileButtonHtml(item.geojson, 'Скачать GeoJSON', 'download') +
+                        PV.buildExportFileButtonHtml(item.shp, 'Скачать SHP (ZIP)')
+                    );
+                })
                 .join('');
 
             statusEl.textContent =
@@ -150,6 +147,9 @@
                 ' (полигонов на карте: ' +
                 layersAfterAttrs.length +
                 ').';
+            if (typeof ctx.setEditMode === 'function') {
+                ctx.setEditMode(false, { keepExportLinks: true });
+            }
         } catch (error) {
             statusEl.textContent = error.message || 'Не удалось сохранить и выгрузить части.';
         } finally {

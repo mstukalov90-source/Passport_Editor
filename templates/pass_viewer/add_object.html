@@ -27,174 +27,77 @@
     <script src="{% static 'pass_viewer/js/add-object.js' %}"></script>
 {% endblock %}
 
-{% block container_class %}container--wide{% endblock %}
+{% block container_class %}container--wide container--add-object{% endblock %}
 
 {% block content %}
-<section class="page-header-card">
-    <div class="page-header-card__top">
-        <div class="page-header-card__title-block">
-            <h1 class="page-header-card__title">Добавление нового объекта</h1>
-        </div>
-        <div class="page-header-card__info">
-            <strong>Информация о редактируемом объекте:</strong>
-            <p id="editable-area-info" class="note" style="display:none;">Площадь редактируемого объекта: -</p>
-            <p id="edit-status" class="note"></p>
-        </div>
-        <a class="button-link" href="{% url 'home' %}">Вернуться к списку</a>
+<div class="add-object-shell">
+    <div class="add-object-workspace">
+        <aside class="add-object-panel add-object-panel--layers">
+            {% include 'pass_viewer/includes/editor_layer_panel.html' %}
+        </aside>
+        <section class="add-object-panel add-object-panel--map">
+            <div id="map" class="map-stage"></div>
+        </section>
+        <aside class="add-object-panel add-object-panel--tools">
+            <div class="add-object-tools" aria-label="Инструменты и информация">
+                <section class="add-object-tools__section add-object-tools__info">
+                    <a class="map-toolbar-btn map-toolbar-btn--muted add-object-tools__back" href="{% url 'home' %}">Назад</a>
+                    <h3 class="add-object-tools__title">Добавление нового объекта</h3>
+                    <strong class="add-object-tools__info-label">Информация о редактируемом объекте:</strong>
+                    <p id="editable-area-info" class="note" style="display:none;">Площадь редактируемого объекта: -</p>
+                    <p id="edit-status" class="note"></p>
+                </section>
+                <section class="add-object-tools__section">
+                    <h3 class="add-object-tools__title">Инструменты</h3>
+                    <div class="add-object-tools__toolbar">
+                        <div class="add-object-tools__group">
+                            <p class="add-object-tools__group-label">Редактирование</p>
+                            <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">{% include 'pass_viewer/includes/toolbar_icon.html' with name='edit' %}<span class="map-toolbar-btn__label">Начать редактирование</span></button>
+                            <button type="button" id="add-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent">{% include 'pass_viewer/includes/toolbar_icon.html' with name='add-polygon' %}<span class="map-toolbar-btn__label">Добавить полигон</span></button>
+                            <button type="button" id="cut-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent">{% include 'pass_viewer/includes/toolbar_icon.html' with name='cut' %}<span class="map-toolbar-btn__label">Обрезать полигон</span></button>
+                            <div class="add-object-tools__row">
+                                <label for="draw-mode-freehand" class="snap-switch" title="Режим добавления: вершины или кисть">
+                                    <span class="snap-switch__glyph" aria-hidden="true">
+                                        <span class="snap-switch__glyph-off">{% include 'pass_viewer/includes/toolbar_icon.html' with name='vertices' %}</span>
+                                        <span class="snap-switch__glyph-on">{% include 'pass_viewer/includes/toolbar_icon.html' with name='brush' %}</span>
+                                    </span>
+                                    <input type="checkbox" id="draw-mode-freehand">
+                                    <span class="draw-mode-label draw-mode-label--left">Вершины</span>
+                                    <span class="snap-switch__track"></span>
+                                    <span class="draw-mode-label draw-mode-label--right">Кисть</span>
+                                </label>
+                                <label for="snap-toggle" class="snap-switch" title="Прилипание включено/выключено">
+                                    <span class="snap-switch__glyph" aria-hidden="true">
+                                        <span class="snap-switch__glyph-off">{% include 'pass_viewer/includes/toolbar_icon.html' with name='snap-apart' %}</span>
+                                        <span class="snap-switch__glyph-on">{% include 'pass_viewer/includes/toolbar_icon.html' with name='snap-together' %}</span>
+                                    </span>
+                                    <input type="checkbox" id="snap-toggle">
+                                    <span class="snap-switch__track"></span>
+                                    <span class="snap-switch__label">Прилипание</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="add-object-tools__group">
+                            <p class="add-object-tools__group-label">Проверки</p>
+                            <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">{% include 'pass_viewer/includes/toolbar_icon.html' with name='relations' %}<span class="map-toolbar-btn__label">Обновить смежные объекты и площадь</span></button>
+                            <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">{% include 'pass_viewer/includes/toolbar_icon.html' with name='dgi' %}<span class="map-toolbar-btn__label">Проверка пересечений с объектами ДГИ</span></button>
+                            <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">{% include 'pass_viewer/includes/toolbar_icon.html' with name='erase' %}<span class="map-toolbar-btn__label">Автоматическое удаление пересечений</span></button>
+                        </div>
+                        <div class="add-object-tools__group">
+                            <p class="add-object-tools__group-label">Дополнительно</p>
+                            <button type="button" id="add-comment-point-btn" class="map-toolbar-btn map-toolbar-btn--primary">{% include 'pass_viewer/includes/toolbar_icon.html' with name='comment' %}<span class="map-toolbar-btn__label">Добавить точку с комментарием</span></button>
+                            <button type="button" id="clear-map-btn" class="map-toolbar-btn map-toolbar-btn--danger" title="Убрать с карты только нарисованные полигоны (слои из базы не затрагиваются)">{% include 'pass_viewer/includes/toolbar_icon.html' with name='clear' %}<span class="map-toolbar-btn__label">Очистить карту</span></button>
+                            <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--danger" hidden>{% include 'pass_viewer/includes/toolbar_icon.html' with name='cancel' %}<span class="map-toolbar-btn__label">Отмена</span></button>
+                            <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success">{% include 'pass_viewer/includes/toolbar_icon.html' with name='export' %}<span class="map-toolbar-btn__label">Выгрузить объекты</span></button>
+                            <div id="export-links" class="add-object-tools__export"></div>
+                        </div>
+                    </div>
+                </section>
+                {% include 'pass_viewer/includes/editor_request_panels.html' %}
+            </div>
+        </aside>
     </div>
-
-    <div class="page-header-card__toolbar">
-        <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">Начать редактирование</button>
-        <button type="button" id="add-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent">Добавить полигон</button>
-        <button type="button" id="cut-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent">Обрезать полигон</button>
-        <label for="draw-mode-freehand" class="snap-switch" title="Режим добавления: вершины или кисть">
-            <input type="checkbox" id="draw-mode-freehand">
-            <span class="draw-mode-label draw-mode-label--left">Вершины</span>
-            <span class="snap-switch__track"></span>
-            <span class="draw-mode-label draw-mode-label--right">Кисть</span>
-        </label>
-        <label for="snap-toggle" class="snap-switch" title="Прилипание включено/выключено">
-            <input type="checkbox" id="snap-toggle">
-            <span class="snap-switch__track"></span>
-            <span class="snap-switch__label">Прилипание</span>
-        </label>
-        <button type="button" id="check-relations-btn" class="map-toolbar-btn map-toolbar-btn--primary">Обновить смежные объекты и площадь</button>
-        <button type="button" id="check-dgi-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Проверка пересечений с объектами ДГИ</button>
-        <button type="button" id="auto-remove-intersections-btn" class="map-toolbar-btn map-toolbar-btn--primary">Автоматическое удаление пересечений</button>
-        <button type="button" id="add-comment-point-btn" class="map-toolbar-btn map-toolbar-btn--primary">Добавить точку с комментарием</button>
-        <button type="button" id="clear-map-btn" class="map-toolbar-btn map-toolbar-btn--danger" title="Убрать с карты только нарисованные полигоны (слои из базы не затрагиваются)">Очистить карту</button>
-        <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">Отмена</button>
-        <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">Выгрузить файлы</button>
-    </div>
-</section>
-    <div id="map" class="map-stage"></div>
-    <section id="layer-management-panel" class="layer-management-panel" aria-label="Панель управления слоями">
-        <div class="layer-management-panel__title">Панель управления слоями</div>
-        <div class="layer-management-panel__grid">
-            <div class="layer-management-panel__column">
-                <label class="layer-management-panel__column-title">
-                    <input type="checkbox" data-layer-group="municipal" checked />
-                    <span>Границы объектов городского хозяйства</span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="selected" checked />
-                    <span class="layer-panel-row__name">Выбраный объект</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="selected">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--selected"></span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="dt" checked />
-                    <span class="layer-panel-row__name">Паспорта ДТ</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="dt">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--dt"></span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="oo" checked />
-                    <span class="layer-panel-row__name">Паспорта ОО</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="oo">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--oo"></span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="odh" checked />
-                    <span class="layer-panel-row__name">Паспорта ОДХ</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="odh">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--odh"></span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="top" checked />
-                    <span class="layer-panel-row__name">Паспорта ТОП</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="top">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--top"></span>
-                </label>
-            </div>
-            <div class="layer-management-panel__column">
-                <label class="layer-management-panel__column-title">
-                    <input type="checkbox" data-layer-group="requests" checked />
-                    <span>Заявки от балансодержателей</span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="requests" checked />
-                    <span class="layer-panel-row__name">Заявки</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="requests">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--requests"></span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="recaps" checked />
-                    <span class="layer-panel-row__name">Заявки на досъём</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="recaps">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--recaps"></span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="comments" checked />
-                    <span class="layer-panel-row__name">Комментарии</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="comments">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--comments"></span>
-                </label>
-            </div>
-            <div class="layer-management-panel__column">
-                <label class="layer-management-panel__column-title">
-                    <input type="checkbox" data-layer-group="dgi" checked />
-                    <span>Границы З/У</span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="dgi_moscow_rent" checked />
-                    <span class="layer-panel-row__name">З/У г. Москва с арендой</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="dgi_moscow_rent">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="dgi_moscow_no_rent" checked />
-                    <span class="layer-panel-row__name">З/У г. Москва без аренды</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="dgi_moscow_no_rent">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="dgi_private_rent" checked />
-                    <span class="layer-panel-row__name">З/У Частная или федеральная собственность с арендой</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="dgi_private_rent">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="dgi_private_no_rent" checked />
-                    <span class="layer-panel-row__name">З/У Частная или федеральная собственность без аренды</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="dgi_private_no_rent">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="dgi_renovation" checked />
-                    <span class="layer-panel-row__name">З/У Реновация</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="dgi_renovation">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
-                </label>
-            </div>
-            <div class="layer-management-panel__column">
-                <label class="layer-management-panel__column-title">
-                    <input type="checkbox" data-layer-group="external" checked />
-                    <span>Инфоресурсы</span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="renew" checked />
-                    <span class="layer-panel-row__name">Реновация</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="renew">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--renew"></span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="oozt" checked />
-                    <span class="layer-panel-row__name">ООЗТ</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="oozt">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--oozt"></span>
-                </label>
-                <label class="layer-panel-row">
-                    <input type="checkbox" data-layer-key="rzd" checked />
-                    <span class="layer-panel-row__name">Полосы отвода ЖД</span>
-                    <span class="layer-panel-row__count" data-layer-count-for="rzd">(0)</span>
-                    <span class="layer-panel-swatch layer-panel-swatch--rzd"></span>
-                </label>
-            </div>
-        </div>
-    </section>
-    <p id="export-links" class="note"></p>
-
+</div>
     <div id="dgi-export-confirm-modal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3 style="margin: 0 0 10px;">Подтверждение</h3>

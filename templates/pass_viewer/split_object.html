@@ -12,6 +12,8 @@
     {{ selected_geometry_for_editing_json|default_if_none:"null"|json_script:"selected-geometry-for-editing-data" }}
     {% include 'pass_viewer/includes/map_draw_scripts.html' %}
     {% load static %}
+    <script src="{% static 'pass_viewer/js/editor-chrome.js' %}"></script>
+    <script src="{% static 'pass_viewer/js/editor-request-side.js' %}"></script>
     <script src="{% static 'pass_viewer/js/split-geometry.js' %}"></script>
     <script src="{% static 'pass_viewer/js/split/state.js' %}"></script>
     <script src="{% static 'pass_viewer/js/split/geometry-ops.js' %}"></script>
@@ -23,40 +25,51 @@
     <script src="{% static 'pass_viewer/js/split-object.js' %}"></script>
 {% endblock %}
 
-{% block container_class %}container--wide{% endblock %}
+{% block container_class %}container--wide container--add-object{% endblock %}
 
 {% block content %}
-<div class="pass-viewer-page pass-viewer-page--split">
-<section class="page-header-card">
-    <div class="page-header-card__top">
-        <div class="page-header-card__title-block">
-            <h1 class="page-header-card__title">Разделение объекта</h1>
-            {% if selected_rootid %}
-                <p>Объект паспорт №: {{ selected_rootid }}</p>
-            {% endif %}
-            <p>Название: <strong>{{ selected_name|default:"-" }}</strong></p>
-            <p>№ заявки: <strong>{{ selected_request_id|default:"-" }}</strong></p>
-        </div>
-        <a class="button-link" href="{% url 'home' %}">Вернуться к списку</a>
+<div class="pass-viewer-page pass-viewer-page--split add-object-shell">
+    <div class="add-object-workspace add-object-workspace--no-layers">
+        <section class="add-object-panel add-object-panel--map">
+            <div id="map" class="map-stage"></div>
+        </section>
+        <aside class="add-object-panel add-object-panel--tools">
+            <div class="add-object-tools" aria-label="Инструменты и информация">
+                <section class="add-object-tools__section add-object-tools__info">
+                    <a class="map-toolbar-btn map-toolbar-btn--muted add-object-tools__back" href="{% url 'home' %}">Назад</a>
+                    <h3 class="add-object-tools__title">Разделение объекта</h3>
+                    {% if selected_rootid %}
+                        <p class="note">Объект паспорт №: {{ selected_rootid }}</p>
+                    {% endif %}
+                    <p class="note">Название: <strong>{{ selected_name|default:"-" }}</strong></p>
+                    <p class="note">№ заявки: <strong>{{ selected_request_id|default:"-" }}</strong></p>
+                    {% if query_error %}
+                        <p class="note note--danger">{{ query_error }}</p>
+                    {% elif not map_layers %}
+                        <p class="note note--danger">Объект не найден в базе.</p>
+                    {% endif %}
+                    <p id="edit-status" class="note"></p>
+                </section>
+                <section class="add-object-tools__section">
+                    <h3 class="add-object-tools__title">Инструменты</h3>
+                    <div class="add-object-tools__toolbar">
+                        <div class="add-object-tools__group">
+                            <p class="add-object-tools__group-label">Редактирование</p>
+                            <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">{% include 'pass_viewer/includes/toolbar_icon.html' with name='edit' %}<span class="map-toolbar-btn__label">Начать редактирование</span></button>
+                            <button type="button" id="cut-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent" disabled>{% include 'pass_viewer/includes/toolbar_icon.html' with name='cut' %}<span class="map-toolbar-btn__label">Разрезать полигон</span></button>
+                            <button type="button" id="select-by-polygon-btn" class="map-toolbar-btn map-toolbar-btn--teal" disabled>{% include 'pass_viewer/includes/toolbar_icon.html' with name='select-polygon' %}<span class="map-toolbar-btn__label">Выборка полигоном</span></button>
+                            <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--danger" hidden>{% include 'pass_viewer/includes/toolbar_icon.html' with name='cancel' %}<span class="map-toolbar-btn__label">Отмена</span></button>
+                        </div>
+                        <div class="add-object-tools__group">
+                            <p class="add-object-tools__group-label">Дополнительно</p>
+                            <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success">{% include 'pass_viewer/includes/toolbar_icon.html' with name='export' %}<span class="map-toolbar-btn__label">Выгрузить объекты</span></button>
+                            <div id="export-links" class="add-object-tools__export"></div>
+                        </div>
+                    </div>
+                </section>
+                {% include 'pass_viewer/includes/editor_request_panels.html' %}
+            </div>
+        </aside>
     </div>
-
-    {% if query_error %}
-        <p class="note note--danger">{{ query_error }}</p>
-    {% elif not map_layers %}
-        <p class="note note--danger">Объект не найден в базе.</p>
-    {% endif %}
-
-    <div class="page-header-card__toolbar">
-        <button type="button" id="edit-geometry-btn" class="map-toolbar-btn map-toolbar-btn--primary">Начать редактирование</button>
-        <button type="button" id="cut-polygon-btn" class="map-toolbar-btn map-toolbar-btn--accent" disabled>Разрезать полигон</button>
-        <button type="button" id="select-by-polygon-btn" class="map-toolbar-btn map-toolbar-btn--teal" disabled>Выборка полигоном</button>
-        <button type="button" id="cancel-edit-btn" class="map-toolbar-btn map-toolbar-btn--muted" style="display:none;">Отмена</button>
-        <button type="button" id="save-geometry-btn" class="map-toolbar-btn map-toolbar-btn--success" style="display:none;">Выгрузить файлы</button>
-    </div>
-</section>
-
-<p id="edit-status" class="note"></p>
-<div id="map" class="map-stage"></div>
-<p id="export-links" class="note"></p>
 </div>
 {% endblock %}

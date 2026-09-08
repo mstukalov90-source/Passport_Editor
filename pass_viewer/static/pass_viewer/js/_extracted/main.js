@@ -144,6 +144,9 @@ function formatDgiShortSobstvRr(value) {
         };
         const selectedSourceLabel = "{{ selected_source_label|default:'ДТ'|escapejs }}";
         const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.61], 10);
+        PV._editorMap = map;
+        map.getContainer()._leaflet_map = map;
+        window.setTimeout(() => map.invalidateSize(false), 80);
         const signalTapeRenderer = L.svg({padding: 0.5});
         map.createPane('overlapPane');
         map.getPane('overlapPane').style.zIndex = 650;
@@ -673,6 +676,9 @@ function formatDgiShortSobstvRr(value) {
                 }
             });
             syncLayerPanelCheckboxes();
+            if (PV.LayerPanel) {
+                PV.LayerPanel.refresh();
+            }
         }
 
         layerPanelCheckboxes.forEach((checkbox) => {
@@ -693,6 +699,10 @@ function formatDgiShortSobstvRr(value) {
 
         function refreshObjectLayersControl() {
             refreshLayerPanelCounts();
+        }
+
+        if (PV.LayerPanel) {
+            PV.LayerPanel.init({ map: map, managedLayers: managedLayers });
         }
 
         function addSignalTapeLayer(targetGroup, geojsonObject, sourceLabel) {
@@ -2319,9 +2329,12 @@ function formatDgiShortSobstvRr(value) {
             if (!enabled) {
                 editableAreaInfoEl.textContent = 'Площадь редактируемого объекта: -';
             }
-            editButton.textContent = enabled
-                ? '\u0420\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f \u0432\u043a\u043b\u044e\u0447\u0451\u043d'
-                : '\u041d\u0430\u0447\u0430\u0442\u044c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435';
+            PV.setMapToolbarLabel(
+                editButton,
+                enabled
+                    ? '\u0420\u0435\u0436\u0438\u043c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f \u0432\u043a\u043b\u044e\u0447\u0451\u043d'
+                    : '\u041d\u0430\u0447\u0430\u0442\u044c \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435'
+            );
             addPolygonButton.disabled = !enabled;
             cutPolygonButton.disabled = !enabled;
             if (!enabled) {
@@ -2329,16 +2342,15 @@ function formatDgiShortSobstvRr(value) {
             }
             drawModeFreehandToggle.disabled = !enabled || drawModeToggleLocked;
             drawModeFreehandToggle.closest('.snap-switch')?.classList.toggle('snap-switch--locked', drawModeToggleLocked);
-            cancelEditButton.style.display = enabled ? 'inline-block' : 'none';
-            saveButton.style.display = enabled ? 'inline-block' : 'none';
+            cancelEditButton.hidden = !enabled;
             autoRemoveIntersectionsButton.disabled = !enabled;
             if (!enabled) {
                 addObjectMode = false;
                 cutObjectMode = false;
-                addPolygonButton.textContent = 'Добавить полигон';
+                PV.setMapToolbarLabel(addPolygonButton, 'Добавить полигон');
                 addPolygonButton.classList.remove('map-toolbar-btn--danger');
                 addPolygonButton.classList.add('map-toolbar-btn--accent');
-                cutPolygonButton.textContent = 'Обрезать полигон';
+                PV.setMapToolbarLabel(cutPolygonButton, 'Обрезать полигон');
                 cutPolygonButton.classList.remove('map-toolbar-btn--danger');
                 cutPolygonButton.classList.add('map-toolbar-btn--accent');
             }
@@ -2350,7 +2362,7 @@ function formatDgiShortSobstvRr(value) {
             if (enabled && PV.stopMeasureMode) {
                 PV.stopMeasureMode(map);
             }
-            addPolygonButton.textContent = enabled ? 'Отменить добавление' : 'Добавить полигон';
+            PV.setMapToolbarLabel(addPolygonButton, enabled ? 'Отменить добавление' : 'Добавить полигон');
             addPolygonButton.classList.toggle('map-toolbar-btn--danger', enabled);
             addPolygonButton.classList.toggle('map-toolbar-btn--accent', !enabled);
             if (!enabled) {
@@ -2363,7 +2375,7 @@ function formatDgiShortSobstvRr(value) {
             if (enabled && PV.stopMeasureMode) {
                 PV.stopMeasureMode(map);
             }
-            cutPolygonButton.textContent = enabled ? 'Отменить обрезку' : 'Обрезать полигон';
+            PV.setMapToolbarLabel(cutPolygonButton, enabled ? 'Отменить обрезку' : 'Обрезать полигон');
             cutPolygonButton.classList.toggle('map-toolbar-btn--danger', enabled);
             cutPolygonButton.classList.toggle('map-toolbar-btn--accent', !enabled);
             if (!enabled) {
@@ -3174,6 +3186,15 @@ function formatDgiShortSobstvRr(value) {
                 });
                 closeSaveModal();
                 pendingDgiApprove = null;
+                if (editToolbar) {
+                    editToolbar.disable();
+                }
+                if (polygonDrawer) {
+                    polygonDrawer.disable();
+                    polygonDrawer = null;
+                }
+                stopFreehandMode();
+                setEditMode(false);
                 statusEl.textContent =
                     'Объект сохранён в базе. Идентификатор владельца: ' + saveResult.owner_id + '. Файлы сформированы.';
                 lastPdfExportContext = {
@@ -3183,9 +3204,9 @@ function formatDgiShortSobstvRr(value) {
                     name: name,
                 };
                 exportLinksEl.innerHTML =
-                    '<a class="button-link" href="' + exportResult.geojson_url + '" download>Скачать GeoJSON</a> ' +
-                    '<a class="button-link" href="' + exportResult.shapefile_url + '">Скачать SHP (ZIP)</a> ' +
-                    '<a class="button-link" href="#" data-export-pdf-link="1">Скачать PDF (карта и пересечения)</a>';
+                    PV.buildExportFileButtonHtml(exportResult.geojson_url, 'Скачать GeoJSON', 'download') +
+                    PV.buildExportFileButtonHtml(exportResult.shapefile_url, 'Скачать SHP (ZIP)') +
+                    PV.buildExportFileButtonHtml('#', 'Скачать PDF (карта и пересечения)', 'data-export-pdf-link="1"');
                 bindPdfExportLink();
             } catch (error) {
                 setSaveModalGeometryError(error.message || 'Ошибка сохранения объекта.');
@@ -3218,11 +3239,17 @@ function formatDgiShortSobstvRr(value) {
             checkDgiUrl: "{% url 'check_dgi_intersections' %}",
             getCookie: getCookie,
             getGeometry: () => {
-                if (!isEditing) {
-                    statusEl.textContent = 'Сначала включите режим редактирования.';
-                    return null;
+                if (isEditing) {
+                    const geometry = getEditableGeometryForSave();
+                    if (!geometry) {
+                        statusEl.textContent = 'Нет геометрии для выгрузки.';
+                        return null;
+                    }
+                    return geometry;
                 }
-                const geometry = getEditableGeometryForSave();
+                const source = selectedGeo || selectedGeometry;
+                const normalized = normalizeGeoJson(source);
+                const geometry = normalized ? buildExportGeometry(normalized) : null;
                 if (!geometry) {
                     statusEl.textContent = 'Нет геометрии для выгрузки.';
                     return null;

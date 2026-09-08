@@ -1,0 +1,227 @@
+<section class="add-object-layers" id="layer-management-panel" aria-label="Панель управления слоями">
+    <div class="add-object-layers__header">
+        <div class="add-object-layers__header-main">
+            <h2 class="add-object-layers__title">Управление слоями</h2>
+            <label class="add-object-layers__opacity">
+                <span>Прозрачность</span>
+                <input type="range" id="layer-opacity-slider" min="15" max="100" value="100" aria-label="Прозрачность объектов" />
+            </label>
+        </div>
+        <button
+            type="button"
+            class="add-object-layers__toggle"
+            id="add-object-layers-toggle"
+            aria-expanded="true"
+            aria-controls="layer-management-panel"
+            title="Свернуть панель управления слоями"
+        >
+            <span class="add-object-layers__toggle-icon" aria-hidden="true"></span>
+        </button>
+    </div>
+    <div class="add-object-layers__body">
+        <div class="layer-management-panel">
+            <div class="layer-management-panel__grid">
+                <div class="layer-management-panel__column">
+                    <label class="layer-management-panel__column-title">
+                        <input type="checkbox" data-layer-group="municipal" checked />
+                        <span>Границы объектов городского хозяйства</span>
+                    </label>
+                    <label class="add-object-layers__opacity layer-management-panel__opacity">
+                        <span>Прозрачность</span>
+                        <input type="range" min="15" max="100" value="100" data-layer-opacity-group="municipal" aria-label="Прозрачность границ объектов городского хозяйства" />
+                    </label>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="selected" checked />
+                        <span class="layer-panel-row__name">Выбраный объект</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="selected">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--selected"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                    <div class="layer-panel-row"{% if dt_title %} title="{{ dt_title }}"{% endif %}>
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="dt" checked />
+                        <span class="layer-panel-row__name">Паспорта ДТ</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="dt">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--dt"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="oo" checked />
+                        <span class="layer-panel-row__name">Паспорта ОО</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="oo">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--oo"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="odh" checked />
+                        <span class="layer-panel-row__name">Паспорта ОДХ</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="odh">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--odh"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="top" checked />
+                        <span class="layer-panel-row__name">Паспорта ТОП</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="top">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--top"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                </div>
+                <div class="layer-management-panel__column">
+                    <label class="layer-management-panel__column-title">
+                        <input type="checkbox" data-layer-group="requests" checked />
+                        <span>Заявки от балансодержателей</span>
+                    </label>
+                    <label class="add-object-layers__opacity layer-management-panel__opacity">
+                        <span>Прозрачность</span>
+                        <input type="range" min="15" max="100" value="100" data-layer-opacity-group="requests" aria-label="Прозрачность заявок от балансодержателей" />
+                    </label>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="requests" checked />
+                        <span class="layer-panel-row__name">Заявки</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="requests">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--requests"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="recaps" checked />
+                        <span class="layer-panel-row__name">Заявки на досъём</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="recaps">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--recaps"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="comments" checked />
+                        <span class="layer-panel-row__name">Комментарии</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="comments">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--comments"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                </div>
+                <div class="layer-management-panel__column">
+                    <label class="layer-management-panel__column-title">
+                        <input type="checkbox" data-layer-group="dgi" checked />
+                        <span>Границы З/У</span>
+                    </label>
+                    <label class="add-object-layers__opacity layer-management-panel__opacity">
+                        <span>Прозрачность</span>
+                        <input type="range" min="15" max="100" value="100" data-layer-opacity-group="dgi" aria-label="Прозрачность границ земельных участков" />
+                    </label>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="dgi_moscow_rent" checked />
+                        <span class="layer-panel-row__name">З/У г. Москва с арендой</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="dgi_moscow_rent">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="dgi_private_rent" checked />
+                        <span class="layer-panel-row__name">З/У Частная или федеральная собственность с арендой</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="dgi_private_rent">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="dgi_private_no_rent" checked />
+                        <span class="layer-panel-row__name">З/У Частная или федеральная собственность без аренды</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="dgi_private_no_rent">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="dgi_renovation" checked />
+                        <span class="layer-panel-row__name">З/У Реновация</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="dgi_renovation">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="dgi_moscow_no_rent" checked />
+                        <span class="layer-panel-row__name">З/У г. Москва без аренды</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="dgi_moscow_no_rent">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                </div>
+                <div class="layer-management-panel__column">
+                    <label class="layer-management-panel__column-title">
+                        <input type="checkbox" data-layer-group="external" checked />
+                        <span>Инфоресурсы</span>
+                    </label>
+                    <label class="add-object-layers__opacity layer-management-panel__opacity">
+                        <span>Прозрачность</span>
+                        <input type="range" min="15" max="100" value="100" data-layer-opacity-group="external" aria-label="Прозрачность инфоресурсов" />
+                    </label>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="renew" checked />
+                        <span class="layer-panel-row__name">Реновация</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="renew">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--renew"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="oozt" checked />
+                        <span class="layer-panel-row__name">ООЗТ</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="oozt">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--oozt"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="rzd" checked />
+                        <span class="layer-panel-row__name">Полосы отвода ЖД</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="rzd">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--rzd"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

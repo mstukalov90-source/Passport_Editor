@@ -44,3 +44,20 @@ class ExternalUser(models.Model):
 
     def __str__(self):
         return self.login
+
+
+class RequestAttachment(models.Model):
+    brid = models.CharField(max_length=32, db_index=True)
+    original_name = models.TextField()
+    stored_name = models.TextField()
+    content_type = models.TextField(blank=True, default="")
+    size_bytes = models.BigIntegerField()
+    uploaded_by = models.CharField(max_length=150, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "request_attachments"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.brid}:{self.original_name}"

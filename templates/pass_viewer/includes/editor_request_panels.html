@@ -1,0 +1,35 @@
+<section class="add-object-tools__section add-object-tools__approval" id="ods-request-status-section" aria-label="Ход исполнения заявки" hidden>
+    <div class="add-object-tools__section-header">
+        <h3 class="add-object-tools__title">Ход исполнения заявки</h3>
+        <button type="button" class="add-object-tools__section-toggle" aria-expanded="true" title="Свернуть блок">
+            <span class="add-object-tools__section-toggle-icon" aria-hidden="true"></span>
+        </button>
+    </div>
+    <div id="ods-request-status-body"></div>
+</section>
+
+<section class="add-object-tools__section add-object-tools__db-comments is-collapsed" id="db-comments-section" aria-label="Комментарии из базы данных" hidden>
+    <div class="add-object-tools__section-header">
+        <h3 class="add-object-tools__title">Комментарии из БД</h3>
+        <button type="button" class="add-object-tools__section-toggle" aria-expanded="false" title="Развернуть блок">
+            <span class="add-object-tools__section-toggle-icon" aria-hidden="true"></span>
+        </button>
+    </div>
+    <ol class="add-object-db-comments__list" id="db-comments-list"></ol>
+</section>
+
+<section class="add-object-tools__section add-object-tools__attachments" id="attachments-section" aria-label="Приложенные файлы" hidden>
+    <div class="add-object-tools__section-header">
+        <h3 class="add-object-tools__title">Приложенные файлы</h3>
+        <button type="button" class="add-object-tools__section-toggle" aria-expanded="true" title="Свернуть блок">
+            <span class="add-object-tools__section-toggle-icon" aria-hidden="true"></span>
+        </button>
+    </div>
+    <div class="add-object-attachments__toolbar">
+        <label class="map-toolbar-btn map-toolbar-btn--primary" for="request-attachment-input">Загрузить файл</label>
+        <input id="request-attachment-input" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
+        <p class="add-object-attachments__hint">PDF, DOC, DOCX. Не более 20 МБ.</p>
+    </div>
+    <p class="note add-object-attachments__error" id="attachments-error" hidden></p>
+    <ul class="add-object-attachments__list" id="attachments-list"></ul>
+</section>
