@@ -111,7 +111,7 @@
                     <th>Статус</th>
                     <th>АСУ ОДС</th>
                     <th>Проверить пересечения</th>
-                    <th>Детальный просмотр</th>
+                    <th>Быстрый просмотр</th>
                 </tr>
             </thead>
             <tbody>
@@ -202,6 +202,8 @@
                                     data-recaps="{{ item.recap_count|default:0 }}"
                                     data-area="{{ area }}"
                                     data-status="{{ item.display_status|default:'—' }}"
+                                    data-create-type="{{ item.create_type_label|default:'—' }}"
+                                    data-survey-date="{{ item.survey_date_label|default:'—' }}"
                                     data-has-request="{% if item.display_request_id or item.drawn_request_id %}1{% endif %}">
                                 <img class="personal-table-btn__icon" src="{% static 'pass_viewer/search-loupe.svg' %}" alt="" aria-hidden="true">
                                 Просмотр
@@ -228,8 +230,12 @@
             <div class="personal-modal__body">
                 <dl class="personal-detail-list">
                     <dt>ID паспорта</dt><dd id="detail-passport-id">—</dd>
+                    <dt>ID заявки</dt><dd id="detail-request-id">—</dd>
                     <dt>Название паспорта</dt><dd id="detail-passport-name">—</dd>
+                    <dt>Источник</dt><dd id="detail-source">—</dd>
                     <dt>Дата утверждения</dt><dd id="detail-approval-date">—</dd>
+                    <dt>Дата полевого обследования</dt><dd id="detail-survey-date">—</dd>
+                    <dt>Тип создания</dt><dd id="detail-create-type">—</dd>
                     <dt>Балансодержатель</dt><dd id="detail-owner">—</dd>
                     <dt>ОИВ</dt><dd id="detail-oiv">—</dd>
                     <dt>Уборочные площади</dt><dd id="detail-area">—</dd>
@@ -242,7 +248,10 @@
                 <div id="personal-detail-map" class="personal-detail-map" role="img" aria-label="Карта объекта"></div>
             </div>
             <div class="personal-modal__footer">
-                <button type="button" class="personal-table-btn is-disabled" id="personal-asu-ods-link" disabled>Перейти в АСУ ОДС</button>
+                <button type="button" class="personal-table-btn is-disabled" id="personal-asu-ods-link" disabled>
+                    <img class="personal-table-btn__icon personal-table-btn__icon--gerb" src="{% static 'pass_viewer/moscow-gerb.svg' %}" alt="" aria-hidden="true">
+                    Перейти в АСУ ОДС
+                </button>
                 <button type="button" class="personal-table-btn personal-draw-open is-disabled" id="personal-modal-draw-open" disabled>
                     <img class="personal-table-btn__icon" src="{% static 'pass_viewer/pencil.svg' %}" alt="" aria-hidden="true">
                     Перейти к отрисовке
@@ -254,7 +263,10 @@
                     <input type="hidden" name="request_id" id="personal-open-request-id">
                     <input type="hidden" name="source_label" id="personal-open-source">
                     <input type="hidden" name="geometry_detail_mode" value="simplified">
-                    <button type="submit" class="personal-table-btn">Посмотреть на карте</button>
+                    <button type="submit" class="personal-table-btn">
+                        <img class="personal-table-btn__icon" src="{% static 'pass_viewer/search-loupe.svg' %}" alt="" aria-hidden="true">
+                        Детальный просмотр
+                    </button>
                 </form>
             </div>
         </div>

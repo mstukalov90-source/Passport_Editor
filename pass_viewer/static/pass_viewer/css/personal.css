@@ -506,6 +506,11 @@
     flex-wrap: wrap;
 }
 
+#personal-open-form {
+    display: inline-flex;
+    margin: 0;
+}
+
 .personal-table-wrap {
     overflow-x: auto;
     border: 1px solid var(--pv-border, #e3e6ec);

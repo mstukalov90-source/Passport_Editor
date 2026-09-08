@@ -5311,15 +5311,18 @@ def _attach_drawn_request_to_passport(passport, request_item):
 
 
 def _merge_personal_drawn_requests_into_passports(items):
-    """Fold GIS site requests into passports that already show the same request number."""
+    """Fold GIS site requests into passports that already have the same GIS request_id.
+
+    ODS confirmation copies BrId onto the passport as ods_registry_brid; that must
+    not hide the standalone drawn request from the personal "drawn" filter.
+    """
     passports_by_brid = {}
     for item in items:
         if item.get("is_ods_request") or not str(item.get("rootid") or "").strip():
             continue
-        for raw in (item.get("request_id"), item.get("ods_registry_brid"), item.get("drawn_request_id")):
-            brid = _norm_registry_id(raw)
-            if brid and brid not in passports_by_brid:
-                passports_by_brid[brid] = item
+        brid = _norm_registry_id(item.get("request_id"))
+        if brid and brid not in passports_by_brid:
+            passports_by_brid[brid] = item
 
     out = []
     for item in items:
@@ -7603,15 +7606,49 @@ def _annotate_personal_ogh_statuses(owned_objects):
     return owned_objects
 
 
-def _empty_personal_object_details():
+def _personal_object_details_payload(
+    *,
+    approval_date="",
+    owner_name="",
+    oiv_name="",
+    area_label="",
+    geometry=None,
+    survey_date="",
+    create_type="",
+    source_label="",
+    request_id="",
+    status="",
+):
     return {
         "ok": True,
-        "approval_date": "",
-        "owner_name": "",
-        "oiv_name": "",
-        "area_label": "",
-        "geometry": None,
+        "approval_date": approval_date or "",
+        "owner_name": owner_name or "",
+        "oiv_name": oiv_name or "",
+        "area_label": area_label or "",
+        "geometry": geometry,
+        "survey_date": survey_date or "",
+        "create_type": create_type or "",
+        "source_label": source_label or "",
+        "request_id": request_id or "",
+        "status": status or "",
     }
+
+
+def _personal_object_details_status(rootid, source_label, request_id=""):
+    stub = {
+        "rootid": rootid or "",
+        "source_label": source_label or "",
+        "request_id": request_id or "",
+    }
+    try:
+        _annotate_personal_ogh_statuses([stub])
+        return _personal_display_status(stub)
+    except Exception:
+        return ""
+
+
+def _empty_personal_object_details():
+    return _personal_object_details_payload()
 
 
 def _fetch_personal_master_details(source_label, rootid):
@@ -7640,10 +7677,16 @@ def _fetch_personal_master_details(source_label, rootid):
                 ):
                     department_sql = f"t.{_quote_ident(department_column)}"
                     break
+            create_sql = "NULL"
+            if _column_exists(cursor, table_name, "CreateType", schema=schema):
+                create_sql = f"t.{_quote_ident('CreateType')}"
+            survey_sql = "NULL"
+            if _column_exists(cursor, table_name, "DateSurvey", schema=schema):
+                survey_sql = f"t.{_quote_ident('DateSurvey')}"
             query = (
                 f"SELECT t.{_quote_ident('StartDate')}, t.{_quote_ident('OwnerLegalPersonId')}, "
                 f"{department_sql}, {clean_area_sql}, "
-                f"ST_AsGeoJSON({geom_sql})::text "
+                f"ST_AsGeoJSON({geom_sql})::text, {survey_sql}, {create_sql} "
                 f"FROM {_quote_ident(schema)}.{_quote_ident(table_name)} t "
                 f"WHERE {where_sql} "
                 "LIMIT 1"
@@ -7660,7 +7703,9 @@ def _fetch_personal_master_details(source_label, rootid):
         return None
     if not row:
         return None
-    start_date, owner_id, department_id, area, geom_json = row
+    start_date, owner_id, department_id, area, geom_json = row[:5]
+    survey_date = row[5] if len(row) > 5 else None
+    create_type = row[6] if len(row) > 6 else None
     geometry = None
     if geom_json:
         try:
@@ -7673,6 +7718,8 @@ def _fetch_personal_master_details(source_label, rootid):
         "department_id": department_id,
         "area": area,
         "geometry": geometry,
+        "datesurvey": survey_date,
+        "createtype": create_type,
     }
 
 
@@ -7704,14 +7751,22 @@ def personal_object_details(request):
             except (TypeError, json.JSONDecodeError, ValueError):
                 geometry = None
         return JsonResponse(
-            {
-                "ok": True,
-                "approval_date": _format_personal_date(item.get("startdate")),
-                "owner_name": "",
-                "oiv_name": "",
-                "area_label": "",
-                "geometry": geometry,
-            }
+            _personal_object_details_payload(
+                approval_date=_format_personal_date(item.get("startdate")),
+                owner_name="",
+                oiv_name="",
+                area_label="",
+                geometry=geometry,
+                survey_date=_format_personal_date(item.get("datesurvey")),
+                create_type=str(item.get("createtype") or item.get("create_type_label") or "").strip(),
+                source_label=_normalize_source_label(source_label or item.get("source_label")),
+                request_id=str(item.get("request_id") or request_id or "").strip(),
+                status=_personal_object_details_status(
+                    item.get("rootid") or item.get("ods_matched_rootid") or "",
+                    source_label or item.get("source_label"),
+                    item.get("request_id") or request_id,
+                ),
+            )
         )
 
     if not rootid:
@@ -7726,15 +7781,20 @@ def personal_object_details(request):
 
     owner_name = _get_id_name_lookup_value(details["owner_id"]) or ""
     oiv_name = _get_id_name_lookup_value(details["department_id"]) or ""
+    normalized_source = _normalize_source_label(source_label)
     return JsonResponse(
-        {
-            "ok": True,
-            "approval_date": _format_personal_date(details["startdate"]),
-            "owner_name": owner_name,
-            "oiv_name": oiv_name,
-            "area_label": _format_personal_area(details["area"]),
-            "geometry": details["geometry"],
-        }
+        _personal_object_details_payload(
+            approval_date=_format_personal_date(details.get("startdate")),
+            owner_name=owner_name,
+            oiv_name=oiv_name,
+            area_label=_format_personal_area(details.get("area")),
+            geometry=details.get("geometry"),
+            survey_date=_format_personal_date(details.get("datesurvey")),
+            create_type=str(details.get("createtype") or "").strip(),
+            source_label=normalized_source,
+            request_id=request_id,
+            status=_personal_object_details_status(rootid, source_label, request_id),
+        )
     )
 
 

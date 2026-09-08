@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from pass_viewer.models import ExternalUser
-from pass_viewer.page_config import personal_page_config
+from pass_viewer.page_config import home_page_config, personal_page_config
 from pass_viewer.views import (
     _annotate_and_filter_ods_registry_against_gis,
     _annotate_personal_ogh_statuses,
@@ -52,6 +52,11 @@ def test_personal_page_config_has_open_owned() -> None:
     assert config["urls"]["personalExportXlsx"] == reverse("personal_export_xlsx")
     assert config["urls"]["checkDgi"] == reverse("check_dgi_intersections")
     assert config["urls"]["intersecsAnaliz"] == reverse("intersecs_analiz")
+
+
+def test_home_page_config_has_personal_object_details() -> None:
+    config = home_page_config(need_entry_request_id=False, ods_source_label="ОДС")
+    assert config["urls"]["personalObjectDetails"] == reverse("personal_object_details")
 
 
 def test_format_personal_date_and_area() -> None:
@@ -437,6 +442,8 @@ def test_personal_object_details_maps_master_fields(client) -> None:
             "department_id": "200",
             "area": 1234.6,
             "geometry": geometry,
+            "datesurvey": datetime(2024, 2, 20),
+            "createtype": "АСУ ОДС 2.0",
         },
     ), patch(
         "pass_viewer.views._get_id_name_lookup_value",
@@ -456,6 +463,11 @@ def test_personal_object_details_maps_master_fields(client) -> None:
     assert data["oiv_name"] == "ДЖКХ"
     assert data["area_label"] == "1 235 м²"
     assert data["geometry"]["type"] == "Polygon"
+    assert data["survey_date"] == "20.02.2024"
+    assert data["create_type"] == "АСУ ОДС 2.0"
+    assert data["source_label"] == "ОЗН"
+    assert data["request_id"] == ""
+    assert "status" in data
 
 
 @pytest.mark.django_db
@@ -512,6 +524,11 @@ def test_personal_object_details_by_request_id(client) -> None:
     data = response.json()
     assert data["ok"] is True
     assert data["geometry"]["type"] == "Polygon"
+    assert data["request_id"] == "82727"
+    assert data["source_label"] == "ДТ"
+    assert "survey_date" in data
+    assert "create_type" in data
+    assert "status" in data
 
 
 def test_personal_passportization_kind_for_ods_and_site_requests() -> None:
@@ -587,6 +604,62 @@ def test_annotate_ods_registry_attaches_brid_to_passport() -> None:
     assert site_request["ods_registry_short_root_id"] == "4280571"
     assert not any(item.get("is_ods_request") and item.get("request_id") == "78467" for item in out)
     assert any(item.get("is_ods_request") and item.get("request_id") == "99999" for item in out)
+
+
+def test_build_personal_table_keeps_ods_confirmed_gis_request_as_drawn() -> None:
+    annotated = _annotate_and_filter_ods_registry_against_gis(
+        [
+            {"rootid": "4280571", "name": "Passport", "request_id": "", "source_label": "ДТ"},
+            {
+                "rootid": "",
+                "name": "Site request",
+                "request_id": "78467",
+                "source_label": "ДТ",
+            },
+            {
+                "is_ods_request": True,
+                "rootid": "",
+                "request_id": "78467",
+                "short_object_root_id": "4280571",
+                "br_status_name": "Включена в график",
+                "name": "ODS same brid",
+            },
+        ]
+    )
+    rows = _build_personal_table_items(annotated, [])
+    gis_request = next(row for row in rows if row.get("name") == "Site request")
+    passport = next(row for row in rows if row.get("name") == "Passport")
+    assert gis_request["row_kind"] == "request"
+    assert gis_request["ods_registry_brid_match"] is True
+    assert passport["row_kind"] == "passport"
+    assert _personal_kind_filter_counts(rows)["drawn"] >= 1
+    _annotate_kind_filter_membership(annotated)
+    site = next(item for item in annotated if item.get("name") == "Site request")
+    assert site.get("folded_into_passport") is False
+
+
+def test_build_personal_table_folds_gis_request_with_same_passport_request_id() -> None:
+    rows = _build_personal_table_items(
+        [
+            {
+                "rootid": "4280571",
+                "name": "Passport",
+                "request_id": "78467",
+                "source_label": "ДТ",
+            },
+            {
+                "rootid": "",
+                "name": "Site request",
+                "request_id": "78467",
+                "source_label": "ДТ",
+            },
+        ],
+        [],
+    )
+    assert [row["name"] for row in rows] == ["Passport"]
+    assert rows[0]["merged_from_drawn_request"] is True
+    assert rows[0]["drawn_request_id"] == "78467"
+    assert _personal_kind_filter_counts(rows)["drawn"] == 0
 
 
 def test_build_personal_table_items_includes_requests_and_approvals() -> None:

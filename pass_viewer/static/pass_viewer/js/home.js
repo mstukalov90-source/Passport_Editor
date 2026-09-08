@@ -115,6 +115,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const checkDgiUrl = (cfg.urls && cfg.urls.checkDgi) || '';
         const intersecsAnalizUrl = (cfg.urls && cfg.urls.intersecsAnaliz) || '';
         const resolveAsuOdsUrl = (cfg.urls && cfg.urls.resolveAsuOdsUrl) || '';
+        const personalObjectDetailsUrl = (cfg.urls && cfg.urls.personalObjectDetails) || '';
         const openOwnedUrl = (cfg.urls && cfg.urls.openOwned) || '';
         const viewObjectModal = document.getElementById('owned-view-object-modal');
         const viewObjectFrame = document.getElementById('owned-view-object-frame');
@@ -132,6 +133,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const sourceFilterButtons = Array.from(document.querySelectorAll('.owned-source-filter-btn'));
         let applyOwnedMapSourceFilters = null;
         let ownedFeatureLayerByKey = null;
+        let focusOwnedMapByKey = null;
 
         function getCsrfToken() {
             const fromCookie = getCookie('csrftoken') || '';
@@ -674,6 +676,73 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
         }
 
+        function dashDisplay(value) {
+            const text = String(value == null ? '' : value).trim();
+            return text || '—';
+        }
+
+        function fillOwnedPopupExtraFields(featureLayer, feature) {
+            const popupEl = featureLayer && featureLayer.getPopup && featureLayer.getPopup()?.getElement?.();
+            if (!popupEl) {
+                return;
+            }
+            const props = (feature && feature.properties) || {};
+            const rootid = String(props.rootid || '').trim();
+            const requestId = String(props.ods_registry_brid || props.request_id || '').trim();
+            const sourceLabel = String(props.matched_source_label || props.source_label || 'ДТ').trim() || 'ДТ';
+            const endpoint = personalObjectDetailsUrl;
+            if (!endpoint || (!rootid && !requestId)) {
+                return;
+            }
+            const body = { source_label: sourceLabel };
+            if (rootid) {
+                body.rootid = rootid;
+            } else {
+                body.request_id = requestId;
+            }
+            void fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(body),
+            })
+                .then((response) =>
+                    typeof PV.parseJsonResponse === 'function'
+                        ? PV.parseJsonResponse(response)
+                        : response.json()
+                )
+                .then((data) => {
+                    if (!data || !data.ok) {
+                        return;
+                    }
+                    const stillOpen = featureLayer.getPopup && featureLayer.getPopup()?.isOpen?.();
+                    if (!stillOpen) {
+                        return;
+                    }
+                    const el = featureLayer.getPopup()?.getElement?.();
+                    if (!el) {
+                        return;
+                    }
+                    const setExtra = (key, value) => {
+                        const node = el.querySelector('[data-popup-extra="' + key + '"]');
+                        if (node) {
+                            node.textContent = dashDisplay(value);
+                        }
+                    };
+                    setExtra('owner', data.owner_name);
+                    setExtra('oiv', data.oiv_name);
+                    setExtra('area', data.area_label);
+                    setExtra('status', data.status);
+                })
+                .catch((error) => {
+                    console.error('home: popup object details failed', error);
+                });
+        }
+
         function asuOdsPopupMeta(props) {
             const rootid = String((props && props.rootid) || '').trim();
             if (!rootid) {
@@ -1032,6 +1101,19 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             return new Set(['all']);
         }
 
+        function kindFilterSkipsOdsRequestModal() {
+            const kinds = getActiveKindFilters();
+            if (!kinds || !kinds.size) {
+                return true;
+            }
+            for (const key of kinds) {
+                if (key !== 'all' && key !== 'approved') {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         function isOwnedListsModalOpen() {
             return document.body.classList.contains('owned-lists-modal-open');
         }
@@ -1311,7 +1393,10 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                             }
                         }
                     }
-                    if (!foldedOdsBtn && typeof layerToFocus.openPopup === 'function') {
+                    if (
+                        (!foldedOdsBtn || kindFilterSkipsOdsRequestModal()) &&
+                        typeof layerToFocus.openPopup === 'function'
+                    ) {
                         layerToFocus.openPopup();
                     }
                     activeKey = key;
@@ -1333,8 +1418,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     row.classList.add('is-map-focused');
                     activeRow = row;
                     if (source === 'map') {
-                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        if (foldedOdsBtn) {
+                        row.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+                        if (foldedOdsBtn && !kindFilterSkipsOdsRequestModal()) {
                             foldedOdsBtn.click();
                         }
                     }
@@ -1362,7 +1447,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                         foldedIntoPassport: Boolean(props.folded_into_passport),
                     });
                     featureLayer.on('click', () => focusByKey(key, 'map'));
-                    const idLabel = props.rootid ? '№ Паспорта' : '№ Заявки';
+                    const idLabel = props.rootid ? 'ID Паспорта' : 'ID Заявки';
                     const idValue = props.rootid || props.request_id || '-';
                     let sourceDisplay = escapeHtml(props.source_label || 'ДТ');
                     if (props.from_ods_registry) {
@@ -1376,7 +1461,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     const popupRequestId = String(props.ods_registry_brid || (!props.from_ods_registry && props.request_id) || '').trim();
                     if (props.rootid && popupRequestId) {
                         popupHtml +=
-                            '<div><strong>№ Заявки:</strong> ' + escapeHtml(popupRequestId) + '</div>';
+                            '<div><strong>ID Заявки:</strong> ' + escapeHtml(popupRequestId) + '</div>';
                     }
                     popupHtml +=
                             '<div><strong>Название:</strong> ' + escapeHtml(props.name || '-') + '</div>' +
@@ -1388,16 +1473,15 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                             '</div>';
                     }
                     popupHtml += buildPopupMetaFieldsHtml(props);
+                    popupHtml +=
+                        '<div class="owned-popup-extra-fields">' +
+                        '<div><strong>Балансодержатель:</strong> <span data-popup-extra="owner">—</span></div>' +
+                        '<div><strong>ОИВ:</strong> <span data-popup-extra="oiv">—</span></div>' +
+                        '<div><strong>Уборочные площади:</strong> <span data-popup-extra="area">—</span></div>' +
+                        '<div><strong>Статус:</strong> <span data-popup-extra="status">—</span></div>' +
+                        '</div>';
                     const asuMeta = asuOdsPopupMeta(props);
                     popupHtml += '<div class="owned-popup-actions">';
-                    popupHtml +=
-                        '<button type="button" class="owned-list-icon-btn owned-view-object-btn" title="Просмотр объекта" aria-label="Просмотр объекта">' +
-                        ownedActionIconImgHtml('view') +
-                        '<span>Просмотр объекта</span></button>';
-                    popupHtml +=
-                        '<button type="button" class="owned-list-icon-btn owned-check-dgi-btn" title="Проверка пересечений" aria-label="Проверка пересечений">' +
-                        ownedActionIconImgHtml('dgi') +
-                        '<span>Проверка пересечений</span></button>';
                     if (asuMeta) {
                         popupHtml +=
                             '<button type="button" class="owned-list-icon-btn owned-asu-ods-btn" title="АСУ ОДС" aria-label="АСУ ОДС"' +
@@ -1409,6 +1493,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                             ownedActionIconImgHtml('asu') +
                             '<span>АСУ ОДС</span></button>';
                     }
+                    popupHtml +=
+                        '<button type="button" class="owned-list-icon-btn owned-check-dgi-btn" title="Проверка пересечений" aria-label="Проверка пересечений">' +
+                        ownedActionIconImgHtml('dgi') +
+                        '<span>Проверка пересечений</span></button>';
+                    popupHtml +=
+                        '<button type="button" class="owned-list-icon-btn owned-view-object-btn" title="Детальный просмотр" aria-label="Детальный просмотр">' +
+                        ownedActionIconImgHtml('view') +
+                        '<span>Детальный просмотр</span></button>';
                     popupHtml += '</div></div>';
                     featureLayer.bindPopup(popupHtml);
                     featureLayer.off('popupopen');
@@ -1419,6 +1511,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                             bindOwnedCheckDgiButton(featureLayer, feature);
                             bindOwnedAsuOdsButton(featureLayer, feature);
                             bindOwnedViewObjectButton(featureLayer, feature);
+                            fillOwnedPopupExtraFields(featureLayer, feature);
                         }, 0);
                     });
                 },
@@ -1461,7 +1554,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                             '<div><strong>Название:</strong> ' + escapeHtml(props.name || '-') + '</div>';
                     if (rootId) {
                         popupHtml +=
-                            '<div><strong>№ паспорта:</strong> ' + escapeHtml(rootId) + '</div>';
+                            '<div><strong>ID паспорта:</strong> ' + escapeHtml(rootId) + '</div>';
                     }
                     if (approveId && approvalLandingUrl) {
                         const href =
@@ -1647,11 +1740,21 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
 
             applyOwnedMapSourceFilters = applyMapFilters;
+            focusOwnedMapByKey = focusByKey;
             applyOwnedMapSourceFilters();
 
             const ownedMapWrap = ownedMapEl.closest('.owned-map-wrap');
             if (ownedMapWrap && typeof ResizeObserver !== 'undefined') {
-                const mapResizeObserver = new ResizeObserver(() => {
+                let lastMapWrapSize = { width: 0, height: 0 };
+                const mapResizeObserver = new ResizeObserver((entries) => {
+                    const entry = entries && entries[0];
+                    const box = entry && entry.contentRect;
+                    const width = box ? Math.round(box.width) : 0;
+                    const height = box ? Math.round(box.height) : 0;
+                    if (width === lastMapWrapSize.width && height === lastMapWrapSize.height) {
+                        return;
+                    }
+                    lastMapWrapSize = { width, height };
                     map.invalidateSize(false);
                 });
                 mapResizeObserver.observe(ownedMapWrap);
@@ -2073,7 +2176,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (entryRecapModal) {
                 entryRecapModal.style.display = 'flex';
             }
-            setTimeout(() => entryRecapInput && entryRecapInput.focus(), 0);
+            setTimeout(() => entryRecapInput && entryRecapInput.focus({ preventScroll: true }), 0);
         }
 
         function closeEntryRecapModal() {
@@ -2429,7 +2532,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (entryRequestModal) {
                 entryRequestModal.style.display = 'flex';
             }
-            setTimeout(() => entryRequestInput && entryRequestInput.focus(), 0);
+            setTimeout(() => entryRequestInput && entryRequestInput.focus({ preventScroll: true }), 0);
         }
 
         function closeEntryRequestModal() {
@@ -2750,7 +2853,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (mergeRequestModal) {
                 mergeRequestModal.style.display = 'flex';
             }
-            setTimeout(() => mergeRequestInput && mergeRequestInput.focus(), 0);
+            setTimeout(() => mergeRequestInput && mergeRequestInput.focus({ preventScroll: true }), 0);
         }
 
         function submitMergePassportsContinue() {
@@ -2975,6 +3078,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     return;
                 }
                 if (scenario === 2) {
+                    if (kindFilterSkipsOdsRequestModal()) {
+                        const row = btn.closest('.owned-item');
+                        const mapKey = row && row.dataset.mapKey;
+                        if (typeof focusOwnedMapByKey === 'function' && mapKey) {
+                            focusOwnedMapByKey(mapKey, 'list');
+                        }
+                        return;
+                    }
                     if (!gisReady || !shortRoot) {
                         openOdsGisMissingModal();
                         return;
