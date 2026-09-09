@@ -1,8 +1,8 @@
 .layer-management-panel {
     margin: 12px 0 10px;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--pv-border, #e3e6ec);
     border-radius: 10px;
-    background: #f8fafc;
+    background: #fff;
     overflow: hidden;
     width: 100%;
     box-sizing: border-box;
@@ -11,8 +11,8 @@
     padding: 10px 12px;
     font-size: 16px;
     font-weight: 700;
-    color: #111827;
-    border-bottom: 1px solid #d1d5db;
+    color: var(--pv-dark-blue, #1A3F6E);
+    border-bottom: 1px solid var(--pv-border, #e3e6ec);
     background: #fff;
 }
 .layer-management-panel__grid {
@@ -22,8 +22,8 @@
 }
 .layer-management-panel__column {
     padding: 10px 12px 12px;
-    border-right: 1px solid #d1d5db;
-    background: #f8fafc;
+    border-right: 1px solid var(--pv-border, #e3e6ec);
+    background: #fff;
 }
 .layer-management-panel__column:last-child {
     border-right: none;
@@ -36,7 +36,7 @@
     font-size: 14px;
     line-height: 1.2;
     font-weight: 700;
-    color: #111827;
+    color: var(--pv-dark-blue, #1A3F6E);
     white-space: normal;
     word-break: normal;
 }
@@ -52,7 +52,7 @@
     gap: 8px;
     margin: 6px 0;
     font-size: 14px;
-    color: #0f172a;
+    color: var(--pv-text, #20242b);
     white-space: nowrap;
 }
 .layer-panel-row input[type='checkbox'] {
