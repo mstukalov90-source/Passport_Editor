@@ -16,23 +16,17 @@
     transform: none;
 }
 .pass-viewer-page--split .map-toolbar-btn--primary {
-    background: #1f6feb;
-    color: #fff;
+    background: var(--pv-header-bg, #1A3F6E);
+    color: var(--pv-header-text, #fff);
 }
-.pass-viewer-page--split .map-toolbar-btn--success {
-    background: #15803d;
-    color: #fff;
-}
-.pass-viewer-page--split .map-toolbar-btn--teal {
-    background: #0d9488;
-    color: #fff;
-}
+.pass-viewer-page--split .map-toolbar-btn--success,
+.pass-viewer-page--split .map-toolbar-btn--teal,
 .pass-viewer-page--split .map-toolbar-btn--accent {
-    background: #7c3aed;
+    background: var(--pv-blue, #165391);
     color: #fff;
 }
 .pass-viewer-page--split .map-toolbar-btn--danger {
-    background: #dc2626;
+    background: var(--pv-red, #BA3034);
     color: #fff;
 }
 .pass-viewer-page--split .map-toolbar-btn--muted {
@@ -47,7 +41,7 @@
     justify-content: flex-start;
 }
 .pass-viewer-page--split .map-basemap-btn.is-active {
-    background: #1d4ed8;
+    background: var(--pv-header-bg, #1A3F6E);
     color: #fff;
-    border-color: #1d4ed8;
+    border-color: var(--pv-header-bg, #1A3F6E);
 }

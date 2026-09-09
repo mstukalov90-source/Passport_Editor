@@ -1,5 +1,5 @@
 .map-toolbar-btn.is-active:not(.map-basemap-btn) {
-    box-shadow: 0 0 0 2px #6366f1;
+    box-shadow: 0 0 0 2px var(--pv-blue, #165391);
 }
 .map-toolbar-btn {
     display: inline-flex;
@@ -16,8 +16,8 @@
     font-family: inherit;
     cursor: pointer;
     text-align: left;
-    transition: transform 0.08s ease, box-shadow 0.12s ease, filter 0.12s ease;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    transition: background 0.15s ease;
+    box-shadow: none;
 }
 .map-toolbar-btn__icon {
     flex: 0 0 16px;
@@ -44,27 +44,35 @@
     white-space: nowrap;
 }
 .map-toolbar-btn:hover {
-    filter: brightness(1.03);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.16);
+    filter: none;
 }
 .map-toolbar-btn:active {
-    transform: translateY(1px);
+    transform: none;
 }
 .map-toolbar-btn--primary {
-    background: linear-gradient(180deg, #2f80ed 0%, #1f6feb 100%);
+    background: var(--pv-header-bg, #1A3F6E);
+    color: var(--pv-header-text, #fff);
+}
+.map-toolbar-btn--primary:hover:not(:disabled) {
+    background: var(--pv-blue, #165391);
+}
+.map-toolbar-btn--success,
+.map-toolbar-btn--accent,
+.map-toolbar-btn--teal {
+    background: var(--pv-blue, #165391);
     color: #fff;
 }
-.map-toolbar-btn--success {
-    background: linear-gradient(180deg, #16a34a 0%, #15803d 100%);
-    color: #fff;
-}
-.map-toolbar-btn--accent {
-    background: linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%);
-    color: #fff;
+.map-toolbar-btn--success:hover:not(:disabled),
+.map-toolbar-btn--accent:hover:not(:disabled),
+.map-toolbar-btn--teal:hover:not(:disabled) {
+    background: var(--pv-dark-blue, #1A3F6E);
 }
 .map-toolbar-btn--danger {
-    background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+    background: var(--pv-red, #BA3034);
     color: #fff;
+}
+.map-toolbar-btn--danger:hover:not(:disabled) {
+    background: #9a282c;
 }
 
 .map-toolbar-btn:disabled {
@@ -101,7 +109,7 @@ a.map-toolbar-btn {
     cursor: pointer;
     min-height: 36px;
     padding: 7px 12px;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--pv-border, #e3e6ec);
     border-radius: 8px;
     background: #fff;
     font-family: inherit;
@@ -153,7 +161,7 @@ a.map-toolbar-btn {
 }
 .snap-switch input:checked + .snap-switch__track,
 .snap-switch input:checked + .draw-mode-label--left + .snap-switch__track {
-    background: #2563eb;
+    background: var(--pv-blue, #165391);
 }
 .snap-switch input:checked + .snap-switch__track::after,
 .snap-switch input:checked + .draw-mode-label--left + .snap-switch__track::after {
