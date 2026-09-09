@@ -46,6 +46,31 @@ class ExternalUser(models.Model):
         return self.login
 
 
+class RegistrationRequest(models.Model):
+    STATUS_NEW = "new"
+    STATUS_PROCESSED = "processed"
+    STATUS_CHOICES = (
+        (STATUS_NEW, "Новая"),
+        (STATUS_PROCESSED, "Обработана"),
+    )
+
+    executive_authority = models.CharField(max_length=255)
+    institution_name = models.CharField(max_length=255)
+    representative_name = models.CharField(max_length=255)
+    position = models.CharField(max_length=255)
+    phone = models.CharField(max_length=50)
+    email = models.EmailField()
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_NEW)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "registration_requests"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.representative_name} ({self.institution_name})"
+
+
 class RequestAttachment(models.Model):
     brid = models.CharField(max_length=32, db_index=True)
     original_name = models.TextField()

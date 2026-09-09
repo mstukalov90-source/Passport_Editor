@@ -7663,7 +7663,7 @@ def _fetch_personal_master_details(source_label, rootid):
     try:
         with connections["qgis"].cursor() as cursor:
             clean_area_sql = "NULL"
-            for area_column in ("TotalCleanArea", "CleaningArea"):
+            for area_column in ("TotalArea", "TotalCleanArea", "CleaningArea"):
                 if _column_exists(cursor, table_name, area_column, schema=schema):
                     clean_area_sql = f"t.{_quote_ident(area_column)}"
                     break

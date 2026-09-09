@@ -12,6 +12,67 @@ class RussianAuthenticationForm(AuthenticationForm):
     }
 
 
+class RegistrationRequestForm(forms.Form):
+    """Заявка на регистрацию пользователя: поля листа «Перечень» шаблона
+    «Шаблон для добавления пользователей.xlsx» (№ п/п присваивается при выгрузке)."""
+
+    REQUIRED_ERROR = "Заполните это поле."
+    MAX_LENGTH_ERROR = "Не более {limit_value} символов."
+    EMAIL_INVALID_ERROR = "Укажите корректный адрес электронной почты."
+
+    executive_authority = forms.CharField(
+        label="Орган исполнительной власти",
+        max_length=255,
+        error_messages={"required": REQUIRED_ERROR, "max_length": MAX_LENGTH_ERROR},
+    )
+    institution_name = forms.CharField(
+        label="Наименование учреждения",
+        max_length=255,
+        error_messages={"required": REQUIRED_ERROR, "max_length": MAX_LENGTH_ERROR},
+    )
+    representative_name = forms.CharField(
+        label="ФИО ответственного представителя",
+        max_length=255,
+        error_messages={"required": REQUIRED_ERROR, "max_length": MAX_LENGTH_ERROR},
+    )
+    position = forms.CharField(
+        label="Должность",
+        max_length=255,
+        error_messages={"required": REQUIRED_ERROR, "max_length": MAX_LENGTH_ERROR},
+    )
+    phone = forms.CharField(
+        label="Контактный телефон",
+        max_length=50,
+        widget=forms.TextInput(attrs={"type": "tel"}),
+        error_messages={"required": REQUIRED_ERROR, "max_length": MAX_LENGTH_ERROR},
+    )
+    email = forms.EmailField(
+        label="Адрес электронной почты",
+        max_length=254,
+        widget=forms.EmailInput(attrs={"autocomplete": "email"}),
+        error_messages={
+            "required": REQUIRED_ERROR,
+            "invalid": EMAIL_INVALID_ERROR,
+            "max_length": MAX_LENGTH_ERROR,
+        },
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        for field_name in (
+            "executive_authority",
+            "institution_name",
+            "representative_name",
+            "position",
+            "phone",
+            "email",
+        ):
+            value = cleaned_data.get(field_name)
+            if value:
+                cleaned_data[field_name] = value.strip()
+        return cleaned_data
+
+
 class EntryPointForm(forms.Form):
     rootid = forms.CharField(
         required=False,

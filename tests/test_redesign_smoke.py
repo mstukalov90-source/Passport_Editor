@@ -205,6 +205,10 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "personal-detail-object-toggle" in personal
     assert "personal-detail-mode-passport" in personal
     assert "personal-detail-mode-request" in personal
+    assert "<dt>Площадь</dt>" in personal
+    assert "<dt>Название</dt>" in personal
+    assert "Балансодержатель" not in personal
+    assert "<dt>ОИВ</dt>" not in personal
     assert "Год паспортизации" in personal
     assert "personal-status-cell" in personal
     assert "data-status-ogh" in personal

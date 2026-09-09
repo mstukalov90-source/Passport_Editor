@@ -834,21 +834,17 @@
                 return;
             }
             if (!data || !data.ok) {
-                fillText('detail-approval-date', '—');
-                fillText('detail-owner', '—');
-                fillText('detail-oiv', '—');
-                fillText('detail-area', '—');
-                fillText('detail-survey-date', '—');
-                fillText('detail-create-type', '—');
-                renderDetailGeometry(null);
-                return;
-            }
-            fillText('detail-approval-date', data.approval_date);
-            fillText('detail-owner', data.owner_name);
-            fillText('detail-oiv', data.oiv_name);
-            fillText('detail-area', data.area_label);
-            fillText('detail-survey-date', data.survey_date);
-            fillText('detail-create-type', data.create_type);
+            fillText('detail-approval-date', '—');
+            fillText('detail-area', '—');
+            fillText('detail-survey-date', '—');
+            fillText('detail-create-type', '—');
+            renderDetailGeometry(null);
+            return;
+        }
+        fillText('detail-approval-date', data.approval_date);
+        fillText('detail-area', data.area_label);
+        fillText('detail-survey-date', data.survey_date);
+        fillText('detail-create-type', data.create_type);
             if (data.source_label) {
                 fillText('detail-source', data.source_label);
             }
@@ -865,8 +861,6 @@
             }
             console.error('personal-account: object details failed', error);
             fillText('detail-approval-date', '—');
-            fillText('detail-owner', '—');
-            fillText('detail-oiv', '—');
             fillText('detail-area', '—');
             fillText('detail-survey-date', '—');
             fillText('detail-create-type', '—');
@@ -935,12 +929,10 @@
             fillText('detail-passport-name', button.dataset.name);
             fillText('detail-request-id', displayRequestId);
             fillText('detail-source', sourceLabel);
-            fillText('detail-approval-date', '—');
+            fillText('detail-approval-date', button.dataset.approvalDate);
             fillText('detail-survey-date', button.dataset.surveyDate);
             fillText('detail-create-type', button.dataset.createType);
-            fillText('detail-owner', '—');
-            fillText('detail-oiv', '—');
-            fillText('detail-area', '—');
+            fillText('detail-area', button.dataset.area);
             fillText('detail-status', button.dataset.status);
             if (field('personal-open-name')) field('personal-open-name').value = button.dataset.name || '';
             setAsuOdsLinkEnabled(sourceLabel !== 'ТОП' && sourceLabel !== 'TOP', passportRootid || displayRootid, sourceLabel);
