@@ -3190,7 +3190,14 @@ def _get_new_object_relations(geometry, source_label="ДТ", request_id_filter=N
     }
 
 
-def _get_layer_intersection_percent(geometry, table_name, extra_where_sql: str = "", *, table_alias: str = "d"):
+def _get_layer_intersection_percent(
+    geometry,
+    table_name,
+    extra_where_sql: str = "",
+    *,
+    table_alias: str = "d",
+    extra_where_params=None,
+):
     """Overlap percent of ``geometry`` with rows from ``table_name`` (optional SQL AND-filter)."""
     geometry_norm = _to_intersection_geometry(geometry)
     if not geometry_norm or not table_name:
@@ -3233,7 +3240,7 @@ def _get_layer_intersection_percent(geometry, table_name, extra_where_sql: str =
                 "END AS overlap_percent "
                 "FROM input_area ia CROSS JOIN overlap o"
             )
-            cursor.execute(query, [geometry_json] + hood_params)
+            cursor.execute(query, [geometry_json] + hood_params + list(extra_where_params or ()))
             row = cursor.fetchone()
             return float(row[0]) if row and row[0] is not None else 0.0
     except Exception as exc:
@@ -3310,6 +3317,14 @@ _ANALIZ_LAYER_ROWS = (
     ("rzd", "Полосы отвода ЖД", "percent_rzd"),
 )
 
+# Слои ОГХ для страницы анализа: (layer_key, метка как во вкладке ОГХ модалки, ключ в ogx-процентах).
+_OGX_ANALIZ_LAYER_ROWS = (
+    ("ogx_dt", "ДТ", "dt"),
+    ("ogx_odh", "ОДХ", "odh"),
+    ("ogx_oo", "ОО", "oo"),
+    ("ogx_top", "ТОП", "top"),
+)
+
 
 def _dgi_check_payload_from_percents(percents):
     percent_moscow = round(float(percents.get("moscow") or 0), 2)
@@ -3353,6 +3368,78 @@ def _dgi_check_payload_from_percents(percents):
     }
 
 
+def _ogx_self_exclude_sql(cursor, table_name, rootid, request_id, table_alias="t"):
+    """SQL `` AND ...`` фильтр, исключающий сам проверяемый объект из муниципальной таблицы.
+
+    Совпадение определяется по rootid / request_id либо по идентичной геометрии
+    (как в ``_append_intersection_mask_union_part``); ``i`` — алиас input-геометрии.
+    """
+    conditions = []
+    params = []
+    rootid_text = str(rootid or "").strip()
+    request_id_text = str(request_id or "").strip()
+    if rootid_text and _is_meaningful_gis_rootid(rootid_text):
+        rootid_pref = settings.GIS_OBJECT_ROOTID_FIELD
+        if _column_exists(cursor, table_name, rootid_pref):
+            rootid_col = _resolve_column_name(cursor, table_name, rootid_pref)
+            conditions.append(f"{table_alias}.{_quote_ident(rootid_col)}::text = %s")
+            params.append(rootid_text)
+    if request_id_text:
+        request_id_pref = getattr(settings, "GIS_OBJECT_REQUEST_ID_FIELD", "request_id")
+        if _column_exists(cursor, table_name, request_id_pref):
+            request_id_col = _resolve_column_name(cursor, table_name, request_id_pref)
+            conditions.append(f"{table_alias}.{_quote_ident(request_id_col)}::text = %s")
+            params.append(request_id_text)
+    geom_pref = settings.GIS_OBJECT_GEOM_FIELD
+    if _column_exists(cursor, table_name, geom_pref):
+        geom_col = _resolve_column_name(cursor, table_name, geom_pref)
+        raw_geom = f"{table_alias}.{_quote_ident(geom_col)}"
+        conditions.append(f"ST_Equals({_sql_table_geom_valid_expr(raw_geom)}, i.geom)")
+    if not conditions:
+        return "", []
+    return " AND NOT (" + " OR ".join(conditions) + ")", params
+
+
+def _get_ogx_intersection_percents(geometry, rootid="", request_id=""):
+    """Пересечение геометрии с муниципальными таблицами ДТ/ОДХ/ОО/ТОП (без самого объекта)."""
+    geometry_norm = _to_intersection_geometry(geometry)
+    if not geometry_norm:
+        raise ValueError("Unsupported geometry payload for OGX intersection percent.")
+    tables = (
+        ("dt", settings.GIS_OBJECT_TABLE),
+        ("odh", getattr(settings, "GIS_ODH_TABLE", "odh")),
+        ("oo", getattr(settings, "GIS_OZN_TABLE", "ozn")),
+        ("top", getattr(settings, "GIS_TOP_TABLE", "top")),
+    )
+    result = {}
+    with connection.cursor() as cursor:
+        for layer_key, table_name in tables:
+            extra_where, extra_params = _ogx_self_exclude_sql(cursor, table_name, rootid, request_id)
+            result[layer_key] = _get_layer_intersection_percent(
+                geometry_norm,
+                table_name,
+                extra_where,
+                table_alias="t",
+                extra_where_params=extra_params,
+            )
+    return result
+
+
+def _ogx_check_payload_from_percents(percents):
+    percent_dt = round(float(percents.get("dt") or 0), 2)
+    percent_odh = round(float(percents.get("odh") or 0), 2)
+    percent_oo = round(float(percents.get("oo") or 0), 2)
+    percent_top = round(float(percents.get("top") or 0), 2)
+    return {
+        "ok": True,
+        "intersects": percent_dt > 0 or percent_odh > 0 or percent_oo > 0 or percent_top > 0,
+        "percent_dt": percent_dt,
+        "percent_odh": percent_odh,
+        "percent_oo": percent_oo,
+        "percent_top": percent_top,
+    }
+
+
 def _optional_table_text_expr(cursor, table_name, preferred, alias):
     if not table_name or not preferred or not _column_exists(cursor, table_name, preferred):
         return "NULL::text"
@@ -3372,7 +3459,14 @@ def _parse_geojson_maybe(value):
     return parsed if isinstance(parsed, dict) else None
 
 
-def _list_layer_intersection_features(geometry, table_name, extra_where_sql="", *, table_alias="d"):
+def _list_layer_intersection_features(
+    geometry,
+    table_name,
+    extra_where_sql="",
+    *,
+    table_alias="d",
+    extra_where_params=(),
+):
     geometry_norm = _to_intersection_geometry(geometry)
     if not geometry_norm or not table_name:
         return []
@@ -3429,7 +3523,7 @@ def _list_layer_intersection_features(geometry, table_name, extra_where_sql="", 
                 "ORDER BY pct DESC NULLS LAST "
                 f"LIMIT {limit}"
             )
-            cursor.execute(query, [geometry_json] + list(hood_params))
+            cursor.execute(query, [geometry_json] + list(hood_params) + list(extra_where_params))
             objects = []
             for idx, row in enumerate(cursor.fetchall()):
                 pct = round(float(row[5] or 0), 2)
@@ -3490,6 +3584,40 @@ def _analiz_layers_for_geometry(geometry, percents_payload):
                 "objects": objects,
             }
         )
+    return layers
+
+
+def _ogx_analiz_layers_for_geometry(geometry, ogx_percents, rootid="", request_id=""):
+    """Слои ОГХ для страницы анализа: те же таблицы и исключение самого объекта,
+    что во вкладке ОГХ модалки проверки пересечений."""
+    table_by_key = {
+        "ogx_dt": settings.GIS_OBJECT_TABLE,
+        "ogx_odh": getattr(settings, "GIS_ODH_TABLE", "odh"),
+        "ogx_oo": getattr(settings, "GIS_OZN_TABLE", "ozn"),
+        "ogx_top": getattr(settings, "GIS_TOP_TABLE", "top"),
+    }
+    layers = []
+    with connection.cursor() as cursor:
+        for layer_key, label, percent_key in _OGX_ANALIZ_LAYER_ROWS:
+            table_name = table_by_key.get(layer_key)
+            extra_where, extra_params = _ogx_self_exclude_sql(
+                cursor, table_name, rootid, request_id, table_alias="d"
+            )
+            objects = _list_layer_intersection_features(
+                geometry,
+                table_name,
+                extra_where,
+                table_alias="d",
+                extra_where_params=extra_params,
+            )
+            layers.append(
+                {
+                    "key": layer_key,
+                    "label": label,
+                    "percent": round(float(ogx_percents.get(percent_key) or 0), 2),
+                    "objects": objects,
+                }
+            )
     return layers
 
 
@@ -7837,6 +7965,33 @@ def check_dgi_intersections(request):
 
 
 @login_required
+@require_POST
+def check_ogx_intersections(request):
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Некорректный JSON."}, status=400)
+
+    geometry = _to_intersection_geometry(payload.get("geometry"))
+    if not geometry:
+        return JsonResponse({"ok": False, "error": "Геометрия не передана."}, status=400)
+
+    try:
+        percents = _get_ogx_intersection_percents(
+            geometry,
+            rootid=payload.get("rootid") or "",
+            request_id=payload.get("request_id") or "",
+        )
+    except Exception:
+        logger.exception("check_ogx_intersections: percent calculation failed")
+        return JsonResponse(
+            {"ok": False, "error": "Не удалось вычислить пересечение с объектами ОГХ."},
+            status=500,
+        )
+    return JsonResponse(_ogx_check_payload_from_percents(percents))
+
+
+@login_required
 def intersecs_analiz(request):
     return render(
         request,
@@ -7870,6 +8025,16 @@ def intersecs_analiz_data(request):
         response = _dgi_check_payload_from_percents(percents)
         response["selected_geometry"] = geometry
         response["layers"] = _analiz_layers_for_geometry(geometry, response)
+        # ОГХ — как во вкладке модалки: rootid/request_id исключают сам объект из ДТ/ОДХ/ОО/ТОП.
+        rootid = str(payload.get("rootid") or "").strip()
+        request_id = str(payload.get("request_id") or "").strip()
+        ogx_percents = _get_ogx_intersection_percents(
+            geometry, rootid=rootid, request_id=request_id
+        )
+        response["ogx"] = _ogx_check_payload_from_percents(ogx_percents)
+        response["ogx_layers"] = _ogx_analiz_layers_for_geometry(
+            geometry, ogx_percents, rootid=rootid, request_id=request_id
+        )
     except Exception:
         logger.exception("intersecs_analiz_data: failed")
         return JsonResponse(

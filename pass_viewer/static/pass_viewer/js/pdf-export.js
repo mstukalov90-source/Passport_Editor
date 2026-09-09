@@ -9,7 +9,7 @@
     const PDF_BLOCK_CANVAS_SCALE = 1.75;
     const PDF_MAP_TARGET_WIDTH_PX = 1400;
     const PDF_MAP_TARGET_HEIGHT_PX = 990;
-    const PDF_MAP_SELECTED_STYLE = {color: '#ff0000', weight: 3, fillOpacity: 0.25};
+    const PDF_MAP_SELECTED_STYLE = {color: '#ff00ff', weight: 3, fillOpacity: 0.25};
 
     function stripPopupButtons(html) {
         return String(html || '').replace(/<button[\s\S]*?<\/button>/gi, '');

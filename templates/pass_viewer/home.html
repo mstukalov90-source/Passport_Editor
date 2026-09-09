@@ -14,7 +14,7 @@
     {{ hood_work_area_geojson|json_script:"hood-work-area-geojson-data" }}
     {% include 'pass_viewer/includes/map_home_scripts.html' %}
     {% load static %}
-    <script src="{% static 'pass_viewer/js/home.js' %}?v=beskhoz-1"></script>
+    <script src="{% static 'pass_viewer/js/home.js' %}?v=ogx-mode-1"></script>
 {% endblock %}
 
 {% block container_class %}container--wide{% endblock %}
@@ -164,16 +164,23 @@
 
     <div id="check-dgi-modal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
-            <h3 style="margin: 0 0 10px;">Пересечения с объектами и З/У</h3>
+            <div class="check-dgi-modal-header">
+                <h3 style="margin: 0 0 10px;">Пересечение с З/У и ОГХ</h3>
+                <button type="button" id="check-dgi-modal-close" class="check-dgi-modal-close" aria-label="Закрыть">×</button>
+            </div>
+            <div class="check-dgi-mode-toggle" id="check-dgi-mode-toggle">
+                <button type="button" class="check-dgi-mode-toggle__btn is-active" data-dgi-mode="zu" aria-pressed="true">З/У</button>
+                <button type="button" class="check-dgi-mode-toggle__btn" data-dgi-mode="ogx" aria-pressed="false">ОГХ</button>
+            </div>
             <div id="check-dgi-modal-body" class="note" style="margin-top: 0;"></div>
             <div class="modal-actions check-dgi-modal-actions">
                 <button type="button" id="check-dgi-analiz-btn" class="map-toolbar-btn check-dgi-analiz-btn" style="display:none;">
                     <img class="check-dgi-analiz-btn__icon" src="{% static 'pass_viewer/intersect-polygons.svg' %}" alt="" aria-hidden="true">
-                    Пространственный анализ пересечений
+                    Детальный анализ пересечений
                 </button>
                 <div class="check-dgi-modal-actions__right">
                     <button type="button" id="check-dgi-view-object-btn" class="map-toolbar-btn" style="display:none;">Просмотр объекта</button>
-                    <button type="button" id="check-dgi-modal-close" class="map-toolbar-btn">OK</button>
+
                 </div>
             </div>
         </div>

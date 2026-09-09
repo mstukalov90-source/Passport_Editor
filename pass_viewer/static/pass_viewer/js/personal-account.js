@@ -579,7 +579,7 @@
             return;
         }
         detailLayer = L.geoJSON(geometry, {
-            style: { color: '#2563eb', weight: 2, fillColor: '#60a5fa', fillOpacity: 0.25 },
+            style: { color: '#ff00ff', weight: 2, fillColor: '#ff00ff', fillOpacity: 0.25 },
         }).addTo(map);
         const bounds = detailLayer.getBounds();
         if (bounds.isValid()) {
@@ -966,10 +966,18 @@
     const dgiChooseRequestBtn = document.getElementById('personal-dgi-choose-request');
     const dgiChooseCancelBtn = document.getElementById('personal-dgi-choose-cancel');
     const checkDgiUrl = urls.checkDgi || '';
+    const checkOgxUrl = urls.checkOgx || '';
     const intersecsAnalizUrl = urls.intersecsAnaliz || '';
     let checkDgiViewObjectProps = null;
     let lastCheckDgiContext = null;
     let pendingDgiCheck = null;
+    const checkDgiMode = PV.createCheckDgiModeController
+        ? PV.createCheckDgiModeController({
+              url: checkOgxUrl,
+              getContext: () => lastCheckDgiContext,
+              getCsrfToken: csrfToken,
+          })
+        : null;
 
     function normalizeCheckGeometry(geometry) {
         if (!geometry || typeof geometry !== 'object') {
@@ -1032,10 +1040,17 @@
         }
     }
 
+    function resetCheckDgiMode() {
+        if (checkDgiMode && checkDgiMode.reset) {
+            checkDgiMode.reset();
+        }
+    }
+
     function closeCheckDgiModal() {
         if (checkDgiModal) {
             checkDgiModal.style.display = 'none';
         }
+        resetCheckDgiMode();
         setCheckDgiAnalizContext(null);
         setCheckDgiViewObjectProps(null);
     }
@@ -1052,6 +1067,7 @@
             return;
         }
         if (bodyText != null) {
+            resetCheckDgiMode();
             checkDgiModalBody.textContent = bodyText;
             setCheckDgiAnalizContext(null);
             setCheckDgiViewObjectProps(null);
