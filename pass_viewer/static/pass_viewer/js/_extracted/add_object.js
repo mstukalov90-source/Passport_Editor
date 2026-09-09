@@ -678,6 +678,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 return patternId;
             };
             const isDgi = sourceLabel === 'ДГИ' || String(sourceLabel || '').startsWith('З/У');
+            const isDgiMoscowNoRent = sourceLabel === 'З/У г. Москва без аренды';
             const isOozt = sourceLabel === 'ООЗТ';
             const isRzd = sourceLabel === 'РЖД';
             const isRenew = sourceLabel === 'Реновация';
@@ -693,11 +694,11 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             L.geoJSON(geo, {
                 ...(isSignalTape ? {renderer: signalTapeRenderer} : {}),
                 style: {
-                    color: isOdh ? '#00bfff' : (isOzn || isOozt) ? '#16a34a' : isRenew ? '#b45309' : '#dc2626',
+                    color: isOdh ? '#00bfff' : (isOzn || isDgiMoscowNoRent) ? '#16a34a' : isOozt ? '#b45309' : isRenew ? '#1d4ed8' : '#dc2626',
                     weight: 4,
                     opacity: 0.95,
                     dashArray: (isOdh || isOzn) ? null : '10 8',
-                    fillOpacity: isOzn ? 0.25 : 0,
+                    fillOpacity: (isOzn || isOdh) ? 0.25 : 0,
                 },
                 onEachFeature: (feature, layer) => {
                     if (isOozt) {
@@ -806,12 +807,14 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     }
                     if (isSignalTape) {
                         const tapeConfig = isOozt
-                            ? {patternId: 'oozt-signal-tape-pattern', stripe: '#16a34a', bg: '#ffffff', stroke: '#16a34a'}
+                            ? {patternId: 'oozt-signal-tape-pattern', stripe: '#f59e0b', bg: '#ffffff', stroke: '#b45309'}
                             : isRzd
                                 ? {patternId: 'rzd-signal-tape-pattern', stripe: '#dc2626', bg: '#16a34a', stroke: '#dc2626'}
                                 : isRenew
-                                    ? {patternId: 'renew-signal-tape-pattern', stripe: '#f59e0b', bg: '#ffffff', stroke: '#b45309'}
-                                    : {patternId: 'dgi-signal-tape-pattern', stripe: '#dc2626', bg: '#ffffff', stroke: '#dc2626'};
+                                    ? {patternId: 'renew-signal-tape-pattern', stripe: '#2563eb', bg: '#ffffff', stroke: '#1d4ed8'}
+                                    : isDgiMoscowNoRent
+                                        ? {patternId: 'dgi-moscow-no-rent-signal-tape-pattern', stripe: '#16a34a', bg: '#ffffff', stroke: '#16a34a'}
+                                        : {patternId: 'dgi-signal-tape-pattern', stripe: '#dc2626', bg: '#ffffff', stroke: '#dc2626'};
                         layer._passViewerRestoreDgiDom = function () {
                             const patternId = ensureSignalPattern(
                                 tapeConfig.patternId,
@@ -1553,7 +1556,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             const mergedAdjacentDt = mergeAdjacentDtPassportsGeoJson(parsed.intersects, parsed.touches, parsed.nearby);
             if (mergedAdjacentDt) {
                 L.geoJSON(mergedAdjacentDt, {
-                    style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
+                    style: {color: '#dc2626', weight: 2, fillColor: '#f87171', fillOpacity: 0.35},
                     onEachFeature: (feature, layer) => {
                         layer.bindPopup(buildObjectPopup(feature.properties || {}));
                     }
@@ -1854,7 +1857,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             }
             editableGroup.clearLayers();
             const editableLayer = L.geoJSON(editableGeo, {
-                style: {color: '#ff0000', weight: 3, fillOpacity: 0.25}
+                style: {color: '#ff00ff', weight: 3, fillOpacity: 0.25}
             });
             editableLayer.eachLayer((layer) => {
                 bindEditablePolygonPopup(
@@ -2275,7 +2278,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 allowIntersection: false,
                 showArea: true,
                 shapeOptions: {
-                    color: '#ff0000',
+                    color: '#ff00ff',
                     weight: 3,
                     fillOpacity: 0.25,
                 },
@@ -2359,7 +2362,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 map.removeLayer(freehandPreviewLine);
             }
             freehandPreviewLine = L.polyline(freehandLatLngs, {
-                color: '#ef4444',
+                color: '#ff00ff',
                 weight: 3,
                 opacity: 0.85,
                 interactive: false,
@@ -2396,7 +2399,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 return;
             }
             const polygon = L.polygon(freehandLatLngs, {
-                color: '#ff0000',
+                color: '#ff00ff',
                 weight: 3,
                 fillOpacity: 0.25,
             });
@@ -2693,7 +2696,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                     relationAdjacentDtPassportsGroup.clearLayers();
                     if (layers.adjacentDt) {
                         L.geoJSON(layers.adjacentDt, {
-                            style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
+                            style: {color: '#dc2626', weight: 2, fillColor: '#f87171', fillOpacity: 0.35},
                         }).addTo(relationAdjacentDtPassportsGroup);
                     }
                 },
@@ -2720,7 +2723,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                 relationAdjacentDtPassportsGroup.clearLayers();
                 if (savedAdjacentDt && Array.isArray(savedAdjacentDt.features) && savedAdjacentDt.features.length) {
                     L.geoJSON(savedAdjacentDt, {
-                        style: {color: '#0284c7', weight: 2, fillColor: '#38bdf8', fillOpacity: 0.35},
+                        style: {color: '#dc2626', weight: 2, fillColor: '#f87171', fillOpacity: 0.35},
                         onEachFeature: (feature, layer) =>
                             layer.bindPopup(buildObjectPopup(feature.properties || {})),
                     }).addTo(relationAdjacentDtPassportsGroup);

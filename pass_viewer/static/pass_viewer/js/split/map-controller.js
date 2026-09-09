@@ -220,7 +220,7 @@
 
         if (selectedGeo) {
             selectedLayer = L.geoJSON(selectedGeo, {
-                style: { color: '#ef4444', weight: 3, fillOpacity: 0.25 },
+                style: { color: '#ff00ff', weight: 3, fillOpacity: 0.25 },
             }).addTo(selectedGroup);
             try {
                 const bounds = selectedLayer.getBounds();
@@ -245,7 +245,7 @@
             state.resetPartIdCounter();
             editableGroup.clearLayers();
             const editableLayer = L.geoJSON(state.selectedEditableGeo, {
-                style: { color: '#ef4444', weight: 3, fillOpacity: 0.25 },
+                style: { color: '#ff00ff', weight: 3, fillOpacity: 0.25 },
             });
             let idx = 0;
             editableLayer.eachLayer((layer) => {

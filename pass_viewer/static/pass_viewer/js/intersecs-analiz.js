@@ -11,16 +11,25 @@
     const metaEl = document.getElementById('intersecs-analiz-meta');
     const tableWrap = document.getElementById('intersecs-analiz-table-wrap');
     const mapEl = document.getElementById('intersecs-analiz-map');
+    const modeToggleEl = document.getElementById('intersecs-analiz-mode-toggle');
+
+    // Режим З/У | ОГХ — как переключатель в модалке проверки пересечений.
+    let mode = 'zu';
+    let lastData = null;
 
     const LAYER_STYLES = {
         dgi_moscow_rent: { color: '#dc2626', fillColor: '#f87171' },
-        dgi_moscow_no_rent: { color: '#ea580c', fillColor: '#fdba74' },
+        dgi_moscow_no_rent: { color: '#16a34a', fillColor: '#86efac' },
         dgi_private_rent: { color: '#7c3aed', fillColor: '#c4b5fd' },
         dgi_private_no_rent: { color: '#2563eb', fillColor: '#93c5fd' },
         dgi_renovation: { color: '#0d9488', fillColor: '#5eead4' },
-        renew: { color: '#b45309', fillColor: '#fbbf24' },
-        oozt: { color: '#16a34a', fillColor: '#86efac' },
+        renew: { color: '#1d4ed8', fillColor: '#93c5fd' },
+        oozt: { color: '#b45309', fillColor: '#fbbf24' },
         rzd: { color: '#be123c', fillColor: '#fb7185' },
+        ogx_dt: { color: '#f97316', fillColor: '#fdba74' },
+        ogx_odh: { color: '#00bfff', fillColor: '#7dd3fc' },
+        ogx_oo: { color: '#65a30d', fillColor: '#bef264' },
+        ogx_top: { color: '#9333ea', fillColor: '#d8b4fe' },
     };
 
     const LAYER_TAPE = {
@@ -32,9 +41,9 @@
         },
         dgi_moscow_no_rent: {
             patternId: 'analiz-dgi-moscow-no-rent-tape',
-            stripe: '#ea580c',
+            stripe: '#16a34a',
             bg: '#ffffff',
-            stroke: '#ea580c',
+            stroke: '#16a34a',
         },
         dgi_private_rent: {
             patternId: 'analiz-dgi-private-rent-tape',
@@ -56,15 +65,15 @@
         },
         renew: {
             patternId: 'analiz-renew-tape',
-            stripe: '#f59e0b',
+            stripe: '#2563eb',
             bg: '#ffffff',
-            stroke: '#b45309',
+            stroke: '#1d4ed8',
         },
         oozt: {
             patternId: 'analiz-oozt-tape',
-            stripe: '#16a34a',
+            stripe: '#f59e0b',
             bg: '#ffffff',
-            stroke: '#16a34a',
+            stroke: '#b45309',
         },
         rzd: {
             patternId: 'analiz-rzd-tape',
@@ -97,6 +106,14 @@
         { key: 'renew', label: 'Реновация', percentField: 'percent_renew', pctAlwaysOk: true },
         { key: 'oozt', label: 'ООЗТ', percentField: 'percent_oozt' },
         { key: 'rzd', label: 'Полосы отвода ЖД', percentField: 'percent_rzd' },
+    ];
+
+    // Метки — как во вкладке ОГХ модалки проверки пересечений.
+    const OGX_TABLE_ROWS = [
+        { key: 'ogx_dt', label: 'ДТ', percentField: 'percent_dt', ogx: true },
+        { key: 'ogx_odh', label: 'ОДХ', percentField: 'percent_odh', ogx: true },
+        { key: 'ogx_oo', label: 'ОО', percentField: 'percent_oo', ogx: true },
+        { key: 'ogx_top', label: 'ТОП', percentField: 'percent_top', ogx: true },
     ];
 
     let map = null;
@@ -202,7 +219,7 @@
         return data.geometry || null;
     }
 
-    async function fetchAnalizData(geometry) {
+    async function fetchAnalizData(geometry, rootid, requestId) {
         if (!dataUrl) {
             throw new Error('URL анализа пересечений не настроен.');
         }
@@ -213,7 +230,12 @@
                 'X-CSRFToken': csrfToken(),
             },
             credentials: 'same-origin',
-            body: JSON.stringify({ geometry }),
+            // rootid/request_id нужны, чтобы исключить сам объект из слоёв ОГХ (как в модалке).
+            body: JSON.stringify({
+                geometry: geometry,
+                rootid: rootid || '',
+                request_id: requestId || '',
+            }),
         });
         const data = await parseJson(response);
         if (!response.ok || !data || !data.ok) {
@@ -393,12 +415,12 @@
         clearMapLayers();
         const selectedGeom = data.selected_geometry || null;
         addGeo(selectedLayer, selectedGeom, {
-            color: '#2563eb',
+            color: '#ff00ff',
             weight: 3,
-            fillColor: '#60a5fa',
+            fillColor: '#ff00ff',
             fillOpacity: 0.22,
         });
-        (data.layers || []).forEach((layer) => {
+        [].concat(data.layers || [], data.ogx_layers || []).forEach((layer) => {
             const style = LAYER_STYLES[layer.key] || { color: '#64748b', fillColor: '#94a3b8' };
             const tape = LAYER_TAPE[layer.key] || null;
             (layer.objects || []).forEach((obj) => {
@@ -570,95 +592,105 @@
         });
     }
 
+    function tableRowHtml(row, byKey, data) {
+        const layer = byKey[row.key] || { objects: [], percent: null };
+        const fallbackSource = row.ogx ? data.ogx || {} : data;
+        const percent = row.sum
+            ? data.percent_sum
+            : layer.percent != null
+                ? layer.percent
+                : fallbackSource[row.percentField];
+        const objects = row.sum ? [] : layer.objects || [];
+        const expandable = objects.length > 0;
+        const rowClass = [
+            row.sum ? 'dgi-check-table__sum' : '',
+            expandable ? 'intersecs-analiz-row--expandable is-open' : '',
+        ]
+            .filter(Boolean)
+            .join(' ');
+        let html =
+            '<tr class="' +
+            escapeHtml(rowClass) +
+            '"' +
+            (expandable ? ' data-layer-key="' + escapeHtml(row.key) + '"' : '') +
+            '>' +
+            '<td>' +
+            (expandable
+                ? '<label class="intersecs-analiz-layer-label">' +
+                  '<input type="checkbox" class="intersecs-analiz-layer-toggle" checked data-layer-key="' +
+                  escapeHtml(row.key) +
+                  '">' +
+                  '<span>' +
+                  escapeHtml(row.label) +
+                  ' <span class="intersecs-analiz-count">(' +
+                  objects.length +
+                  ')</span></span></label>'
+                : escapeHtml(row.label)) +
+            '</td>' +
+            '<td class="dgi-pct ' +
+            pctClass(percent, row.pctAlwaysOk) +
+            '">' +
+            escapeHtml(formatPct(percent)) +
+            '%</td></tr>';
+        if (expandable) {
+            html +=
+                '<tr class="intersecs-analiz-detail-row" data-detail-for="' +
+                escapeHtml(row.key) +
+                '"><td colspan="2">' +
+                '<table class="intersecs-analiz-objects"><thead><tr>' +
+                '<th class="intersecs-analiz-check-col">' +
+                '<input type="checkbox" class="intersecs-analiz-layer-all-toggle" checked data-layer-key="' +
+                escapeHtml(row.key) +
+                '" title="Все объекты слоя" aria-label="Все объекты слоя">' +
+                '</th>' +
+                '<th>Кадастр / объект</th><th>Адрес</th><th>%</th><th>м²</th>' +
+                '</tr></thead><tbody>';
+            objects.forEach((obj) => {
+                html +=
+                    '<tr class="intersecs-analiz-object-row" data-layer-key="' +
+                    escapeHtml(row.key) +
+                    '" data-object-id="' +
+                    escapeHtml(String(obj.id)) +
+                    '">' +
+                    '<td class="intersecs-analiz-check-col">' +
+                    '<input type="checkbox" class="intersecs-analiz-object-toggle" checked data-layer-key="' +
+                    escapeHtml(row.key) +
+                    '" data-object-id="' +
+                    escapeHtml(String(obj.id)) +
+                    '" title="Показать на карте" aria-label="Показать на карте">' +
+                    '</td>' +
+                    '<td>' +
+                    escapeHtml(objectLabel(obj)) +
+                    '</td>' +
+                    '<td>' +
+                    escapeHtml(obj.address || '—') +
+                    '</td>' +
+                    '<td>' +
+                    escapeHtml(formatPct(obj.pct)) +
+                    '%</td>' +
+                    '<td>' +
+                    escapeHtml(String(obj.intersection_area_m2 != null ? obj.intersection_area_m2 : '—')) +
+                    '</td></tr>';
+            });
+            html += '</tbody></table></td></tr>';
+        }
+        return html;
+    }
+
     function renderTable(data) {
         if (!tableWrap) {
             return;
         }
-        const byKey = layersByKey(data.layers);
+        const byKey = layersByKey([].concat(data.layers || [], data.ogx_layers || []));
+        const rows = mode === 'ogx' ? OGX_TABLE_ROWS : TABLE_ROWS;
+        const headLabel = mode === 'ogx' ? 'Тип ОГХ' : 'Слой';
         let html =
             '<table class="dgi-check-table intersecs-analiz-table">' +
-            '<thead><tr><th>Слой</th><th>Пересечение</th></tr></thead><tbody>';
-        TABLE_ROWS.forEach((row) => {
-            const layer = byKey[row.key] || { objects: [], percent: data[row.percentField] };
-            const percent = row.sum
-                ? data.percent_sum
-                : layer.percent != null
-                    ? layer.percent
-                    : data[row.percentField];
-            const objects = row.sum ? [] : layer.objects || [];
-            const expandable = objects.length > 0;
-            const rowClass = [
-                row.sum ? 'dgi-check-table__sum' : '',
-                expandable ? 'intersecs-analiz-row--expandable is-open' : '',
-            ]
-                .filter(Boolean)
-                .join(' ');
-            html +=
-                '<tr class="' +
-                escapeHtml(rowClass) +
-                '"' +
-                (expandable ? ' data-layer-key="' + escapeHtml(row.key) + '"' : '') +
-                '>' +
-                '<td>' +
-                (expandable
-                    ? '<label class="intersecs-analiz-layer-label">' +
-                      '<input type="checkbox" class="intersecs-analiz-layer-toggle" checked data-layer-key="' +
-                      escapeHtml(row.key) +
-                      '">' +
-                      '<span>' +
-                      escapeHtml(row.label) +
-                      ' <span class="intersecs-analiz-count">(' +
-                      objects.length +
-                      ')</span></span></label>'
-                    : escapeHtml(row.label)) +
-                '</td>' +
-                '<td class="dgi-pct ' +
-                pctClass(percent, row.pctAlwaysOk) +
-                '">' +
-                escapeHtml(formatPct(percent)) +
-                '%</td></tr>';
-            if (expandable) {
-                html +=
-                    '<tr class="intersecs-analiz-detail-row" data-detail-for="' +
-                    escapeHtml(row.key) +
-                    '"><td colspan="2">' +
-                    '<table class="intersecs-analiz-objects"><thead><tr>' +
-                    '<th class="intersecs-analiz-check-col">' +
-                    '<input type="checkbox" class="intersecs-analiz-layer-all-toggle" checked data-layer-key="' +
-                    escapeHtml(row.key) +
-                    '" title="Все объекты слоя" aria-label="Все объекты слоя">' +
-                    '</th>' +
-                    '<th>Кадастр / объект</th><th>Адрес</th><th>%</th><th>м²</th>' +
-                    '</tr></thead><tbody>';
-                objects.forEach((obj) => {
-                    html +=
-                        '<tr class="intersecs-analiz-object-row" data-layer-key="' +
-                        escapeHtml(row.key) +
-                        '" data-object-id="' +
-                        escapeHtml(String(obj.id)) +
-                        '">' +
-                        '<td class="intersecs-analiz-check-col">' +
-                        '<input type="checkbox" class="intersecs-analiz-object-toggle" checked data-layer-key="' +
-                        escapeHtml(row.key) +
-                        '" data-object-id="' +
-                        escapeHtml(String(obj.id)) +
-                        '" title="Показать на карте" aria-label="Показать на карте">' +
-                        '</td>' +
-                        '<td>' +
-                        escapeHtml(objectLabel(obj)) +
-                        '</td>' +
-                        '<td>' +
-                        escapeHtml(obj.address || '—') +
-                        '</td>' +
-                        '<td>' +
-                        escapeHtml(formatPct(obj.pct)) +
-                        '%</td>' +
-                        '<td>' +
-                        escapeHtml(String(obj.intersection_area_m2 != null ? obj.intersection_area_m2 : '—')) +
-                        '</td></tr>';
-                });
-                html += '</tbody></table></td></tr>';
-            }
+            '<thead><tr><th>' +
+            escapeHtml(headLabel) +
+            '</th><th>Пересечение</th></tr></thead><tbody>';
+        rows.forEach((row) => {
+            html += tableRowHtml(row, byKey, data);
         });
         html += '</tbody></table>';
         tableWrap.innerHTML = html;
@@ -700,6 +732,55 @@
         });
     }
 
+    function setModeButtons(value) {
+        if (!modeToggleEl) {
+            return;
+        }
+        modeToggleEl.querySelectorAll('.intersecs-analiz-mode-toggle__btn').forEach((btn) => {
+            const isActive = btn.getAttribute('data-analiz-mode') === value;
+            btn.classList.toggle('is-active', isActive);
+            btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+    }
+
+    // Карта показывает только слои активного режима; чекбоксы объектов задают видимость внутри режима.
+    function applyModeToMap() {
+        if (!tableWrap) {
+            return;
+        }
+        tableWrap.querySelectorAll('.intersecs-analiz-object-toggle').forEach((checkbox) => {
+            const layerKey = checkbox.getAttribute('data-layer-key') || '';
+            const isOgx = layerKey.indexOf('ogx_') === 0;
+            const visible = isOgx === (mode === 'ogx') && checkbox.checked;
+            setObjectLayersVisible(layerKey, checkbox.getAttribute('data-object-id'), visible);
+        });
+    }
+
+    function setMode(value) {
+        if (value !== 'zu' && value !== 'ogx') {
+            return;
+        }
+        if (value === mode) {
+            return;
+        }
+        mode = value;
+        setModeButtons(mode);
+        if (lastData) {
+            renderTable(lastData);
+            applyModeToMap();
+        }
+    }
+
+    if (modeToggleEl) {
+        modeToggleEl.addEventListener('click', (event) => {
+            const btn = event.target.closest('.intersecs-analiz-mode-toggle__btn');
+            if (!btn) {
+                return;
+            }
+            setMode(btn.getAttribute('data-analiz-mode'));
+        });
+    }
+
     async function boot() {
         const q = queryParams();
         const stored = PV.readIntersecsAnalizPayload ? PV.readIntersecsAnalizPayload(q.sid) : null;
@@ -735,9 +816,11 @@
                 return;
             }
             setStatus('Считаем пересечения по слоям…');
-            const data = await fetchAnalizData(geometry);
+            const data = await fetchAnalizData(geometry, rootid, requestId);
+            lastData = data;
             renderTable(data);
             renderMap(data);
+            applyModeToMap();
             setStatus('');
         } catch (error) {
             setStatus(error.message || 'Не удалось загрузить анализ пересечений.', true);

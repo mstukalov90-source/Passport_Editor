@@ -114,6 +114,13 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         let lastCheckDgiContext = null;
         const checkDgiUrl = (cfg.urls && cfg.urls.checkDgi) || '';
         const intersecsAnalizUrl = (cfg.urls && cfg.urls.intersecsAnaliz) || '';
+        const checkDgiMode = PV.createCheckDgiModeController
+            ? PV.createCheckDgiModeController({
+                  url: (cfg.urls && cfg.urls.checkOgx) || '',
+                  getContext: () => lastCheckDgiContext,
+                  getCsrfToken,
+              })
+            : null;
         const resolveAsuOdsUrl = (cfg.urls && cfg.urls.resolveAsuOdsUrl) || '';
         const personalObjectDetailsUrl = (cfg.urls && cfg.urls.personalObjectDetails) || '';
         const openOwnedUrl = (cfg.urls && cfg.urls.openOwned) || '';
@@ -406,6 +413,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (checkDgiModal) {
                 checkDgiModal.style.display = 'none';
             }
+            if (checkDgiMode && checkDgiMode.reset) {
+                checkDgiMode.reset();
+            }
             setCheckDgiAnalizContext(null);
             setCheckDgiViewObjectProps(null);
         }
@@ -415,6 +425,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 return;
             }
             if (bodyText != null) {
+                if (checkDgiMode && checkDgiMode.reset) {
+                    checkDgiMode.reset();
+                }
                 checkDgiModalBody.textContent = bodyText;
                 setCheckDgiAnalizContext(null);
                 setCheckDgiViewObjectProps(null);
@@ -447,6 +460,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 setCheckDgiViewObjectProps(null);
             } else {
                 setCheckDgiViewObjectProps(data.view_object);
+            }
+            if (checkDgiMode && checkDgiMode.reset) {
+                checkDgiMode.reset();
             }
             openCheckDgiModalShell();
         }
@@ -1201,7 +1217,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 return { color: '#9333ea', weight: 2.5, fillOpacity: 0.22, fillColor: '#e9d5ff' };
             }
             if (sourceLabel === 'ОДХ') {
-                return { color: '#00bfff', weight: 2.5, fillOpacity: 0.04, fillColor: '#93c5fd' };
+                return { color: '#00bfff', weight: 2.5, fillOpacity: 0.22, fillColor: '#00bfff' };
             }
             if (sourceLabel === 'ОЗН' || sourceLabel === 'ОО') {
                 return { color: '#16a34a', weight: 2.5, fillOpacity: 0.22, fillColor: '#86efac' };
@@ -1209,7 +1225,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (sourceLabel === 'ТОП' || sourceLabel === 'TOP') {
                 return { color: '#ea580c', weight: 2.5, fillOpacity: 0.25, fillColor: '#fb923c' };
             }
-            return { color: '#0284c7', weight: 2.5, fillOpacity: 0.3, fillColor: '#38bdf8' };
+            return { color: '#dc2626', weight: 2.5, fillOpacity: 0.3, fillColor: '#f87171' };
         }
 
         function initOwnedMap() {
@@ -1348,8 +1364,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     const baseStyle = featureStyleByKey.get(key) || {};
                     layerToHover.setStyle({
                         ...baseStyle,
-                        color: '#ef4444',
-                        fillColor: '#fecaca',
+                        color: '#ff00ff',
+                        fillColor: '#ff8fff',
                         weight: Math.max(4, Number(baseStyle.weight) + 1 || 4),
                         fillOpacity: 0.45,
                     });
@@ -1732,8 +1748,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     } else if (key === hoverKey) {
                         visibleStyle = {
                             ...baseStyle,
-                            color: '#ef4444',
-                            fillColor: '#fecaca',
+                            color: '#ff00ff',
+                            fillColor: '#ff8fff',
                             weight: Math.max(4, Number(baseStyle.weight) + 1 || 4),
                             fillOpacity: 0.45,
                         };

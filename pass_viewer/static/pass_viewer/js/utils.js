@@ -487,14 +487,15 @@
             _dgiCheckRow('Суммарное пересечение', dgiSum, {
                 rowClass: 'dgi-check-table__sum',
             }) +
-            _dgiCheckRow('З/У г. Москва без аренды', moscowNoRent, {
-                pctClass: 'dgi-pct--ok',
-            }) +
             _dgiCheckRow('Реновация', src.percent_renew, {
                 pctClass: 'dgi-pct--ok',
             }) +
             _dgiCheckRow('ООЗТ', src.percent_oozt) +
-            _dgiCheckRow('Полосы отвода ЖД', src.percent_rzd);
+            _dgiCheckRow('Полосы отвода ЖД', src.percent_rzd) +
+            // Справочная строка: не входит в сумму, бейдж всегда серый.
+            _dgiCheckRow('З/У г. Москва без аренды', moscowNoRent, {
+                pctClass: 'dgi-pct--muted',
+            });
 
         return (
             '<table class="dgi-check-table">' +
@@ -502,5 +503,146 @@
             `<tbody>${rows}</tbody>` +
             '</table>'
         );
+    };
+
+    PassViewer.buildCheckOgxModalHtml = function buildCheckOgxModalHtml(data) {
+        const src = data || {};
+        const rows =
+            _dgiCheckRow('ДТ', src.percent_dt) +
+            _dgiCheckRow('ОДХ', src.percent_odh) +
+            _dgiCheckRow('ОО', src.percent_oo) +
+            _dgiCheckRow('ТОП', src.percent_top);
+
+        return (
+            '<table class="dgi-check-table">' +
+            '<thead><tr><th>Тип ОГХ</th><th>Пересечение</th></tr></thead>' +
+            `<tbody>${rows}</tbody>` +
+            '</table>'
+        );
+    };
+
+    // Общий переключатель З/У | ОГХ для модалки check-dgi-modal на всех страницах.
+    // Страница отдаёт контекст последней проверки (geometry + ids), контроллер
+    // сам грузит проценты ОГХ при первом переключении и кеширует их до reset().
+    PassViewer.createCheckDgiModeController = function createCheckDgiModeController(opts) {
+        const options = opts || {};
+        const modal = options.modal || document.getElementById('check-dgi-modal');
+        const body = options.body || document.getElementById('check-dgi-modal-body');
+        const toggle = options.toggle || document.getElementById('check-dgi-mode-toggle');
+        const url = String(options.url || '').trim();
+        const getContext = options.getContext || null;
+        const getCsrfToken = options.getCsrfToken || function () { return ''; };
+        if (!modal || !body || !toggle) {
+            return { reset: function () {} };
+        }
+        let mode = 'zu';
+        let ogxData = null;
+
+        function setModeButtons(value) {
+            toggle.querySelectorAll('.check-dgi-mode-toggle__btn').forEach((btn) => {
+                const isActive = btn.dataset.dgiMode === value;
+                btn.classList.toggle('is-active', isActive);
+                btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+        }
+
+        function renderZuTable() {
+            const ctx = getContext ? getContext() : null;
+            const percents = ctx && ctx.percents;
+            if (percents && percents.intersects && PassViewer.buildCheckDgiModalHtml) {
+                body.innerHTML = PassViewer.buildCheckDgiModalHtml(percents);
+            } else {
+                body.textContent = 'Пересечений с объектами ДГИ и инфоресурсами не обнаружено.';
+            }
+        }
+
+        function renderOgxTable() {
+            if (ogxData && ogxData.intersects && PassViewer.buildCheckOgxModalHtml) {
+                body.innerHTML = PassViewer.buildCheckOgxModalHtml(ogxData);
+            } else {
+                body.textContent = 'Пересечения с объектами ОГХ не обнаружены.';
+            }
+        }
+
+        async function loadOgx() {
+            const ctx = getContext ? getContext() : null;
+            if (!ctx || !ctx.geometry) {
+                if (mode === 'ogx') {
+                    body.textContent = 'Нет данных для расчёта пересечений с ОГХ.';
+                }
+                return;
+            }
+            if (!url) {
+                if (mode === 'ogx') {
+                    body.textContent = 'URL проверки пересечений с ОГХ не настроен.';
+                }
+                return;
+            }
+            body.textContent = 'Проверяем пересечения с ОГХ…';
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        geometry: ctx.geometry,
+                        rootid: ctx.rootid || '',
+                        request_id: ctx.request_id || '',
+                        source_label: ctx.source_label || '',
+                    }),
+                });
+                const data = await PassViewer.parseJsonResponse(response);
+                if (!response.ok || !data || !data.ok) {
+                    throw new Error((data && data.error) || 'Ошибка проверки пересечений с ОГХ.');
+                }
+                ogxData = data;
+                if (mode === 'ogx') {
+                    renderOgxTable();
+                }
+            } catch (error) {
+                if (mode === 'ogx') {
+                    body.textContent = error.message || 'Не удалось проверить пересечения с ОГХ.';
+                }
+            }
+        }
+
+        function applyMode(value) {
+            if (value !== 'zu' && value !== 'ogx') {
+                return;
+            }
+            if (value === mode) {
+                return;
+            }
+            mode = value;
+            setModeButtons(mode);
+            if (mode === 'zu') {
+                renderZuTable();
+                return;
+            }
+            if (ogxData) {
+                renderOgxTable();
+                return;
+            }
+            void loadOgx();
+        }
+
+        toggle.addEventListener('click', (event) => {
+            const btn = event.target.closest('.check-dgi-mode-toggle__btn');
+            if (!btn) {
+                return;
+            }
+            applyMode(btn.dataset.dgiMode);
+        });
+
+        return {
+            reset: function reset() {
+                mode = 'zu';
+                ogxData = null;
+                setModeButtons('zu');
+            },
+        };
     };
 })(typeof window !== 'undefined' ? window : global);

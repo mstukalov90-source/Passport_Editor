@@ -9,6 +9,8 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
+from pass_viewer.views import _ogx_analiz_layers_for_geometry
+
 
 @pytest.mark.django_db
 def test_intersecs_analiz_page_requires_login(client):
@@ -81,16 +83,43 @@ def test_intersecs_analiz_data_ok(client):
             ],
         }
     ]
+    fake_ogx_layers = [
+        {
+            "key": "ogx_dt",
+            "label": "ДТ",
+            "percent": 12.0,
+            "objects": [
+                {
+                    "id": 0,
+                    "descr": "77:01:0000000:2",
+                    "address": "тест ОГХ",
+                    "vri": "",
+                    "name": "",
+                    "owner": "",
+                    "pct": 12.0,
+                    "intersection_area_m2": 120.0,
+                    "geometry": geometry,
+                    "intersection_geometry": geometry,
+                }
+            ],
+        }
+    ]
     with patch(
         "pass_viewer.views._get_dgi_intersection_percents_split",
         return_value=percents,
     ), patch(
         "pass_viewer.views._analiz_layers_for_geometry",
         return_value=fake_layers,
+    ), patch(
+        "pass_viewer.views._get_ogx_intersection_percents",
+        return_value={"dt": 12.0, "odh": 5.0, "oo": 0.0, "top": 0.0},
+    ) as ogx_percents_mock, patch(
+        "pass_viewer.views._ogx_analiz_layers_for_geometry",
+        return_value=fake_ogx_layers,
     ):
         response = client.post(
             reverse("intersecs_analiz_data"),
-            data=json.dumps({"geometry": geometry}),
+            data=json.dumps({"geometry": geometry, "rootid": "77-001"}),
             content_type="application/json",
         )
     assert response.status_code == 200
@@ -99,3 +128,46 @@ def test_intersecs_analiz_data_ok(client):
     assert data["percent_private_no_rent"] == 4.5
     assert data["selected_geometry"]["type"] == "Polygon"
     assert data["layers"][0]["objects"][0]["descr"] == "77:01:0000000:1"
+    assert data["ogx"]["percent_dt"] == 12.0
+    assert data["ogx"]["percent_odh"] == 5.0
+    assert data["ogx"]["intersects"] is True
+    assert data["ogx_layers"][0]["key"] == "ogx_dt"
+    assert data["ogx_layers"][0]["objects"][0]["descr"] == "77:01:0000000:2"
+    ogx_call = ogx_percents_mock.call_args
+    assert ogx_call.args[0]["type"] == "Polygon"
+    assert ogx_call.kwargs.get("rootid") == "77-001"
+    assert ogx_call.kwargs.get("request_id") == ""
+
+
+@pytest.mark.django_db
+def test_ogx_analiz_layers_for_geometry_builds_four_layers():
+    geometry = {"type": "Polygon", "coordinates": [[[37.6, 55.7], [37.61, 55.7], [37.61, 55.71], [37.6, 55.7]]]}
+    percents = {"dt": 12.0, "odh": 5.0, "oo": 0.0, "top": 0.34}
+
+    def fake_features(geometry_arg, table_name, extra_where_sql="", *, table_alias="d", extra_where_params=()):
+        return [
+            {
+                "id": 0,
+                "table": table_name,
+                "extra_where": extra_where_sql,
+                "extra_params": list(extra_where_params),
+            }
+        ]
+
+    with patch(
+        "pass_viewer.views._ogx_self_exclude_sql",
+        return_value=(' AND NOT (d."RootId"::text = %s)', ["77-001"]),
+    ) as exclude_mock, patch(
+        "pass_viewer.views._list_layer_intersection_features",
+        side_effect=fake_features,
+    ) as features_mock:
+        layers = _ogx_analiz_layers_for_geometry(geometry, percents, rootid="77-001", request_id="")
+
+    assert [layer["key"] for layer in layers] == ["ogx_dt", "ogx_odh", "ogx_oo", "ogx_top"]
+    assert [layer["label"] for layer in layers] == ["ДТ", "ОДХ", "ОО", "ТОП"]
+    assert [layer["percent"] for layer in layers] == [12.0, 5.0, 0.0, 0.34]
+    assert exclude_mock.call_count == 4
+    assert exclude_mock.call_args.kwargs.get("table_alias") == "d"
+    assert all(layer["objects"][0]["extra_params"] == ["77-001"] for layer in layers)
+    assert all(layer["objects"][0]["extra_where"] for layer in layers)
+    assert features_mock.call_count == 4

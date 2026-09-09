@@ -717,8 +717,9 @@
 
     const REFERENCE_LAYER_STYLES = {
         dgi: { color: '#dc2626', weight: 4, opacity: 0.95, fillOpacity: 0, dashArray: '10 8' },
-        oozt: { color: '#16a34a', weight: 4, opacity: 0.95, fillOpacity: 0, dashArray: '10 8' },
-        renew: { color: '#b45309', weight: 4, opacity: 0.95, fillOpacity: 0, dashArray: '10 8' },
+        dgi_moscow_no_rent: { color: '#16a34a', weight: 4, opacity: 0.95, fillOpacity: 0, dashArray: '10 8' },
+        oozt: { color: '#b45309', weight: 4, opacity: 0.95, fillOpacity: 0, dashArray: '10 8' },
+        renew: { color: '#1d4ed8', weight: 4, opacity: 0.95, fillOpacity: 0, dashArray: '10 8' },
         rzd: { color: '#dc2626', weight: 4, opacity: 0.95, fillOpacity: 0, dashArray: '10 8' },
     };
 
@@ -730,18 +731,25 @@
             stroke: '#dc2626',
             title: 'Земельные участки',
         },
-        oozt: {
-            patternId: 'approval-oozt-signal-tape-pattern',
+        dgi_moscow_no_rent: {
+            patternId: 'approval-dgi-moscow-no-rent-tape',
             stripe: '#16a34a',
             bg: '#ffffff',
             stroke: '#16a34a',
+            title: 'З/У г. Москва без аренды',
+        },
+        oozt: {
+            patternId: 'approval-oozt-signal-tape-pattern',
+            stripe: '#f59e0b',
+            bg: '#ffffff',
+            stroke: '#b45309',
             title: 'ООЗТ/ООПТ',
         },
         renew: {
             patternId: 'approval-renew-signal-tape-pattern',
-            stripe: '#f59e0b',
+            stripe: '#2563eb',
             bg: '#ffffff',
-            stroke: '#b45309',
+            stroke: '#1d4ed8',
             title: 'Реновация',
         },
         rzd: {
@@ -752,6 +760,12 @@
             title: 'Полосы отвода ЖД',
         },
     };
+
+    function referenceStyleKey(props) {
+        const layerKey = (props && (props.layerKey || props.sourceTable)) || '';
+        const subKey = layerKey === 'dgi' ? props.dgiSubKey : '';
+        return subKey && REFERENCE_LAYER_STYLES[subKey] ? subKey : layerKey;
+    }
 
     function referenceLayerStyle(layerKey) {
         return REFERENCE_LAYER_STYLES[layerKey] || null;
@@ -1557,7 +1571,7 @@
     function styleFeature(feature) {
         const props = feature.properties || {};
         const displayKey = props.layerKey || props.sourceTable || 'work';
-        const refStyle = referenceLayerStyle(displayKey);
+        const refStyle = referenceLayerStyle(referenceStyleKey(props));
         if (refStyle) {
             return Object.assign({}, refStyle);
         }
@@ -2652,7 +2666,7 @@
             const layerKey = props.layerKey || props.sourceTable;
             if (isReferenceLayerKey(layerKey)) {
                 bindReferenceLayerPopup(layer, feature, layerKey);
-                attachSignalTapeHatching(layer, layerKey);
+                attachSignalTapeHatching(layer, referenceStyleKey(props));
             } else {
                 layer.bindPopup(featurePopupHtml(feature));
                 layer.on('popupopen', function () {

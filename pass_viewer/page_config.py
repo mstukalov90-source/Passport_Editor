@@ -41,6 +41,7 @@ def _editor_api_urls():
         "loadMapContextLayers": reverse("load_map_context_layers"),
         "checkRelations": reverse("check_new_object_relations"),
         "checkDgi": reverse("check_dgi_intersections"),
+        "checkOgx": reverse("check_ogx_intersections"),
         "intersecsAnaliz": reverse("intersecs_analiz"),
         "intersecsAnalizData": reverse("intersecs_analiz_data"),
         "findBeskhoz": reverse("find_beskhoz"),
@@ -77,6 +78,7 @@ def personal_page_config():
             "personalExportXlsx": reverse("personal_export_xlsx"),
             "openOwned": reverse("open_owned_object"),
             "checkDgi": reverse("check_dgi_intersections"),
+            "checkOgx": reverse("check_ogx_intersections"),
             "intersecsAnaliz": reverse("intersecs_analiz"),
         },
     )
@@ -105,6 +107,7 @@ def home_page_config(
             "exportRecap": reverse("export_recap_geometry"),
             "deleteRecap": reverse("delete_recap_object"),
             "checkDgi": reverse("check_dgi_intersections"),
+            "checkOgx": reverse("check_ogx_intersections"),
             "intersecsAnaliz": reverse("intersecs_analiz"),
             "listDgiIntersections": reverse("list_dgi_intersections"),
             "resolveAsuOdsUrl": reverse("resolve_asu_ods_url"),

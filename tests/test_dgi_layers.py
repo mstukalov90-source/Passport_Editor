@@ -104,3 +104,68 @@ def test_sql_table_geom_drawable_clause():
     assert clause.startswith(" AND ")
     assert "t.geom IS NOT NULL" in clause
     assert "ST_IsEmpty(t.geom)" in clause
+
+
+class _ColumnsStubCursor:
+    """Заглушка курсора для information_schema-запросов _ogx_self_exclude_sql."""
+
+    def __init__(self, columns):
+        self._columns = {str(col).lower(): col for col in columns}
+        self._row = None
+
+    def execute(self, sql, params=None):
+        values = list(params or [])
+        if len(values) == 3 and values[0] == "public":
+            found = str(values[2]).lower() in self._columns
+            self._row = (1,) if found else None
+        elif len(values) == 2:
+            name = self._columns.get(str(values[1]).lower())
+            self._row = (name,) if name else None
+        else:
+            self._row = None
+
+    def fetchone(self):
+        return self._row
+
+
+def test_ogx_self_exclude_sql_filters_rootid_request_and_geometry():
+    from pass_viewer.views import _ogx_self_exclude_sql
+
+    cursor = _ColumnsStubCursor(["geom", "rootid", "request_id"])
+    sql, params = _ogx_self_exclude_sql(cursor, "pass_objects", "12345", "77")
+    assert sql.startswith(" AND NOT (")
+    assert 't."rootid"::text = %s' in sql
+    assert 't."request_id"::text = %s' in sql
+    assert "ST_Equals" in sql
+    assert "i.geom" in sql
+    assert params == ["12345", "77"]
+
+
+def test_ogx_self_exclude_sql_skips_placeholder_rootids():
+    from pass_viewer.views import _ogx_self_exclude_sql
+
+    cursor = _ColumnsStubCursor(["geom", "rootid", "request_id"])
+    sql, params = _ogx_self_exclude_sql(cursor, "pass_objects", "-", "")
+    assert 't."rootid"' not in sql
+    assert 't."request_id"' not in sql
+    assert params == []
+    assert "ST_Equals" in sql
+
+
+def test_ogx_check_payload_rounds_and_flags_intersects():
+    from pass_viewer.views import _ogx_check_payload_from_percents
+
+    payload = _ogx_check_payload_from_percents({"dt": 6.731, "odh": 0, "oo": None, "top": 11.2})
+    assert payload["ok"] is True
+    assert payload["intersects"] is True
+    assert payload["percent_dt"] == 6.73
+    assert payload["percent_odh"] == 0
+    assert payload["percent_oo"] == 0
+    assert payload["percent_top"] == 11.2
+
+    empty = _ogx_check_payload_from_percents({})
+    assert empty["intersects"] is False
+    assert empty["percent_dt"] == 0
+    assert empty["percent_odh"] == 0
+    assert empty["percent_oo"] == 0
+    assert empty["percent_top"] == 0

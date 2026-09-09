@@ -444,20 +444,20 @@ body.home--ogh-split-passport .owned-passport-row .owned-confirm-open-btn {
     border: none;
 }
 .source-badge--dt {
-    background: #e0f2fe;
-    color: #0369a1;
+    background: rgba(220, 38, 38, 0.13);
+    color: #b91c1c;
 }
 .source-badge--odh {
-    background: #f1f5f9;
-    color: #475569;
+    background: rgba(0, 191, 255, 0.16);
+    color: #0284c7;
 }
 .source-badge--oo {
-    background: #d1fae5;
-    color: #047857;
+    background: rgba(22, 163, 74, 0.15);
+    color: #15803d;
 }
 .source-badge--top {
-    background: #ffedd5;
-    color: #9a3412;
+    background: rgba(234, 88, 12, 0.15);
+    color: #c2410c;
 }
 .owned-map-legend__swatch--top {
     background: var(--pv-layer-top-bg);
