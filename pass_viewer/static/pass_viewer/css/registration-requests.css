@@ -1,0 +1,132 @@
+/* Registration requests list (МГГТ) */
+.rr-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.rr-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.rr-filter__link {
+    padding: 6px 12px;
+    border: 1px solid var(--pv-border, #e3e6ec);
+    border-radius: 6px;
+    background: #f8fafc;
+    color: var(--pv-text, #20242b);
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.rr-filter__link:hover {
+    background: rgba(22, 83, 145, 0.08);
+}
+
+.rr-filter__link.is-active {
+    background: var(--pv-blue, #165391);
+    border-color: var(--pv-blue, #165391);
+    color: #fff;
+}
+
+.rr-export {
+    padding: 8px 14px;
+    border-radius: 6px;
+    background: var(--pv-blue, #165391);
+    color: #fff;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.rr-export:hover {
+    background: var(--pv-dark-blue, #1A3F6E);
+}
+
+.rr-table-wrap {
+    overflow-x: auto;
+}
+
+.rr-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.rr-table th,
+.rr-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--pv-border, #e3e6ec);
+    text-align: left;
+    vertical-align: top;
+}
+
+.rr-table th {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--pv-note, #4a5565);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.rr-cell-date,
+.rr-cell-nowrap {
+    white-space: nowrap;
+}
+
+.rr-cell-date {
+    color: var(--pv-note, #4a5565);
+}
+
+.rr-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.rr-badge--new {
+    background: rgba(22, 83, 145, 0.1);
+    color: var(--pv-blue, #165391);
+}
+
+.rr-badge--processed {
+    background: rgba(21, 128, 61, 0.12);
+    color: #15803d;
+}
+
+.rr-cell-actions form {
+    margin: 0;
+    display: inline;
+}
+
+.rr-action-btn {
+    padding: 5px 10px;
+    border: 1px solid var(--pv-border-input, #c6cbd6);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--pv-text, #20242b);
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.rr-action-btn:hover {
+    border-color: var(--pv-blue, #165391);
+    color: var(--pv-blue, #165391);
+    background: rgba(22, 83, 145, 0.08);
+}
+
+.rr-empty {
+    padding: 24px 12px;
+    text-align: center;
+    color: var(--pv-note, #4a5565);
+}

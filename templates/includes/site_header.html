@@ -40,6 +40,10 @@
                     {% endif %}
                     <li><a class="site-header__dropdown-link{% if route_name == 'statistics' %} is-active{% endif %}"
                            href="{% url 'statistics' %}">Статистика</a></li>
+                    {% if user_role == "MGGT" %}
+                    <li><a class="site-header__dropdown-link{% if route_name == 'registration_requests_list' %} is-active{% endif %}"
+                           href="{% url 'registration_requests_list' %}">Заявки на регистрацию</a></li>
+                    {% endif %}
                 </ul>
             </li>
         </ul>

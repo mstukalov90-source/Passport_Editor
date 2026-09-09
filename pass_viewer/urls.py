@@ -1,5 +1,12 @@
 from django.urls import path
 
+from .registration_views import (
+    registration_request,
+    registration_request_sent,
+    registration_request_set_status,
+    registration_requests_export,
+    registration_requests_list,
+)
 from .request_attachment_views import (
     delete_request_attachment,
     download_request_attachment,
@@ -26,10 +33,10 @@ from .views import (
     export_geometry,
     export_new_object_geometry,
     export_recap_geometry,
+    find_beskhoz,
     home,
     intersecs_analiz,
     intersecs_analiz_data,
-    find_beskhoz,
     list_comment_points,
     list_dgi_intersections,
     list_owned_recaps,
@@ -57,6 +64,19 @@ from .views import (
 urlpatterns = [
     path("", home, name="home"),
     path("personal/", home, name="personal_account"),
+    path("registration-request/", registration_request, name="registration_request"),
+    path("registration-request/sent/", registration_request_sent, name="registration_request_sent"),
+    path("registration-requests/", registration_requests_list, name="registration_requests_list"),
+    path(
+        "registration-requests/export/",
+        registration_requests_export,
+        name="registration_requests_export",
+    ),
+    path(
+        "registration-requests/<int:pk>/status/",
+        registration_request_set_status,
+        name="registration_request_set_status",
+    ),
     path("statistics/", statistics, name="statistics"),
     path("actions/", actions, name="actions"),
     path("owned/lists-partial/", owned_lists_partial, name="owned_lists_partial"),

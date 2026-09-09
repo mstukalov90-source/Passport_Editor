@@ -369,7 +369,8 @@ def test_fetch_personal_master_details_queries_yardpoly() -> None:
     assert '"StartDate"' in sql
     assert '"DepartmentLegalPersonId"' in sql
     assert '"GrbsLegalPersonId"' not in sql
-    assert '"TotalCleanArea"' in sql
+    assert '"TotalArea"' in sql
+    assert '"TotalCleanArea"' not in sql
     assert '"CleaningArea"' not in sql
     assert "lower(" not in sql
     assert "%s::bigint" in sql
@@ -417,6 +418,7 @@ def test_fetch_personal_master_details_uses_grbs_for_odhpoly() -> None:
     assert '"GrbsLegalPersonId"' in select_sql
     assert '"DepartmentLegalPersonId"' not in select_sql
     assert '"CleaningArea"' in select_sql
+    assert '"TotalArea"' not in select_sql
     assert '"TotalCleanArea"' not in select_sql
 
 

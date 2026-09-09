@@ -361,6 +361,10 @@ button.user-guide-open-btn.approval-home-link.is-open {
     overflow: hidden;
     align-self: stretch;
 }
+#owned-lists-home-slot > .owned-home-footer {
+    flex-shrink: 0;
+    margin-top: 8px;
+}
 .owned-home-lists-stack {
     display: flex;
     flex-direction: column;

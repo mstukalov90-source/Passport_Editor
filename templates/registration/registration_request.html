@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}Регистрация пользователя{% endblock %}
+
+{% block body_class %}login-page{% endblock %}
+
+{% block page_styles %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'pass_viewer/css/login.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="login-card">
+    <div class="login-brand-title">САПР МГГТ 2.0</div>
+    <h1 class="login-title">Регистрация пользователя</h1>
+    <p class="login-note-text">
+        Заполните сведения об ответственном представителе.
+        После рассмотрения заявки сотрудниками МГГТ будет создана учётная запись.
+    </p>
+    <form class="login-form" method="post">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {% for field in form %}
+        <p>
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {{ field.errors }}
+        </p>
+        {% endfor %}
+        <button class="login-submit" type="submit">Отправить заявку</button>
+    </form>
+    <div class="login-actions">
+        <a class="login-action-btn login-action-btn--secondary" href="{% url 'login' %}">Вернуться на страницу входа</a>
+    </div>
+</div>
+{% endblock %}

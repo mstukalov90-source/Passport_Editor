@@ -115,6 +115,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const checkDgiUrl = (cfg.urls && cfg.urls.checkDgi) || '';
         const intersecsAnalizUrl = (cfg.urls && cfg.urls.intersecsAnaliz) || '';
         const resolveAsuOdsUrl = (cfg.urls && cfg.urls.resolveAsuOdsUrl) || '';
+        const personalObjectDetailsUrl = (cfg.urls && cfg.urls.personalObjectDetails) || '';
         const openOwnedUrl = (cfg.urls && cfg.urls.openOwned) || '';
         const viewObjectModal = document.getElementById('owned-view-object-modal');
         const viewObjectFrame = document.getElementById('owned-view-object-frame');
@@ -131,6 +132,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const listPanels = Array.from(document.querySelectorAll('.owned-list-panel'));
         const sourceFilterButtons = Array.from(document.querySelectorAll('.owned-source-filter-btn'));
         let applyOwnedMapSourceFilters = null;
+        let focusOwnedMapByKey = null;
         let ownedFeatureLayerByKey = null;
 
         function getCsrfToken() {
@@ -674,6 +676,95 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
         }
 
+        function dashDisplay(value) {
+            const text = String(value == null ? '' : value).trim();
+            if (!text || text === '-' || ['null', 'none'].includes(text.toLowerCase())) {
+                return '—';
+            }
+            return text;
+        }
+
+        function setOwnedPopupField(root, field, value) {
+            if (!root) {
+                return;
+            }
+            const el = root.querySelector('[data-owned-popup-field="' + field + '"]');
+            if (el) {
+                el.textContent = dashDisplay(value);
+            }
+        }
+
+        function ownedPopupPlainSpan(field, value) {
+            return (
+                '<span data-owned-popup-field="' +
+                field +
+                '">' +
+                escapeHtml(dashDisplay(value)) +
+                '</span>'
+            );
+        }
+
+        function ownedPopupDateSpan(field, raw) {
+            const formatted = formatPopupDateToDay(raw);
+            return (
+                '<span data-owned-popup-field="' + field + '">' + (formatted || '—') + '</span>'
+            );
+        }
+
+        function fillOwnedPopupExtraFields(featureLayer, feature) {
+            const popupEl = featureLayer && featureLayer.getPopup && featureLayer.getPopup()?.getElement?.();
+            if (!popupEl || !personalObjectDetailsUrl) {
+                return;
+            }
+            const props = (feature && feature.properties) || {};
+            const rootid = String(props.rootid || '').trim();
+            const requestId = String(
+                props.ods_registry_brid || (!props.from_ods_registry && props.request_id) || props.request_id || ''
+            ).trim();
+            const sourceLabel = String(
+                props.matched_source_label || props.source_label || props.source || 'ДТ'
+            ).trim() || 'ДТ';
+            const body = { source_label: sourceLabel };
+            if (rootid) {
+                body.rootid = rootid;
+                if (requestId) {
+                    body.request_id = requestId;
+                }
+            } else if (requestId) {
+                body.request_id = requestId;
+            } else {
+                return;
+            }
+            void fetch(personalObjectDetailsUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(body),
+            })
+                .then((response) => response.json().catch(() => null))
+                .then((data) => {
+                    if (!data || !data.ok) {
+                        return;
+                    }
+                    if (data.request_id) {
+                        setOwnedPopupField(popupEl, 'request-id', data.request_id);
+                    }
+                    if (data.source_label && !props.from_ods_registry) {
+                        setOwnedPopupField(popupEl, 'source', data.source_label);
+                    }
+                    setOwnedPopupField(popupEl, 'approval-date', data.approval_date);
+                    setOwnedPopupField(popupEl, 'survey-date', data.survey_date);
+                    setOwnedPopupField(popupEl, 'create-type', data.create_type);
+                    setOwnedPopupField(popupEl, 'area', data.area_label);
+                    setOwnedPopupField(popupEl, 'status', data.status);
+                })
+                .catch(() => {});
+        }
+
         function asuOdsPopupMeta(props) {
             const rootid = String((props && props.rootid) || '').trim();
             if (!rootid) {
@@ -1032,6 +1123,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             return new Set(['all']);
         }
 
+        function kindFilterSkipsOdsRequestModal() {
+            const kinds = getActiveKindFilters();
+            if (!kinds || !kinds.size) {
+                return true;
+            }
+            return !kinds.has('actualization') && !kinds.has('drawn');
+        }
+
         function isOwnedListsModalOpen() {
             return document.body.classList.contains('owned-lists-modal-open');
         }
@@ -1296,6 +1395,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     source === 'map' && row && row.classList.contains('owned-passport-row')
                         ? row.querySelector('.owned-ods-action-btn')
                         : null;
+                const shouldClickFoldedOds = Boolean(foldedOdsBtn) && !kindFilterSkipsOdsRequestModal();
                 const layerToFocus = featureLayerByKey.get(key);
                 if (layerToFocus) {
                     if (source === 'list') {
@@ -1311,7 +1411,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                             }
                         }
                     }
-                    if (!foldedOdsBtn && typeof layerToFocus.openPopup === 'function') {
+                    if (!shouldClickFoldedOds && typeof layerToFocus.openPopup === 'function') {
                         layerToFocus.openPopup();
                     }
                     activeKey = key;
@@ -1334,7 +1434,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     activeRow = row;
                     if (source === 'map') {
                         row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        if (foldedOdsBtn) {
+                        if (shouldClickFoldedOds) {
                             foldedOdsBtn.click();
                         }
                     }
@@ -1362,9 +1462,11 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                         foldedIntoPassport: Boolean(props.folded_into_passport),
                     });
                     featureLayer.on('click', () => focusByKey(key, 'map'));
-                    const idLabel = props.rootid ? '№ Паспорта' : '№ Заявки';
-                    const idValue = props.rootid || props.request_id || '-';
-                    let sourceDisplay = escapeHtml(props.source_label || 'ДТ');
+                    const passportId = String(props.rootid || '').trim();
+                    const popupRequestId = String(
+                        props.ods_registry_brid || (!props.from_ods_registry && props.request_id) || ''
+                    ).trim();
+                    let sourceDisplay = escapeHtml(dashDisplay(props.source_label || 'ДТ'));
                     if (props.from_ods_registry) {
                         const brid = String(props.brid || props.request_id || '').trim();
                         const odsLabel = escapeHtml(props.source_label || 'ОДС');
@@ -1372,32 +1474,37 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     }
                     let popupHtml =
                         '<div>' +
-                            '<div><strong>' + idLabel + ':</strong> ' + escapeHtml(idValue) + '</div>';
-                    const popupRequestId = String(props.ods_registry_brid || (!props.from_ods_registry && props.request_id) || '').trim();
-                    if (props.rootid && popupRequestId) {
-                        popupHtml +=
-                            '<div><strong>№ Заявки:</strong> ' + escapeHtml(popupRequestId) + '</div>';
-                    }
-                    popupHtml +=
-                            '<div><strong>Название:</strong> ' + escapeHtml(props.name || '-') + '</div>' +
-                            '<div><strong>Источник:</strong> ' + sourceDisplay + '</div>';
-                    if (props.from_ods_registry && props.matched_source_label) {
-                        popupHtml +=
-                            '<div><strong>Источник GIS:</strong> ' +
-                            escapeHtml(props.matched_source_label) +
+                            '<div><strong>ID паспорта:</strong> ' +
+                            ownedPopupPlainSpan('passport-id', passportId) +
+                            '</div>' +
+                            '<div><strong>ID заявки:</strong> ' +
+                            ownedPopupPlainSpan('request-id', popupRequestId) +
+                            '</div>' +
+                            '<div><strong>Название:</strong> ' +
+                            escapeHtml(dashDisplay(props.name)) +
+                            '</div>' +
+                            '<div><strong>Источник:</strong> <span data-owned-popup-field="source">' +
+                            sourceDisplay +
+                            '</span></div>' +
+                            '<div class="owned-popup-extra-fields">' +
+                            '<div><strong>Дата утверждения:</strong> ' +
+                            ownedPopupDateSpan('approval-date', props.startdate || props.StartDate) +
+                            '</div>' +
+                            '<div><strong>Дата полевого обследования:</strong> ' +
+                            ownedPopupDateSpan('survey-date', props.datesurvey || props.DateSurvey) +
+                            '</div>' +
+                            '<div><strong>Тип создания:</strong> ' +
+                            ownedPopupPlainSpan('create-type', props.createtype || props.CreateType) +
+                            '</div>' +
+                            '<div><strong>Площадь:</strong> ' +
+                            ownedPopupPlainSpan('area', props.area_label || '') +
+                            '</div>' +
+                            '<div><strong>Статус:</strong> ' +
+                            ownedPopupPlainSpan('status', props.display_status || props.status || '') +
+                            '</div>' +
                             '</div>';
-                    }
-                    popupHtml += buildPopupMetaFieldsHtml(props);
                     const asuMeta = asuOdsPopupMeta(props);
                     popupHtml += '<div class="owned-popup-actions">';
-                    popupHtml +=
-                        '<button type="button" class="owned-list-icon-btn owned-view-object-btn" title="Просмотр объекта" aria-label="Просмотр объекта">' +
-                        ownedActionIconImgHtml('view') +
-                        '<span>Просмотр объекта</span></button>';
-                    popupHtml +=
-                        '<button type="button" class="owned-list-icon-btn owned-check-dgi-btn" title="Проверка пересечений" aria-label="Проверка пересечений">' +
-                        ownedActionIconImgHtml('dgi') +
-                        '<span>Проверка пересечений</span></button>';
                     if (asuMeta) {
                         popupHtml +=
                             '<button type="button" class="owned-list-icon-btn owned-asu-ods-btn" title="АСУ ОДС" aria-label="АСУ ОДС"' +
@@ -1409,6 +1516,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                             ownedActionIconImgHtml('asu') +
                             '<span>АСУ ОДС</span></button>';
                     }
+                    popupHtml +=
+                        '<button type="button" class="owned-list-icon-btn owned-check-dgi-btn" title="Проверка пересечений" aria-label="Проверка пересечений">' +
+                        ownedActionIconImgHtml('dgi') +
+                        '<span>Проверка пересечений</span></button>';
+                    popupHtml +=
+                        '<button type="button" class="owned-list-icon-btn owned-view-object-btn" title="Просмотр объекта" aria-label="Просмотр объекта">' +
+                        ownedActionIconImgHtml('view') +
+                        '<span>Просмотр объекта</span></button>';
                     popupHtml += '</div></div>';
                     featureLayer.bindPopup(popupHtml);
                     featureLayer.off('popupopen');
@@ -1419,6 +1534,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                             bindOwnedCheckDgiButton(featureLayer, feature);
                             bindOwnedAsuOdsButton(featureLayer, feature);
                             bindOwnedViewObjectButton(featureLayer, feature);
+                            fillOwnedPopupExtraFields(featureLayer, feature);
                         }, 0);
                     });
                 },
@@ -1647,6 +1763,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
 
             applyOwnedMapSourceFilters = applyMapFilters;
+            focusOwnedMapByKey = focusByKey;
             applyOwnedMapSourceFilters();
 
             const ownedMapWrap = ownedMapEl.closest('.owned-map-wrap');
@@ -2529,6 +2646,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const addObjectEntryBtn = document.getElementById('add-object-entry-btn');
         if (addObjectEntryBtn) {
             addObjectEntryBtn.addEventListener('click', () => {
+                closeOwnedListsModal();
                 openEntryRequestModal('add-object');
             });
         }
@@ -2625,6 +2743,11 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 document.querySelectorAll('.merge-passport-cb').forEach((cb) => {
                     cb.checked = false;
                 });
+                const homeFooter = document.querySelector('#owned-lists-home-slot > .owned-home-footer');
+                const modalFooter = document.getElementById('owned-lists-modal-footer');
+                if (homeFooter && modalFooter) {
+                    modalFooter.appendChild(homeFooter);
+                }
             }
         }
 
@@ -2839,8 +2962,17 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
         if (mergePassportsBtn && mergePassportsToolbar) {
             mergePassportsBtn.addEventListener('click', () => {
-                setMergePassportsMode(!mergePassportsMode);
-                mergePassportsBtn.classList.toggle('is-active', mergePassportsMode);
+                const next = !mergePassportsMode;
+                if (next) {
+                    setMergePassportsMode(true);
+                    mergePassportsBtn.classList.add('is-active');
+                    closeOwnedListsModal();
+                    setOwnedListTab('passports');
+                    applyOwnedFilters();
+                } else {
+                    setMergePassportsMode(false);
+                    mergePassportsBtn.classList.remove('is-active');
+                }
             });
         }
         if (mergePassportsCancelBtn) {
@@ -2975,6 +3107,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     return;
                 }
                 if (scenario === 2) {
+                    if (kindFilterSkipsOdsRequestModal()) {
+                        const row = btn.closest('.owned-item');
+                        const mapKey = row && row.dataset.mapKey;
+                        if (typeof focusOwnedMapByKey === 'function' && mapKey) {
+                            focusOwnedMapByKey(mapKey, 'list');
+                        }
+                        return;
+                    }
                     if (!gisReady || !shortRoot) {
                         openOdsGisMissingModal();
                         return;
@@ -3390,8 +3530,10 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const ownedListsModalTitle = document.getElementById('owned-lists-modal-title');
         const ownedListsModalClose = document.getElementById('owned-lists-modal-close');
         const ownedListsModalBody = document.getElementById('owned-lists-modal-body');
+        const ownedListsModalFooter = document.getElementById('owned-lists-modal-footer');
         const ownedListsHomeSlot = document.getElementById('owned-lists-home-slot');
         const ownedListsStackEl = document.querySelector('.owned-home-lists-stack');
+        const ownedListsFooterEl = document.querySelector('.owned-home-footer');
         const ownedListsModalTitles = {
             requests: 'Отрисовка границ заявок',
             approvals: 'Согласование границ ОГХ',
@@ -3402,8 +3544,26 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 if (ownedListsStackEl && ownedListsModalBody && ownedListsStackEl.parentElement !== ownedListsModalBody) {
                     ownedListsModalBody.appendChild(ownedListsStackEl);
                 }
-            } else if (ownedListsStackEl && ownedListsHomeSlot && ownedListsStackEl.parentElement !== ownedListsHomeSlot) {
-                ownedListsHomeSlot.appendChild(ownedListsStackEl);
+                if (ownedListsFooterEl && ownedListsModalFooter && ownedListsFooterEl.parentElement !== ownedListsModalFooter) {
+                    ownedListsModalFooter.appendChild(ownedListsFooterEl);
+                }
+            } else {
+                if (ownedListsStackEl && ownedListsHomeSlot && ownedListsStackEl.parentElement !== ownedListsHomeSlot) {
+                    ownedListsHomeSlot.appendChild(ownedListsStackEl);
+                }
+                if (
+                    document.body.classList.contains('home--merge-passports') &&
+                    ownedListsFooterEl &&
+                    ownedListsHomeSlot
+                ) {
+                    ownedListsHomeSlot.appendChild(ownedListsFooterEl);
+                } else if (
+                    ownedListsFooterEl &&
+                    ownedListsModalFooter &&
+                    ownedListsFooterEl.parentElement !== ownedListsModalFooter
+                ) {
+                    ownedListsModalFooter.appendChild(ownedListsFooterEl);
+                }
             }
         }
 

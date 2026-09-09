@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block title %}Заявка отправлена{% endblock %}
+
+{% block body_class %}login-page{% endblock %}
+
+{% block page_styles %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'pass_viewer/css/login.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="login-card">
+    <div class="login-brand-title">САПР МГГТ 2.0</div>
+    <h1 class="login-title">Заявка отправлена</h1>
+    <p class="login-note-text">
+        Заявка на регистрацию пользователя принята.
+        После рассмотрения сотрудники МГГТ создадут учётную запись
+        и свяжутся с вами по указанному адресу электронной почты.
+    </p>
+    <div class="login-actions">
+        <a class="login-action-btn" href="{% url 'login' %}">Вернуться на страницу входа</a>
+    </div>
+</div>
+{% endblock %}

@@ -32,13 +32,18 @@ REQUIRED_SYMBOLS = [
     "function bindOwnedListIconActions",
     "focus({ preventScroll: true })",
     "function kindFilterSkipsOdsRequestModal",
-    "function fillOwnedPopupExtraFields",
+    "!kinds.has('actualization') && !kinds.has('drawn')",
+    "closeOwnedListsModal();",
+    "openEntryRequestModal('add-object')",
+    "<strong>ID паспорта:</strong>",
+    "<strong>Площадь:</strong>",
+    "<strong>Статус:</strong>",
     "owned-popup-actions",
     "owned-list-icon-btn",
     "owned-asu-ods-btn",
     "cfg.urls.resolveAsuOdsUrl",
     'title="Проверка пересечений"',
-    "<span>Детальный просмотр</span>",
+    "<span>Просмотр объекта</span>",
     "<span>Проверка пересечений</span>",
     "<span>АСУ ОДС</span>",
     "function openDgiIntersectionDetail",
@@ -69,6 +74,34 @@ def test_home_js_contains_restored_symbols() -> None:
     source = HOME_JS.read_text(encoding="utf-8")
     missing = [symbol for symbol in REQUIRED_SYMBOLS if symbol not in source]
     assert not missing, f"home.js is missing restored symbols: {missing}"
+
+
+def test_home_popup_actions_order_asu_dgi_view() -> None:
+    source = HOME_JS.read_text(encoding="utf-8")
+    start = source.find('popupHtml += \'<div class="owned-popup-actions">\'')
+    assert start != -1
+    snippet = source[start : start + 1800]
+    asu = snippet.find("owned-asu-ods-btn")
+    dgi = snippet.find("owned-check-dgi-btn")
+    view = snippet.find("owned-view-object-btn")
+    assert asu != -1 and dgi != -1 and view != -1
+    assert asu < dgi < view
+
+
+def test_home_js_closes_lists_modal_for_add_object_and_merge() -> None:
+    source = HOME_JS.read_text(encoding="utf-8")
+    add_idx = source.find("addObjectEntryBtn.addEventListener")
+    assert add_idx != -1
+    add_snip = source[add_idx : add_idx + 350]
+    assert "closeOwnedListsModal()" in add_snip
+    assert "openEntryRequestModal('add-object')" in add_snip
+    merge_idx = source.find("mergePassportsBtn.addEventListener")
+    assert merge_idx != -1
+    merge_snip = source[merge_idx : merge_idx + 500]
+    assert "closeOwnedListsModal()" in merge_snip
+    assert "setOwnedListTab('passports')" in merge_snip
+    assert "owned-lists-home-slot" in source
+    assert "home--merge-passports" in source
 
 
 def test_notifications_js_contains_feed_symbols() -> None:
