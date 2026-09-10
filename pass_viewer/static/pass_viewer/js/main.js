@@ -146,6 +146,29 @@ function formatDgiShortSobstvRr(value) {
                   getCsrfToken: () => PV.getCookie('csrftoken') || '',
               })
             : null;
+        const checkDgiSelective = PV.initCheckDgiSelectiveRemoval
+            ? PV.initCheckDgiSelectiveRemoval({
+                  body: checkDgiModalBody,
+                  modeController: checkDgiMode,
+                  dataUrl: (cfg.urls && cfg.urls.intersecsAnalizData) || '',
+                  cutUrl: (cfg.urls && cfg.urls.cutGeometry) || '',
+                  getGeometry: () => buildCurrentGeometry(),
+                  getContext: () => lastCheckDgiContext,
+                  applyGeometry: (geometry) => applyGeometryToEditableGroup(geometry),
+                  afterChange: async () => {
+                      await checkRelations();
+                  },
+                  onDataFresh: (data) => {
+                      if (lastCheckDgiContext) {
+                          lastCheckDgiContext.percents = data;
+                      }
+                  },
+                  setStatus: (text) => {
+                      statusEl.textContent = text;
+                  },
+                  getCsrfToken: () => PV.getCookie('csrftoken') || '',
+              })
+            : null;
         const dbLoadingModal = document.getElementById('db-loading-modal');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
         const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
@@ -645,8 +668,9 @@ function formatDgiShortSobstvRr(value) {
         const layerGroups = {
             municipal: ['selected', 'dt', 'oo', 'odh', 'top'],
             requests: ['requests', 'recaps', 'comments'],
-            dgi: ['dgi_moscow_rent', 'dgi_moscow_no_rent', 'dgi_private_rent', 'dgi_private_no_rent', 'dgi_renovation'],
+            dgi: ['dgi_moscow_rent', 'dgi_private_rent', 'dgi_private_no_rent', 'dgi_renovation'],
             external: ['renew', 'oozt', 'rzd'],
+            reference: ['dgi_moscow_no_rent'],
         };
 
         function setLayerVisible(layerKey, isVisible) {
@@ -1255,7 +1279,7 @@ function formatDgiShortSobstvRr(value) {
         function updateEditToolbarVisibility(hasEditableGeometry = !!buildCurrentGeometry()) {
             const showEditModeControls = !!isEditing;
             const showGeometryControls = showEditModeControls && !!hasEditableGeometry;
-            [addPolygonButton, cutPolygonButton, drawModeSwitch, snapModeSwitch].forEach((control) => {
+            [addPolygonButton, cutPolygonButton, drawModeSwitch, snapModeSwitch, saveButton].forEach((control) => {
                 control?.classList.toggle('map-toolbar-hidden', !showEditModeControls);
             });
             [checkRelationsButton, checkDgiIntersectionsButton, autoRemoveIntersectionsButton, addCommentPointButton].forEach((control) => {
@@ -1521,6 +1545,9 @@ function formatDgiShortSobstvRr(value) {
             if (checkDgiMode && checkDgiMode.reset) {
                 checkDgiMode.reset();
             }
+            if (checkDgiSelective && checkDgiSelective.reset) {
+                checkDgiSelective.reset();
+            }
             setCheckDgiAnalizContext(null);
         }
 
@@ -1543,6 +1570,9 @@ function formatDgiShortSobstvRr(value) {
             });
             if (checkDgiMode && checkDgiMode.reset) {
                 checkDgiMode.reset();
+            }
+            if (checkDgiSelective && checkDgiSelective.reset) {
+                checkDgiSelective.reset();
             }
             checkDgiModal.style.display = 'flex';
         }
@@ -3608,11 +3638,16 @@ function formatDgiShortSobstvRr(value) {
                     throw new Error(data.error || 'Не удалось найти бесхозы.');
                 }
                 const features = data.features || [];
+                let totalAreaM2 = 0;
                 features.forEach((item) => {
                     if (!item || !item.geometry) {
                         return;
                     }
-                    L.geoJSON(item.geometry, {
+                    const areaM2 = Number(item.area_m2 || 0);
+                    if (Number.isFinite(areaM2)) {
+                        totalAreaM2 += areaM2;
+                    }
+                    const layer = L.geoJSON(item.geometry, {
                         renderer: analizSvgRenderer,
                         pane: 'analizOverlapPane',
                         style: {
@@ -3622,7 +3657,14 @@ function formatDgiShortSobstvRr(value) {
                             fillOpacity: 0.75,
                             className: 'beskhoz-gap-blink',
                         },
-                    }).addTo(beskhozGroup);
+                    });
+                    if (areaM2 > 0) {
+                        layer.bindTooltip('≈ ' + areaM2 + ' м²', {
+                            direction: 'top',
+                            sticky: true,
+                        });
+                    }
+                    layer.addTo(beskhozGroup);
                 });
                 if (typeof beskhozGroup.bringToFront === 'function') {
                     beskhozGroup.bringToFront();
@@ -3633,7 +3675,13 @@ function formatDgiShortSobstvRr(value) {
                 }
                 const count = features.length;
                 reportAnalizStatus(
-                    count ? ('Найдено ' + count + ' бесхозов') : 'Бесхозов не найдено',
+                    count
+                        ? 'Найдено ' +
+                          count +
+                          ' бесхозов, суммарно ≈ ' +
+                          Math.round(totalAreaM2) +
+                          ' м²'
+                        : 'Бесхозов не найдено',
                 );
                 refreshMapSizeForViewOnly();
             } catch (error) {

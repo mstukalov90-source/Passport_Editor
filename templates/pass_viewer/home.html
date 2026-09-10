@@ -203,11 +203,18 @@
                         Пространственный анализ пересечений
                     </button>
                     <button type="button" id="owned-view-object-beskhoz-btn" class="map-toolbar-btn check-dgi-analiz-btn" hidden>
-                        Поиск бесхозов
+                        {% include 'pass_viewer/includes/toolbar_icon.html' with name='beskhoz' %}
+                        <span class="map-toolbar-btn__label">Поиск бесхозов</span>
                     </button>
                     {% if can_write %}
-                    <button type="button" id="owned-view-object-split-btn" class="owned-split-btn owned-view-object-modal__action-btn" hidden>Разделить</button>
-                    <button type="button" id="owned-view-object-aktualize-btn" class="owned-confirm-open-btn owned-view-object-modal__action-btn" hidden>Актуализировать</button>
+                    <button type="button" id="owned-view-object-split-btn" class="map-toolbar-btn owned-view-object-modal__action-btn" hidden>
+                        {% include 'pass_viewer/includes/toolbar_icon.html' with name='split' %}
+                        <span class="map-toolbar-btn__label">Разделить</span>
+                    </button>
+                    <button type="button" id="owned-view-object-aktualize-btn" class="map-toolbar-btn owned-view-object-modal__action-btn" hidden>
+                        {% include 'pass_viewer/includes/toolbar_icon.html' with name='aktualize' %}
+                        <span class="map-toolbar-btn__label">Актуализировать</span>
+                    </button>
                     {% endif %}
                     <button type="button" id="owned-view-object-close-btn" class="owned-view-object-modal__close" aria-label="Закрыть">✕</button>
                 </div>

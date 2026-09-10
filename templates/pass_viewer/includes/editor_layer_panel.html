@@ -170,16 +170,6 @@
                         <span class="layer-panel-swatch layer-panel-swatch--dgi"></span>
                         <ul class="layer-panel-objects" hidden></ul>
                     </div>
-                    <div class="layer-panel-row">
-                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
-                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
-                        </button>
-                        <input type="checkbox" data-layer-key="dgi_moscow_no_rent" checked />
-                        <span class="layer-panel-row__name">З/У г. Москва без аренды</span>
-                        <span class="layer-panel-row__count" data-layer-count-for="dgi_moscow_no_rent">(0)</span>
-                        <span class="layer-panel-swatch layer-panel-swatch--dgi-moscow-no-rent"></span>
-                        <ul class="layer-panel-objects" hidden></ul>
-                    </div>
                 </div>
                 <div class="layer-management-panel__column">
                     <label class="layer-management-panel__column-title">
@@ -218,6 +208,26 @@
                         <span class="layer-panel-row__name">Полосы отвода ЖД</span>
                         <span class="layer-panel-row__count" data-layer-count-for="rzd">(0)</span>
                         <span class="layer-panel-swatch layer-panel-swatch--rzd"></span>
+                        <ul class="layer-panel-objects" hidden></ul>
+                    </div>
+                </div>
+                <div class="layer-management-panel__column">
+                    <label class="layer-management-panel__column-title">
+                        <input type="checkbox" data-layer-group="reference" checked />
+                        <span>Справочная информация</span>
+                    </label>
+                    <label class="add-object-layers__opacity layer-management-panel__opacity">
+                        <span>Прозрачность</span>
+                        <input type="range" min="15" max="100" value="100" data-layer-opacity-group="reference" aria-label="Прозрачность справочной информации" />
+                    </label>
+                    <div class="layer-panel-row">
+                        <button type="button" class="layer-panel-row__expand" aria-expanded="false" title="Показать объекты слоя">
+                            <span class="layer-panel-row__expand-icon" aria-hidden="true"></span>
+                        </button>
+                        <input type="checkbox" data-layer-key="dgi_moscow_no_rent" checked />
+                        <span class="layer-panel-row__name">З/У г. Москва без аренды</span>
+                        <span class="layer-panel-row__count" data-layer-count-for="dgi_moscow_no_rent">(0)</span>
+                        <span class="layer-panel-swatch layer-panel-swatch--dgi-moscow-no-rent"></span>
                         <ul class="layer-panel-objects" hidden></ul>
                     </div>
                 </div>

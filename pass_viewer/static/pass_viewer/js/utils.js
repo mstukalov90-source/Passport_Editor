@@ -550,6 +550,17 @@
         }
         let mode = 'zu';
         let ogxData = null;
+        const modeListeners = [];
+
+        function notifyModeChange() {
+            modeListeners.forEach((cb) => {
+                try {
+                    cb(mode);
+                } catch (_err) {
+                    /* слушатель не должен ломать переключение режима */
+                }
+            });
+        }
 
         function setModeButtons(value) {
             toggle.querySelectorAll('.check-dgi-mode-toggle__btn').forEach((btn) => {
@@ -633,13 +644,17 @@
             setModeButtons(mode);
             if (mode === 'zu') {
                 renderZuTable();
+                notifyModeChange();
                 return;
             }
             if (ogxData) {
                 renderOgxTable();
+                notifyModeChange();
                 return;
             }
-            void loadOgx();
+            // loadOgx() асинхронно перезаписывает body таблицей ОГХ — слушатели
+            // режима уведомляем только после завершения загрузки.
+            void loadOgx().finally(notifyModeChange);
         }
 
         toggle.addEventListener('click', (event) => {
@@ -650,11 +665,32 @@
             applyMode(btn.dataset.dgiMode);
         });
 
+        function renderCurrentMode() {
+            if (mode === 'zu') {
+                renderZuTable();
+                return;
+            }
+            if (ogxData) {
+                renderOgxTable();
+                return;
+            }
+            void loadOgx();
+        }
+
         return {
             reset: function reset() {
                 mode = 'zu';
                 ogxData = null;
                 setModeButtons('zu');
+            },
+            getMode: function getMode() {
+                return mode;
+            },
+            render: renderCurrentMode,
+            onModeChange: function onModeChange(cb) {
+                if (typeof cb === 'function') {
+                    modeListeners.push(cb);
+                }
             },
         };
     };

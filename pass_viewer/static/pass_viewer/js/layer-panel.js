@@ -10,12 +10,12 @@
         requests: ['requests', 'recaps', 'comments'],
         dgi: [
             'dgi_moscow_rent',
-            'dgi_moscow_no_rent',
             'dgi_private_rent',
             'dgi_private_no_rent',
             'dgi_renovation',
         ],
         external: ['renew', 'oozt', 'rzd'],
+        reference: ['dgi_moscow_no_rent'],
     };
     const GROUP_NAMES = Object.keys(GROUP_KEYS);
 
@@ -27,6 +27,7 @@
         requests: 1,
         dgi: 1,
         external: 1,
+        reference: 1,
     };
 
     function getCookie(name) {

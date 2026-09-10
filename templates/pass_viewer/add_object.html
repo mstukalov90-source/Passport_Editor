@@ -24,7 +24,7 @@
     {{ hood_work_area_geojson|json_script:"hood-work-area-geojson-data" }}
     {% include 'pass_viewer/includes/map_editor_scripts.html' %}
     {% load static %}
-    <script src="{% static 'pass_viewer/js/add-object.js' %}?v=ogx-mode-1"></script>
+    <script src="{% static 'pass_viewer/js/add-object.js' %}?v=selective-1"></script>
 {% endblock %}
 
 {% block container_class %}container--wide container--add-object{% endblock %}
@@ -232,7 +232,10 @@
                     Детальный анализ пересечений
                 </button>
                 <div class="check-dgi-modal-actions__right">
-
+                    <button type="button" id="check-dgi-selective-remove-btn" class="map-toolbar-btn check-dgi-selective-btn" style="display:none;">
+                        {% include 'pass_viewer/includes/toolbar_icon.html' with name='erase' %}
+                        <span class="map-toolbar-btn__label">Выборочно удалить пересечения</span>
+                    </button>
                 </div>
             </div>
         </div>

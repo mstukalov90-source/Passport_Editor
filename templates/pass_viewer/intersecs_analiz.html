@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="{% static 'pass_viewer/css/home.css' %}">
 {% endblock %}
 
-{% block container_class %}personal-account container--wide{% endblock %}
+{% block container_class %}personal-account container--wide intersecs-analiz-container{% endblock %}
 
 {% block page_layout_start %}<div class="personal-account-layout">{% endblock %}
 
@@ -22,10 +22,10 @@
 {% block page_scripts %}
     {{ page_config|json_script:"page-config" }}
     {% include 'pass_viewer/includes/map_leaflet_vendor.html' %}
-    <script src="{% static 'pass_viewer/js/utils.js' %}?v=ogx-groups-1"></script>
+    <script src="{% static 'pass_viewer/js/utils.js' %}?v=selective-2"></script>
     <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
     <script src="{% static 'pass_viewer/js/map-tools.js' %}"></script>
-    <script src="{% static 'pass_viewer/js/intersecs-analiz.js' %}?v=ogx-6"></script>
+    <script src="{% static 'pass_viewer/js/intersecs-analiz.js' %}?v=ogx-8"></script>
 {% endblock %}
 
 {% block content %}
@@ -34,13 +34,12 @@
 <p id="intersecs-analiz-meta" class="note" style="margin-top: 0;"></p>
 <p id="intersecs-analiz-status" class="note">Загрузка…</p>
 
-<div class="intersecs-analiz-mode-toggle" id="intersecs-analiz-mode-toggle" aria-label="Тип пересечений">
-    <button type="button" class="intersecs-analiz-mode-toggle__btn is-active" data-analiz-mode="zu" aria-pressed="true">З/У</button>
-    <button type="button" class="intersecs-analiz-mode-toggle__btn" data-analiz-mode="ogx" aria-pressed="false">ОГХ</button>
-</div>
-
 <div class="intersecs-analiz-layout">
     <section class="intersecs-analiz-table-panel" aria-label="Пересечения по слоям">
+        <div class="intersecs-analiz-mode-toggle" id="intersecs-analiz-mode-toggle" aria-label="Тип пересечений">
+            <button type="button" class="intersecs-analiz-mode-toggle__btn is-active" data-analiz-mode="zu" aria-pressed="true">З/У</button>
+            <button type="button" class="intersecs-analiz-mode-toggle__btn" data-analiz-mode="ogx" aria-pressed="false">ОГХ</button>
+        </div>
         <div id="intersecs-analiz-table-wrap"></div>
     </section>
     <section class="intersecs-analiz-map-panel" aria-label="Карта пересечений">

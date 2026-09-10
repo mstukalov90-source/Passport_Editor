@@ -410,16 +410,23 @@ def _adjacent_nearby_meters():
 
 def _beskhoz_min_half_width_m():
     try:
-        return float(getattr(settings, "GIS_BESKHOZ_MIN_HALF_WIDTH_M", 2))
+        return float(getattr(settings, "GIS_BESKHOZ_MIN_HALF_WIDTH_M", 0.5))
     except (TypeError, ValueError):
-        return 2.0
+        return 0.5
 
 
-def _beskhoz_min_core_area_m2():
+def _beskhoz_min_area_m2():
     try:
-        return float(getattr(settings, "GIS_BESKHOZ_MIN_CORE_AREA_M2", 8))
+        return float(getattr(settings, "GIS_BESKHOZ_MIN_AREA_M2", 3))
     except (TypeError, ValueError):
-        return 8.0
+        return 3.0
+
+
+def _beskhoz_min_occupiers():
+    try:
+        return max(1, int(getattr(settings, "GIS_BESKHOZ_MIN_OCCUPIERS", 3)))
+    except (TypeError, ValueError):
+        return 3
 
 
 def _defer_map_context_layers():
@@ -8100,24 +8107,42 @@ def intersecs_analiz_data(request):
 
 
 def _find_beskhoz_features(geometry):
-    """Unoccupied buffer pieces that touch S and have a usable core (min width/area)."""
+    """Замкнутые бесхозные карманы вокруг объекта S.
+
+    Карман = внутренняя дыра (interior ring) объединения S + соседи
+    (ДТ/ОДХ/ОО/ТОП) + ДГИ. Дыра по определению зажата со всех сторон —
+    открытые пространства (улицы, дворы) и края буфера не попадают.
+
+    Отсев «не бесхозов» без эвристических порогов закрытия щелей:
+    микрозазор «объект↔сосед» / «сосед↔сосед» / «объект↔ДГИ» ограничен
+    двумя полигонами, вырез внутри самого объекта — одним; настоящий
+    карман ограничен >= MIN_OCCUPIERS разных объектов. Эрозия ядра
+    (MIN_HALF_WIDTH) отсекает тонкие по всей длине «змейки» вдоль границ,
+    MIN_AREA задаёт минимальную площадь кармана.
+    """
     geometry_norm = _to_intersection_geometry(geometry)
     if not geometry_norm:
         return []
     distance_meters = _adjacent_nearby_meters()
     half_width_m = _beskhoz_min_half_width_m()
-    min_core_area_m2 = _beskhoz_min_core_area_m2()
+    min_area_m2 = _beskhoz_min_area_m2()
+    min_occupiers = _beskhoz_min_occupiers()
     geometry_json = json.dumps(geometry_norm)
     geom_field_pref = settings.GIS_OBJECT_GEOM_FIELD
     dgi_table = getattr(settings, "GIS_DGI_TABLE", "dgi")
-    occupied_unions = []
+
+    # S сам по себе «занят» и участвует в подсчёте ограничителей кармана.
+    neighbor_selects = [
+        "SELECT 'S'::text AS src, 'S'::text AS fid,"
+        " ST_CollectionExtract(b.s_geom, 3) AS geom FROM buf b"
+    ]
     query_params = [geometry_json, distance_meters]
 
     with connection.cursor() as cursor:
         table_specs = list(_gis_municipal_table_specs())
         table_specs.append(("ДГИ", dgi_table, []))
         seen_tables = set()
-        for _label, table_name, _owners in table_specs:
+        for label, table_name, _owners in table_specs:
             if table_name in seen_tables:
                 continue
             seen_tables.add(table_name)
@@ -8129,17 +8154,24 @@ def _find_beskhoz_features(geometry):
             geom_q = _quote_ident(geom_field)
             raw_geom = f"t.{geom_q}"
             geom_v = _sql_table_geom_valid_expr(raw_geom)
+            if _column_exists(cursor, table_name, "fid"):
+                fid_field = _resolve_column_name(cursor, table_name, "fid")
+                fid_expr = f"t.{_quote_ident(fid_field)}::text"
+            else:
+                fid_expr = "t.ctid::text"
             hood_suf, hood_prm = get_hood_intersects_sql_suffix(raw_geom)
-            occupied_unions.append(
-                f"SELECT ST_CollectionExtract({geom_v}, 3) AS geom "
+            neighbor_selects.append(
+                f"SELECT %s::text AS src, {fid_expr} AS fid, "
+                f"ST_CollectionExtract({geom_v}, 3) AS geom "
                 f"FROM {_quote_ident(table_name)} t, buf b "
                 f"WHERE {raw_geom} IS NOT NULL AND NOT ST_IsEmpty({raw_geom}) "
                 f"AND {raw_geom} && b.geom AND ST_Intersects({geom_v}, b.geom)"
                 f"{hood_suf}"
             )
+            query_params.append(label)
             query_params.extend(hood_prm)
 
-        occupied_sql = " UNION ALL ".join(occupied_unions) if occupied_unions else "SELECT NULL::geometry AS geom WHERE FALSE"
+        neighbors_sql = " UNION ALL ".join(neighbor_selects)
         query = (
             "WITH input AS ("
             f" SELECT {_sql_geojson_param_as_valid_geom2d()} AS geom"
@@ -8148,34 +8180,40 @@ def _find_beskhoz_features(geometry):
             " i.geom AS s_geom,"
             " COALESCE(ST_Area(i.geom::geography), 0) AS s_area"
             " FROM input i"
-            "), occupied_parts AS ("
-            " SELECT ST_CollectionExtract(s_geom, 3) AS geom FROM buf"
-            " UNION ALL "
-            + occupied_sql
+            "), neighbors AS ("
+            + neighbors_sql
             + "), occupied AS ("
             " SELECT ST_UnaryUnion(ST_Collect(geom)) AS geom"
-            " FROM occupied_parts"
+            " FROM neighbors"
             " WHERE geom IS NOT NULL AND NOT ST_IsEmpty(geom)"
-            "), empty AS ("
-            " SELECT CASE"
-            "  WHEN o.geom IS NULL OR ST_IsEmpty(o.geom) THEN b.geom"
-            "  ELSE ST_CollectionExtract(ST_MakeValid(ST_Difference(b.geom, o.geom)), 3)"
-            " END AS geom"
-            " FROM buf b CROSS JOIN occupied o"
-            "), parts AS ("
-            " SELECT (ST_Dump(e.geom)).geom AS geom FROM empty e"
-            " WHERE e.geom IS NOT NULL AND NOT ST_IsEmpty(e.geom)"
+            "), polygons AS ("
+            " SELECT (ST_Dump(o.geom)).geom AS geom FROM occupied o"
+            " WHERE o.geom IS NOT NULL AND NOT ST_IsEmpty(o.geom)"
+            "), rings AS ("
+            " SELECT ST_MakePolygon(ST_InteriorRingN(p.geom, n)) AS geom"
+            " FROM polygons p"
+            " CROSS JOIN LATERAL generate_series(1, ST_NumInteriorRings(p.geom)) AS n"
+            "), pockets AS ("
+            " SELECT r.geom FROM rings r"
+            " WHERE r.geom IS NOT NULL AND NOT ST_IsEmpty(r.geom)"
             "), cores AS ("
             " SELECT p.geom,"
             " ST_Buffer(p.geom::geography, -1 * %s)::geometry AS core"
-            " FROM parts p"
+            " FROM pockets p"
             ") "
             "SELECT ST_AsGeoJSON(c.geom)::text,"
             " ROUND(ST_Area(c.geom::geography)::numeric, 1),"
-            " ROUND((100.0 * ST_Area(c.geom::geography) / NULLIF(b.s_area, 0))::numeric, 2) "
+            " ROUND((100.0 * ST_Area(c.geom::geography) / NULLIF(b.s_area, 0))::numeric, 2),"
+            " occ.cnt "
             "FROM cores c CROSS JOIN buf b "
+            "CROSS JOIN LATERAL ("
+            " SELECT COUNT(DISTINCT (n.src || ':' || n.fid)) AS cnt"
+            " FROM neighbors n"
+            " WHERE ST_Intersects(n.geom, c.geom)"
+            ") occ "
             "WHERE c.core IS NOT NULL AND NOT ST_IsEmpty(c.core) "
-            "AND COALESCE(ST_Area(c.core::geography), 0) >= %s "
+            "AND COALESCE(ST_Area(c.geom::geography), 0) >= %s "
+            f"AND occ.cnt >= {int(min_occupiers)} "
             "AND ("
             " ST_Touches(c.geom, b.s_geom)"
             " OR ("
@@ -8187,13 +8225,13 @@ def _find_beskhoz_features(geometry):
             " )"
             ")"
         )
-        query_params.extend([half_width_m, min_core_area_m2])
+        query_params.extend([half_width_m, min_area_m2])
         cursor.execute(query, query_params)
         rows = cursor.fetchall()
 
     features = []
     for row in rows or []:
-        raw_geom, area_m2, pct = row[0], row[1], row[2]
+        raw_geom, area_m2, pct, occupiers = row[0], row[1], row[2], row[3]
         if not raw_geom:
             continue
         try:
@@ -8207,6 +8245,7 @@ def _find_beskhoz_features(geometry):
                 "geometry": geom,
                 "area_m2": float(area_m2 or 0),
                 "pct": float(pct or 0),
+                "occupiers": int(occupiers or 0),
             }
         )
     return features

@@ -970,21 +970,38 @@ button.personal-table-btn {
     }
 }
 
+/* Страница анализа занимает ровно один экран: скролл — только внутри панели таблицы. */
+main.container.intersecs-analiz-container {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+body.has-site-header main.container--wide.intersecs-analiz-container {
+    height: calc(100vh - 48px - 64px);
+    min-height: calc(100vh - 48px - 64px);
+}
+
+.intersecs-analiz-container #intersecs-analiz-status:empty {
+    display: none;
+}
+
 .intersecs-analiz-layout {
     display: grid;
     grid-template-columns: minmax(320px, 1fr) minmax(360px, 1.2fr);
     gap: 16px;
     align-items: stretch;
-    min-height: calc(100vh - 220px);
+    flex: 1;
+    min-height: 0;
 }
 
-/* Переключатель З/У | ОГХ — в стиле check-dgi-mode-toggle из модалки. */
+/* Переключатель З/У | ОГХ — в шапке панели таблицы. */
 .intersecs-analiz-mode-toggle {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     padding: 4px;
-    margin-top: 4px;
+    margin: 0 0 10px;
     background: #eef2f7;
     border-radius: 8px;
 }
@@ -1012,13 +1029,22 @@ button.personal-table-btn {
 }
 
 .intersecs-analiz-table-panel {
+    display: flex;
+    flex-direction: column;
     background: #fff;
     border: 1px solid var(--pv-border, #e3e6ec);
     border-radius: 10px;
-    overflow: auto;
-    min-height: 480px;
+    overflow: hidden;
+    min-height: 0;
     padding: 12px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+#intersecs-analiz-table-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .intersecs-analiz-map-panel {
@@ -1026,7 +1052,7 @@ button.personal-table-btn {
     flex-direction: column;
     gap: 8px;
     min-width: 0;
-    min-height: 560px;
+    min-height: 0;
     background: #fff;
     border: 1px solid var(--pv-border, #e3e6ec);
     border-radius: 10px;
@@ -1037,8 +1063,7 @@ button.personal-table-btn {
 
 .intersecs-analiz-map-frame {
     flex: 1;
-    min-height: 520px;
-    height: calc(100vh - 280px);
+    min-height: 0;
     overflow: hidden;
     border-radius: 8px;
     background: #edf2f7;
@@ -1047,7 +1072,7 @@ button.personal-table-btn {
 .intersecs-analiz-map {
     width: 100%;
     height: 100%;
-    min-height: 520px;
+    min-height: 0;
     display: block;
     background: #edf2f7;
 }
@@ -1216,8 +1241,47 @@ button.personal-table-btn {
     background: #fff7ed;
 }
 
+/* Выбранное в списке пересечение: жёлтый, отличный от бейджа процентов (#fef08a). */
+.intersecs-analiz-object-row.is-focused td {
+    background: #fde047;
+}
+
+@keyframes intersecs-focus-pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}
+
+.leaflet-overlay-pane path.intersecs-focus-blink,
+.leaflet-pane path.intersecs-focus-blink {
+    animation: intersecs-focus-pulse 0.85s ease-in-out infinite;
+}
+
 @media (max-width: 960px) {
     .intersecs-analiz-layout {
         grid-template-columns: 1fr;
+    }
+
+    /* На узких экранах — обычная прокрутка страницы, без фиксированной высоты. */
+    main.container.intersecs-analiz-container {
+        overflow: visible;
+    }
+
+    body.has-site-header main.container--wide.intersecs-analiz-container {
+        height: auto;
+        min-height: calc(100vh - 48px - 64px);
+    }
+
+    .intersecs-analiz-table-panel,
+    #intersecs-analiz-table-wrap {
+        overflow: visible;
+    }
+
+    .intersecs-analiz-map-panel {
+        min-height: 560px;
+    }
+
+    .intersecs-analiz-map-frame,
+    .intersecs-analiz-map {
+        min-height: 520px;
     }
 }

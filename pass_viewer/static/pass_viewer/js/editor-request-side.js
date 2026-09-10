@@ -229,6 +229,8 @@
     async function loadAll() {
         const rid = requestId();
         const u = urls();
+        // В режиме просмотра (модалка на home) секции комментариев и файлов не рендерятся — не запрашиваем их.
+        const viewOnly = !!(cfg().features && cfg().features.viewOnly);
         if (!rid) {
             renderStatus({ present: false });
             renderComments([]);
@@ -249,7 +251,7 @@
             renderStatus({ present: false });
         }
         try {
-            if (odsInRegistry && u.bidComments) {
+            if (!viewOnly && odsInRegistry && u.bidComments) {
                 const data = await fetchJson(u.bidComments + q);
                 renderComments(data.comments || []);
             } else {
@@ -259,7 +261,7 @@
             renderComments([]);
         }
         try {
-            if (u.listAttachments) {
+            if (!viewOnly && u.listAttachments) {
                 const data = await fetchJson(u.listAttachments + q);
                 renderAttachments(data.files || []);
             }

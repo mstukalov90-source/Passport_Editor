@@ -337,49 +337,6 @@
     opacity: 0.35;
     filter: grayscale(0.2);
 }
-.owned-confirm-open-btn {
-    display: none;
-    align-self: center;
-    background: #e0ecff;
-    color: #1d4ed8;
-    border: 1px solid #bfdbfe;
-    border-radius: 8px;
-    padding: 7px 10px;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1;
-    white-space: nowrap;
-    cursor: pointer;
-}
-.owned-split-btn {
-    display: none;
-    align-self: center;
-    background: #dcfce7;
-    color: #166534;
-    border: 1px solid #bbf7d0;
-    border-radius: 8px;
-    padding: 7px 10px;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1;
-    white-space: nowrap;
-    cursor: pointer;
-}
-.owned-split-form {
-    margin: 0;
-    align-self: center;
-    display: inline-flex;
-    flex: 0 0 auto;
-}
-body.home--ogh-boundaries-edit .owned-passport-row .owned-split-form {
-    display: none !important;
-}
-body.home--ogh-boundaries-edit .owned-passport-row .owned-split-btn {
-    display: none !important;
-}
-body.home--ogh-split-passport .owned-passport-row .owned-confirm-open-btn {
-    display: none !important;
-}
 .owned-list-panel {
     display: none;
     min-height: 0;

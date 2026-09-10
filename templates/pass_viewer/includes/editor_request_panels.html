@@ -8,6 +8,7 @@
     <div id="ods-request-status-body"></div>
 </section>
 
+{% if not view_only %}
 <section class="add-object-tools__section add-object-tools__db-comments is-collapsed" id="db-comments-section" aria-label="Комментарии из базы данных" hidden>
     <div class="add-object-tools__section-header">
         <h3 class="add-object-tools__title">Комментарии из БД</h3>
@@ -33,3 +34,4 @@
     <p class="note add-object-attachments__error" id="attachments-error" hidden></p>
     <ul class="add-object-attachments__list" id="attachments-list"></ul>
 </section>
+{% endif %}

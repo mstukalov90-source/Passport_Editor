@@ -833,49 +833,6 @@ button.owned-map-legend__item {
     width: 18px;
     height: 18px;
 }
-.owned-confirm-open-btn {
-    display: none;
-    align-self: center;
-    background: #e0ecff;
-    color: #1d4ed8;
-    border: 1px solid #bfdbfe;
-    border-radius: 8px;
-    padding: 7px 10px;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1;
-    white-space: nowrap;
-    cursor: pointer;
-}
-.owned-split-btn {
-    display: none;
-    align-self: center;
-    background: #dcfce7;
-    color: #166534;
-    border: 1px solid #bbf7d0;
-    border-radius: 8px;
-    padding: 7px 10px;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1;
-    white-space: nowrap;
-    cursor: pointer;
-}
-.owned-split-form {
-    margin: 0;
-    align-self: center;
-    display: inline-flex;
-    flex: 0 0 auto;
-}
-body.home--ogh-boundaries-edit .owned-passport-row .owned-split-form {
-    display: none !important;
-}
-body.home--ogh-boundaries-edit .owned-passport-row .owned-split-btn {
-    display: none !important;
-}
-body.home--ogh-split-passport .owned-passport-row .owned-confirm-open-btn {
-    display: none !important;
-}
 .owned-list-panel {
     display: none;
     min-height: 0;
@@ -1206,9 +1163,8 @@ body.home--merge-passports #add-object-entry-btn {
     background: #fff;
     border-radius: 10px;
     border: 1px solid #e3e6ec;
-    width: min(96vw, 1400px);
-    height: min(92vh, 900px);
-    max-height: 92vh;
+    width: 78vw;
+    height: 78vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1229,20 +1185,26 @@ body.home--merge-passports #add-object-entry-btn {
     gap: 8px;
     flex-shrink: 0;
 }
-.owned-view-object-modal__header-actions .owned-split-btn,
-.owned-view-object-modal__header-actions .owned-confirm-open-btn,
+.owned-view-object-modal__header-actions .owned-view-object-modal__action-btn,
 .owned-view-object-modal__header-actions .check-dgi-analiz-btn {
     display: inline-flex;
 }
-.owned-view-object-modal__header-actions .owned-split-btn[hidden],
-.owned-view-object-modal__header-actions .owned-confirm-open-btn[hidden],
+.owned-view-object-modal__header-actions .owned-view-object-modal__action-btn[hidden],
 .owned-view-object-modal__header-actions .check-dgi-analiz-btn[hidden] {
     display: none !important;
 }
-body.home--ogh-boundaries-edit .owned-view-object-modal__header-actions .owned-split-btn {
+.owned-view-object-modal__header-actions .owned-view-object-modal__action-btn {
+    background: var(--pv-blue, #165391);
+    color: #fff;
+    border-color: transparent;
+}
+.owned-view-object-modal__header-actions .owned-view-object-modal__action-btn:hover:not(:disabled) {
+    background: var(--pv-dark-blue, #1a3f6e);
+}
+body.home--ogh-boundaries-edit .owned-view-object-modal__header-actions #owned-view-object-split-btn {
     display: none !important;
 }
-body.home--ogh-split-passport .owned-view-object-modal__header-actions .owned-confirm-open-btn {
+body.home--ogh-split-passport .owned-view-object-modal__header-actions #owned-view-object-aktualize-btn {
     display: none !important;
 }
 .owned-edit-choice-actions {

@@ -208,6 +208,29 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                   getCsrfToken: () => PV.getCookie('csrftoken') || '',
               })
             : null;
+        const checkDgiSelective = PV.initCheckDgiSelectiveRemoval
+            ? PV.initCheckDgiSelectiveRemoval({
+                  body: checkDgiModalBody,
+                  modeController: checkDgiMode,
+                  dataUrl: (cfg.urls && cfg.urls.intersecsAnalizData) || '',
+                  cutUrl: (cfg.urls && cfg.urls.cutGeometry) || '',
+                  getGeometry: () => buildCurrentGeometry(),
+                  getContext: () => lastCheckDgiContext,
+                  applyGeometry: (geometry) => applyGeometryToEditableGroup(geometry),
+                  afterChange: async () => {
+                      await checkRelations();
+                  },
+                  onDataFresh: (data) => {
+                      if (lastCheckDgiContext) {
+                          lastCheckDgiContext.percents = data;
+                      }
+                  },
+                  setStatus: (text) => {
+                      statusEl.textContent = text;
+                  },
+                  getCsrfToken: () => PV.getCookie('csrftoken') || '',
+              })
+            : null;
         const dbLoadingModal = document.getElementById('db-loading-modal');
         const deletePolygonModal = document.getElementById('delete-polygon-modal');
         const deletePolygonModalCancel = document.getElementById('delete-polygon-modal-cancel');
@@ -568,8 +591,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         const layerGroups = {
             municipal: ['selected', 'dt', 'oo', 'odh', 'top'],
             requests: ['requests', 'recaps', 'comments'],
-            dgi: ['dgi_moscow_rent', 'dgi_moscow_no_rent', 'dgi_private_rent', 'dgi_private_no_rent', 'dgi_renovation'],
+            dgi: ['dgi_moscow_rent', 'dgi_private_rent', 'dgi_private_no_rent', 'dgi_renovation'],
             external: ['renew', 'oozt', 'rzd'],
+            reference: ['dgi_moscow_no_rent'],
         };
 
         function setLayerVisible(layerKey, isVisible) {
@@ -1064,7 +1088,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
         function updateEditToolbarVisibility(hasEditableGeometry = !!buildCurrentGeometry()) {
             const showEditModeControls = !!isEditing;
             const showGeometryControls = showEditModeControls && !!hasEditableGeometry;
-            [addPolygonButton, cutPolygonButton, drawModeSwitch, snapModeSwitch].forEach((control) => {
+            [addPolygonButton, cutPolygonButton, drawModeSwitch, snapModeSwitch, saveButton].forEach((control) => {
                 control?.classList.toggle('map-toolbar-hidden', !showEditModeControls);
             });
             [checkRelationsButton, checkDgiIntersectionsButton, autoRemoveIntersectionsButton, addCommentPointButton].forEach((control) => {
@@ -1676,6 +1700,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             if (checkDgiMode && checkDgiMode.reset) {
                 checkDgiMode.reset();
             }
+            if (checkDgiSelective && checkDgiSelective.reset) {
+                checkDgiSelective.reset();
+            }
             setCheckDgiAnalizContext(null);
         }
 
@@ -1698,6 +1725,9 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             });
             if (checkDgiMode && checkDgiMode.reset) {
                 checkDgiMode.reset();
+            }
+            if (checkDgiSelective && checkDgiSelective.reset) {
+                checkDgiSelective.reset();
             }
             checkDgiModal.style.display = 'flex';
         }

@@ -218,15 +218,23 @@ try:
 except (TypeError, ValueError):
     GIS_ADJACENT_NEARBY_METERS = 25.0
 
-# Бесхоз: минимальная полуширина кармана (м) и площадь ядра после эрозии (м²).
+# Бесхоз: замкнутые карманы (дыры в объединении объекта, соседей и ДГИ).
+# MIN_HALF_WIDTH — эрозия ядра (м): отсекает «змейки», тонкие по всей длине.
+# MIN_AREA — минимальная площадь кармана (м²).
+# MIN_OCCUPIERS — мин. число разных объектов, ограничивающих карман
+# (микрозазор «объект↔сосед» ограничен двумя, вырез внутри объекта — одним).
 try:
-    GIS_BESKHOZ_MIN_HALF_WIDTH_M = float(os.getenv("GIS_BESKHOZ_MIN_HALF_WIDTH_M", "2"))
+    GIS_BESKHOZ_MIN_HALF_WIDTH_M = float(os.getenv("GIS_BESKHOZ_MIN_HALF_WIDTH_M", "0.5"))
 except (TypeError, ValueError):
-    GIS_BESKHOZ_MIN_HALF_WIDTH_M = 2.0
+    GIS_BESKHOZ_MIN_HALF_WIDTH_M = 0.5
 try:
-    GIS_BESKHOZ_MIN_CORE_AREA_M2 = float(os.getenv("GIS_BESKHOZ_MIN_CORE_AREA_M2", "8"))
+    GIS_BESKHOZ_MIN_AREA_M2 = float(os.getenv("GIS_BESKHOZ_MIN_AREA_M2", "3"))
 except (TypeError, ValueError):
-    GIS_BESKHOZ_MIN_CORE_AREA_M2 = 8.0
+    GIS_BESKHOZ_MIN_AREA_M2 = 3.0
+try:
+    GIS_BESKHOZ_MIN_OCCUPIERS = int(os.getenv("GIS_BESKHOZ_MIN_OCCUPIERS", "3"))
+except (TypeError, ValueError):
+    GIS_BESKHOZ_MIN_OCCUPIERS = 3
 
 # На main: не грузить смежные ДТ и reference-слои в HTML — подгрузка через AJAX после открытия страницы.
 GIS_DEFER_MAP_CONTEXT_LAYERS = os.getenv("GIS_DEFER_MAP_CONTEXT_LAYERS", "1")

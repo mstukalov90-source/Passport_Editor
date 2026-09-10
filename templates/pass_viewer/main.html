@@ -27,7 +27,7 @@
     {{ request_objects_geometry_json|default_if_none:"null"|json_script:"request-objects-geometry-data" }}
     {% include 'pass_viewer/includes/map_editor_scripts.html' %}
     {% load static %}
-    <script src="{% static 'pass_viewer/js/main.js' %}?v=ogx-mode-1"></script>
+    <script src="{% static 'pass_viewer/js/main.js' %}?v=selective-1"></script>
 {% endblock %}
 
 {% block container_class %}container--wide container--add-object{% endblock %}
@@ -233,7 +233,10 @@
                     Детальный анализ пересечений
                 </button>
                 <div class="check-dgi-modal-actions__right">
-
+                    <button type="button" id="check-dgi-selective-remove-btn" class="map-toolbar-btn check-dgi-selective-btn" style="display:none;">
+                        {% include 'pass_viewer/includes/toolbar_icon.html' with name='erase' %}
+                        <span class="map-toolbar-btn__label">Выборочно удалить пересечения</span>
+                    </button>
                 </div>
             </div>
         </div>

@@ -153,6 +153,7 @@
     let selectedLayer = null;
     let parcelsLayer = null;
     let overlapLayer = null;
+    let focusLayer = null;
     let objectLayersById = {};
 
     function csrfToken() {
@@ -330,6 +331,7 @@
         selectedLayer = L.featureGroup().addTo(map);
         parcelsLayer = L.featureGroup().addTo(map);
         overlapLayer = L.featureGroup({ pane: 'overlapPane' }).addTo(map);
+        focusLayer = L.featureGroup({ pane: 'overlapPane' }).addTo(map);
         window.addEventListener('resize', () => {
             if (map) {
                 map.invalidateSize();
@@ -348,6 +350,9 @@
         }
         if (overlapLayer) {
             overlapLayer.clearLayers();
+        }
+        if (focusLayer) {
+            focusLayer.clearLayers();
         }
     }
 
@@ -515,13 +520,15 @@
                 );
             });
         });
-        const bounds = L.featureGroup(
-            [selectedLayer, parcelsLayer, overlapLayer].filter(Boolean),
-        ).getBounds();
+        // Стартовый вид — выбранный объект; остальные слои лишь как запасной вариант.
+        const selectedBounds = selectedLayer.getBounds();
+        const bounds = selectedBounds.isValid()
+            ? selectedBounds
+            : L.featureGroup([selectedLayer, parcelsLayer, overlapLayer].filter(Boolean)).getBounds();
         window.requestAnimationFrame(() => {
             leafletMap.invalidateSize();
             if (bounds.isValid()) {
-                leafletMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 17 });
+                leafletMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 18 });
             }
         });
         window.setTimeout(() => leafletMap.invalidateSize(), 80);
@@ -609,14 +616,73 @@
         syncLayerToggle(layerKey);
     }
 
+    function findObject(layerKey, objectId) {
+        if (!lastData) {
+            return null;
+        }
+        const layers = [].concat(lastData.layers || [], lastData.ogx_layers || []);
+        const layer = layers.find((item) => item && item.key === layerKey);
+        if (!layer) {
+            return null;
+        }
+        return (layer.objects || []).find((obj) => String(obj.id) === String(objectId)) || null;
+    }
+
+    // Жёлтая подсветка выбранного пересечения: строка в списке + мигание на карте.
+    // Жёлтый (#fde047/#facc15) отличается от жёлтого бейджа процентов (#fef08a).
+    function clearFocusHighlight() {
+        if (tableWrap) {
+            tableWrap
+                .querySelectorAll('tr.intersecs-analiz-object-row.is-focused')
+                .forEach((rowEl) => rowEl.classList.remove('is-focused'));
+        }
+        if (focusLayer) {
+            focusLayer.clearLayers();
+        }
+    }
+
+    function applyFocusHighlight(layerKey, objectId) {
+        clearFocusHighlight();
+        if (tableWrap) {
+            const rowEl = tableWrap.querySelector(
+                'tr.intersecs-analiz-object-row[data-layer-key="' +
+                    layerKey +
+                    '"][data-object-id="' +
+                    objectId +
+                    '"]',
+            );
+            if (rowEl) {
+                rowEl.classList.add('is-focused');
+            }
+        }
+        const obj = findObject(layerKey, objectId);
+        if (!obj || !obj.intersection_geometry || !focusLayer) {
+            return;
+        }
+        L.geoJSON(obj.intersection_geometry, {
+            pane: 'overlapPane',
+            style: {
+                color: '#facc15',
+                weight: 3,
+                fillColor: '#fde047',
+                fillOpacity: 0.65,
+                className: 'intersecs-focus-blink',
+            },
+        }).addTo(focusLayer);
+    }
+
     function focusObject(layerKey, objectId) {
+        applyFocusHighlight(layerKey, objectId);
         const key = layerKey + ':' + objectId;
         const layers = objectLayersById[key] || [];
         const group = L.featureGroup();
         layers.forEach((lyr) => group.addLayer(lyr));
-        const bounds = group.getBounds();
+        // Приближаемся к самой области пересечения (жёлтая подсветка);
+        // она меньше контура объекта. Запасной вариант — контур объекта.
+        const focusBounds = focusLayer ? focusLayer.getBounds() : null;
+        const bounds = focusBounds && focusBounds.isValid() ? focusBounds : group.getBounds();
         if (map && bounds.isValid()) {
-            map.fitBounds(bounds, { padding: [28, 28], maxZoom: 18 });
+            map.fitBounds(bounds, { padding: [48, 48], maxZoom: 19 });
         }
         layers.forEach((lyr) => {
             if (lyr.openPopup) {
@@ -723,6 +789,7 @@
         if (!tableWrap) {
             return;
         }
+        clearFocusHighlight();
         const byKey = layersByKey([].concat(data.layers || [], data.ogx_layers || []));
         const rows = mode === 'ogx' ? OGX_TABLE_ROWS : TABLE_ROWS;
         const headLabel = mode === 'ogx' ? 'Тип ОГХ' : 'Слой';
