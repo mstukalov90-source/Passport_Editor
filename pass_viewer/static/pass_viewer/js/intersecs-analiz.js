@@ -84,28 +84,60 @@
     };
 
     const TABLE_ROWS = [
-        { key: 'dgi_moscow_rent', label: 'З/У г. Москва с арендой', percentField: 'percent_moscow_rent' },
+        {
+            key: 'dgi_moscow_rent',
+            label: 'г. Москва с арендой',
+            percentField: 'percent_moscow_rent',
+            section: 'Земельные участки ДГИ',
+        },
         {
             key: 'dgi_private_rent',
-            label: 'З/У Частная или федеральная собственность с арендой',
+            label: 'Частная или федеральная собственность с арендой',
             percentField: 'percent_private_rent',
+            section: 'Земельные участки ДГИ',
         },
         {
             key: 'dgi_private_no_rent',
-            label: 'З/У Частная или федеральная собственность без аренды',
+            label: 'Частная или федеральная собственность без аренды',
             percentField: 'percent_private_no_rent',
+            section: 'Земельные участки ДГИ',
         },
-        { key: 'dgi_renovation', label: 'З/У Реновация', percentField: 'percent_dgi_renovation' },
-        { key: '__sum__', label: 'Суммарное пересечение', percentField: 'percent_sum', sum: true },
+        {
+            key: 'dgi_renovation',
+            label: 'Территория под реновацию',
+            percentField: 'percent_dgi_renovation',
+            section: 'Земельные участки ДГИ',
+        },
+        {
+            key: '__sum__',
+            label: 'Суммарное пересечение',
+            percentField: 'percent_sum',
+            sum: true,
+            section: 'Земельные участки ДГИ',
+        },
+        {
+            key: 'renew',
+            label: 'Объекты под реновацию',
+            percentField: 'percent_renew',
+            pctAlwaysOk: true,
+            section: 'Иные объекты',
+        },
+        { key: 'oozt', label: 'ООЗТ', percentField: 'percent_oozt', section: 'Иные объекты' },
+        {
+            key: 'rzd',
+            label: 'Полосы отвода ЖД',
+            percentField: 'percent_rzd',
+            section: 'Иные объекты',
+        },
         {
             key: 'dgi_moscow_no_rent',
-            label: 'З/У г. Москва без аренды',
+            label: 'г. Москва без аренды',
             percentField: 'percent_moscow_no_rent',
-            pctAlwaysOk: true,
+            section: 'Справочная информация',
+            // Справочный слой: серый бейдж (как в модалке) и выключен по умолчанию.
+            pctMuted: true,
+            defaultOff: true,
         },
-        { key: 'renew', label: 'Реновация', percentField: 'percent_renew', pctAlwaysOk: true },
-        { key: 'oozt', label: 'ООЗТ', percentField: 'percent_oozt' },
-        { key: 'rzd', label: 'Полосы отвода ЖД', percentField: 'percent_rzd' },
     ];
 
     // Метки — как во вкладке ОГХ модалки проверки пересечений.
@@ -161,12 +193,16 @@
         return String(n);
     }
 
-    function pctClass(value, alwaysOk) {
+    function pctClass(value, alwaysOk, muted) {
+        if (muted) {
+            return 'dgi-pct--muted';
+        }
         if (alwaysOk) {
             return 'dgi-pct--ok';
         }
         const n = Number(value || 0);
-        if (n === 0) {
+        // Жёлтый — от 1% пересечения, меньше 1% — зелёный.
+        if (n < 1) {
             return 'dgi-pct--ok';
         }
         if (n <= 10) {
@@ -256,6 +292,11 @@
 
     function objectLabel(obj) {
         return obj.descr || obj.name || obj.address || 'Объект';
+    }
+
+    // Для объектов ОГХ «Название» — как в попапе редактора: сначала name.
+    function ogxObjectLabel(obj) {
+        return obj.name || obj.descr || obj.address || 'Объект';
     }
 
     function ensureMap() {
@@ -371,6 +412,8 @@
             el.setAttribute('stroke', tape.stroke);
             el.setAttribute('stroke-width', '2');
             el.setAttribute('stroke-dasharray', '10 8');
+            // Скрытие делает setStyle({opacity: 0}) → stroke-opacity=0; возвращаем видимость границы.
+            el.setAttribute('stroke-opacity', '0.95');
         };
         lyr._analizRestoreTape = restore;
         lyr.on('add', restore);
@@ -445,11 +488,11 @@
                               dashArray: '10 8',
                           }
                         : {
+                              // Объекты ОГХ (без штриховки): сплошная граница.
                               color: style.color,
                               weight: 2,
                               fillColor: style.fillColor,
                               fillOpacity: 0.22,
-                              dashArray: '10 8',
                           },
                     popup,
                     key,
@@ -530,13 +573,7 @@
         const allOn = objectToggles.length > 0 && checkedCount === objectToggles.length;
         const noneOn = checkedCount === 0;
         tableWrap
-            .querySelectorAll(
-                '.intersecs-analiz-layer-toggle[data-layer-key="' +
-                    layerKey +
-                    '"], .intersecs-analiz-layer-all-toggle[data-layer-key="' +
-                    layerKey +
-                    '"]',
-            )
+            .querySelectorAll('.intersecs-analiz-layer-toggle[data-layer-key="' + layerKey + '"]')
             .forEach((cb) => {
                 cb.checked = allOn;
                 cb.indeterminate = !allOn && !noneOn;
@@ -617,7 +654,9 @@
             '<td>' +
             (expandable
                 ? '<label class="intersecs-analiz-layer-label">' +
-                  '<input type="checkbox" class="intersecs-analiz-layer-toggle" checked data-layer-key="' +
+                  '<input type="checkbox" class="intersecs-analiz-layer-toggle"' +
+                  (row.defaultOff ? '' : ' checked') +
+                  ' data-layer-key="' +
                   escapeHtml(row.key) +
                   '">' +
                   '<span>' +
@@ -628,7 +667,7 @@
                 : escapeHtml(row.label)) +
             '</td>' +
             '<td class="dgi-pct ' +
-            pctClass(percent, row.pctAlwaysOk) +
+            pctClass(percent, row.pctAlwaysOk, row.pctMuted) +
             '">' +
             escapeHtml(formatPct(percent)) +
             '%</td></tr>';
@@ -638,32 +677,35 @@
                 escapeHtml(row.key) +
                 '"><td colspan="2">' +
                 '<table class="intersecs-analiz-objects"><thead><tr>' +
-                '<th class="intersecs-analiz-check-col">' +
-                '<input type="checkbox" class="intersecs-analiz-layer-all-toggle" checked data-layer-key="' +
-                escapeHtml(row.key) +
-                '" title="Все объекты слоя" aria-label="Все объекты слоя">' +
-                '</th>' +
-                '<th>Кадастр / объект</th><th>Адрес</th><th>%</th><th>м²</th>' +
+                '<th class="intersecs-analiz-check-col"></th>' +
+                (row.ogx
+                    ? '<th>Название</th><th>Балансодержатель</th>'
+                    : '<th>Кадастр / объект</th><th>Адрес</th>') +
+                '<th>%</th><th>м²</th>' +
                 '</tr></thead><tbody>';
             objects.forEach((obj) => {
                 html +=
-                    '<tr class="intersecs-analiz-object-row" data-layer-key="' +
+                    '<tr class="intersecs-analiz-object-row' +
+                    (row.defaultOff ? ' is-off' : '') +
+                    '" data-layer-key="' +
                     escapeHtml(row.key) +
                     '" data-object-id="' +
                     escapeHtml(String(obj.id)) +
                     '">' +
                     '<td class="intersecs-analiz-check-col">' +
-                    '<input type="checkbox" class="intersecs-analiz-object-toggle" checked data-layer-key="' +
+                    '<input type="checkbox" class="intersecs-analiz-object-toggle"' +
+                    (row.defaultOff ? '' : ' checked') +
+                    ' data-layer-key="' +
                     escapeHtml(row.key) +
                     '" data-object-id="' +
                     escapeHtml(String(obj.id)) +
                     '" title="Показать на карте" aria-label="Показать на карте">' +
                     '</td>' +
                     '<td>' +
-                    escapeHtml(objectLabel(obj)) +
+                    escapeHtml(row.ogx ? ogxObjectLabel(obj) : objectLabel(obj)) +
                     '</td>' +
                     '<td>' +
-                    escapeHtml(obj.address || '—') +
+                    escapeHtml(row.ogx ? obj.balance_holder || '—' : obj.address || '—') +
                     '</td>' +
                     '<td>' +
                     escapeHtml(formatPct(obj.pct)) +
@@ -689,7 +731,15 @@
             '<thead><tr><th>' +
             escapeHtml(headLabel) +
             '</th><th>Пересечение</th></tr></thead><tbody>';
+        let currentSection = '';
         rows.forEach((row) => {
+            if (row.section && row.section !== currentSection) {
+                currentSection = row.section;
+                html +=
+                    '<tr class="intersecs-analiz-section-row"><td colspan="2">' +
+                    escapeHtml(row.section) +
+                    '</td></tr>';
+            }
             html += tableRowHtml(row, byKey, data);
         });
         html += '</tbody></table>';
@@ -713,14 +763,12 @@
             checkbox.addEventListener('click', (event) => event.stopPropagation());
             checkbox.addEventListener('change', () => applyObjectToggle(checkbox));
         });
-        tableWrap.querySelectorAll('.intersecs-analiz-layer-toggle, .intersecs-analiz-layer-all-toggle').forEach(
-            (checkbox) => {
-                checkbox.addEventListener('click', (event) => event.stopPropagation());
-                checkbox.addEventListener('change', () => {
-                    setLayerObjectsVisible(checkbox.getAttribute('data-layer-key'), checkbox.checked);
-                });
-            },
-        );
+        tableWrap.querySelectorAll('.intersecs-analiz-layer-toggle').forEach((checkbox) => {
+            checkbox.addEventListener('click', (event) => event.stopPropagation());
+            checkbox.addEventListener('change', () => {
+                setLayerObjectsVisible(checkbox.getAttribute('data-layer-key'), checkbox.checked);
+            });
+        });
         tableWrap.querySelectorAll('tr.intersecs-analiz-object-row').forEach((rowEl) => {
             rowEl.addEventListener('click', (event) => {
                 if (event.target && event.target.closest('input')) {

@@ -18,7 +18,9 @@ from pass_viewer.models import ExternalUser
 def qgis_test_hosts(settings):
     settings.ALLOWED_HOSTS = [
         "172.21.197.77",
+        "192.168.1.40",
         "border-ogh.mggt.ru",
+        "evil.example",
         "testserver",
         "localhost",
         "127.0.0.1",
@@ -435,12 +437,19 @@ def test_validation_missing_owner_in_mggt(client, mock_task_owner):
 
 
 @pytest.mark.django_db
-def test_rejects_public_host(client):
+def test_allows_public_host(client):
     response = _post_qgis_approve(client, _valid_payload(), host="border-ogh.mggt.ru")
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+
+@pytest.mark.django_db
+def test_rejects_unknown_host(client):
+    response = _post_qgis_approve(client, _valid_payload(), host="evil.example")
     assert response.status_code == 403
     payload = response.json()
     assert payload["ok"] is False
-    assert "внутреннему" in payload["error"].lower()
+    assert "разрешённого" in payload["error"].lower()
 
 
 @pytest.mark.django_db
@@ -545,9 +554,10 @@ def test_qgis_list_hides_from_other_user(client):
 
 
 @pytest.mark.django_db
-def test_qgis_read_rejects_public_host(client):
+def test_qgis_read_allows_public_host(client):
     create = _post_qgis_approve(client, _valid_payload())
     approve_id = create.json()["approve_id"]
+    ExternalUser.objects.create(login="asidorov", password="pass", owner_legal_person_id=None)
     response = _qgis_get(
         client,
         "api_qgis_approve_detail",
@@ -555,7 +565,7 @@ def test_qgis_read_rejects_public_host(client):
         host="border-ogh.mggt.ru",
         approve_id=approve_id,
     )
-    assert response.status_code == 403
+    assert response.status_code == 200
 
 
 @pytest.mark.django_db
@@ -722,7 +732,7 @@ def test_qgis_attachment_download_and_urls(client, settings, tmp_path):
         client,
         "api_qgis_download_attachment",
         user="asidorov",
-        host="border-ogh.mggt.ru",
+        host="evil.example",
         attachment_id=attachment_id,
     )
     assert forbidden_host.status_code == 403
@@ -919,7 +929,7 @@ def test_qgis_delete_approve(client):
         client,
         "api_qgis_delete_approve",
         {"user": "asidorov"},
-        host="border-ogh.mggt.ru",
+        host="evil.example",
         approve_id=approve_id,
     )
     assert host_denied.status_code == 403

@@ -6,9 +6,9 @@
 {% block body_class %}personal-account-page{% endblock %}
 
 {% block page_styles %}
-<link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}?v=ogx-mode-1">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}?v=ogx-groups-1">
 <link rel="stylesheet" href="{% static 'pass_viewer/css/modal.css' %}">
-<link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}?v=ogx-mode-1">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}?v=ogx-groups-1">
 {% endblock %}
 
 {% block container_class %}personal-account{% endblock %}
@@ -399,9 +399,9 @@
 {% block page_scripts %}
 {{ page_config|json_script:"page-config" }}
 {% include 'pass_viewer/includes/map_leaflet_vendor.html' %}
-<script src="{% static 'pass_viewer/js/utils.js' %}?v=ogx-mode-1"></script>
+<script src="{% static 'pass_viewer/js/utils.js' %}?v=ogx-groups-1"></script>
 <script src="{% static 'pass_viewer/js/kind-filters.js' %}"></script>
 <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
 <script src="{% static 'pass_viewer/js/map-tools.js' %}"></script>
-<script src="{% static 'pass_viewer/js/personal-account.js' %}?v=ogx-mode-1"></script>
+<script src="{% static 'pass_viewer/js/personal-account.js' %}?v=ogx-groups-1"></script>
 {% endblock %}

@@ -6,8 +6,9 @@
 
 | Что | Значение |
 |-----|----------|
-| **Прод-сервер** | `172.21.197.77` (SSH пользователь `pasp-ssh-user`, Docker через `sudo`) |
-| **Публичный URL** | `https://border-ogh.mggt.ru` (TLS на корпоративном reverse-proxy; приложение слушает HTTP :80) |
+| **Прод-сервер (сейчас)** | `172.21.197.77` (SSH `pasp-ssh-user`, Docker через `sudo`) |
+| **Целевой VPS** | `192.168.1.40` (после переноса; SSH тот же пользователь) |
+| **Публичный URL / API** | `https://border-ogh.mggt.ru` (TLS на корпоративном reverse-proxy; приложение слушает HTTP :80) |
 | Каталог на сервере | `/opt/passport_editor_new` |
 | Репозиторий (сервер) | `https://hub.mos.ru/m.stukalov90/Passport_Editor.git` |
 | Репозиторий (разработка) | `https://github.com/mstukalov90-source/Passport_Editor.git` |
@@ -15,7 +16,7 @@
 | Прод | ветка **`deploy/mggt-docker`** (`docker-compose.yml`, `docker-compose.images.yml`, `.env`) |
 | Архив | старый VPS `77.222.63.161`, ветка **`deploy/vps-docker`** — только для отката/истории |
 
-**SSH:** настроенный доступ `pasp-ssh-user@172.21.197.77` (ключи и пароли в чат и в git не класть).
+**SSH:** настроенный доступ `pasp-ssh-user@172.21.197.77` (после переноса — `192.168.1.40`). Ключи и пароли в чат и в git не класть.
 
 | Контейнер | Назначение |
 |-----------|------------|
@@ -34,7 +35,7 @@
 
 ```text
 DJANGO_SECRET_KEY=...
-DJANGO_ALLOWED_HOSTS=172.21.197.77,border-ogh.mggt.ru
+DJANGO_ALLOWED_HOSTS=172.21.197.77,192.168.1.40,border-ogh.mggt.ru
 DJANGO_CSRF_TRUSTED_ORIGINS=https://border-ogh.mggt.ru
 DJANGO_USE_X_FORWARDED_HOST=1
 DJANGO_ENABLE_ADMIN=0
@@ -50,7 +51,7 @@ GIS_ADJACENT_NEARBY_METERS=25
 
 - **`DJANGO_ENABLE_ADMIN=0`** — маршрут `/admin/` не монтируется.
 - **`DJANGO_CSRF_TRUSTED_ORIGINS`** и **`DJANGO_USE_X_FORWARDED_HOST`** — обязательны для работы через `https://border-ogh.mggt.ru` (proxy headers обрабатываются в `settings.py` на ветке `deploy/mggt-docker`).
-- **`APPROVAL_QGIS_ALLOWED_HOSTS`** (опционально) — через какие `Host` принимается `POST /approval/api/qgis/approves/`. По умолчанию `172.21.197.77,127.0.0.1,localhost,testserver`. Публичный домен `border-ogh.mggt.ru` в список **не** добавлять — QGIS вызывает API напрямую по `http://172.21.197.77/...`.
+- **`APPROVAL_QGIS_ALLOWED_HOSTS`** (опционально) — через какие `Host` принимается `/approval/api/qgis/...`. По умолчанию: домен `border-ogh.mggt.ru` и оба IP VPS (`172.21.197.77`, `192.168.1.40`) плюс localhost. Канонический URL для QGIS: `https://border-ogh.mggt.ru/approval/api/qgis/...`.
 - **`QGIS_DB_*`** — read-only подключение к `mggt_asu` на `172.21.197.51` для карты съёмки в модуле «Согласование». Обязательно при первом деплое `approval` (см. [approval_docs/PROD_DEPLOY.md](approval_docs/PROD_DEPLOY.md)).
 - После изменения `.env` переменные в контейнер подхватываются через **`docker compose ... up -d --force-recreate web`**, а не только `docker restart`.
 
@@ -115,7 +116,7 @@ git checkout -f -B deploy/mggt-docker origin/deploy/mggt-docker
 ## Ветки — зачем так
 
 - **`main`** — весь код, миграции, шаблоны, `pass_viewer/static/…`. **Без** `docker-compose.yml`.
-- **`deploy/mggt-docker`** — прод на **172.21.197.77** (RED OS): merge из `main` плюс:
+- **`deploy/mggt-docker`** — прод на MGGT (RED OS; сейчас **172.21.197.77**, цель **192.168.1.40**): merge из `main` плюс:
   - `docker-compose.yml`, **`docker-compose.images.yml`** (образы без Docker Hub);
   - `pass_map/urls.py` с раздачей **`/media/`** и **`/static/`** при `DEBUG=False`;
   - `pass_map/settings.py` с `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, proxy headers из `.env`.
@@ -132,6 +133,16 @@ git checkout -f -B deploy/mggt-docker origin/deploy/mggt-docker
 3. БД: `pg_dump` со старого VPS → `pg_restore` на MGGT; сверка ключевых таблиц совпала.
 4. Git на сервере привязан к hub.mos.ru (Deploy Token).
 5. Позже добавлен домен `border-ogh.mggt.ru`, CSRF/proxy vars в `.env`.
+
+## Перенос VPS на 192.168.1.40
+
+Пока приложение на **`172.21.197.77`**. После cutover:
+
+1. Reverse-proxy `border-ogh.mggt.ru` → HTTP :80 на **`192.168.1.40`**.
+2. В `/opt/passport_editor_new/.env`: `DJANGO_ALLOWED_HOSTS` содержит оба IP и домен (см. выше); затем `--force-recreate web`.
+3. С нового хоста должна быть сеть до **`172.21.197.51:5432`** (`mggt_asu`).
+4. QGIS уже ходит на **`https://border-ogh.mggt.ru/approval/api/qgis/`** — URL в плагине из‑за смены IP менять не нужно.
+5. SSH/sync: `PROD_SSH_HOST=192.168.1.40` (дефолт скриптов до cutover — `.77`).
 
 ## Обычное обновление (только код, БД не трогаем)
 
@@ -178,7 +189,7 @@ sudo docker logs --tail 50 passport_web
 - `X static files copied to '/app/staticfiles'` (или `unmodified`);
 - `Starting gunicorn`.
 
-Снаружи:
+Снаружи (HTTP по IP — текущий VPS; после переноса подставить `192.168.1.40`):
 
 ```bash
 curl -I http://172.21.197.77/
@@ -424,7 +435,7 @@ tail -20 /var/log/cleanup_orphan_comment_points.log
 - **Ветка `main` без `docker-compose.yml`** — деплой только через **`deploy/mggt-docker`**.
 - **Merge `main` → deploy:** при конфликтах в шаблонах/views обычно берём **`main`** (`-X theirs`). Файлы инфраструктуры деплоя — проверять руками.
 - **RED OS / registry.red-soft.ru:** использовать `docker-compose.images.yml` и перенос образов `docker save`/`load`; **`--build` на сервере не использовать**.
-- **HTTPS:** TLS терминируется на корпоративном reverse-proxy (`border-ogh.mggt.ru` → HTTP :80 на `172.21.197.77`). В `.env` обязательны `DJANGO_CSRF_TRUSTED_ORIGINS` и `DJANGO_USE_X_FORWARDED_HOST=1`.
+- **HTTPS:** TLS терминируется на корпоративном reverse-proxy (`border-ogh.mggt.ru` → HTTP :80 на текущем VPS `172.21.197.77`, после переноса — `192.168.1.40`). В `.env` обязательны `DJANGO_CSRF_TRUSTED_ORIGINS` и `DJANGO_USE_X_FORWARDED_HOST=1`. QGIS API ходит на тот же домен.
 - **Чистая БД без дампа:** для реальных данных надёжнее полный дамп с dev-машины.
 - **Push с сервера на GitHub** не настроен — коммиты в `deploy/mggt-docker` делаем **локально** и пушим в `origin` + `hub`.
 - **firewalld + Docker:** при включённом `firewalld` без правил для docker-подсети приложение может отдавать **500 на всех страницах** (`OperationalError: ... No route to host`). См. раздел ниже.
@@ -486,4 +497,4 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1/admin/   # 404 при 
 
 ---
 
-*Последнее состояние продакшена MGGT: `172.21.197.77`, домен `https://border-ogh.mggt.ru`, ветка `deploy/mggt-docker` (v2.2.x+), образы через `docker-compose.images.yml`, bind `.:/app`, Postgres `127.0.0.1:5433`, firewalld с `trusted` для `172.18.0.0/16`.*
+*Последнее состояние продакшена MGGT: текущий VPS `172.21.197.77` (цель переноса `192.168.1.40`), домен и QGIS API `https://border-ogh.mggt.ru`, ветка `deploy/mggt-docker`, образы через `docker-compose.images.yml`, bind `.:/app`, Postgres `127.0.0.1:5433`, firewalld с `trusted` для `172.18.0.0/16`.*

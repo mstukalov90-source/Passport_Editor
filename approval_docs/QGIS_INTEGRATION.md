@@ -2,27 +2,27 @@
 
 Документ для разработчика QGIS-модуля, который создаёт и сопровождает согласование в PostgreSQL/PostGIS на **сервере МГГТ** (`geodb`, схема `approval`).
 
-**Рекомендуемый способ** — HTTP API веб-приложения «Согласование» по внутреннему адресу сервера МГГТ. Полное описание всех endpoint (ingest, чаты, геометрия) — в **[QGIS_API.md](QGIS_API.md)**. Модель данных — в **[DATA_MODEL.md](DATA_MODEL.md)**.
+**Рекомендуемый способ** — HTTP API веб-приложения «Согласование» через домен `https://border-ogh.mggt.ru`. Полное описание всех endpoint (ingest, чаты, геометрия) — в **[QGIS_API.md](QGIS_API.md)**. Модель данных — в **[DATA_MODEL.md](DATA_MODEL.md)**.
 
 ```
 # ingest
-POST http://172.21.197.77/approval/api/qgis/approves/
+POST https://border-ogh.mggt.ru/approval/api/qgis/approves/
 
 # чтение / чат / геометрия (после auth в QGIS — параметр user=логин)
-GET  http://172.21.197.77/approval/api/qgis/approves/?user=<login>
-GET  http://172.21.197.77/approval/api/qgis/approves/<approve_id>/geometries/?user=<login>
-GET  http://172.21.197.77/approval/api/qgis/cases/<case_id>/?user=<login>
-POST http://172.21.197.77/approval/api/qgis/cases/<case_id>/messages/
-GET  http://172.21.197.77/approval/api/qgis/attachments/<id>/?user=<login>
-POST http://172.21.197.77/approval/api/qgis/messages/<id>/reactions/
-DELETE http://172.21.197.77/approval/api/qgis/messages/<id>/?user=<login>
-POST http://172.21.197.77/approval/api/qgis/cases/<case_id>/change-owner/
-POST http://172.21.197.77/approval/api/qgis/cases/<case_id>/participants/
-POST http://172.21.197.77/approval/api/qgis/approves/<approve_id>/adjacent-events/
-POST http://172.21.197.77/approval/api/qgis/approves/<approve_id>/delete/
+GET  https://border-ogh.mggt.ru/approval/api/qgis/approves/?user=<login>
+GET  https://border-ogh.mggt.ru/approval/api/qgis/approves/<approve_id>/geometries/?user=<login>
+GET  https://border-ogh.mggt.ru/approval/api/qgis/cases/<case_id>/?user=<login>
+POST https://border-ogh.mggt.ru/approval/api/qgis/cases/<case_id>/messages/
+GET  https://border-ogh.mggt.ru/approval/api/qgis/attachments/<id>/?user=<login>
+POST https://border-ogh.mggt.ru/approval/api/qgis/messages/<id>/reactions/
+DELETE https://border-ogh.mggt.ru/approval/api/qgis/messages/<id>/?user=<login>
+POST https://border-ogh.mggt.ru/approval/api/qgis/cases/<case_id>/change-owner/
+POST https://border-ogh.mggt.ru/approval/api/qgis/cases/<case_id>/participants/
+POST https://border-ogh.mggt.ru/approval/api/qgis/approves/<approve_id>/adjacent-events/
+POST https://border-ogh.mggt.ru/approval/api/qgis/approves/<approve_id>/delete/
 ```
 
-Публичный домен `https://border-ogh.mggt.ru` для этого API **не используется** — запросы через reverse-proxy отклоняются (HTTP 403). Альтернатива для ingest — прямая запись в БД `geodb` на `172.21.197.77` (разделы 4–5 ниже).
+Прямой IP VPS (`172.21.197.77` сейчас, `192.168.1.40` после переноса) тоже в allowlist на переходный период. Альтернатива для ingest — прямая запись в БД `geodb` на текущем VPS (разделы 4–5 ниже).
 
 ### Чтение и чат из QGIS
 
@@ -262,7 +262,7 @@ COMMIT;
 
 | Параметр | Значение |
 |----------|----------|
-| Сервер (SSH) | `172.21.197.77`, пользователь `pasp-ssh-user` |
+| Сервер (SSH) | сейчас `172.21.197.77`, после переноса `192.168.1.40`; пользователь `pasp-ssh-user` |
 | Контейнер PostgreSQL | `passport_db` (PostGIS **16**) |
 | Database | `geodb` |
 | User | `postgres` |
@@ -299,7 +299,7 @@ postgresql://postgres:<POSTGIS_DB_PASSWORD>@127.0.0.1:5433/geodb
 
 #### Подключение с самого сервера МГГТ
 
-Если QGIS-модуль запускается на `172.21.197.77`:
+Если QGIS-модуль запускается на самом VPS (`172.21.197.77` сейчас, `192.168.1.40` после переноса):
 
 ```bash
 sudo docker exec -it passport_db psql -U postgres -d geodb
@@ -354,7 +354,7 @@ postgresql://mstukalov:<QGIS_DB_PASSWORD>@172.21.197.51:5432/mggt_asu
 
 Поэтому:
 
-1. `incoming_guid`, который QGIS записывает в `approval.approves` на **`172.21.197.77`**, должен **совпадать** с `TaskGUID` в таблицах `work.*` на **`172.21.197.51`**.
+1. `incoming_guid`, который QGIS записывает в `approval.approves` на **geodb текущего VPS**, должен **совпадать** с `TaskGUID` в таблицах `work.*` на **`172.21.197.51`**.
 2. QGIS-модуль съёмки (`mggt_asu`) и модуль отправки согласования (`geodb`) должны использовать **один и тот же** GUID задания.
 3. Геометрию для `approval.geometry` сохраняйте в **SRID 4326**; в `work.*` геометрия может быть в SRID 980077 — при копировании используйте `ST_Transform`.
 

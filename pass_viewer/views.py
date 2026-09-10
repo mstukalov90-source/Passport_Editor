@@ -3307,14 +3307,14 @@ def _get_dgi_intersection_percents_split(geometry):
 _LAYER_INTERSECTION_OBJECT_LIMIT = 200
 
 _ANALIZ_LAYER_ROWS = (
-    ("dgi_moscow_rent", "З/У г. Москва с арендой", "percent_moscow_rent"),
-    ("dgi_private_rent", "З/У Частная или федеральная собственность с арендой", "percent_private_rent"),
-    ("dgi_private_no_rent", "З/У Частная или федеральная собственность без аренды", "percent_private_no_rent"),
-    ("dgi_renovation", "З/У Реновация", "percent_dgi_renovation"),
-    ("dgi_moscow_no_rent", "З/У г. Москва без аренды", "percent_moscow_no_rent"),
-    ("renew", "Реновация", "percent_renew"),
+    ("dgi_moscow_rent", "г. Москва с арендой", "percent_moscow_rent"),
+    ("dgi_private_rent", "Частная или федеральная собственность с арендой", "percent_private_rent"),
+    ("dgi_private_no_rent", "Частная или федеральная собственность без аренды", "percent_private_no_rent"),
+    ("dgi_renovation", "Территория под реновацию", "percent_dgi_renovation"),
+    ("renew", "Объекты под реновацию", "percent_renew"),
     ("oozt", "ООЗТ", "percent_oozt"),
     ("rzd", "Полосы отвода ЖД", "percent_rzd"),
+    ("dgi_moscow_no_rent", "г. Москва без аренды", "percent_moscow_no_rent"),
 )
 
 # Слои ОГХ для страницы анализа: (layer_key, метка как во вкладке ОГХ модалки, ключ в ogx-процентах).
@@ -3459,6 +3459,21 @@ def _parse_geojson_maybe(value):
     return parsed if isinstance(parsed, dict) else None
 
 
+def _balance_holder_display(owner_id, owner_name, customer_id, customer_name):
+    """Балансодержатель как в попапе редактора (buildObjectPopup):
+    владелец (имя из справочника, иначе id), иначе заказчик (имя, иначе id)."""
+
+    def meaningful(value):
+        text = str(value or "").strip().lower()
+        return text not in ("", "null", "none", "-")
+
+    if meaningful(owner_id):
+        return str(owner_name).strip() if meaningful(owner_name) else str(owner_id).strip()
+    if meaningful(customer_id):
+        return str(customer_name).strip() if meaningful(customer_name) else str(customer_id).strip()
+    return ""
+
+
 def _list_layer_intersection_features(
     geometry,
     table_name,
@@ -3495,6 +3510,37 @@ def _list_layer_intersection_features(
                     break
             if owner_expr == "NULL::text":
                 owner_expr = name_expr
+            # Балансодержатель: владелец (имя из справочника, иначе id), иначе заказчик.
+            lookup_context = _get_id_names_lookup_context(cursor)
+            balance_customer_field_pref = getattr(
+                settings, "GIS_OBJECT_CUSTOMER_FIELD", "CustomerLegalPersonId"
+            )
+            balance_owner_candidates = (
+                getattr(settings, "GIS_OZN_OWNER_FIELD", "ownerlegalpersonalid"),
+                getattr(settings, "GIS_OBJECT_OWNER_FIELD", "OwnerLegalPersonId"),
+            )
+            balance_customer_id_expr = "NULL::text"
+            balance_customer_name_expr = "NULL::text"
+            if _column_exists(cursor, table_name, balance_customer_field_pref):
+                balance_customer_col = _resolve_column_name(
+                    cursor, table_name, balance_customer_field_pref
+                )
+                balance_customer_ref = f"{alias}.{_quote_ident(balance_customer_col)}"
+                balance_customer_id_expr = f"{balance_customer_ref}::text"
+                balance_customer_name_expr = _build_id_name_lookup_expr(
+                    balance_customer_ref, lookup_context
+                )
+            balance_owner_id_expr = "NULL::text"
+            balance_owner_name_expr = "NULL::text"
+            for candidate in balance_owner_candidates:
+                if _column_exists(cursor, table_name, candidate):
+                    balance_owner_col = _resolve_column_name(cursor, table_name, candidate)
+                    balance_owner_ref = f"{alias}.{_quote_ident(balance_owner_col)}"
+                    balance_owner_id_expr = f"{balance_owner_ref}::text"
+                    balance_owner_name_expr = _build_id_name_lookup_expr(
+                        balance_owner_ref, lookup_context
+                    )
+                    break
             limit = int(_LAYER_INTERSECTION_OBJECT_LIMIT)
             query = (
                 "WITH input AS ("
@@ -3504,6 +3550,10 @@ def _list_layer_intersection_features(
                 "), hits AS ("
                 f" SELECT {descr_expr} AS descr, {address_expr} AS address, {vri_expr} AS vri,"
                 f" {name_expr} AS name, {owner_expr} AS owner,"
+                f" {balance_owner_id_expr} AS balance_owner_id,"
+                f" {balance_owner_name_expr} AS balance_owner_name,"
+                f" {balance_customer_id_expr} AS balance_customer_id,"
+                f" {balance_customer_name_expr} AS balance_customer_name,"
                 f" ST_CollectionExtract(ST_MakeValid(ST_Intersection({geom_expr}, i.geom)), 3) AS ix,"
                 f" ST_CollectionExtract({geom_expr}, 3) AS parcel"
                 f" FROM {_quote_ident(table_name)} {alias}"
@@ -3517,7 +3567,9 @@ def _list_layer_intersection_features(
                 " CASE WHEN i.total_area IS NULL OR i.total_area = 0 THEN 0 "
                 " ELSE LEAST(100.0, (ST_Area(h.ix::geography) * 100.0) / i.total_area) END AS pct,"
                 " ST_Area(h.ix::geography) AS intersection_area_m2,"
-                " ST_AsGeoJSON(h.parcel)::text, ST_AsGeoJSON(h.ix)::text "
+                " ST_AsGeoJSON(h.parcel)::text, ST_AsGeoJSON(h.ix)::text, "
+                " h.balance_owner_id, h.balance_owner_name,"
+                " h.balance_customer_id, h.balance_customer_name "
                 "FROM hits h CROSS JOIN input_area i "
                 "WHERE h.ix IS NOT NULL AND NOT ST_IsEmpty(h.ix) "
                 "ORDER BY pct DESC NULLS LAST "
@@ -3536,6 +3588,9 @@ def _list_layer_intersection_features(
                         "vri": (row[2] or "").strip(),
                         "name": (row[3] or "").strip(),
                         "owner": (row[4] or "").strip(),
+                        "balance_holder": _balance_holder_display(
+                            row[9], row[10], row[11], row[12]
+                        ),
                         "pct": pct,
                         "intersection_area_m2": area_m2,
                         "geometry": _parse_geojson_maybe(row[7]),

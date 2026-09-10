@@ -283,13 +283,22 @@
 
     function _dgiPctClass(value) {
         const n = _dgiPctNumber(value);
-        if (n === 0) {
+        // Жёлтый — от 1% пересечения, меньше 1% — зелёный (как на странице анализа).
+        if (n < 1) {
             return 'dgi-pct--ok';
         }
         if (n <= 10) {
             return 'dgi-pct--warn';
         }
         return 'dgi-pct--danger';
+    }
+
+    function _dgiSectionRow(label) {
+        return (
+            '<tr class="dgi-check-table__section"><td colspan="2">' +
+            PassViewer.escapeHtml(label) +
+            '</td></tr>'
+        );
     }
 
     function _dgiCheckRow(label, value, options) {
@@ -476,24 +485,28 @@
         const privateRent = _dgiPctNumber(src.percent_private_rent);
         const privateNoRent = _dgiPctNumber(src.percent_private_no_rent);
         const dgiRenovation = _dgiPctNumber(src.percent_dgi_renovation);
-        // «З/У г. Москва без аренды» не входит в сумму и не влияет на её цвет.
+        // «г. Москва без аренды» не входит в сумму и не влияет на её цвет.
         const dgiSum = moscowRent + privateRent + privateNoRent + dgiRenovation;
 
+        // Порядок и группировка — как на странице «Пространственный анализ пересечений».
         const rows =
-            _dgiCheckRow('З/У г. Москва с арендой', moscowRent) +
-            _dgiCheckRow('З/У Частная или федеральная собственность с арендой', privateRent) +
-            _dgiCheckRow('З/У Частная или федеральная собственность без аренды', privateNoRent) +
-            _dgiCheckRow('З/У Реновация', dgiRenovation) +
+            _dgiSectionRow('Земельные участки ДГИ') +
+            _dgiCheckRow('г. Москва с арендой', moscowRent) +
+            _dgiCheckRow('Частная или федеральная собственность с арендой', privateRent) +
+            _dgiCheckRow('Частная или федеральная собственность без аренды', privateNoRent) +
+            _dgiCheckRow('Территория под реновацию', dgiRenovation) +
             _dgiCheckRow('Суммарное пересечение', dgiSum, {
                 rowClass: 'dgi-check-table__sum',
             }) +
-            _dgiCheckRow('Реновация', src.percent_renew, {
+            _dgiSectionRow('Иные объекты') +
+            _dgiCheckRow('Объекты под реновацию', src.percent_renew, {
                 pctClass: 'dgi-pct--ok',
             }) +
             _dgiCheckRow('ООЗТ', src.percent_oozt) +
             _dgiCheckRow('Полосы отвода ЖД', src.percent_rzd) +
+            _dgiSectionRow('Справочная информация') +
             // Справочная строка: не входит в сумму, бейдж всегда серый.
-            _dgiCheckRow('З/У г. Москва без аренды', moscowNoRent, {
+            _dgiCheckRow('г. Москва без аренды', moscowNoRent, {
                 pctClass: 'dgi-pct--muted',
             });
 

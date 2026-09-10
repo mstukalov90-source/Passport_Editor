@@ -22,10 +22,10 @@
 {% block page_scripts %}
     {{ page_config|json_script:"page-config" }}
     {% include 'pass_viewer/includes/map_leaflet_vendor.html' %}
-    <script src="{% static 'pass_viewer/js/utils.js' %}?v=ogx-mode-1"></script>
+    <script src="{% static 'pass_viewer/js/utils.js' %}?v=ogx-groups-1"></script>
     <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
     <script src="{% static 'pass_viewer/js/map-tools.js' %}"></script>
-    <script src="{% static 'pass_viewer/js/intersecs-analiz.js' %}?v=ogx-2"></script>
+    <script src="{% static 'pass_viewer/js/intersecs-analiz.js' %}?v=ogx-6"></script>
 {% endblock %}
 
 {% block content %}
@@ -52,27 +52,23 @@
             </span>
             <span class="owned-map-legend__item">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--dgi-moscow-rent" aria-hidden="true"></span>
-                З/У г. Москва с арендой
+                г. Москва с арендой
             </span>
             <span class="owned-map-legend__item">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--dgi-private-rent" aria-hidden="true"></span>
-                З/У частн./фед. с арендой
+                частн./фед. с арендой
             </span>
             <span class="owned-map-legend__item">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--dgi-private-no-rent" aria-hidden="true"></span>
-                З/У частн./фед. без аренды
+                частн./фед. без аренды
             </span>
             <span class="owned-map-legend__item">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--dgi-renovation" aria-hidden="true"></span>
-                З/У Реновация
-            </span>
-            <span class="owned-map-legend__item">
-                <span class="owned-map-legend__swatch intersecs-legend-swatch--dgi-moscow-no-rent" aria-hidden="true"></span>
-                З/У г. Москва без аренды
+                Территория под реновацию
             </span>
             <span class="owned-map-legend__item">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--renew" aria-hidden="true"></span>
-                Реновация
+                Объекты под реновацию
             </span>
             <span class="owned-map-legend__item">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--oozt" aria-hidden="true"></span>
@@ -81,6 +77,10 @@
             <span class="owned-map-legend__item">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--rzd" aria-hidden="true"></span>
                 Полосы отвода ЖД
+            </span>
+            <span class="owned-map-legend__item">
+                <span class="owned-map-legend__swatch intersecs-legend-swatch--dgi-moscow-no-rent" aria-hidden="true"></span>
+                г. Москва без аренды
             </span>
             <span class="owned-map-legend__item">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--ogx-dt" aria-hidden="true"></span>

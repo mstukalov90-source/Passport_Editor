@@ -6,9 +6,9 @@
 
 - [DATA_MODEL.md](DATA_MODEL.md) — схема `approval`, смысл сущностей и связи
 - [QGIS_INTEGRATION.md](QGIS_INTEGRATION.md) — интеграция, fallback прямая запись в БД
-- [DEPLOY.md](../DEPLOY.md) — деплой на `172.21.197.77`, переменные `.env`
+- [DEPLOY.md](../DEPLOY.md) — деплой на MGGT (VPS сейчас `172.21.197.77`, цель `192.168.1.40`), переменные `.env`
 
-Базовый URL (прод): `http://172.21.197.77/approval/api/qgis/`
+Базовый URL (прод): `https://border-ogh.mggt.ru/approval/api/qgis/`
 
 ---
 
@@ -43,18 +43,17 @@ Content-Type для JSON: `application/json`. Django session **не** испол
 
 ### Host allowlist
 
-Все эндпоинты QGIS API принимают запросы **только** при обращении к внутреннему IP:
+Все эндпоинты QGIS API принимают запросы при `Host` из allowlist. Канонический адрес — публичный домен:
 
 ```
-http://172.21.197.77/approval/api/qgis/...
+https://border-ogh.mggt.ru/approval/api/qgis/...
 ```
 
 | Адрес | Результат |
 |-------|-----------|
-| `http://172.21.197.77/...` | Разрешён |
-| `https://border-ogh.mggt.ru/...` | **403 Forbidden** |
-
-Публичный домен для QGIS API **не используется**.
+| `https://border-ogh.mggt.ru/...` | Разрешён (основной путь) |
+| `http://172.21.197.77/...` или `http://192.168.1.40/...` | Разрешён (переходный период) |
+| произвольный другой Host | **403 Forbidden** |
 
 ### Логин (`user`)
 
@@ -79,8 +78,8 @@ Auth выполняется в QGIS. Сервер **доверяет** пере�
 ### Настройки (`.env`)
 
 ```text
-APPROVAL_QGIS_ALLOWED_HOSTS=172.21.197.77,127.0.0.1,localhost,testserver
-APPROVAL_QGIS_API_URL=http://172.21.197.77/approval/api/qgis/approves/
+APPROVAL_QGIS_ALLOWED_HOSTS=border-ogh.mggt.ru,172.21.197.77,192.168.1.40,127.0.0.1,localhost,testserver
+APPROVAL_QGIS_API_URL=https://border-ogh.mggt.ru/approval/api/qgis/approves/
 ```
 
 ---
@@ -452,7 +451,7 @@ POST /approval/api/qgis/approves/<approve_id>/delete/
 ### Upsert (curl)
 
 ```bash
-curl -X POST 'http://172.21.197.77/approval/api/qgis/approves/' \
+curl -X POST 'https://border-ogh.mggt.ru/approval/api/qgis/approves/' \
   -H 'Content-Type: application/json' \
   -d '{
     "incoming_guid": "956c45bb-dc44-46a7-9944-9d1996fec147",
@@ -474,7 +473,7 @@ curl -X POST 'http://172.21.197.77/approval/api/qgis/approves/' \
 ```python
 import requests
 
-BASE = "http://172.21.197.77/approval/api/qgis"
+BASE = "https://border-ogh.mggt.ru/approval/api/qgis"
 USER = "asidorov"
 
 approves = requests.get(f"{BASE}/approves/", params={"user": USER}, timeout=30).json()
@@ -552,7 +551,7 @@ WHERE a.incoming_guid = '956c45bb-dc44-46a7-9944-9d1996fec147'::uuid;
 
 | Симптом | Причина | Решение |
 |---------|---------|---------|
-| HTTP 403 | Запрос через `border-ogh.mggt.ru` | `http://172.21.197.77/...` |
+| HTTP 403 | Host не в `APPROVAL_QGIS_ALLOWED_HOSTS` | Использовать `https://border-ogh.mggt.ru/...` |
 | HTTP 400, `user` | Нет логина на GET/POST read-write | Передать `?user=` / поле `user` |
 | HTTP 404 | Нет доступа по логину | Проверить inspector / owners / participants |
 | HTTP 409 | Уже согласовано / чужой upsert user | Другой GUID или тот же `user` |

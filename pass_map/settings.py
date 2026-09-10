@@ -298,18 +298,18 @@ try:
 except (TypeError, ValueError):
     APPROVAL_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 
-# QGIS ingest API: only callable via internal server address (not public reverse-proxy host).
+# QGIS ingest API: canonical path is the public domain; both VPS IPs stay for cutover.
 APPROVAL_QGIS_ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv(
         "APPROVAL_QGIS_ALLOWED_HOSTS",
-        "172.21.197.77,127.0.0.1,localhost,testserver",
+        "border-ogh.mggt.ru,172.21.197.77,192.168.1.40,127.0.0.1,localhost,testserver",
     ).split(",")
     if host.strip()
 ]
 APPROVAL_QGIS_API_URL = os.getenv(
     "APPROVAL_QGIS_API_URL",
-    "http://172.21.197.77/approval/api/qgis/approves/",
+    "https://border-ogh.mggt.ru/approval/api/qgis/approves/",
 )
 
 # Approval map layer styles (QML sources + generated manifest).

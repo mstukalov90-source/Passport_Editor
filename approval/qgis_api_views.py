@@ -65,7 +65,7 @@ def _parse_json_body(request):
 def _qgis_host_guard(request):
     if not qgis_api_host_allowed(request):
         return _json_error(
-            "QGIS API доступен только по внутреннему адресу сервера (172.21.197.77).",
+            "QGIS API доступен только с разрешённого Host (домен или внутренний адрес сервера).",
             status=403,
         )
     return None

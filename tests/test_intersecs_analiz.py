@@ -9,7 +9,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from pass_viewer.views import _ogx_analiz_layers_for_geometry
+from pass_viewer.views import _balance_holder_display, _ogx_analiz_layers_for_geometry
 
 
 @pytest.mark.django_db
@@ -94,8 +94,9 @@ def test_intersecs_analiz_data_ok(client):
                     "descr": "77:01:0000000:2",
                     "address": "тест ОГХ",
                     "vri": "",
-                    "name": "",
+                    "name": "Зацепа ул. 32",
                     "owner": "",
+                    "balance_holder": "Жилищник Замоскворечье",
                     "pct": 12.0,
                     "intersection_area_m2": 120.0,
                     "geometry": geometry,
@@ -133,10 +134,23 @@ def test_intersecs_analiz_data_ok(client):
     assert data["ogx"]["intersects"] is True
     assert data["ogx_layers"][0]["key"] == "ogx_dt"
     assert data["ogx_layers"][0]["objects"][0]["descr"] == "77:01:0000000:2"
+    assert data["ogx_layers"][0]["objects"][0]["balance_holder"] == "Жилищник Замоскворечье"
     ogx_call = ogx_percents_mock.call_args
     assert ogx_call.args[0]["type"] == "Polygon"
     assert ogx_call.kwargs.get("rootid") == "77-001"
     assert ogx_call.kwargs.get("request_id") == ""
+
+
+def test_balance_holder_display_prefers_owner_then_customer():
+    # Как в попапе редактора: владелец (имя, иначе id), иначе заказчик (имя, иначе id).
+    assert _balance_holder_display("77:001", "Жилищник Замоскворечье", "55:002", "Заказчик") == (
+        "Жилищник Замоскворечье"
+    )
+    assert _balance_holder_display("77:001", None, "55:002", "Заказчик") == "77:001"
+    assert _balance_holder_display(None, None, "55:002", "ГУЖ района") == "ГУЖ района"
+    assert _balance_holder_display(None, None, "55:002", "") == "55:002"
+    assert _balance_holder_display(None, None, None, None) == ""
+    assert _balance_holder_display("-", "null", "none", "") == ""
 
 
 @pytest.mark.django_db

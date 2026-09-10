@@ -1,4 +1,4 @@
-"""Access rules for the QGIS approval API (internal host only)."""
+"""Access rules for the QGIS approval API (Host allowlist)."""
 
 from django.conf import settings
 

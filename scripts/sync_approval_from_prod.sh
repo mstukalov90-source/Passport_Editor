@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Approval schema data sync: prod (172.21.197.77) -> local Docker postgis-db.
+# Approval schema data sync: prod (current VPS 172.21.197.77; after move set PROD_SSH_HOST=192.168.1.40)
+# -> local Docker postgis-db.
 # Prod is read-only (pg_dump --schema=approval --data-only).
 # Local approval tables are truncated; other geodb schemas are untouched.
 set -euo pipefail
@@ -42,7 +43,7 @@ Options:
 
 Environment:
   PROD_SSH_USER     default: pasp-ssh-user
-  PROD_SSH_HOST     default: 172.21.197.77
+  PROD_SSH_HOST     default: 172.21.197.77 (after VPS move: 192.168.1.40)
   PROD_DB_CONTAINER default: passport_db
   LOCAL_DB_CONTAINER default: postgis-db
 EOF

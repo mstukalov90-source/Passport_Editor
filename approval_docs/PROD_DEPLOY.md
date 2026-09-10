@@ -1,6 +1,6 @@
 # Первый деплой модуля «Согласование» на прод (MGGT)
 
-Чеклист для выката приложения `approval` на сервер **172.21.197.77** (`https://border-ogh.mggt.ru/approval/`).
+Чеклист для выката приложения `approval` на сервер MGGT (сейчас **172.21.197.77**, цель **192.168.1.40**; UI и API: `https://border-ogh.mggt.ru/approval/`).
 
 Общая памятка по Docker, git и RED OS: [DEPLOY.md](../DEPLOY.md).
 
@@ -23,7 +23,7 @@
 | Веб-UI | `https://border-ogh.mggt.ru/approval/` — карта, чаты событий, согласование |
 | Главная | Вкладка «Согласования», ссылка «Уведомления» с бейджем |
 | Схема БД | `approval.*` в `geodb` (контейнер `passport_db`) |
-| QGIS API | `POST http://172.21.197.77/approval/api/qgis/approves/` (только внутренний Host) |
+| QGIS API | `POST https://border-ogh.mggt.ru/approval/api/qgis/approves/` (Host: домен; IP VPS в allowlist на переход) |
 | Карта съёмки | Read-only запросы к `mggt_asu.work` на **172.21.197.51** |
 | Вложения чата | `media/approval/attachments/` (volume `media_data`) |
 
@@ -39,7 +39,7 @@ flowchart TB
         Owner[Балансодержатель]
         Inspector[Инспектор]
     end
-    subgraph prod [172.21.197.77]
+    subgraph prod [VPS_now_77_target_40]
         Proxy[border-ogh.mggt.ru HTTPS]
         Web[passport_web Django]
         Geodb[(geodb approval schema)]
@@ -55,17 +55,17 @@ flowchart TB
     Web --> Geodb
     Web --> Media
     Web --> WorkDB
-    QGIS -->|"POST Host: 172.21.197.77"| Web
+    QGIS -->|"HTTPS API"| Proxy
 ```
 
 ---
 
 ## Предварительные условия
 
-1. **Доступ SSH** к `pasp-ssh-user@172.21.197.77`, Docker через `sudo`.
+1. **Доступ SSH** к `pasp-ssh-user@172.21.197.77` (после переноса — `192.168.1.40`), Docker через `sudo`.
 2. **Сеть:** контейнер `passport_web` должен достучаться до **`172.21.197.51:5432`** (PostgreSQL `mggt_asu`). При включённом firewalld на RED OS — отдельное правило для исходящего трафика к `.51` (см. [DEPLOY.md — firewalld](../DEPLOY.md#firewalld-red-os--mggt)).
 3. **Пользователи** в таблице `users` (`ExternalUser`): у балансодержателей заполнен `OwnerLegalPersonId`; инспекторы — логин совпадает с полем `approval.approves.user`, заданным из QGIS.
-4. **QGIS-модуль** на рабочих местах инспекторов настроен на внутренний URL API (см. [QGIS_API.md](QGIS_API.md)).
+4. **QGIS-модуль** на рабочих местах инспекторов настроен на `https://border-ogh.mggt.ru/approval/api/qgis/` (см. [QGIS_API.md](QGIS_API.md)).
 5. **`incoming_guid`** из QGIS совпадает с `TaskGUID` в `mggt_asu.work.*` на `.51` — иначе карта съёмки будет пустой.
 
 ---
@@ -115,8 +115,8 @@ QGIS_DB_PASSWORD=<пароль>
 QGIS_DB_CONNECT_TIMEOUT=10
 
 # --- Согласование: QGIS ingest API (опционально, есть значения по умолчанию) ---
-APPROVAL_QGIS_ALLOWED_HOSTS=172.21.197.77,127.0.0.1,localhost,testserver
-APPROVAL_QGIS_API_URL=http://172.21.197.77/approval/api/qgis/approves/
+APPROVAL_QGIS_ALLOWED_HOSTS=border-ogh.mggt.ru,172.21.197.77,192.168.1.40,127.0.0.1,localhost,testserver
+APPROVAL_QGIS_API_URL=https://border-ogh.mggt.ru/approval/api/qgis/approves/
 
 # --- Согласование: вложения в чате (опционально) ---
 # APPROVAL_ATTACHMENT_MAX_BYTES=10485760
@@ -126,8 +126,8 @@ APPROVAL_QGIS_API_URL=http://172.21.197.77/approval/api/qgis/approves/
 | Переменная | Обязательно | Примечание |
 |------------|-------------|------------|
 | `QGIS_DB_*` | **да** | Без них карта покажет ошибку «Не удалось загрузить объекты съёмки из mggt_asu» |
-| `APPROVAL_QGIS_ALLOWED_HOSTS` | нет | По умолчанию уже включает `172.21.197.77`. **Не добавлять** `border-ogh.mggt.ru` |
-| `APPROVAL_QGIS_API_URL` | нет | Справочный URL для QGIS-клиента |
+| `APPROVAL_QGIS_ALLOWED_HOSTS` | нет | По умолчанию: домен + оба IP VPS. Канонический Host — `border-ogh.mggt.ru` |
+| `APPROVAL_QGIS_API_URL` | нет | Справочный URL для QGIS-клиента (`https://border-ogh.mggt.ru/...`) |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | **да** (уже на проде) | Нужен для POST из браузера на `/approval/api/...` |
 | `DJANGO_USE_X_FORWARDED_HOST` | **да** (уже на проде) | `1` |
 
@@ -199,29 +199,28 @@ curl -s -o /dev/null -w "%{http_code}\n" https://border-ogh.mggt.ru/static/appro
 
 Ожидается `302` (редирект на логин) и `200` соответственно.
 
-### 5.2. QGIS API (с сервера или машины в сети МГГТ)
+### 5.2. QGIS API (через домен)
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" \
-  -X POST 'http://172.21.197.77/approval/api/qgis/approves/' \
-  -H 'Host: 172.21.197.77' \
+  -X POST 'https://border-ogh.mggt.ru/approval/api/qgis/approves/' \
   -H 'Content-Type: application/json' \
   -d '{}'
 ```
 
 Ожидается `400` (пустой JSON) — **не** `403` (значит Host разрешён) и **не** `404`.
 
-Проверка блокировки публичного домена:
+Проверка чужого Host (с сервера, IP текущего VPS):
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" \
-  -X POST 'http://172.21.197.77/approval/api/qgis/approves/' \
-  -H 'Host: border-ogh.mggt.ru' \
+  -X POST 'http://127.0.0.1/approval/api/qgis/approves/' \
+  -H 'Host: evil.example' \
   -H 'Content-Type: application/json' \
   -d '{}'
 ```
 
-Ожидается `403`.
+Ожидается `403` (если `evil.example` нет в `DJANGO_ALLOWED_HOSTS`, Django может ответить 400 — тогда проверить allowlist через pytest).
 
 Полный тестовый payload — в [QGIS_API.md](QGIS_API.md#пример-curl).
 
@@ -265,10 +264,10 @@ LIMIT 10;
 В конфигурации клиента QGIS:
 
 ```text
-APPROVAL_QGIS_API_URL=http://172.21.197.77/approval/api/qgis/approves/
+APPROVAL_QGIS_API_URL=https://border-ogh.mggt.ru/approval/api/qgis/approves/
 ```
 
-Запросы отправлять **на IP**, не на `https://border-ogh.mggt.ru`. Подробности полей JSON — [QGIS_API.md](QGIS_API.md).
+Запросы отправлять **на домен**, не на голый IP (IP в allowlist только на переходный период). Подробности полей JSON — [QGIS_API.md](QGIS_API.md).
 
 ---
 
@@ -315,7 +314,7 @@ DROP SCHEMA IF EXISTS approval CASCADE;
 - [ ] `git pull` / `reset` на сервере, `--force-recreate web`
 - [ ] Миграции `approval` применены (`\dt approval.*`)
 - [ ] Из контейнера доступен `mggt_asu` на `.51`
-- [ ] `curl` QGIS API: `200/400` с Host `172.21.197.77`, `403` с Host `border-ogh.mggt.ru`
+- [ ] `curl` QGIS API: `400` на `https://border-ogh.mggt.ru/approval/api/qgis/approves/` с пустым JSON; чужой Host → 403
 - [ ] Статика `/static/approval/...` отдаётся с `200`
 - [ ] Логин балансодержателя и инспектора — главная и `/approval/`
 - [ ] QGIS-модуль отправляет тестовое согласование
