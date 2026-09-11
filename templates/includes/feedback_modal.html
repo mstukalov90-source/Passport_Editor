@@ -1,0 +1,34 @@
+{% load static %}
+<div class="feedback-modal" id="feedback-modal" role="dialog" aria-modal="true"
+     aria-labelledby="feedback-modal-title" hidden>
+    <div class="feedback-modal__card">
+        <div class="feedback-modal__header">
+            <h3 id="feedback-modal-title">Обратная связь</h3>
+            <button type="button" class="feedback-modal__close" id="feedback-modal-close" aria-label="Закрыть">✕</button>
+        </div>
+        <form id="feedback-form" method="post" action="{% url 'feedback_submit' %}" novalidate>
+            {% csrf_token %}
+            <label class="feedback-modal__label" for="feedback-body">Сообщение</label>
+            <textarea class="feedback-modal__input feedback-modal__input--textarea" id="feedback-body"
+                      name="body" maxlength="5000" required
+                      placeholder="Опишите ваш вопрос или предложение"></textarea>
+
+            <span class="feedback-modal__label">Вложения</span>
+            <button type="button" class="feedback-modal__attach" id="feedback-attach-btn">Прикрепить файлы</button>
+            <input type="file" class="feedback-modal__file-input" id="feedback-file-input"
+                   multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" tabindex="-1" aria-hidden="true">
+            <p class="feedback-modal__hint">JPG, PNG, PDF, DOC, DOCX. Не более 10 МБ на файл, до 10 файлов.</p>
+            <ul class="feedback-modal__file-list" id="feedback-file-list" hidden></ul>
+
+            <p class="feedback-modal__error" id="feedback-error" hidden></p>
+            <p class="feedback-modal__success" id="feedback-success" hidden>Обращение отправлено.</p>
+
+            <div class="feedback-modal__actions">
+                <button type="button" class="feedback-modal__button feedback-modal__button--secondary"
+                        id="feedback-cancel-btn">Отмена</button>
+                <button type="submit" class="feedback-modal__button feedback-modal__button--primary"
+                        id="feedback-submit-btn">Отправить</button>
+            </div>
+        </form>
+    </div>
+</div>

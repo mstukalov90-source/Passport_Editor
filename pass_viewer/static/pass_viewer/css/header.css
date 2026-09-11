@@ -318,13 +318,35 @@
 }
 
 .site-header__dropdown-link {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 8px 16px;
     color: #20242b;
     text-decoration: none;
     font-size: 14px;
     font-weight: 500;
     transition: background 0.15s ease;
+}
+
+.site-header__dropdown-marker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    color: #64748b;
+    transition: color 0.15s ease;
+}
+
+.site-header__dropdown-link:hover .site-header__dropdown-marker,
+.site-header__dropdown-link:focus-visible .site-header__dropdown-marker {
+    color: var(--pv-dark-blue, #1A3F6E);
+}
+
+.site-header__dropdown-link.is-active .site-header__dropdown-marker {
+    color: var(--pv-red, #BA3034);
 }
 
 .site-header__dropdown-link:hover,

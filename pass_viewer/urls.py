@@ -1,5 +1,17 @@
 from django.urls import path
 
+from .feedback_views import (
+    feedback_attachment_download,
+    feedback_list,
+    feedback_set_status,
+    feedback_submit,
+)
+from .qgis_api_views import (
+    api_qgis_recaps_layer,
+    api_qgis_recaps_list,
+    api_qgis_requests_layer,
+    api_qgis_requests_list,
+)
 from .registration_views import (
     registration_request,
     registration_request_sent,
@@ -65,6 +77,11 @@ from .views import (
 urlpatterns = [
     path("", home, name="home"),
     path("personal/", home, name="personal_account"),
+    # QGIS API: read-only слои и списки заявок/досъёмов (host allowlist + user, только MGGT/SUP)
+    path("api/qgis/requests/", api_qgis_requests_layer, name="api_qgis_requests_layer"),
+    path("api/qgis/recaps/", api_qgis_recaps_layer, name="api_qgis_recaps_layer"),
+    path("api/qgis/requests/list/", api_qgis_requests_list, name="api_qgis_requests_list"),
+    path("api/qgis/recaps/list/", api_qgis_recaps_list, name="api_qgis_recaps_list"),
     path("registration-request/", registration_request, name="registration_request"),
     path("registration-request/sent/", registration_request_sent, name="registration_request_sent"),
     path("registration-requests/", registration_requests_list, name="registration_requests_list"),
@@ -80,6 +97,14 @@ urlpatterns = [
     ),
     path("statistics/", statistics, name="statistics"),
     path("actions/", actions, name="actions"),
+    path("feedback/submit/", feedback_submit, name="feedback_submit"),
+    path("feedback/", feedback_list, name="feedback_list"),
+    path("feedback/<int:pk>/status/", feedback_set_status, name="feedback_set_status"),
+    path(
+        "feedback/attachments/<int:attachment_id>/download/",
+        feedback_attachment_download,
+        name="feedback_attachment_download",
+    ),
     path("owned/lists-partial/", owned_lists_partial, name="owned_lists_partial"),
     path("home/select-hood/", select_sup_hood, name="select_sup_hood"),
     path("home/clear-hood/", clear_sup_hood, name="clear_sup_hood"),

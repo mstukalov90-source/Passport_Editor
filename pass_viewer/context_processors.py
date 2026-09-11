@@ -11,15 +11,18 @@ def approval_notifications(request):
         "home_notification_events": [],
         "pending_approval_count": 0,
         "notifications_owner_id": "",
+        "user_role": "",
     }
     user = getattr(request, "user", None)
     if user is None or not user.is_authenticated:
         return empty
 
     owner_id = ""
+    role = ""
     try:
         scope = resolve_user_scope(user.username)
         owner_id = str(scope.owner_id or "").strip()
+        role = scope.role
         events = build_home_notification_events(
             owner_id=scope.owner_id,
             username=user.username,
@@ -31,4 +34,5 @@ def approval_notifications(request):
         "home_notification_events": events or [],
         "pending_approval_count": 0,
         "notifications_owner_id": owner_id,
+        "user_role": role,
     }

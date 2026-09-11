@@ -1,6 +1,6 @@
 # HTTP API: QGIS ↔ согласование
 
-Документ для разработчика QGIS-модуля: **создание** согласований, **чтение** чатов/геометрии и **запись** сообщений через приложение `approval`.
+Документ для разработчика QGIS-модуля: **создание** согласований, **чтение** чатов/геометрии и **запись** сообщений через приложение `approval`, а также **read-only слои** отрисованных заявок и досъёмов (приложение `pass_viewer`, раздел 14).
 
 Связанные материалы:
 
@@ -32,6 +32,10 @@
 | POST | `messages/<message_id>/reactions/` | Реакция на сообщение |
 | DELETE | `messages/<message_id>/?user=` | Удалить своё сообщение (инспектор) |
 | GET | `attachments/<attachment_id>/?user=` | Скачать вложение |
+| GET | `/api/qgis/requests/?user=` | Слой отрисованных заявок (read-only, MGGT/SUP) — см. раздел 14 |
+| GET | `/api/qgis/recaps/?user=` | Слой досъёмов (read-only, MGGT/SUP) — см. раздел 14 |
+| GET | `/api/qgis/requests/list/?user=` | Список всех заявок без геометрии (read-only, MGGT/SUP) — см. раздел 14 |
+| GET | `/api/qgis/recaps/list/?user=` | Список всех досъёмов без геометрии (read-only, MGGT/SUP) — см. раздел 14 |
 
 Content-Type для JSON: `application/json`. Django session **не** используется.
 
@@ -428,6 +432,98 @@ POST /approval/api/qgis/approves/<approve_id>/delete/
 
 ---
 
+## 14. Слои заявок и досъёмов (read-only)
+
+Полная спецификация: [QGIS_LAYERS_API.md](QGIS_LAYERS_API.md). Ниже — краткая сводка.
+
+Отдельные эндпоинты приложения `pass_viewer` (не `approval`): базовый URL **без** префикса `/approval`:
+
+```
+https://border-ogh.mggt.ru/api/qgis/...
+```
+
+| Метод | URL | Назначение |
+|-------|-----|------------|
+| GET | `/api/qgis/requests/?user=` | GeoJSON-слой отрисованных заявок (ДТ/ОДХ/ОЗН/ТОП) |
+| GET | `/api/qgis/recaps/?user=` | GeoJSON-слой досъёмов (`recaps`) |
+| GET | `/api/qgis/requests/list/?user=` | Список всех заявок без геометрии |
+| GET | `/api/qgis/recaps/list/?user=` | Список всех досъёмов без геометрии |
+
+Только **чтение**: создание/правка заявок и досъёмов остаются в веб-приложении.
+Слои и списки принимают одинаковые фильтры (`request_id`, `source` / `recap`);
+список — компактный JSON `{"ok", "current_user", "count", "requests"|"recaps": [...]}`.
+
+### Доступ
+
+Тот же host allowlist (`APPROVAL_QGIS_ALLOWED_HOSTS`) и обязательный query `?user=`,
+но контент **не фильтруется по владельцу** — отдются все заявки/досъёмы. Поэтому
+дополнительно проверяется роль: логин должен быть **MGGT** или **SUP** (см.
+`users.role`), иначе **403**. Прочие правила те же: чужой Host → 403, нет `user` → 400.
+
+### Параметры (query)
+
+| Эндпоинт | Параметр | Обязателен | Значение |
+|----------|----------|------------|----------|
+| `requests/` | `user` | да | логин сотрудника (MGGT/SUP) |
+| `requests/` | `request_id` | нет | фильтр по номеру заявки (только цифры) |
+| `requests/` | `source` | нет | источник: `ДТ`, `ОДХ`, `ОЗН`, `ТОП` (псевдонимы `ОО`, `TOP`) |
+| `recaps/` | `user` | да | логин сотрудника (MGGT/SUP) |
+| `recaps/` | `request_id` | нет | фильтр по номеру заявки (только цифры) |
+| `recaps/` | `recap_id` | нет | фильтр по номеру досъёма (только цифры) |
+
+Невалидный `request_id`/`recap_id` (не цифры) или неизвестный `source` → **400**.
+
+### Ответ (200)
+
+GeoJSON FeatureCollection (SRID 4326) в обёртке API:
+
+```json
+{
+  "ok": true,
+  "current_user": "asidorov",
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [37.61, 55.72], [37.62, 55.72], [37.62, 55.73], [37.61, 55.72] ] ] ] },
+      "properties": {
+        "source": "ДТ",
+        "request_id": "141564",
+        "rootid": null,
+        "name": "Заявка 141564",
+        "owner_legal_person_id": "9000022",
+        "owner_legal_person_name": "ООО Пример",
+        "customer_legal_person_id": null,
+        "customer_legal_person_name": null,
+        "department_legal_person_id": null,
+        "department_legal_person_name": null,
+        "startdate": null,
+        "datesurvey": null,
+        "createtype": null
+      }
+    }
+  ]
+}
+```
+
+Для `recaps/` properties: `recap_id`, `request_id`, `name`,
+`owner_legal_person_id`, `owner_legal_person_name`.
+
+Отрисованная заявка — строка GIS-таблицы (`pass_objects`/`odh`/`ozn`/`top`) с
+непустым `request_id` и пустым `rootid`; `source` — метка таблицы-источника.
+Ошибки БД → **500** `{"ok": false, "error": "Не удалось получить слой заявок/досъёмов."}`.
+
+### Пример (curl)
+
+```bash
+curl 'https://border-ogh.mggt.ru/api/qgis/requests/?user=asidorov&source=ДТ'
+curl 'https://border-ogh.mggt.ru/api/qgis/recaps/?user=asidorov&request_id=141564'
+curl 'https://border-ogh.mggt.ru/api/qgis/requests/list/?user=asidorov'
+curl 'https://border-ogh.mggt.ru/api/qgis/recaps/list/?user=asidorov'
+```
+
+---
+
 ## Геометрия: требования
 
 - GeoJSON, координаты WGS84 (долгота, широта), SRID **4326**
@@ -556,6 +652,7 @@ WHERE a.incoming_guid = '956c45bb-dc44-46a7-9944-9d1996fec147'::uuid;
 | HTTP 404 | Нет доступа по логину | Проверить inspector / owners / participants |
 | HTTP 409 | Уже согласовано / чужой upsert user | Другой GUID или тот же `user` |
 | HTTP 400, OwnerLegalPersonId | Нет `TaskGUID` в `mggt_asu` | Сначала записать съёмку |
+| HTTP 403 (слои заявок/досъёмов) | Логин не MGGT/SUP | Использовать логин сотрудника |
 | Геометрия не на карте | Неверный SRID | Только 4326 |
 
 ---
@@ -570,7 +667,10 @@ WHERE a.incoming_guid = '956c45bb-dc44-46a7-9944-9d1996fec147'::uuid;
 | Доступ | `approval/access.py` |
 | Host check | `approval/qgis_access.py` |
 | URL | `approval/urls.py` → `api/qgis/...` |
-| Тесты | `tests/test_approval_qgis_api.py` |
+| QGIS views (слои заявок/досъёмов) | `pass_viewer/qgis_api_views.py` |
+| SQL-билдеры слоёв | `pass_viewer/qgis_layers.py` |
+| URL (слои заявок/досъёмов) | `pass_viewer/urls.py` → `api/qgis/requests/`, `api/qgis/recaps/` |
+| Тесты | `tests/test_approval_qgis_api.py`, `tests/test_qgis_layers_api.py` |
 | Настройки | `pass_map/settings.py` → `APPROVAL_QGIS_*` |
 
 ---
@@ -581,4 +681,6 @@ WHERE a.incoming_guid = '956c45bb-dc44-46a7-9944-9d1996fec147'::uuid;
 cd GeoDjango
 python manage.py runserver
 curl 'http://127.0.0.1:8000/approval/api/qgis/approves/?user=asidorov'
+curl 'http://127.0.0.1:8000/api/qgis/requests/?user=asidorov'
+curl 'http://127.0.0.1:8000/api/qgis/recaps/?user=asidorov'
 ```

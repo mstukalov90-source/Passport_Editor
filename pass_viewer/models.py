@@ -86,3 +86,45 @@ class RequestAttachment(models.Model):
 
     def __str__(self):
         return f"{self.brid}:{self.original_name}"
+
+
+class FeedbackMessage(models.Model):
+    STATUS_NEW = "new"
+    STATUS_PROCESSED = "processed"
+    STATUS_CHOICES = (
+        (STATUS_NEW, "Новое"),
+        (STATUS_PROCESSED, "Обработано"),
+    )
+
+    author_login = models.CharField(max_length=150)
+    author_name = models.CharField(max_length=255, blank=True, default="")
+    body = models.TextField()
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_NEW)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "feedback_messages"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.author_login} ({self.created_at:%d.%m.%Y %H:%M})"
+
+
+class FeedbackAttachment(models.Model):
+    feedback = models.ForeignKey(
+        FeedbackMessage,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+    )
+    original_name = models.TextField()
+    stored_name = models.TextField()
+    content_type = models.TextField(blank=True, default="")
+    size_bytes = models.BigIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "feedback_attachments"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.feedback_id}:{self.original_name}"

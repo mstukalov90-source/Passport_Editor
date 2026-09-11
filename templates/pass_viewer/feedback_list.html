@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Обращения пользователей{% endblock %}
+
+{% block body_class %}personal-account-page{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/registration-requests.css' %}">
+{% endblock %}
+
+{% block container_class %}personal-account{% endblock %}
+
+{% block page_layout_start %}<div class="personal-account-layout">{% endblock %}
+
+{% block page_layout_end %}</div>{% endblock %}
+
+{% block content %}
+<h1 class="personal-account__title">Обращения пользователей</h1>
+
+<div class="rr-toolbar">
+    <nav class="rr-filter" aria-label="Фильтр по статусу">
+        <a class="rr-filter__link{% if not status_filter %} is-active{% endif %}"
+           href="{% url 'feedback_list' %}">Все</a>
+        <a class="rr-filter__link{% if status_filter == 'new' %} is-active{% endif %}"
+           href="{% url 'feedback_list' %}?status=new">Новые{% if new_count %} ({{ new_count }}){% endif %}</a>
+        <a class="rr-filter__link{% if status_filter == 'processed' %} is-active{% endif %}"
+           href="{% url 'feedback_list' %}?status=processed">Обработанные</a>
+    </nav>
+</div>
+
+<div class="rr-table-wrap">
+    <table class="rr-table">
+        <thead>
+            <tr>
+                <th>№ п/п</th>
+                <th>Дата</th>
+                <th>Автор</th>
+                <th>Сообщение</th>
+                <th>Вложения</th>
+                <th>Статус</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td class="rr-cell-date">{{ item.created_at|date:"d.m.Y H:i" }}</td>
+                <td class="rr-cell-nowrap">
+                    {{ item.author_name|default:item.author_login }}
+                    <span class="fb-author-login">{{ item.author_login }}</span>
+                </td>
+                <td class="fb-cell-message">{{ item.body }}</td>
+                <td>
+                    {% if item.attachments.all %}
+                    <ul class="fb-attachments">
+                        {% for attachment in item.attachments.all %}
+                        <li>
+                            <a href="{% url 'feedback_attachment_download' attachment.pk %}"
+                               title="Скачать {{ attachment.original_name }}">{{ attachment.original_name }}</a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}—{% endif %}
+                </td>
+                <td><span class="rr-badge rr-badge--{{ item.status }}">{{ item.get_status_display }}</span></td>
+                <td class="rr-cell-actions">
+                    <form method="post" action="{% url 'feedback_set_status' item.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="filter_status" value="{{ status_filter }}">
+                        {% if item.status == "new" %}
+                        <input type="hidden" name="status" value="processed">
+                        <button type="submit" class="rr-action-btn">Обработано</button>
+                        {% else %}
+                        <input type="hidden" name="status" value="new">
+                        <button type="submit" class="rr-action-btn">Вернуть в новые</button>
+                        {% endif %}
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="rr-empty">Обращений нет</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
