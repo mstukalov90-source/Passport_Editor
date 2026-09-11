@@ -7,6 +7,7 @@
 {% block page_styles %}
 {% load static %}
 <link rel="stylesheet" href="{% static 'pass_viewer/css/login.css' %}">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/login-background.css' %}?v=1">
 {% endblock %}
 
 {% block content %}
@@ -33,4 +34,16 @@
         <a class="login-action-btn login-action-btn--secondary" href="{% url 'login' %}">Вернуться на страницу входа</a>
     </div>
 </div>
+{% endblock %}
+
+{% block page_scripts %}
+{% load static %}
+<script>
+    window.PV_LOGIN_BG_ASSETS = {
+        gsk: '{% static "pass_viewer/gsk.svg" %}',
+        logo: '{% static "pass_viewer/logo_dgp.png" %}',
+        cube: '{% static "pass_viewer/cube_red.svg" %}'
+    };
+</script>
+<script src="{% static 'pass_viewer/js/login-background.js' %}?v=1" defer></script>
 {% endblock %}

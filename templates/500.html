@@ -1,0 +1,18 @@
+{% extends 'error_base.html' %}
+
+{% block title %}Внутренняя ошибка сервера{% endblock %}
+
+{% block error_code %}500{% endblock %}
+
+{% block error_status_class %} error-status--red{% endblock %}
+
+{% block error_title %}Внутренняя ошибка сервера{% endblock %}
+
+{% block error_text %}
+    Что-то пошло не так на нашей стороне. Мы работаем над устранением неполадки.
+    Вернитесь на главную страницу и повторите действие позже.
+{% endblock %}
+
+{% block error_actions %}
+    <a class="login-action-btn" href="/">На главную</a>
+{% endblock %}

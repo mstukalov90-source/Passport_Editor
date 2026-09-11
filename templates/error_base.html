@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Ошибка{% endblock %}</title>
+    {% load static %}
+    <link rel="icon" type="image/png" href="{% static 'pass_viewer/brand-mark.png' %}">
+    <link rel="stylesheet" href="{% static 'pass_viewer/css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'pass_viewer/css/tokens.css' %}">
+    <link rel="stylesheet" href="{% static 'pass_viewer/css/login.css' %}">
+    <link rel="stylesheet" href="{% static 'pass_viewer/css/login-background.css' %}?v=1">
+    <link rel="stylesheet" href="{% static 'pass_viewer/css/error.css' %}?v=1">
+</head>
+<body class="login-page">
+<main class="container">
+    <div class="login-card">
+        <div class="login-brand-title">САПР МГГТ 2.0</div>
+        <div class="error-status{% block error_status_class %}{% endblock %}">{% block error_code %}{% endblock %}</div>
+        <h1 class="login-title">{% block error_title %}{% endblock %}</h1>
+        <p class="login-lockout-text">{% block error_text %}{% endblock %}</p>
+        <div class="login-actions">
+            {% block error_actions %}{% endblock %}
+        </div>
+    </div>
+</main>
+<script>
+    window.PV_LOGIN_BG_ASSETS = {
+        gsk: '{% static "pass_viewer/gsk.svg" %}',
+        logo: '{% static "pass_viewer/logo_dgp.png" %}',
+        cube: '{% static "pass_viewer/cube_red.svg" %}'
+    };
+</script>
+<script src="{% static 'pass_viewer/js/login-background.js' %}?v=1" defer></script>
+</body>
+</html>

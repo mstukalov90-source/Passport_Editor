@@ -270,6 +270,11 @@
         }
     }
 
+    function notifyAttachmentsChanged() {
+        // Модалка подтверждения выгрузки (dgi-export-gate) ждёт файл-обоснование.
+        document.dispatchEvent(new CustomEvent('pv:attachments-changed'));
+    }
+
     async function uploadFile(file) {
         const rid = requestId();
         const u = urls();
@@ -289,6 +294,7 @@
                 credentials: 'same-origin',
             });
             await loadAll();
+            notifyAttachmentsChanged();
         } catch (err) {
             setAttachError(err.message || 'Не удалось загрузить файл.');
         }
@@ -305,6 +311,7 @@
                 credentials: 'same-origin',
             });
             await loadAll();
+            notifyAttachmentsChanged();
         } catch (err) {
             setAttachError(err.message || 'Не удалось удалить файл.');
         }

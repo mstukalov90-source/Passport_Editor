@@ -3,9 +3,34 @@
 
     const PV = global.PassViewer = global.PassViewer || {};
 
+    // Слои группы «Границы З/У»: подтверждение требуется при пересечении 10+%.
+    const ZU_GATE_LAYERS = [
+        { key: 'percent_moscow_rent', label: 'г. Москва с арендой' },
+        { key: 'percent_private_rent', label: 'Частная или федеральная собственность с арендой' },
+        { key: 'percent_private_no_rent', label: 'Частная или федеральная собственность без аренды' },
+        { key: 'percent_dgi_renovation', label: 'Реновация' },
+    ];
+    const ZU_GATE_THRESHOLD = 10;
+
+    function topZuLayer(data) {
+        let top = null;
+        ZU_GATE_LAYERS.forEach((layer) => {
+            const pct = Number(data && data[layer.key]) || 0;
+            if (pct > 0 && (!top || pct > top.percent)) {
+                top = { key: layer.key, label: layer.label, percent: pct };
+            }
+        });
+        return top;
+    }
+
+    function hasAttachedFiles() {
+        return document.querySelectorAll('#attachments-list .add-object-attachment').length > 0;
+    }
+
     /**
-     * Hidden DGI intersection check before export modal (private ownership layer only).
-     * @returns {Promise<{available: boolean, percentPrivate: number, intersectsPrivate: boolean, requiresConfirm: boolean}>}
+     * Hidden DGI intersection check before export modal.
+     * Подтверждение требуется при пересечении 10+% с любым слоем группы «Границы З/У».
+     * @returns {Promise<{available: boolean, percentPrivate: number, intersectsPrivate: boolean, requiresConfirm: boolean, triggerLayer: string, triggerPercent: number}>}
      */
     PV.runDgiExportGate = async function runDgiExportGate(options) {
         const geometry = options && options.geometry;
@@ -22,6 +47,8 @@
             percentPrivate: 0,
             intersectsPrivate: false,
             requiresConfirm: false,
+            triggerLayer: '',
+            triggerPercent: 0,
         };
 
         if (!geometry || !checkDgiUrl) {
@@ -46,11 +73,14 @@
                 return empty;
             }
             const percentPrivate = Number(data.percent_private) || 0;
+            const trigger = topZuLayer(data);
             return {
                 available: true,
                 percentPrivate: percentPrivate,
                 intersectsPrivate: percentPrivate > 0,
-                requiresConfirm: percentPrivate > 10,
+                requiresConfirm: !!trigger && trigger.percent >= ZU_GATE_THRESHOLD,
+                triggerLayer: trigger ? trigger.label : '',
+                triggerPercent: trigger ? trigger.percent : 0,
             };
         } catch (error) {
             console.error('DGI export gate: request failed', error);
@@ -58,27 +88,29 @@
         }
     };
 
-    PV.buildDgiExportWarningText = function buildDgiExportWarningText(percentPrivate) {
-        const pct = Number(percentPrivate);
+    PV.buildDgiExportWarningText = function buildDgiExportWarningText(percent, layerLabel) {
+        const pct = Number(percent);
         if (!pct || pct <= 0) {
             return '';
         }
-        return (
-            'Внимание: Границы объекта пересекают Частную собственность на ' + pct + '%'
-        );
+        const where = layerLabel
+            ? 'слой «' + layerLabel + '» (группа «Границы З/У»)'
+            : 'Частную собственность';
+        return 'Внимание: Границы объекта пересекают ' + where + ' на ' + pct + '%';
     };
 
-    PV.createPendingDgiApprove = function createPendingDgiApprove(percentPrivate) {
+    PV.createPendingDgiApprove = function createPendingDgiApprove(percent, layerLabel) {
         return {
             approved_at: new Date().toISOString(),
-            percent: Number(percentPrivate) || 0,
+            percent: Number(percent) || 0,
             user: '',
             ownership: 'private',
+            layer: layerLabel || '',
         };
     };
 
     /**
-     * Wire export button: DGI check -> optional confirm -> open save modal.
+     * Wire export button: DGI check -> optional confirm (with required attachment) -> save modal.
      */
     PV.initDgiExportGateFlow = function initDgiExportGateFlow(config) {
         const exportButton = config.exportButton;
@@ -99,6 +131,7 @@
         let gateResult = null;
         const labelEl = exportButton.querySelector('.map-toolbar-btn__label');
         const originalLabel = labelEl ? labelEl.textContent : exportButton.textContent;
+        const confirmTextEl = document.getElementById('dgi-export-confirm-text');
 
         function setExportLabel(text) {
             if (PV.setMapToolbarLabel) {
@@ -115,16 +148,40 @@
             setExportLabel(loading ? 'Проверка…' : originalLabel);
         }
 
+        function isConfirmModalOpen() {
+            return !!dgiConfirmModal && dgiConfirmModal.style.display !== 'none';
+        }
+
         function closeConfirmModal() {
             if (dgiConfirmModal) {
                 dgiConfirmModal.style.display = 'none';
             }
         }
 
-        function showConfirmModal() {
-            if (dgiConfirmModal) {
-                dgiConfirmModal.style.display = 'flex';
+        function refreshAgreeState() {
+            if (!dgiConfirmAgree) {
+                return;
             }
+            dgiConfirmAgree.disabled = !hasAttachedFiles();
+            dgiConfirmAgree.title = dgiConfirmAgree.disabled
+                ? 'Сначала загрузите файл-обоснование'
+                : '';
+        }
+
+        function showConfirmModal() {
+            if (!dgiConfirmModal) {
+                return;
+            }
+            if (confirmTextEl && gateResult) {
+                confirmTextEl.textContent =
+                    'Я уведомлён, что пересечение со слоем «' +
+                    (gateResult.triggerLayer || '—') +
+                    '» группы «Границы З/У» составляет ' +
+                    gateResult.triggerPercent +
+                    '% (более 10%).';
+            }
+            dgiConfirmModal.style.display = 'flex';
+            refreshAgreeState();
         }
 
         async function proceedAfterGate() {
@@ -137,7 +194,8 @@
                 return;
             }
             openSaveModal({
-                warningPercent: gateResult.intersectsPrivate ? gateResult.percentPrivate : null,
+                warningPercent: gateResult.triggerPercent > 0 ? gateResult.triggerPercent : null,
+                warningLayer: gateResult.triggerLayer || '',
             });
         }
 
@@ -169,11 +227,23 @@
                     closeConfirmModal();
                     return;
                 }
+                if (!hasAttachedFiles()) {
+                    refreshAgreeState();
+                    return;
+                }
                 if (setPendingApprove) {
-                    setPendingApprove(PV.createPendingDgiApprove(gateResult.percentPrivate));
+                    setPendingApprove(
+                        PV.createPendingDgiApprove(
+                            gateResult.triggerPercent,
+                            gateResult.triggerLayer
+                        )
+                    );
                 }
                 closeConfirmModal();
-                openSaveModal({warningPercent: gateResult.percentPrivate});
+                openSaveModal({
+                    warningPercent: gateResult.triggerPercent,
+                    warningLayer: gateResult.triggerLayer || '',
+                });
             });
         }
 
@@ -198,6 +268,13 @@
                 }
             });
         }
+
+        // Загрузка/удаление вложения из модалки подтверждения меняет доступность «Согласен».
+        document.addEventListener('pv:attachments-changed', () => {
+            if (isConfirmModalOpen()) {
+                refreshAgreeState();
+            }
+        });
 
         return {
             getGateResult: () => gateResult,

@@ -1263,17 +1263,6 @@ body.home--ogh-split-passport .owned-view-object-modal__header-actions #owned-vi
 .owned-view-object-modal__loading[hidden] {
     display: none;
 }
-.owned-view-object-modal__spinner {
-    width: 36px;
-    height: 36px;
-    border: 3px solid #cbd5e1;
-    border-top-color: #2563eb;
-    border-radius: 50%;
-    animation: owned-view-object-spin 0.8s linear infinite;
-}
-@keyframes owned-view-object-spin {
-    to { transform: rotate(360deg); }
-}
 .owned-view-object-modal__frame {
     flex: 1;
     min-height: 0;

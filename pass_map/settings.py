@@ -29,9 +29,13 @@ load_dotenv(BASE_DIR / ".env")
 SECRET_KEY = "django-insecure-1av$uzw-*%0$zqq0@sxs8i87ru+ryy)yj*euj$x0c@lnv9gvq1"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# DJANGO_DEBUG=0 отключает DEBUG: технические страницы Django скрываются,
+# вместо них показываются кастомные templates/404.html, 500.html и т.д.
+DEBUG = os.getenv("DJANGO_DEBUG", "1") != "0"
 
-ALLOWED_HOSTS = []
+# При DEBUG=False пустой ALLOWED_HOSTS запрещает все хосты (включая localhost) —
+# задайте DJANGO_ALLOWED_HOSTS (см. .env.example).
+ALLOWED_HOSTS = [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",") if h.strip()]
 
 
 # Application definition

@@ -24,7 +24,7 @@
     {{ hood_work_area_geojson|json_script:"hood-work-area-geojson-data" }}
     {% include 'pass_viewer/includes/map_editor_scripts.html' %}
     {% load static %}
-    <script src="{% static 'pass_viewer/js/add-object.js' %}?v=selective-1"></script>
+    <script src="{% static 'pass_viewer/js/add-object.js' %}?v=selective-2"></script>
 {% endblock %}
 
 {% block container_class %}container--wide container--add-object{% endblock %}
@@ -101,10 +101,14 @@
     <div id="dgi-export-confirm-modal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3 style="margin: 0 0 10px;">Подтверждение</h3>
-            <p class="note" style="margin-top: 0;">Я уведомлён что процент пересечения с частной собственностью более 10%</p>
+            <p class="note" id="dgi-export-confirm-text" style="margin-top: 0;">Я уведомлён, что пересечение со слоем группы «Границы З/У» составляет более 10%</p>
+            <div class="dgi-confirm-upload">
+                <label class="map-toolbar-btn map-toolbar-btn--primary" for="request-attachment-input">Загрузить файл</label>
+                <p class="note dgi-confirm-upload__hint">Для продолжения необходимо приложить файл-обоснование (PDF, DOC, DOCX, до 20 МБ).</p>
+            </div>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap;">
                 <button type="button" id="dgi-export-confirm-back" class="map-toolbar-btn map-toolbar-btn--muted">Вернуться к редактированию</button>
-                <button type="button" id="dgi-export-confirm-agree" class="map-toolbar-btn map-toolbar-btn--primary">Согласен</button>
+                <button type="button" id="dgi-export-confirm-agree" class="map-toolbar-btn map-toolbar-btn--primary" disabled title="Сначала загрузите файл-обоснование">Согласен</button>
             </div>
         </div>
     </div>
@@ -277,6 +281,12 @@
     </div>
     <div id="db-loading-modal" class="modal-overlay" style="display:none;">
         <div class="modal-card modal-card--center">
+            <div class="pv-flip-loader pv-flip-loader--stack" aria-hidden="true">
+                <div class="pv-flip-loader__inner">
+                    <div class="pv-flip-loader__face pv-flip-loader__face--front"><img src="{% static 'pass_viewer/cube_red.svg' %}" alt=""></div>
+                    <div class="pv-flip-loader__face pv-flip-loader__face--back"></div>
+                </div>
+            </div>
             <p class="modal-center-text">Выполняется выгрузка объектов. Подождите</p>
         </div>
     </div>

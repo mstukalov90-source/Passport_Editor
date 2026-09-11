@@ -1,0 +1,16 @@
+{% extends 'error_base.html' %}
+
+{% block title %}Некорректный запрос{% endblock %}
+
+{% block error_code %}400{% endblock %}
+
+{% block error_title %}Некорректный запрос{% endblock %}
+
+{% block error_text %}
+    Сервер не смог обработать запрос: возможно, адрес содержит ошибку
+    или данные были повреждены при передаче.
+{% endblock %}
+
+{% block error_actions %}
+    <a class="login-action-btn" href="{% url 'home' %}">На главную</a>
+{% endblock %}

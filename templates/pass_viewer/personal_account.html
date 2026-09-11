@@ -334,7 +334,12 @@
         <p id="owned-view-object-status" class="note owned-view-object-modal__status"></p>
         <div class="owned-view-object-modal__body">
             <div id="owned-view-object-loading" class="owned-view-object-modal__loading" hidden>
-                <div class="owned-view-object-modal__spinner" aria-hidden="true"></div>
+                <div class="pv-flip-loader" aria-hidden="true">
+                    <div class="pv-flip-loader__inner">
+                        <div class="pv-flip-loader__face pv-flip-loader__face--front"><img src="{% static 'pass_viewer/cube_red.svg' %}" alt=""></div>
+                        <div class="pv-flip-loader__face pv-flip-loader__face--back"></div>
+                    </div>
+                </div>
                 <span>Загрузка карты и слоёв…</span>
             </div>
             <iframe

@@ -261,20 +261,30 @@
     display: block;
 }
 
-.check-dgi-objects__header {
+/* --- Режим выборочного удаления пересечений (секция «Управление слоями») --- */
+
+.selective-panel {
+    border: 1px solid var(--pv-border, #e3e6ec);
+    border-radius: 10px;
+    background: #fff;
+    padding: 10px 12px 12px;
+    margin: 0 0 10px;
+}
+
+.selective-panel__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 8px;
 }
 
-.check-dgi-objects__title {
-    font-weight: 600;
+.selective-panel__title {
+    font-size: 14px;
+    font-weight: 700;
     color: var(--pv-dark-blue, #1a3f6e);
 }
 
-.check-dgi-objects__back {
+.selective-panel__exit {
     border: 1px solid #cbd5e1;
     background: #f8fafc;
     color: #334155;
@@ -282,40 +292,37 @@
     padding: 4px 10px;
     font-size: 13px;
     cursor: pointer;
+    white-space: nowrap;
 }
 
-.check-dgi-objects__back:hover {
-    background: #eef2f7;
+.selective-panel__exit:hover {
+    background: #e2e8f0;
 }
 
-.check-dgi-objects__notice {
-    margin: 0 0 8px;
+.selective-panel__notice {
+    margin: 8px 0 0;
     font-size: 13px;
     color: #b42318;
 }
 
-.check-dgi-objects {
-    max-height: 45vh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
+.selective-panel__empty {
+    padding: 10px 0;
+    color: #64748b;
+    font-size: 13px;
 }
 
-.check-dgi-objects--empty {
-    padding: 12px;
+.selective-panel__footer {
+    margin: 8px 0 0;
+    font-size: 12px;
     color: #64748b;
 }
 
-.check-dgi-objects__layer + .check-dgi-objects__layer {
+.selective-panel__layer + .selective-panel__layer {
     margin-top: 8px;
 }
 
-.check-dgi-objects__layer-title {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    padding: 6px 10px;
+.selective-panel__layer-title {
+    padding: 6px 8px;
     font-size: 13px;
     font-weight: 600;
     color: var(--pv-dark-blue, #1a3f6e);
@@ -323,54 +330,115 @@
     border-bottom: 1px solid #e2e8f0;
 }
 
-.check-dgi-object {
+.selective-panel__layer-count {
+    color: #64748b;
+    font-weight: 400;
+}
+
+.selective-panel__row {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 10px;
+    padding: 5px 8px;
     border-bottom: 1px solid #eef2f7;
+    cursor: pointer;
 }
 
-.check-dgi-object:last-child {
+.selective-panel__row:hover {
+    background: #f1f5f9;
+}
+
+.selective-panel__row.is-selected {
+    background: #fee2e2;
+}
+
+.selective-panel__row:last-child {
     border-bottom: none;
 }
 
-.check-dgi-object__name {
+.selective-panel__name {
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 14px;
+    font-size: 13px;
     color: var(--pv-text, #20242b);
 }
 
-.check-dgi-object__meta {
+.selective-panel__meta {
     flex: 0 0 auto;
-    font-size: 13px;
+    font-size: 12px;
     color: #64748b;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
-.check-dgi-object__remove {
+.selective-panel__remove {
     flex: 0 0 auto;
     border: 1px solid #f0b4b4;
     background: #fdecea;
     color: #b42318;
     border-radius: 6px;
-    padding: 4px 10px;
-    font-size: 13px;
+    padding: 3px 9px;
+    font-size: 12px;
     cursor: pointer;
 }
 
-.check-dgi-object__remove:hover {
+.selective-panel__remove:hover {
     background: #fbdcdc;
 }
 
-.check-dgi-object__remove:disabled {
+.selective-panel__remove:disabled {
     opacity: 0.6;
     cursor: default;
+}
+
+@keyframes selective-object-blink {
+    0%, 100% { fill-opacity: 0.12; stroke-opacity: 0.6; }
+    50% { fill-opacity: 0.5; stroke-opacity: 1; }
+}
+
+@keyframes selective-overlap-blink {
+    0%, 100% { fill-opacity: 0.25; }
+    50% { fill-opacity: 0.85; }
+}
+
+.leaflet-pane path.selective-object {
+    cursor: pointer;
+}
+
+.leaflet-pane path.selective-object-blink {
+    stroke: #dc2626 !important;
+    stroke-width: 3 !important;
+    fill: #dc2626;
+    animation: selective-object-blink 0.9s ease-in-out infinite;
+}
+
+.leaflet-pane path.selective-overlap-blink {
+    stroke: #b45309;
+    fill: #facc15;
+    animation: selective-overlap-blink 0.9s ease-in-out infinite;
+}
+
+/* --- Модалка подтверждения выгрузки: обязательный файл-обоснование --- */
+
+.dgi-confirm-upload {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.dgi-confirm-upload__hint {
+    margin: 0;
+    font-size: 13px;
+    color: #64748b;
 }
 
 .dgi-check-table {

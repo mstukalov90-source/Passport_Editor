@@ -80,3 +80,68 @@ button, .button-link {
         min-height: calc(100vh - 16px);
     }
 }
+
+/* Flip-tile loading indicator: same square as the auth-page background,
+   continuously flipping between the header-blue side (with cube mark)
+   and the red side. Markup:
+   <div class="pv-flip-loader"><div class="pv-flip-loader__inner">
+     <div class="pv-flip-loader__face pv-flip-loader__face--front"><img ...></div>
+     <div class="pv-flip-loader__face pv-flip-loader__face--back"></div>
+   </div></div> */
+.pv-flip-loader {
+    width: 44px;
+    height: 44px;
+    perspective: 200px;
+}
+
+.pv-flip-loader--stack {
+    margin: 0 auto 16px;
+}
+
+.pv-flip-loader__inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    animation: pv-flip-loader-spin 2.6s cubic-bezier(0.4, 0.1, 0.2, 1) infinite;
+}
+
+.pv-flip-loader__face {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+.pv-flip-loader__face--front {
+    background: var(--pv-header-bg, #1a3f6e);
+}
+
+.pv-flip-loader__face--front img {
+    width: 58%;
+    height: 58%;
+    object-fit: contain;
+    user-select: none;
+}
+
+.pv-flip-loader__face--back {
+    background: var(--pv-red, #ba3034);
+    transform: rotateY(180deg);
+}
+
+@keyframes pv-flip-loader-spin {
+    0%, 12% { transform: rotateY(0deg); }
+    46%, 54% { transform: rotateY(180deg); }
+    88%, 100% { transform: rotateY(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pv-flip-loader__inner {
+        animation: none;
+    }
+}
+

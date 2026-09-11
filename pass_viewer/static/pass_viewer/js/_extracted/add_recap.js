@@ -161,6 +161,13 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                       statusEl.textContent = text;
                   },
                   getCsrfToken: () => PV.getCookie('csrftoken') || '',
+                  map: () => map,
+                  managedLayers: () => managedLayers,
+                  editedGroup: () => dossierGroup,
+                  closeModal: () => closeCheckDgiModal(),
+                  afterExit: () => {
+                      refreshObjectLayersControl();
+                  },
               })
             : null;
         const dbLoadingModal = document.getElementById('db-loading-modal');
@@ -1500,9 +1507,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             }
             if (checkDgiMode && checkDgiMode.reset) {
                 checkDgiMode.reset();
-            }
-            if (checkDgiSelective && checkDgiSelective.reset) {
-                checkDgiSelective.reset();
             }
             setCheckDgiAnalizContext(null);
         }

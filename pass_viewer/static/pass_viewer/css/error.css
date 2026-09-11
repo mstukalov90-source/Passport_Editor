@@ -1,0 +1,24 @@
+/* Error pages (404/403/400/500/CSRF): the card, text and buttons are reused
+   from login.css; only the large status code is defined here. */
+.error-status {
+    margin: 0 0 12px;
+    font-size: 72px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    color: var(--pv-dark-blue, #1a3f6e);
+}
+
+.error-status--red {
+    color: var(--pv-red, #ba3034);
+}
+
+.login-card .error-status + .login-title {
+    margin-bottom: 16px;
+}
+
+@media (max-width: 480px) {
+    .error-status {
+        font-size: 56px;
+    }
+}

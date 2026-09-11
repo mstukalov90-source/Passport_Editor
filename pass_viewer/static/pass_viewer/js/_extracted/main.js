@@ -143,6 +143,13 @@ function formatDgiShortSobstvRr(value) {
                       statusEl.textContent = text;
                   },
                   getCsrfToken: () => PV.getCookie('csrftoken') || '',
+                  map: () => map,
+                  managedLayers: () => managedLayers,
+                  editedGroup: () => editableGroup,
+                  closeModal: () => closeCheckDgiModal(),
+                  afterExit: () => {
+                      updateRelationsButtonState();
+                  },
               })
             : null;
         const dbLoadingModal = document.getElementById('db-loading-modal');
@@ -1520,9 +1527,6 @@ function formatDgiShortSobstvRr(value) {
             }
             if (checkDgiMode && checkDgiMode.reset) {
                 checkDgiMode.reset();
-            }
-            if (checkDgiSelective && checkDgiSelective.reset) {
-                checkDgiSelective.reset();
             }
             setCheckDgiAnalizContext(null);
         }
@@ -2933,7 +2937,7 @@ function formatDgiShortSobstvRr(value) {
             newObjectRequestIdInput.value = (effectiveEntryRequestId || '').trim();
             clearSaveModalMessages();
             if (saveModalDgiWarning) {
-                const warningText = PV.buildDgiExportWarningText(opts.warningPercent);
+                const warningText = PV.buildDgiExportWarningText(opts.warningPercent, opts.warningLayer);
                 if (warningText) {
                     saveModalDgiWarning.textContent = warningText;
                     saveModalDgiWarning.style.display = 'block';

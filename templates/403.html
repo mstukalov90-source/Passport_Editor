@@ -1,0 +1,16 @@
+{% extends 'error_base.html' %}
+
+{% block title %}Доступ запрещён{% endblock %}
+
+{% block error_code %}403{% endblock %}
+
+{% block error_title %}Доступ запрещён{% endblock %}
+
+{% block error_text %}
+    У вашей учётной записи недостаточно прав для просмотра этой страницы.
+    Если вы считаете, что это ошибка, обратитесь к администратору.
+{% endblock %}
+
+{% block error_actions %}
+    <a class="login-action-btn" href="{% url 'home' %}">На главную</a>
+{% endblock %}

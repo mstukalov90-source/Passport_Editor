@@ -229,6 +229,13 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
                       statusEl.textContent = text;
                   },
                   getCsrfToken: () => PV.getCookie('csrftoken') || '',
+                  map: () => map,
+                  managedLayers: () => managedLayers,
+                  editedGroup: () => editableGroup,
+                  closeModal: () => closeCheckDgiModal(),
+                  afterExit: () => {
+                      updateRelationsButtonState();
+                  },
               })
             : null;
         const dbLoadingModal = document.getElementById('db-loading-modal');
@@ -1700,9 +1707,6 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             if (checkDgiMode && checkDgiMode.reset) {
                 checkDgiMode.reset();
             }
-            if (checkDgiSelective && checkDgiSelective.reset) {
-                checkDgiSelective.reset();
-            }
             setCheckDgiAnalizContext(null);
         }
 
@@ -2604,7 +2608,7 @@ const map = L.map('map', {maxZoom: 30, preferCanvas: true}).setView([55.75, 37.6
             newObjectRequestIdInput.value = (effectiveEntryRequestId || '').trim();
             clearSaveModalMessages();
             if (saveModalDgiWarning) {
-                const warningText = PV.buildDgiExportWarningText(opts.warningPercent);
+                const warningText = PV.buildDgiExportWarningText(opts.warningPercent, opts.warningLayer);
                 if (warningText) {
                     saveModalDgiWarning.textContent = warningText;
                     saveModalDgiWarning.style.display = 'block';

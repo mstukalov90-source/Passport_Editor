@@ -1,0 +1,16 @@
+{% extends 'error_base.html' %}
+
+{% block title %}Страница не найдена{% endblock %}
+
+{% block error_code %}404{% endblock %}
+
+{% block error_title %}Страница не найдена{% endblock %}
+
+{% block error_text %}
+    Запрошенная страница не существует, была перемещена или временно недоступна.
+    Проверьте адрес или вернитесь на главную страницу.
+{% endblock %}
+
+{% block error_actions %}
+    <a class="login-action-btn" href="{% url 'home' %}">На главную</a>
+{% endblock %}
