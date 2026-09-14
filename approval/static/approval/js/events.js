@@ -812,8 +812,15 @@
         const title = el('approval-chat-confirm-title');
         const text = el('approval-chat-confirm-text');
         const submit = el('approval-chat-confirm-submit');
+        const cancel = dialog
+            ? dialog.querySelector('.approval-event-dialog__cancel')
+            : null;
         if (!dialog || !title || !text || !submit) {
             return;
+        }
+        if (cancel) {
+            cancel.hidden = false;
+            cancel.textContent = 'Отмена';
         }
         setApproveConfirmMode(mode);
         if (mode === 'revoke') {
@@ -830,6 +837,72 @@
         if (typeof dialog.showModal === 'function') {
             dialog.showModal();
         }
+    }
+
+    let genericDialogResolve = null;
+
+    function settleGenericDialog(result) {
+        if (genericDialogResolve) {
+            const resolve = genericDialogResolve;
+            genericDialogResolve = null;
+            resolve(result);
+        }
+    }
+
+    function openGenericDialog(options, singleButton) {
+        const opts = options || {};
+        return new Promise(function (resolve) {
+            const dialog = el('approval-chat-confirm-dialog');
+            const title = el('approval-chat-confirm-title');
+            const text = el('approval-chat-confirm-text');
+            const submit = el('approval-chat-confirm-submit');
+            const cancel = dialog
+                ? dialog.querySelector('.approval-event-dialog__cancel')
+                : null;
+            if (
+                !dialog ||
+                !title ||
+                !text ||
+                !submit ||
+                typeof dialog.showModal !== 'function'
+            ) {
+                // Fallback keeps flows usable even if the dialog markup changes.
+                if (singleButton) {
+                    window.alert(opts.text || '');
+                    resolve();
+                } else {
+                    resolve(window.confirm(opts.text || ''));
+                }
+                return;
+            }
+            settleGenericDialog(false);
+            title.textContent = opts.title || 'Подтверждение';
+            text.textContent = opts.text || '';
+            submit.textContent = opts.submitLabel || (singleButton ? 'Понятно' : 'Подтвердить');
+            submit.classList.toggle(
+                'approval-event-dialog__submit--danger',
+                !singleButton && !!opts.danger
+            );
+            if (cancel) {
+                cancel.hidden = !!singleButton;
+                cancel.textContent = opts.cancelLabel || 'Отмена';
+            }
+            genericDialogResolve = singleButton
+                ? function () {
+                      resolve();
+                  }
+                : resolve;
+            setApproveConfirmMode('generic');
+            dialog.showModal();
+        });
+    }
+
+    function showStyledConfirm(options) {
+        return openGenericDialog(options, false);
+    }
+
+    function showStyledAlert(options) {
+        return openGenericDialog(options, true);
     }
 
     function updateComposerState(caseItem) {
@@ -983,7 +1056,7 @@
         if (subtitleEl) {
             if (caseItem.n_root) {
                 subtitleEl.hidden = false;
-                subtitleEl.textContent = 'Паспорт ' + caseItem.n_root;
+                subtitleEl.textContent = 'ID Паспорта: ' + caseItem.n_root;
             } else if (caseItem.is_primary) {
                 subtitleEl.hidden = false;
                 subtitleEl.textContent = 'Основной чат по объекту съёмки';
@@ -1273,7 +1346,7 @@
         if (subtitleEl) {
             if (caseItem.n_root) {
                 subtitleEl.hidden = false;
-                subtitleEl.textContent = 'Паспорт ' + caseItem.n_root;
+                subtitleEl.textContent = 'ID Паспорта: ' + caseItem.n_root;
             } else if (caseItem.is_primary) {
                 subtitleEl.hidden = false;
                 subtitleEl.textContent = 'Основной чат по объекту съёмки';
@@ -1504,7 +1577,13 @@
         if (!caseItem || caseItem.approved) {
             return;
         }
-        if (!window.confirm('Удалить это сообщение?')) {
+        const confirmed = await showStyledConfirm({
+            title: 'Удаление сообщения',
+            text: 'Удалить это сообщение?',
+            submitLabel: 'Удалить',
+            danger: true,
+        });
+        if (!confirmed) {
             return;
         }
         const data = await fetchJson(
@@ -1526,7 +1605,13 @@
         if (!caseItem || !caseItem.can_delete) {
             return;
         }
-        if (!window.confirm('Удалить это событие? Действие необратимо.')) {
+        const confirmed = await showStyledConfirm({
+            title: 'Удаление события',
+            text: 'Удалить это событие? Действие необратимо.',
+            submitLabel: 'Удалить',
+            danger: true,
+        });
+        if (!confirmed) {
             return;
         }
         const deletedId = String(caseId);
@@ -1679,29 +1764,45 @@
         const name = String(options.name || '').trim();
         const geometry = options.geometry || null;
         if (!currentUserIsInspectorForSelected()) {
-            window.alert('Создавать события может только инспектор.');
+            await showStyledAlert({
+                title: 'Недостаточно прав',
+                text: 'Создавать события может только инспектор.',
+            });
             return;
         }
         if (!state.selectedApproveId) {
-            window.alert('Выберите согласование.');
+            await showStyledAlert({
+                title: 'Согласование не выбрано',
+                text: 'Выберите согласование.',
+            });
             return;
         }
         if (!rootId) {
-            window.alert('У объекта нет RootId.');
+            await showStyledAlert({
+                title: 'Нет идентификатора',
+                text: 'У объекта нет ID Паспорта.',
+            });
             return;
         }
         if (!ownerId) {
-            window.alert('У смежного объекта нет OwnerLegalPersonId.');
+            await showStyledAlert({
+                title: 'Нет балансодержателя',
+                text: 'У смежного объекта не указан балансодержатель.',
+            });
             return;
         }
         if (!geometry) {
-            window.alert('У объекта нет геометрии.');
+            await showStyledAlert({
+                title: 'Нет геометрии',
+                text: 'У объекта нет геометрии.',
+            });
             return;
         }
-        const titleHint = name || ('Паспорт ' + rootId);
-        const confirmed = window.confirm(
-            'Создать событие для смежного объекта?\n\n' + titleHint + '\nRootId: ' + rootId
-        );
+        const confirmed = await showStyledConfirm({
+            title: 'Создание события',
+            text: 'Создать событие для смежного объекта?\n\nID Паспорта: ' + rootId + (name ? '\nНазвание: ' + name : ''),
+            submitLabel: 'Создать событие',
+        });
         if (!confirmed) {
             return;
         }
@@ -1723,7 +1824,10 @@
             );
             await loadBootstrap();
         } catch (error) {
-            window.alert((error && error.message) || 'Не удалось создать событие.');
+            await showStyledAlert({
+                title: 'Ошибка',
+                text: (error && error.message) || 'Не удалось создать событие.',
+            });
         }
     }
 
@@ -1735,7 +1839,7 @@
         if (!kindSelect || !label) {
             return;
         }
-        label.textContent = kindSelect.value === 'login' ? 'Login' : 'OwnerLegalPersonId';
+        label.textContent = kindSelect.value === 'login' ? 'Логин' : 'Балансодержатель (ID)';
     }
 
     function openAddParticipantDialog(caseId) {
@@ -1866,6 +1970,10 @@
             confirmForm.addEventListener('submit', function (event) {
                 const submitter = event.submitter;
                 const value = submitter && submitter.value ? submitter.value : 'cancel';
+                if (state.approveConfirmMode === 'generic') {
+                    settleGenericDialog(value === 'confirm');
+                    return;
+                }
                 if (value !== 'confirm') {
                     setApproveConfirmMode(null);
                     return;
@@ -1883,6 +1991,9 @@
         }
         if (confirmDialog) {
             confirmDialog.addEventListener('close', function () {
+                if (state.approveConfirmMode === 'generic') {
+                    settleGenericDialog(false);
+                }
                 setApproveConfirmMode(null);
             });
         }
@@ -1938,7 +2049,10 @@
     }
 
     function showError(error) {
-        window.alert((error && error.message) || 'Произошла ошибка.');
+        showStyledAlert({
+            title: 'Ошибка',
+            text: (error && error.message) || 'Произошла ошибка.',
+        });
     }
 
     window.ApprovalEvents = {

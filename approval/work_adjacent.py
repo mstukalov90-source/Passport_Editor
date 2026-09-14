@@ -449,8 +449,80 @@ def format_adjacent_roots_message(n_roots: list[str], v_roots: list[str]) -> str
     roots_text = ", ".join(roots) if roots else "—"
     return (
         "Смежные паспорта не найдены в work/master (YardPoly/OznPoly/OdhPoly) "
-        f"для RootId: {roots_text}."
+        f"для ID Паспортов: {roots_text}."
     )
+
+
+def resolve_owner_legal_person_names(owner_ids: list[str] | None) -> dict[str, str]:
+    """
+    Batch-resolve balance holder names by OwnerLegalPersonId from id_names (geodb).
+
+    Returns a mapping of owner id → name for ids that were found.
+    """
+    from django.db import connection
+
+    from pass_viewer.views import _get_id_names_lookup_context
+
+    pending: list[str] = []
+    seen: set[str] = set()
+    for item in owner_ids or []:
+        text = str(item or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            pending.append(text)
+    if not pending:
+        return {}
+
+    try:
+        with connection.cursor() as cursor:
+            lookup = _get_id_names_lookup_context(cursor)
+            if not lookup:
+                return {}
+            cursor.execute(
+                f"""
+                SELECT {_quote_ident(lookup['id_field'])}::text,
+                       {_quote_ident(lookup['name_field'])}::text
+                FROM {_quote_ident(lookup['table'])}
+                WHERE {_quote_ident(lookup['id_field'])}::text = ANY(%s::text[])
+                """,
+                [pending],
+            )
+            result: dict[str, str] = {}
+            for row in cursor.fetchall() or []:
+                owner_id = str(row[0] or "").strip()
+                name = str(row[1] or "").strip()
+                if owner_id and name:
+                    result[owner_id] = name
+            return result
+    except Exception:
+        logger.exception("resolve_owner_legal_person_names: lookup failed")
+        return {}
+
+
+def enrich_adjacent_owner_names(features: list[dict]) -> None:
+    """Attach OwnerLegalPersonName to adjacent features in place (best effort)."""
+    owner_ids = []
+    for feature in features:
+        props = feature.get("properties") if isinstance(feature, dict) else None
+        if not isinstance(props, dict):
+            continue
+        owner_id = str(props.get("OwnerLegalPersonId") or "").strip()
+        if owner_id and owner_id not in owner_ids:
+            owner_ids.append(owner_id)
+    if not owner_ids:
+        return
+
+    names = resolve_owner_legal_person_names(owner_ids)
+    if not names:
+        return
+    for feature in features:
+        props = feature.get("properties") if isinstance(feature, dict) else None
+        if not isinstance(props, dict):
+            continue
+        owner_id = str(props.get("OwnerLegalPersonId") or "").strip()
+        name = names.get(owner_id) if owner_id else None
+        if name:
+            props["OwnerLegalPersonName"] = name
 
 
 def resolve_root_object_names(root_ids: list[str] | None) -> dict[str, str]:
@@ -585,4 +657,5 @@ def build_adjacent_features(
         logger.exception("build_adjacent_features: qgis query failed")
         return [], "Не удалось загрузить смежные паспорта из mggt_asu."
 
+    enrich_adjacent_owner_names(features)
     return features[:max_features], None

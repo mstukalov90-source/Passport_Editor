@@ -425,4 +425,4 @@ def test_adjacent_event_requires_neighbor_owner(mock_task_owner, client, inspect
         content_type="application/json",
     )
     assert response.status_code == 400
-    assert "OwnerLegalPersonId" in response.json()["error"]
+    assert "балансодержатель" in response.json()["error"]

@@ -300,7 +300,7 @@ main.container.container--approval {
 }
 
 .approval-map-notice__error {
-    color: #b91c1c;
+    color: var(--pv-error, #b42318);
 }
 
 .approval-map-notice__message {
@@ -644,7 +644,7 @@ main.container.container--approval {
 
 .approval-events__status--overdue {
     background: #fee2e2;
-    color: #b91c1c;
+    color: var(--pv-error, #b42318);
 }
 
 .approval-events__chat-area--list {
@@ -708,7 +708,7 @@ main.container.container--approval {
 
 .approval-chat-service--revoked {
     background: #fef2f2;
-    color: #b91c1c;
+    color: var(--pv-error, #b42318);
     border: 1px solid #fecaca;
 }
 
@@ -812,15 +812,16 @@ main.container.container--approval {
     padding: 8px 14px;
     border: none;
     border-radius: 8px;
-    background: #1f6feb;
+    background: var(--pv-blue, #165391);
     color: #fff;
     cursor: pointer;
     font-size: 14px;
     font-family: inherit;
+    transition: background 0.15s ease;
 }
 
 .approval-chat-composer__send:hover {
-    background: #1a5fd4;
+    background: var(--pv-header-bg, #1a3f6e);
 }
 
 .approval-event-list {
@@ -891,7 +892,7 @@ main.container.container--approval {
 
 .approval-event-card__status--overdue {
     background: #fee2e2;
-    color: #b91c1c;
+    color: var(--pv-error, #b42318);
 }
 
 .approval-event-card__meta {
@@ -934,7 +935,7 @@ main.container.container--approval {
     margin-left: 6px;
     border: none;
     background: #fee2e2;
-    color: #b91c1c;
+    color: var(--pv-error, #b42318);
     padding: 4px 10px;
     border-radius: 6px;
     font-size: 12px;
@@ -1173,15 +1174,24 @@ main.container.container--approval {
     padding: 8px 14px;
     border: none;
     border-radius: 8px;
-    background: #059669;
+    background: #15803d;
     color: #fff;
     cursor: pointer;
     font-size: 14px;
     font-family: inherit;
+    transition: background 0.15s ease;
+}
+
+.approval-chat-composer__approve:hover {
+    background: #166534;
 }
 
 .approval-chat-composer__approve--revoke {
-    background: #b45309;
+    background: var(--pv-red, #ba3034);
+}
+
+.approval-chat-composer__approve--revoke:hover {
+    background: #9a282c;
 }
 
 .approval-chat-composer__approve:disabled,
@@ -1198,10 +1208,15 @@ main.container.container--approval {
     color: #334155;
     font-size: 14px;
     line-height: 1.4;
+    white-space: pre-line;
 }
 
 .approval-event-dialog__submit--danger {
-    background: #b45309;
+    background: var(--pv-red, #ba3034);
+}
+
+.approval-event-dialog__submit--danger:hover {
+    background: #9a282c;
 }
 
 .approval-chat-message__reactions {
@@ -1273,7 +1288,7 @@ main.container.container--approval {
     border: 1px solid transparent;
     border-radius: 6px;
     background: transparent;
-    color: #b91c1c;
+    color: var(--pv-error, #b42318);
     cursor: pointer;
     font-size: 12px;
     font-family: inherit;
@@ -1486,12 +1501,6 @@ main.container.container--approval {
     box-shadow: 0 2px 10px rgba(15, 23, 42, 0.1);
 }
 
-.approval-panel--map .map-basemap-btn.is-active {
-    border-color: #7c3aed;
-    background: #f3e8ff;
-    color: #6d28d9;
-}
-
 .approval-draw-toolbar[hidden] {
     display: none !important;
 }
@@ -1525,25 +1534,26 @@ main.container.container--approval {
 }
 
 .approval-draw-toolbar__btn.is-active {
-    border-color: #7c3aed;
-    background: #f3e8ff;
-    color: #6d28d9;
+    border-color: #1d4ed8;
+    background: #e8f0ff;
+    color: #1d4ed8;
 }
 
 .approval-draw-toolbar__btn--cancel {
-    color: #b91c1c;
+    color: var(--pv-red, #ba3034);
 }
 
 .approval-event-dialog {
-    border: none;
+    border: 1px solid var(--pv-border, #e3e6ec);
     border-radius: 12px;
     padding: 0;
     max-width: 420px;
     width: calc(100% - 32px);
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
 }
 
 .approval-event-dialog::backdrop {
-    background: rgba(15, 23, 42, 0.35);
+    background: rgba(15, 23, 42, 0.45);
 }
 
 .approval-event-dialog__form {
@@ -1555,15 +1565,22 @@ main.container.container--approval {
 .approval-event-dialog__title {
     margin: 0;
     font-size: 16px;
+    color: var(--pv-dark-blue, #1a3f6e);
 }
 
 .approval-event-dialog__input {
     width: 100%;
     font: inherit;
     padding: 8px 10px;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--pv-border-input, #c6cbd6);
     border-radius: 8px;
     box-sizing: border-box;
+}
+
+.approval-event-dialog__input:focus {
+    outline: none;
+    border-color: var(--pv-blue, #165391);
+    box-shadow: 0 0 0 3px rgba(22, 83, 145, 0.18);
 }
 
 .approval-event-dialog__actions {
@@ -1573,35 +1590,56 @@ main.container.container--approval {
 }
 
 .approval-feature-popup {
-    min-width: 120px;
+    min-width: 220px;
     max-width: 280px;
     font-size: 13px;
     color: #334155;
     line-height: 1.35;
 }
 
+.approval-feature-popup__row {
+    margin-top: 6px;
+}
+
 .approval-adjacent-popup {
-    min-width: 160px;
+    min-width: 220px;
     max-width: 260px;
 }
 
-.approval-adjacent-popup__root,
-.approval-adjacent-popup__name {
-    margin: 0 0 6px;
+.approval-adjacent-popup__row {
+    margin-top: 6px;
     font-size: 13px;
     color: #334155;
+    line-height: 1.35;
+}
+
+.approval-adjacent-popup__row:first-child {
+    margin-top: 0;
+}
+
+.approval-adjacent-popup__row strong {
+    color: #111827;
+    font-weight: 600;
 }
 
 .approval-adjacent-popup__action {
-    display: inline-block;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 8px;
     border: none;
     border-radius: 8px;
     padding: 8px 12px;
     font: inherit;
     font-size: 13px;
     cursor: pointer;
-    background: #1f6feb;
+    background: var(--pv-blue, #165391);
     color: #fff;
+    transition: background 0.15s ease;
+}
+
+.approval-adjacent-popup__action:hover {
+    background: var(--pv-header-bg, #1a3f6e);
 }
 
 .approval-event-dialog__cancel,
@@ -1611,20 +1649,31 @@ main.container.container--approval {
     padding: 8px 12px;
     font: inherit;
     cursor: pointer;
+    transition: background 0.15s ease;
 }
 
 .approval-event-dialog__cancel {
     background: #e5e7eb;
+    color: #111827;
+}
+
+.approval-event-dialog__cancel:hover {
+    background: #d1d5db;
 }
 
 .approval-event-dialog__submit {
-    background: #1f6feb;
+    background: var(--pv-blue, #165391);
     color: #fff;
+}
+
+.approval-event-dialog__submit:hover {
+    background: var(--pv-header-bg, #1a3f6e);
 }
 
 .approval-event-dialog__label {
     margin: 0;
-    font-size: 13px;
+    font-size: 14px;
+    font-weight: 600;
     color: #475569;
 }
 
@@ -1670,7 +1719,7 @@ main.container.container--approval {
 
 .approval-event-dialog__error {
     margin: 0;
-    color: #b91c1c;
+    color: var(--pv-error, #b42318);
     font-size: 13px;
 }
 

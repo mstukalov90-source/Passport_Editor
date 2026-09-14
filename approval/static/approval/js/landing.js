@@ -575,7 +575,7 @@
             icon: buildSvgIcon(iconUrl, renderSize, fx, fy),
             opacity: visible ? 1 : 0,
             zIndexOffset: 600,
-        }).bindPopup(featurePopupHtml(feature));
+        });
         if (mapUnitMeters != null && Number.isFinite(Number(mapUnitMeters))) {
             mapUnitMarkers.push({
                 kind: 'svg',
@@ -994,7 +994,7 @@
         if (!tape) {
             return;
         }
-        let html = '<div style="min-width: 220px;"><div><strong>' + escapeHtml(tape.title) + '</strong></div>';
+        let html = '<div class="approval-feature-popup"><div><strong>' + escapeHtml(tape.title) + '</strong></div>';
         if (layerKey === 'dgi') {
             const descr = props.descr;
             const address = props.address;
@@ -1002,64 +1002,64 @@
             const sobstvRrDisplay = formatDgiShortSobstvRr(props.short_sobstv_rr);
             if (!isBlankDisplayValue(descr)) {
                 html +=
-                    '<div style="margin-top: 6px;"><strong>Кадастровый номер:</strong> ' +
+                    '<div class="approval-feature-popup__row"><strong>Кадастровый номер:</strong> ' +
                     escapeHtml(descr) +
                     '</div>';
             }
             if (!isBlankDisplayValue(address)) {
                 html +=
-                    '<div style="margin-top: 6px;"><strong>Адрес:</strong> ' +
+                    '<div class="approval-feature-popup__row"><strong>Адрес:</strong> ' +
                     escapeHtml(address) +
                     '</div>';
             }
             if (!isBlankDisplayValue(vri)) {
                 html +=
-                    '<div style="margin-top: 6px;"><strong>Назначение:</strong> ' +
+                    '<div class="approval-feature-popup__row"><strong>Назначение:</strong> ' +
                     escapeHtml(vri) +
                     '</div>';
             }
             if (sobstvRrDisplay) {
                 html +=
-                    '<div style="margin-top: 6px;"><strong>Собственник:</strong> ' +
+                    '<div class="approval-feature-popup__row"><strong>Собственник:</strong> ' +
                     escapeHtml(sobstvRrDisplay) +
                     '</div>';
             }
         } else if (layerKey === 'oozt') {
             if (!isBlankDisplayValue(props.type)) {
                 html +=
-                    '<div style="margin-top: 6px;"><strong>Тип:</strong> ' +
+                    '<div class="approval-feature-popup__row"><strong>Тип:</strong> ' +
                     escapeHtml(props.type) +
                     '</div>';
             }
             if (!isBlankDisplayValue(props.nomer1)) {
                 html +=
-                    '<div style="margin-top: 6px;"><strong>Номер:</strong> ' +
+                    '<div class="approval-feature-popup__row"><strong>Номер:</strong> ' +
                     escapeHtml(props.nomer1) +
                     '</div>';
             }
             if (!isBlankDisplayValue(props.comment)) {
                 html +=
-                    '<div style="margin-top: 6px;"><strong>Комментарий:</strong> ' +
+                    '<div class="approval-feature-popup__row"><strong>Комментарий:</strong> ' +
                     escapeHtml(props.comment) +
                     '</div>';
             }
         } else if (layerKey === 'rzd') {
             if (!isBlankDisplayValue(props.name)) {
                 html +=
-                    '<div style="margin-top: 6px;"><strong>Название:</strong> ' +
+                    '<div class="approval-feature-popup__row"><strong>Название:</strong> ' +
                     escapeHtml(props.name) +
                     '</div>';
             }
             if (!isBlankDisplayValue(props.comment_)) {
                 html +=
-                    '<div style="margin-top: 6px;"><strong>Комментарий:</strong> ' +
+                    '<div class="approval-feature-popup__row"><strong>Комментарий:</strong> ' +
                     escapeHtml(props.comment_) +
                     '</div>';
             }
         } else if (layerKey === 'renew') {
             if (!isBlankDisplayValue(props.name)) {
                 html +=
-                    '<div style="margin-top: 6px;"><strong>Название:</strong> ' +
+                    '<div class="approval-feature-popup__row"><strong>Название:</strong> ' +
                     escapeHtml(props.name) +
                     '</div>';
             }
@@ -1101,20 +1101,6 @@
         }
     }
 
-    function adjacentSourceLabel(sourceTable) {
-        const table = String(sourceTable || '').trim();
-        if (table === 'YardPoly') {
-            return 'ДТ';
-        }
-        if (table === 'OdhPoly') {
-            return 'ОДХ';
-        }
-        if (table === 'OznPoly') {
-            return 'ОО';
-        }
-        return table || null;
-    }
-
     function adjacentBaseKey(layerKey) {
         const key = String(layerKey || '');
         if (key.indexOf('adjacent_approval') === 0) {
@@ -1124,20 +1110,6 @@
             return 'adjacent_objects';
         }
         return '';
-    }
-
-    function adjacentLayerLabel(layerKey) {
-        const base = adjacentBaseKey(layerKey);
-        if (!base) {
-            return null;
-        }
-        const parts = String(layerKey || '').split(':');
-        const sourceLabel = adjacentSourceLabel(parts[1] || '');
-        const title =
-            base === 'adjacent_approval'
-                ? 'Смежный объект для согласования'
-                : 'Смежные объекты';
-        return sourceLabel ? title + ' · ' + sourceLabel : title;
     }
 
     function isAdjacentFeature(props) {
@@ -1397,7 +1369,7 @@
         }
         const rootId = String((entry && entry.rootId) || '').trim();
         if (rootId) {
-            return 'Паспорт ' + rootId;
+            return 'ID Паспорта ' + rootId;
         }
         return 'Без названия';
     }
@@ -1592,38 +1564,6 @@
         return leafletPathStyle(resolveRuleStyle(styleKey, props), fallbackKey, geometryType || 'polygon');
     }
 
-    function featurePopupHtml(feature) {
-        const props = feature.properties || {};
-        const parts = [];
-        const panelLayerKey = props.layerKey;
-        const adjacentLabel = adjacentLayerLabel(panelLayerKey);
-        if (adjacentLabel) {
-            parts.push(adjacentLabel);
-        }
-        const styleKey = styleTableKey(props);
-        const tableDef = styleKey ? getTableStyleDef(styleKey) : null;
-        if (!adjacentLabel) {
-            if (tableDef && tableDef.label) {
-                parts.push(tableDef.label);
-            } else if (props.sourceTable) {
-                parts.push(props.sourceTable);
-            }
-        }
-        if (props.Name) {
-            parts.push(props.Name);
-        }
-        if (props.RootId) {
-            parts.push('RootId: ' + props.RootId);
-        }
-        if (props.caseTitle) {
-            parts.push(props.caseTitle);
-        }
-        const text = parts.join(' · ') || 'объект';
-        return (
-            '<div class="approval-feature-popup">' + escapeHtml(text) + '</div>'
-        );
-    }
-
     function buildTextLabelIcon(textHtml, fontPx, color, rotationDeg) {
         const fontSize = Math.max(1, Math.round(fontPx));
         const size = Math.max(2, Math.round(fontSize * 1.4));
@@ -1711,9 +1651,9 @@
         const marker = L.marker(latlng, {
             icon: buildTextLabelIcon(textHtml, renderPx, color, rotationDeg),
             opacity: visible ? 1 : 0,
-            interactive: true,
+            interactive: false,
             zIndexOffset: 500,
-        }).bindPopup(featurePopupHtml(feature));
+        });
 
         if (mapUnit) {
             mapUnitMarkers.push({
@@ -1904,7 +1844,7 @@
                     : 0.85
                 : 0,
             pane: 'markerPane',
-        }).bindPopup(featurePopupHtml(feature));
+        });
         if (sizeUnit === 'MapUnit' && mapMetersForCircle != null) {
             mapUnitMarkers.push({
                 kind: 'circle',
@@ -2320,7 +2260,7 @@
             const caseKey = geometryLayerKey('case', caseItem.id);
             let label = caseItem.title || 'событие';
             if (caseItem.n_root) {
-                label = 'Паспорт ' + caseItem.n_root + ': ' + label;
+                label = 'ID Паспорта ' + caseItem.n_root + ': ' + label;
             }
             addGeometryLayer(caseKey, caseItem.geometry, label, false);
         }
@@ -2590,17 +2530,30 @@
             const rootId = String(props.RootId || '');
             const name = String(props.Name || '');
             const ownerId = String(props.OwnerLegalPersonId || '');
+            const ownerName = String(props.OwnerLegalPersonName || '');
             const geomEncoded = feature.geometry
                 ? encodeURIComponent(JSON.stringify(feature.geometry))
                 : '';
-            const rootLine = rootId
-                ? '<p class="approval-adjacent-popup__root">Паспорт ' + escapeHtml(rootId) + '</p>'
-                : '';
-            const nameLine = name ? '<p class="approval-adjacent-popup__name">' + escapeHtml(name) + '</p>' : '';
+
+            function popupRow(label, value) {
+                return (
+                    '<div class="approval-adjacent-popup__row"><strong>' +
+                    label +
+                    ':</strong> ' +
+                    escapeHtml(value) +
+                    '</div>'
+                );
+            }
+
+            const rows =
+                (rootId ? popupRow('ID Паспорта', rootId) : '') +
+                (name ? popupRow('Название', name) : '') +
+                (ownerName || ownerId
+                    ? popupRow('Балансодержатель', ownerName || ownerId)
+                    : '');
             const html =
                 '<div class="approval-adjacent-popup">' +
-                rootLine +
-                nameLine +
+                rows +
                 '<button type="button" class="approval-adjacent-popup__action"' +
                 ' data-action="create-event"' +
                 ' data-root-id="' +
@@ -2667,13 +2620,6 @@
             if (isReferenceLayerKey(layerKey)) {
                 bindReferenceLayerPopup(layer, feature, layerKey);
                 attachSignalTapeHatching(layer, referenceStyleKey(props));
-            } else {
-                layer.bindPopup(featurePopupHtml(feature));
-                layer.on('popupopen', function () {
-                    if (isDrawModeActive() || isMeasureModeActive()) {
-                        layer.closePopup();
-                    }
-                });
             }
             if (!isInspectorForSelectedApprove()) {
                 return;

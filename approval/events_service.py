@@ -847,7 +847,7 @@ def validate_case_owners(*, is_primary: bool, owners: list[str]) -> list[str]:
 def resolve_event_case_owners(*, task_owner_id: str, event_owners: list[str]) -> list[str]:
     task_owner = str(task_owner_id).strip()
     if not task_owner:
-        raise ValueError("Не найден OwnerLegalPersonId для объекта съёмки.")
+        raise ValueError("Не найден балансодержатель для объекта съёмки.")
 
     normalized_event = [str(item).strip() for item in (event_owners or []) if str(item).strip()]
     if not normalized_event:
@@ -1668,11 +1668,11 @@ def create_event_from_adjacent(
 
     root_text = str(n_root or "").strip()
     if not root_text:
-        raise ValueError("Укажите n_root (RootId) смежного объекта.")
+        raise ValueError("Укажите ID Паспорта смежного объекта.")
 
     neighbor_text = str(neighbor_owner or "").strip()
     if not neighbor_text:
-        raise ValueError("Не указан OwnerLegalPersonId смежного объекта.")
+        raise ValueError("Не указан балансодержатель смежного объекта.")
 
     if Case.objects.filter(approve=approve, is_primary=False, n_root=root_text).exists():
         raise ValueError(f"Событие для паспорта {root_text} уже существует.")

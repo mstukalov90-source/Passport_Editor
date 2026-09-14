@@ -40,6 +40,7 @@ from .access import (
     get_accessible_cases_queryset,
     is_inspector_for_approve,
     user_can_access_case,
+    user_can_write_approvals,
 )
 from pass_viewer.roles import resolve_user_scope
 

@@ -153,7 +153,7 @@
         <select id="approval-change-owner-case" class="approval-event-dialog__input" required></select>
         <label class="approval-event-dialog__label" for="approval-change-owner-old">Текущий владелец</label>
         <select id="approval-change-owner-old" class="approval-event-dialog__input" required></select>
-        <label class="approval-event-dialog__label" for="approval-change-owner-new">Новый OwnerLegalPersonId</label>
+        <label class="approval-event-dialog__label" for="approval-change-owner-new">Новый балансодержатель (ID)</label>
         <input
             type="text"
             id="approval-change-owner-new"
@@ -176,11 +176,11 @@
         <h3 class="approval-event-dialog__title" id="approval-add-participant-title">Добавить участника</h3>
         <label class="approval-event-dialog__label" for="approval-add-participant-kind">Тип</label>
         <select id="approval-add-participant-kind" class="approval-event-dialog__input">
-            <option value="owner">По owner (OwnerLegalPersonId)</option>
-            <option value="login">По login</option>
+            <option value="owner">По балансодержателю (ID)</option>
+            <option value="login">По логину</option>
         </select>
         <label class="approval-event-dialog__label" for="approval-add-participant-value" id="approval-add-participant-value-label">
-            OwnerLegalPersonId
+            Балансодержатель (ID)
         </label>
         <input
             type="text"
