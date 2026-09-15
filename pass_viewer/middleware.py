@@ -1,4 +1,8 @@
+import logging
+
 from pass_viewer.hood_scope import clear_hood_scope, resolve_and_bind_hood_scope
+
+logger = logging.getLogger(__name__)
 
 
 class HoodSpatialScopeMiddleware:
@@ -8,7 +12,14 @@ class HoodSpatialScopeMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        resolve_and_bind_hood_scope(request)
+        try:
+            resolve_and_bind_hood_scope(request)
+        except Exception:
+            logger.exception("HoodSpatialScopeMiddleware: bind failed")
+            try:
+                clear_hood_scope()
+            except Exception:
+                pass
         try:
             return self.get_response(request)
         finally:

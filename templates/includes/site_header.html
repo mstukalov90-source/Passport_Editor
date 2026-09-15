@@ -72,7 +72,8 @@
                 <li><button type="button" class="site-header__dropdown-link site-header__dropdown-button" id="feedback-open-btn">
                     <span class="site-header__dropdown-marker" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3h11v8H8l-3.5 2.75V11H2.5z"/></svg></span>Обратная связь</button></li>
                 {% if user_role == "MGGT" %}
-                <li><a class="site-header__dropdown-link{% if route_name == 'feedback_list' %} is-active{% endif %}" href="{% url 'feedback_list' %}">
+                {% url 'feedback_list' as feedback_list_url %}
+                <li><a class="site-header__dropdown-link{% if route_name == 'feedback_list' %} is-active{% endif %}" href="{{ feedback_list_url }}">
                     <span class="site-header__dropdown-marker" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9.25 3.5 3.5h9L14 9.25v3.25H2z"/><path d="M2 9.25h3.25l.9 1.5h3.7l.9-1.5H14"/></svg></span>Обращения пользователей</a></li>
                 {% endif %}
                 <li>

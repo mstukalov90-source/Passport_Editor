@@ -2,12 +2,14 @@
 
 Краткая памятка, чтобы не терять контекст между сессиями.
 
+**Ручной деплой из DMZ с рабочего ПК (код из GitFlic, без установки программ на ПК):** [docs/mggt-manual-deploy-gitflic.md](../docs/mggt-manual-deploy-gitflic.md).
+
 ## Окружение
 
 | Что | Значение |
 |-----|----------|
 | **Прод-сервер (сейчас)** | `172.21.197.77` (SSH `pasp-ssh-user`, Docker через `sudo`) |
-| **Целевой VPS** | `192.168.1.40` (после переноса; SSH тот же пользователь) |
+| **Прод-сервер (DMZ)** | `192.168.128.11` (`PASP-BORDER-01D`, SSH `pasp-ssh-user`) |
 | **Публичный URL / API** | `https://border-ogh.mggt.ru` (TLS на корпоративном reverse-proxy; приложение слушает HTTP :80) |
 | Каталог на сервере | `/opt/passport_editor_new` |
 | Репозиторий (сервер) | `https://hub.mos.ru/m.stukalov90/Passport_Editor.git` |

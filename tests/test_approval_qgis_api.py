@@ -19,6 +19,7 @@ def qgis_test_hosts(settings):
     settings.ALLOWED_HOSTS = [
         "172.21.197.77",
         "192.168.1.40",
+        "192.168.128.11",
         "border-ogh.mggt.ru",
         "evil.example",
         "testserver",

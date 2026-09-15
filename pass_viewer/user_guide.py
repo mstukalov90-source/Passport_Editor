@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -9,6 +10,8 @@ from pathlib import Path
 import markdown
 from django.conf import settings
 from django.templatetags.static import static
+
+logger = logging.getLogger(__name__)
 
 _MD_PATH = Path(settings.BASE_DIR) / "USER_GUIDE.md"
 _IMAGE_PREFIX = "docs/user-guide/images/"
@@ -69,12 +72,16 @@ def _enhance_images(html: str) -> str:
 def load_user_guide_html() -> str:
     if not _MD_PATH.is_file():
         return '<p class="note">Руководство пользователя недоступно.</p>'
-    md_text = _MD_PATH.read_text(encoding="utf-8")
-    md_text = _rewrite_image_paths(md_text)
-    html = markdown.markdown(
-        md_text,
-        extensions=["tables", "nl2br", "sane_lists"],
-    )
-    html = _add_heading_ids(html)
-    html = _enhance_images(html)
-    return html
+    try:
+        md_text = _MD_PATH.read_text(encoding="utf-8")
+        md_text = _rewrite_image_paths(md_text)
+        html = markdown.markdown(
+            md_text,
+            extensions=["tables", "nl2br", "sane_lists"],
+        )
+        html = _add_heading_ids(html)
+        html = _enhance_images(html)
+        return html
+    except Exception:
+        logger.exception("load_user_guide_html failed")
+        return '<p class="note">Руководство пользователя недоступно.</p>'

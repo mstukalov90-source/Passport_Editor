@@ -315,7 +315,7 @@ APPROVAL_QGIS_ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv(
         "APPROVAL_QGIS_ALLOWED_HOSTS",
-        "border-ogh.mggt.ru,172.21.197.77,192.168.1.40,127.0.0.1,localhost,testserver",
+        "border-ogh.mggt.ru,172.21.197.77,192.168.1.40,192.168.128.11,127.0.0.1,localhost,testserver",
     ).split(",")
     if host.strip()
 ]

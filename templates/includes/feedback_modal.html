@@ -6,7 +6,8 @@
             <h3 id="feedback-modal-title">Обратная связь</h3>
             <button type="button" class="feedback-modal__close" id="feedback-modal-close" aria-label="Закрыть">✕</button>
         </div>
-        <form id="feedback-form" method="post" action="{% url 'feedback_submit' %}" novalidate>
+        {% url 'feedback_submit' as feedback_submit_url %}
+        <form id="feedback-form" method="post" action="{{ feedback_submit_url }}" novalidate>
             {% csrf_token %}
             <label class="feedback-modal__label" for="feedback-body">Сообщение</label>
             <textarea class="feedback-modal__input feedback-modal__input--textarea" id="feedback-body"

@@ -55,15 +55,18 @@ from .page_config import (
     split_object_page_config,
 )
 from .roles import (
+    APPROVALS_OWNED,
     FILTER_DEPARTMENT,
     FILTER_NONE,
     FILTER_OWNER,
     FILTER_OWNER_MULTI,
+    ROLE_BD,
     ROLE_DEP_PLUS,
     ROLE_MGGT,
     ROLE_SUP,
     SUP_HOOD_SESSION_GID,
     SUP_HOOD_SESSION_LABEL,
+    UserScope,
     resolve_user_scope,
 )
 from .user_guide import load_user_guide_html
@@ -5856,7 +5859,47 @@ def home(request):
     else:
         form = EntryPointForm()
 
-    ctx = _build_home_page_context(request, form)
+    try:
+        ctx = _build_home_page_context(request, form)
+    except Exception:
+        logger.exception("home: failed to build page context")
+        is_personal_account = getattr(request.resolver_match, "url_name", "") == "personal_account"
+        empty_fc = {"type": "FeatureCollection", "features": []}
+        ctx = {
+            "form": form,
+            "owner_id": None,
+            "owner_name": None,
+            "owned_objects": [],
+            "owned_passports_geojson": empty_fc,
+            "owned_approvals_geojson": empty_fc,
+            "hood_work_area_geojson": empty_fc,
+            "owned_objects_error": "Не удалось загрузить данные личного кабинета.",
+            "need_entry_request_id": False,
+            "ods_request_source_label": getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
+            "ods_user_brids": [],
+            "approval_items": [],
+            "personal_metrics": _empty_personal_metrics(),
+            "personal_table_items": [],
+            "personal_kind_counts": None,
+            "personal_statistics": None,
+            "user_role": ROLE_BD,
+            "display_name": "",
+            "can_write": True,
+            "show_passports_tab": True,
+            "show_approvals_mine_all_filter": False,
+            "need_sup_hood_modal": False,
+            "hood_districts": [],
+            "sup_hood_gid": "",
+            "sup_hood_label": "",
+            "lists_embed": False,
+            "lists_active_tab": "passports",
+            "page_config": {
+                "page": "personal" if is_personal_account else "home",
+                "urls": {},
+                "features": {},
+            },
+            "user_guide_html": "",
+        }
     is_personal_account = request.resolver_match.url_name == "personal_account"
     template_name = "pass_viewer/personal_account.html" if is_personal_account else "pass_viewer/home.html"
     return render(request, template_name, ctx)
@@ -5940,8 +5983,37 @@ def _get_hood_work_area_geojson(request, scope):
         return empty
 
 
+def _fallback_user_scope(username: str) -> UserScope:
+    return UserScope(
+        role=ROLE_BD,
+        owner_id=None,
+        owner_ids=(),
+        filter_field=FILTER_OWNER,
+        can_write=True,
+        is_global_inspector=False,
+        approvals_mode=APPROVALS_OWNED,
+        include_ods=True,
+        username=str(username or ""),
+    )
+
+
+def _empty_personal_metrics():
+    return {
+        "passport_count": 0,
+        "request_count": 0,
+        "approval_count": 0,
+        "clean_area_label": "—",
+        "overall_area_label": "—",
+        "total_area_label": "— / —",
+    }
+
+
 def _build_home_page_context(request, form, *, lists_embed=False):
-    scope = resolve_user_scope(request.user.username)
+    try:
+        scope = resolve_user_scope(request.user.username)
+    except Exception:
+        logger.exception("home: resolve_user_scope failed")
+        scope = _fallback_user_scope(getattr(request.user, "username", "") or "")
     owner_id = scope.owner_id
     owner_name = None
     owned_objects = []
@@ -6031,37 +6103,77 @@ def _build_home_page_context(request, form, *, lists_embed=False):
     else:
         lists_active_tab = "passports" if scope.role != ROLE_MGGT else "requests"
 
-    personal_table_items = (
-        _build_personal_table_items(owned_objects, approval_items) if needs_personal_rows else None
-    )
+    personal_table_items = None
+    if needs_personal_rows:
+        try:
+            personal_table_items = _build_personal_table_items(owned_objects, approval_items)
+        except Exception:
+            logger.exception("home: personal table failed")
+            personal_table_items = []
+            owned_objects_error = owned_objects_error or (
+                "Не удалось подготовить таблицу личного кабинета."
+            )
     if lists_embed or is_statistics:
         personal_kind_counts = None
     else:
-        kind_count_items = (
-            personal_table_items
-            if personal_table_items is not None
-            else _build_personal_table_items(owned_objects, approval_items)
-        )
-        personal_kind_counts = _personal_kind_filter_counts(kind_count_items)
+        try:
+            kind_count_items = (
+                personal_table_items
+                if personal_table_items is not None
+                else _build_personal_table_items(owned_objects, approval_items)
+            )
+            personal_kind_counts = _personal_kind_filter_counts(kind_count_items)
+        except Exception:
+            logger.exception("home: personal kind counts failed")
+            personal_kind_counts = None
 
     if is_personal_account:
-        page_config = personal_page_config()
+        try:
+            page_config = personal_page_config()
+        except Exception:
+            logger.exception("home: personal_page_config failed")
+            page_config = {"page": "personal", "urls": {}, "features": {}}
     elif is_statistics:
         page_config = {"page": "statistics"}
     else:
-        page_config = home_page_config(
-            need_entry_request_id=need_entry_request_id,
-            ods_source_label=getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
-            owner_id=owner_id,
-            username=request.user.username,
-            user_role=scope.role,
-            can_write=scope.can_write,
-            show_passports_tab=scope.role != ROLE_MGGT,
-            show_approvals_mine_all_filter=scope.role == ROLE_MGGT,
-            need_sup_hood_modal=need_sup_hood_modal,
-            sup_hood_gid=sup_hood_gid,
-            sup_hood_label=sup_hood_label,
-        )
+        try:
+            page_config = home_page_config(
+                need_entry_request_id=need_entry_request_id,
+                ods_source_label=getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
+                owner_id=owner_id,
+                username=request.user.username,
+                user_role=scope.role,
+                can_write=scope.can_write,
+                show_passports_tab=scope.role != ROLE_MGGT,
+                show_approvals_mine_all_filter=scope.role == ROLE_MGGT,
+                need_sup_hood_modal=need_sup_hood_modal,
+                sup_hood_gid=sup_hood_gid,
+                sup_hood_label=sup_hood_label,
+            )
+        except Exception:
+            logger.exception("home: home_page_config failed")
+            page_config = {"page": "home", "urls": {}, "features": {}}
+
+    personal_metrics = None
+    personal_statistics = None
+    if needs_personal_rows:
+        try:
+            personal_metrics = _build_personal_account_metrics(owned_objects, approval_items)
+        except Exception:
+            logger.exception("home: personal metrics failed")
+            personal_metrics = _empty_personal_metrics()
+    if is_statistics:
+        try:
+            personal_statistics = _build_personal_statistics(personal_table_items)
+        except Exception:
+            logger.exception("home: personal statistics failed")
+            personal_statistics = None
+
+    try:
+        user_guide_html = "" if lists_embed else load_user_guide_html()
+    except Exception:
+        logger.exception("home: user guide html failed")
+        user_guide_html = ""
 
     return {
         "form": form,
@@ -6076,14 +6188,10 @@ def _build_home_page_context(request, form, *, lists_embed=False):
         "ods_request_source_label": getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
         "ods_user_brids": ods_user_brids,
         "approval_items": approval_items,
-        "personal_metrics": _build_personal_account_metrics(owned_objects, approval_items)
-        if needs_personal_rows
-        else None,
+        "personal_metrics": personal_metrics,
         "personal_table_items": personal_table_items,
         "personal_kind_counts": personal_kind_counts,
-        "personal_statistics": _build_personal_statistics(personal_table_items)
-        if is_statistics
-        else None,
+        "personal_statistics": personal_statistics,
         "user_role": scope.role,
         "display_name": scope.display_name,
         "can_write": scope.can_write,
@@ -6096,7 +6204,7 @@ def _build_home_page_context(request, form, *, lists_embed=False):
         "lists_embed": lists_embed,
         "lists_active_tab": lists_active_tab,
         "page_config": page_config,
-        "user_guide_html": "" if lists_embed else load_user_guide_html(),
+        "user_guide_html": user_guide_html,
     }
 
 

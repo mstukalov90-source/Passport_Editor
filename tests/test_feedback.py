@@ -184,3 +184,16 @@ def test_header_shows_feedback_list_link_for_mggt(client) -> None:
     assert 'id="feedback-open-btn"' in content
     assert "Обращения пользователей" in content
     assert reverse("feedback_list") in content
+
+
+@pytest.mark.django_db
+def test_personal_account_survives_scope_failure(client, monkeypatch) -> None:
+    def boom(*args, **kwargs):
+        raise RuntimeError("scope failed")
+
+    monkeypatch.setattr("pass_viewer.views.resolve_user_scope", boom)
+    _login_as(client, "fb_scope_fail", role=ExternalUser.ROLE_BD)
+    response = client.get(reverse("personal_account"))
+    assert response.status_code == 200
+    body = response.content.decode("utf-8")
+    assert "Личный кабинет" in body
