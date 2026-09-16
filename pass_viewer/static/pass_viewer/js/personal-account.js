@@ -10,6 +10,8 @@
     const globalSearch = document.getElementById('personal-global-search');
     const table = document.querySelector('.personal-table');
     const clearButton = document.getElementById('personal-filter-clear');
+    // Глобальный поиск работает только по ID Паспорта, ID Заявки и Наименованию.
+    const GLOBAL_SEARCH_COLS = [1, 2, 3];
     const kindFilterButtons = Array.from(document.querySelectorAll('.personal-kind-filter-btn[data-kind-filter]'));
     const KF = PV.kindFilters || {};
 
@@ -114,6 +116,61 @@
         });
     }
 
+    function normalizeDateCell(cell) {
+        const match = cellText(cell).match(/(\d{2})\.(\d{2})\.(\d{4})/);
+        return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
+    }
+
+    function dateRangeGroups() {
+        return filterPanel ? Array.from(filterPanel.querySelectorAll('.personal-filter-daterange')) : [];
+    }
+
+    function parseDateRangeInput(value) {
+        const matches = String(value || '').match(/\d{2}\.\d{2}\.\d{4}/g);
+        if (!matches || !matches.length) {
+            return null;
+        }
+        const toIso = (ru) => ru.split('.').reverse().join('-');
+        let from = toIso(matches[0]);
+        let to = matches.length > 1 ? toIso(matches[1]) : '';
+        if (to && to < from) {
+            [from, to] = [to, from];
+        }
+        return { from, to };
+    }
+
+    function toggleDateRangeClear(group) {
+        const input = group.querySelector('input');
+        const clearBtn = group.querySelector('.personal-filter-daterange__clear');
+        if (clearBtn) {
+            clearBtn.hidden = !(input && input.value.trim());
+        }
+    }
+
+    function clearDateRange(group) {
+        const input = group.querySelector('input');
+        if (input) {
+            input.value = '';
+        }
+        toggleDateRangeClear(group);
+    }
+
+    function dateRangeMismatch(group, cells) {
+        const input = group.querySelector('input');
+        const range = input ? parseDateRangeInput(input.value) : null;
+        if (!range) {
+            return false;
+        }
+        const cellValue = normalizeDateCell(cells[Number(group.dataset.dateFilterCol)]);
+        if (!cellValue) {
+            return true;
+        }
+        if (cellValue < range.from) {
+            return true;
+        }
+        return Boolean(range.to) && cellValue > range.to;
+    }
+
     function columnMismatch(control, cells) {
         const value = control.value.trim();
         if (!value) {
@@ -195,7 +252,7 @@
 
     function updateRowSearchHighlights(row, query) {
         const cells = row.querySelectorAll('td');
-        for (let index = 1; index <= 10; index += 1) {
+        for (const index of GLOBAL_SEARCH_COLS) {
             const cell = cells[index];
             if (!cell || cell.querySelector('.personal-table-btn')) {
                 continue;
@@ -290,6 +347,7 @@
         }
         const rows = table.querySelectorAll('tbody tr');
         const controls = filterControls();
+        const dateGroups = dateRangeGroups();
         const active = activeKindFilters();
         applyStatusModeToRows(statusDisplayMode(active));
         rebuildStatusFilterSelect();
@@ -302,7 +360,8 @@
                 return;
             }
             const cells = row.querySelectorAll('td');
-            if (controls.some((control) => columnMismatch(control, cells))) {
+            if (controls.some((control) => columnMismatch(control, cells))
+                || dateGroups.some((group) => dateRangeMismatch(group, cells))) {
                 row.hidden = true;
                 updateRowSearchHighlights(row, '');
                 return;
@@ -313,7 +372,7 @@
                 return;
             }
             let matchesGlobal = false;
-            for (let index = 1; index <= 10; index += 1) {
+            for (const index of GLOBAL_SEARCH_COLS) {
                 const cell = cells[index];
                 if (cell && cell.textContent.toLocaleLowerCase('ru').includes(query)) {
                     matchesGlobal = true;
@@ -380,9 +439,22 @@
             const eventName = control.tagName === 'SELECT' ? 'change' : 'input';
             control.addEventListener(eventName, applyPersonalTableFilters);
         });
+        const dateGroupEls = dateRangeGroups();
+        dateGroupEls.forEach((group) => {
+            group.querySelector('input')?.addEventListener('input', () => {
+                toggleDateRangeClear(group);
+                applyPersonalTableFilters();
+            });
+            group.querySelector('.personal-filter-daterange__clear')?.addEventListener('click', () => {
+                clearDateRange(group);
+                applyPersonalTableFilters();
+            });
+            toggleDateRangeClear(group);
+        });
         globalSearch?.addEventListener('input', applyPersonalTableFilters);
         clearButton?.addEventListener('click', () => {
             controls.forEach((control) => { control.value = ''; });
+            dateGroupEls.forEach(clearDateRange);
             if (globalSearch) {
                 globalSearch.value = '';
             }
@@ -486,7 +558,6 @@
 
     const modal = document.getElementById('personal-detail-modal');
     const closeButton = document.getElementById('personal-detail-close');
-    const asuOdsLink = document.getElementById('personal-asu-ods-link');
     const openForm = document.getElementById('personal-open-form');
     const viewObjectModal = document.getElementById('owned-view-object-modal');
     const viewObjectFrame = document.getElementById('owned-view-object-frame');
@@ -521,21 +592,6 @@
     function fillText(id, value) {
         const node = field(id);
         if (node) node.textContent = value || '—';
-    }
-
-    function setAsuOdsLinkEnabled(enabled, rootid, sourceLabel) {
-        if (!asuOdsLink) return;
-        if (enabled && rootid) {
-            asuOdsLink.disabled = false;
-            asuOdsLink.classList.remove('is-disabled');
-            asuOdsLink.dataset.rootid = rootid;
-            asuOdsLink.dataset.source = sourceLabel || 'ДТ';
-        } else {
-            asuOdsLink.disabled = true;
-            asuOdsLink.classList.add('is-disabled');
-            asuOdsLink.removeAttribute('data-rootid');
-            asuOdsLink.removeAttribute('data-source');
-        }
     }
 
     function clearDetailMap() {
@@ -594,7 +650,6 @@
         if (modal) modal.style.display = 'none';
         if (objectToggle) objectToggle.hidden = true;
         clearDetailMap();
-        setAsuOdsLinkEnabled(false);
     }
 
     function setOwnedViewObjectLoading(isLoading, message) {
@@ -874,11 +929,6 @@
         });
     });
 
-    asuOdsLink?.addEventListener('click', () => {
-        if (asuOdsLink.disabled) return;
-        resolveAndOpenAsuOds(asuOdsLink.dataset.rootid, asuOdsLink.dataset.source);
-    });
-
     function syncModalDrawButton(button) {
         const drawBtn = document.getElementById('personal-modal-draw-open');
         if (!drawBtn) {
@@ -935,7 +985,6 @@
             fillText('detail-area', button.dataset.area);
             fillText('detail-status', button.dataset.status);
             if (field('personal-open-name')) field('personal-open-name').value = button.dataset.name || '';
-            setAsuOdsLinkEnabled(sourceLabel !== 'ТОП' && sourceLabel !== 'TOP', passportRootid || displayRootid, sourceLabel);
             if (objectToggle) objectToggle.hidden = !hasDrawnRequest;
             if (modal) modal.style.display = 'flex';
             if (hasDrawnRequest) {
@@ -1274,6 +1323,19 @@
             name: field('personal-open-name')?.value || '',
             request_id: field('personal-open-request-id')?.value || '',
             source_label: field('personal-open-source')?.value || 'ДТ',
+        });
+    });
+    document.getElementById('personal-intersecs-open')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (!PV.openIntersecsAnalizPage) {
+            return;
+        }
+        PV.openIntersecsAnalizPage({
+            pageUrl: intersecsAnalizUrl,
+            rootid: field('personal-open-rootid')?.value || '',
+            request_id: field('personal-open-request-id')?.value || '',
+            source_label: field('personal-open-source')?.value || 'ДТ',
+            name: field('personal-open-name')?.value || '',
         });
     });
     const drawForm = document.getElementById('personal-draw-form');

@@ -7,7 +7,7 @@
 
 {% block page_styles %}
 {% include 'pass_viewer/includes/map_vendor_styles.html' %}
-<link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}?v=intersecs-legend-7">
 <link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}">
 <link rel="stylesheet" href="{% static 'pass_viewer/css/map-toolbar.css' %}">
 <link rel="stylesheet" href="{% static 'pass_viewer/css/home.css' %}">
@@ -22,20 +22,37 @@
 {% block page_scripts %}
     {{ page_config|json_script:"page-config" }}
     {% include 'pass_viewer/includes/map_leaflet_vendor.html' %}
-    <script src="{% static 'pass_viewer/js/utils.js' %}?v=selective-2"></script>
+    <script src="{% static 'pass_viewer/js/utils.js' %}?v=modal-fix-1"></script>
     <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
     <script src="{% static 'pass_viewer/js/map-tools.js' %}"></script>
-    <script src="{% static 'pass_viewer/js/intersecs-analiz.js' %}?v=ogx-8"></script>
+    <script src="{% static 'pass_viewer/js/intersecs-analiz.js' %}?v=legend-12"></script>
 {% endblock %}
 
 {% block content %}
 {% csrf_token %}
-<h1 class="personal-account__title">Пространственный анализ пересечений</h1>
-<p id="intersecs-analiz-meta" class="note" style="margin-top: 0;"></p>
-<p id="intersecs-analiz-status" class="note">Загрузка…</p>
-
 <div class="intersecs-analiz-layout">
     <section class="intersecs-analiz-table-panel" aria-label="Пересечения по слоям">
+        <div class="intersecs-analiz-title-row">
+            <h1 class="personal-account__title">Пространственный анализ ОГХ</h1>
+            <form method="post" action="{% url 'open_owned_object' %}" id="intersecs-analiz-nav-form" class="intersecs-analiz-nav">
+                {% csrf_token %}
+                <input type="hidden" name="rootid" id="intersecs-analiz-nav-rootid" value="">
+                <input type="hidden" name="name" id="intersecs-analiz-nav-name" value="">
+                <input type="hidden" name="request_id" id="intersecs-analiz-nav-request-id" value="">
+                <input type="hidden" name="source_label" id="intersecs-analiz-nav-source" value="">
+                <input type="hidden" name="geometry_detail_mode" value="full">
+                <button type="submit" class="intersecs-analiz-nav-btn" title="Открыть объект на актуализацию в редакторе">
+                    {% include 'pass_viewer/includes/toolbar_icon.html' with name='aktualize' %}
+                    Актуализировать
+                </button>
+                <button type="submit" name="redirect_to" value="split_object" class="intersecs-analiz-nav-btn" title="Открыть объект в редакторе разделения">
+                    {% include 'pass_viewer/includes/toolbar_icon.html' with name='split' %}
+                    Разделить
+                </button>
+            </form>
+        </div>
+        <p id="intersecs-analiz-meta" class="note" style="margin-top: 0;"></p>
+        <p id="intersecs-analiz-status" class="note">Загрузка…</p>
         <div class="intersecs-analiz-mode-toggle" id="intersecs-analiz-mode-toggle" aria-label="Тип пересечений">
             <button type="button" class="intersecs-analiz-mode-toggle__btn is-active" data-analiz-mode="zu" aria-pressed="true">З/У</button>
             <button type="button" class="intersecs-analiz-mode-toggle__btn" data-analiz-mode="ogx" aria-pressed="false">ОГХ</button>
@@ -43,64 +60,67 @@
         <div id="intersecs-analiz-table-wrap"></div>
     </section>
     <section class="intersecs-analiz-map-panel" aria-label="Карта пересечений">
-        <div class="owned-map-legend" aria-label="Условные обозначения карты">
-            <span class="owned-map-legend__title">Обозначения:</span>
-            <span class="owned-map-legend__item">
+        <div class="owned-map-legend intersecs-analiz-legend" id="intersecs-analiz-legend" aria-label="Условные обозначения карты">
+            <button type="button" class="owned-map-legend__toggle" id="intersecs-analiz-legend-toggle" aria-expanded="true" aria-controls="intersecs-analiz-legend">
+                Обозначения
+                <span class="owned-map-legend__toggle-caret" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="__selected__" aria-pressed="true" title="Показать/скрыть выбранный объект">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--selected" aria-hidden="true"></span>
                 Выбранный объект
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="dgi_moscow_rent" aria-pressed="true" title="Показать/скрыть слой">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--dgi-moscow-rent" aria-hidden="true"></span>
                 г. Москва с арендой
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="dgi_private_rent" aria-pressed="true" title="Показать/скрыть слой">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--dgi-private-rent" aria-hidden="true"></span>
                 частн./фед. с арендой
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="dgi_private_no_rent" aria-pressed="true" title="Показать/скрыть слой">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--dgi-private-no-rent" aria-hidden="true"></span>
                 частн./фед. без аренды
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="dgi_renovation" aria-pressed="true" title="Показать/скрыть слой">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--dgi-renovation" aria-hidden="true"></span>
                 Территория под реновацию
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="renew" aria-pressed="true" title="Показать/скрыть слой">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--renew" aria-hidden="true"></span>
                 Объекты под реновацию
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="oozt" aria-pressed="true" title="Показать/скрыть слой">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--oozt" aria-hidden="true"></span>
                 ООЗТ
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="rzd" aria-pressed="true" title="Показать/скрыть слой">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--rzd" aria-hidden="true"></span>
                 Полосы отвода ЖД
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn is-off" data-legend-layer="dgi_moscow_no_rent" aria-pressed="false" title="Показать/скрыть слой">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--dgi-moscow-no-rent" aria-hidden="true"></span>
                 г. Москва без аренды
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="ogx_dt" aria-pressed="true" title="Показать/скрыть слой">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--ogx-dt" aria-hidden="true"></span>
                 ОГХ: ДТ
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="ogx_odh" aria-pressed="true" title="Показать/скрыть слой">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--ogx-odh" aria-hidden="true"></span>
                 ОГХ: ОДХ
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="ogx_oo" aria-pressed="true" title="Показать/скрыть слой">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--ogx-oo" aria-hidden="true"></span>
                 ОГХ: ОО
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="ogx_top" aria-pressed="true" title="Показать/скрыть слой">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--ogx-top" aria-hidden="true"></span>
                 ОГХ: ТОП
-            </span>
-            <span class="owned-map-legend__item">
+            </button>
+            <button type="button" class="owned-map-legend__item intersecs-analiz-legend-btn" data-legend-layer="__overlap__" aria-pressed="true" title="Показать/скрыть области пересечения">
                 <span class="owned-map-legend__swatch intersecs-legend-swatch--overlap" aria-hidden="true"></span>
                 Область пересечения
-            </span>
+            </button>
         </div>
         <div class="intersecs-analiz-map-frame">
             <div id="intersecs-analiz-map" class="intersecs-analiz-map"></div>

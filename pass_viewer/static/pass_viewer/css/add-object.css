@@ -68,6 +68,16 @@ body.has-site-header main.container.container--add-object {
     overflow: hidden;
 }
 
+/* Просмотр объекта (view_only): без боковых панелей, карта на всю ширину */
+.view-only-embed .add-object-workspace {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.view-only-embed .add-object-panel--layers,
+.view-only-embed .add-object-panel--tools {
+    display: none;
+}
+
 /* --- Left: layers --- */
 
 .add-object-panel--layers .add-object-layers {

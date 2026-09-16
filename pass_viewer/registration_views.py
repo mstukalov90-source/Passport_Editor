@@ -12,6 +12,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from .forms import RegistrationRequestForm
 from .models import RegistrationRequest
+from .registration_reference import list_executive_authorities, list_institutions
 from .roles import ROLE_MGGT, resolve_user_scope
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,10 @@ _VALID_STATUSES = {RegistrationRequest.STATUS_NEW, RegistrationRequest.STATUS_PR
 
 def registration_request(request):
     """Публичная форма подачи заявки на регистрацию пользователя."""
+    context = {
+        "executive_authorities": list_executive_authorities(),
+        "institutions": list_institutions(),
+    }
     if request.method == "POST":
         form = RegistrationRequestForm(request.POST)
         if form.is_valid():
@@ -42,7 +47,8 @@ def registration_request(request):
             return redirect("registration_request_sent")
     else:
         form = RegistrationRequestForm()
-    return render(request, "registration/registration_request.html", {"form": form})
+    context["form"] = form
+    return render(request, "registration/registration_request.html", context)
 
 
 def registration_request_sent(request):

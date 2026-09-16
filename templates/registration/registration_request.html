@@ -16,6 +16,8 @@
     <h1 class="login-title">Регистрация пользователя</h1>
     <p class="login-note-text">
         Заполните сведения об ответственном представителе.
+        Орган исполнительной власти и наименование учреждения можно выбрать из списка
+        или ввести самостоятельно.
         После рассмотрения заявки сотрудниками МГГТ будет создана учётная запись.
     </p>
     <form class="login-form" method="post">
@@ -30,6 +32,16 @@
         {% endfor %}
         <button class="login-submit" type="submit">Отправить заявку</button>
     </form>
+    {% if executive_authorities %}
+    <datalist id="registration-executive-authority-options">
+        {% for org in executive_authorities %}<option value="{{ org.fullname }}">{{ org.shortname }}</option>{% endfor %}
+    </datalist>
+    {% endif %}
+    {% if institutions %}
+    <datalist id="registration-institution-options">
+        {% for org in institutions %}<option value="{{ org.fullname }}">{{ org.shortname }}</option>{% endfor %}
+    </datalist>
+    {% endif %}
     <div class="login-actions">
         <a class="login-action-btn login-action-btn--secondary" href="{% url 'login' %}">Вернуться на страницу входа</a>
     </div>
@@ -46,4 +58,5 @@
     };
 </script>
 <script src="{% static 'pass_viewer/js/login-background.js' %}?v=1" defer></script>
+<script src="{% static 'pass_viewer/js/registration-request.js' %}?v=1" defer></script>
 {% endblock %}

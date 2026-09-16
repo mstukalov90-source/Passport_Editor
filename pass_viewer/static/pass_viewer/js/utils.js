@@ -570,21 +570,35 @@
             });
         }
 
+        function clearBodyState() {
+            body.classList.remove('check-dgi-modal-body--ok');
+        }
+
+        function setBodyText(text) {
+            clearBodyState();
+            body.textContent = text;
+        }
+
         function renderZuTable() {
             const ctx = getContext ? getContext() : null;
             const percents = ctx && ctx.percents;
             if (percents && percents.intersects && PassViewer.buildCheckDgiModalHtml) {
+                clearBodyState();
                 body.innerHTML = PassViewer.buildCheckDgiModalHtml(percents);
             } else {
-                body.textContent = 'Пересечений с объектами ДГИ и инфоресурсами не обнаружено.';
+                setBodyText('Пересечений с объектами ДГИ и инфоресурсами не обнаружено.');
             }
         }
 
         function renderOgxTable() {
             if (ogxData && ogxData.intersects && PassViewer.buildCheckOgxModalHtml) {
+                clearBodyState();
                 body.innerHTML = PassViewer.buildCheckOgxModalHtml(ogxData);
             } else {
-                body.textContent = 'Пересечения с объектами ОГХ не обнаружены.';
+                clearBodyState();
+                body.classList.add('check-dgi-modal-body--ok');
+                body.innerHTML =
+                    '<div class="check-dgi-empty-ok">Пересечения с объектами ОГХ не обнаружены.</div>';
             }
         }
 
@@ -592,17 +606,17 @@
             const ctx = getContext ? getContext() : null;
             if (!ctx || !ctx.geometry) {
                 if (mode === 'ogx') {
-                    body.textContent = 'Нет данных для расчёта пересечений с ОГХ.';
+                    setBodyText('Нет данных для расчёта пересечений с ОГХ.');
                 }
                 return;
             }
             if (!url) {
                 if (mode === 'ogx') {
-                    body.textContent = 'URL проверки пересечений с ОГХ не настроен.';
+                    setBodyText('URL проверки пересечений с ОГХ не настроен.');
                 }
                 return;
             }
-            body.textContent = 'Проверяем пересечения с ОГХ…';
+            setBodyText('Проверяем пересечения с ОГХ…');
             try {
                 const response = await fetch(url, {
                     method: 'POST',
@@ -628,7 +642,7 @@
                 }
             } catch (error) {
                 if (mode === 'ogx') {
-                    body.textContent = error.message || 'Не удалось проверить пересечения с ОГХ.';
+                    setBodyText(error.message || 'Не удалось проверить пересечения с ОГХ.');
                 }
             }
         }
@@ -681,6 +695,7 @@
             reset: function reset() {
                 mode = 'zu';
                 ogxData = null;
+                clearBodyState();
                 setModeButtons('zu');
             },
             getMode: function getMode() {

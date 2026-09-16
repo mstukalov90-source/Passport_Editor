@@ -2519,21 +2519,18 @@
             );
         }
 
-        function bindAdjacentInspectorPopup(layer, feature) {
+        function bindAdjacentPopup(layer, feature) {
             const props = feature.properties || {};
-            const isObjectsAdjacent =
-                props.layerKey === 'adjacent_objects' || props.adjacentRootKind === 'v';
-            if (!isObjectsAdjacent) {
-                return;
-            }
+            // «Добавить событие» доступна инспектору только для смежных объектов
+            // вне согласования; участники согласования получают инфо-попап.
+            const withAction =
+                (props.layerKey === 'adjacent_objects' || props.adjacentRootKind === 'v') &&
+                isInspectorForSelectedApprove();
 
             const rootId = String(props.RootId || '');
             const name = String(props.Name || '');
             const ownerId = String(props.OwnerLegalPersonId || '');
             const ownerName = String(props.OwnerLegalPersonName || '');
-            const geomEncoded = feature.geometry
-                ? encodeURIComponent(JSON.stringify(feature.geometry))
-                : '';
 
             function popupRow(label, value) {
                 return (
@@ -2551,23 +2548,28 @@
                 (ownerName || ownerId
                     ? popupRow('Балансодержатель', ownerName || ownerId)
                     : '');
-            const html =
-                '<div class="approval-adjacent-popup">' +
-                rows +
-                '<button type="button" class="approval-adjacent-popup__action"' +
-                ' data-action="create-event"' +
-                ' data-root-id="' +
-                escapeHtml(rootId) +
-                '"' +
-                ' data-name="' +
-                escapeHtml(name) +
-                '"' +
-                ' data-owner-id="' +
-                escapeHtml(ownerId) +
-                '"' +
-                ' data-geometry="' +
-                geomEncoded +
-                '">Добавить событие</button></div>';
+            let actionHtml = '';
+            if (withAction) {
+                const geomEncoded = feature.geometry
+                    ? encodeURIComponent(JSON.stringify(feature.geometry))
+                    : '';
+                actionHtml =
+                    '<button type="button" class="approval-adjacent-popup__action"' +
+                    ' data-action="create-event"' +
+                    ' data-root-id="' +
+                    escapeHtml(rootId) +
+                    '"' +
+                    ' data-name="' +
+                    escapeHtml(name) +
+                    '"' +
+                    ' data-owner-id="' +
+                    escapeHtml(ownerId) +
+                    '"' +
+                    ' data-geometry="' +
+                    geomEncoded +
+                    '">Добавить событие</button>';
+            }
+            const html = '<div class="approval-adjacent-popup">' + rows + actionHtml + '</div>';
 
             layer.bindPopup(html);
             layer.on('popupopen', function () {
@@ -2621,11 +2623,8 @@
                 bindReferenceLayerPopup(layer, feature, layerKey);
                 attachSignalTapeHatching(layer, referenceStyleKey(props));
             }
-            if (!isInspectorForSelectedApprove()) {
-                return;
-            }
             if (isAdjacentFeature(props)) {
-                bindAdjacentInspectorPopup(layer, feature);
+                bindAdjacentPopup(layer, feature);
             }
         }
 

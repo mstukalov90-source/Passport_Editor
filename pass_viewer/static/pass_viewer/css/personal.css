@@ -52,6 +52,7 @@
 }
 
 .personal-export-xlsx-btn {
+    margin-left: auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -382,6 +383,70 @@
     background: #fff;
 }
 
+.personal-filter-panel > select,
+.personal-filter-panel > input,
+.personal-filter-panel > button,
+.personal-filter-panel > .personal-filter-daterange {
+    height: 38px;
+    box-sizing: border-box;
+}
+
+.personal-filter-daterange {
+    position: relative;
+    display: inline-flex;
+    flex: 1;
+    min-width: 220px;
+    height: 38px;
+    box-sizing: border-box;
+}
+
+.personal-filter-daterange input[type="text"] {
+    height: 100%;
+    min-width: 220px;
+    padding-right: 28px;
+}
+
+.personal-filter-daterange input[type="text"]:focus {
+    border-color: #94a3b8;
+    outline: none;
+}
+
+.personal-filter-daterange .personal-filter-daterange__clear {
+    position: absolute;
+    top: 50%;
+    right: 5px;
+    transform: translateY(-50%);
+    padding: 4px 6px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.personal-filter-daterange .personal-filter-daterange__clear:hover {
+    color: #96262a;
+    background: #f1f5f9;
+}
+
+.personal-filter-daterange .personal-filter-daterange__clear {
+    padding: 2px 6px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.personal-filter-daterange .personal-filter-daterange__clear:hover {
+    color: #96262a;
+    background: #f1f5f9;
+}
+
 .personal-filter-panel button {
     background: #e5e7eb;
     color: #111;
@@ -440,8 +505,11 @@
 }
 
 .personal-modal__close {
-    background: #e5e7eb;
-    color: #111;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #96262a;
+    color: #fff;
     border: none;
     border-radius: 8px;
     width: 32px;
@@ -449,6 +517,11 @@
     cursor: pointer;
     font-size: 16px;
     line-height: 1;
+    padding: 0;
+}
+
+.personal-modal__close:hover {
+    background: #7b1e22;
 }
 
 .personal-modal__body {
@@ -752,17 +825,34 @@ button.personal-table-btn {
 
 .check-dgi-modal-close {
     flex-shrink: 0;
+    position: relative;
     width: 30px;
     height: 30px;
+    padding: 0;
     border: none;
     border-radius: 8px;
     background: var(--pv-red, #BA3034);
     color: #fff;
     cursor: pointer;
-    font: inherit;
-    font-size: 18px;
-    line-height: 1;
     transition: background 0.15s ease;
+}
+
+/* Крестик рисуется псевдоэлементами — гарантированно по центру кнопки. */
+.check-dgi-modal-close::before,
+.check-dgi-modal-close::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 12px;
+    height: 2px;
+    border-radius: 1px;
+    background: #fff;
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.check-dgi-modal-close::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .check-dgi-modal-close:hover,
@@ -958,6 +1048,58 @@ button.personal-table-btn {
 }
 
 /* Страница анализа занимает ровно один экран: скролл — только внутри панели таблицы. */
+.intersecs-analiz-title-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 0 0 12px;
+}
+
+/* margin заголовка не даёт flex-центрированию выровнять его с кнопками. */
+.intersecs-analiz-title-row .personal-account__title {
+    margin: 0;
+}
+
+/* Единая вертикальная ось строк: чекбоксы (16px), каретка и текст по одной линии. */
+.intersecs-analiz-table td,
+.intersecs-analiz-objects td,
+.intersecs-analiz-layer-label > span {
+    line-height: 16px;
+}
+
+.intersecs-analiz-nav {
+    display: inline-flex;
+    gap: 8px;
+    margin: 0;
+}
+
+.intersecs-analiz-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border: none;
+    border-radius: 8px;
+    background: var(--pv-dark-blue, #1A3F6E);
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.intersecs-analiz-nav-btn:hover {
+    background: #16407a;
+}
+
+.intersecs-analiz-nav-btn .map-toolbar-btn__icon {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+}
+
 main.container.intersecs-analiz-container {
     display: flex;
     flex-direction: column;
@@ -1035,6 +1177,7 @@ body.has-site-header main.container--wide.intersecs-analiz-container {
 }
 
 .intersecs-analiz-map-panel {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -1046,6 +1189,55 @@ body.has-site-header main.container--wide.intersecs-analiz-container {
     padding: 12px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
     overflow: hidden;
+}
+
+/* Легенда — сворачиваемый оверлей поверх карты. */
+.intersecs-analiz-legend {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    z-index: 700;
+    max-width: min(640px, calc(100% - 36px));
+    max-height: 55%;
+    overflow-y: auto;
+    gap: 6px 14px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.2);
+    font-size: 12px;
+}
+
+.intersecs-analiz-legend.is-collapsed .owned-map-legend__item {
+    display: none;
+}
+
+.intersecs-analiz-legend .owned-map-legend__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    background: transparent;
+    padding: 0;
+    font: inherit;
+    font-weight: 700;
+    color: #0f172a;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.intersecs-analiz-legend .owned-map-legend__toggle-caret {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #0f172a;
+    transition: transform 0.15s ease;
+}
+
+.intersecs-analiz-legend.is-collapsed .owned-map-legend__toggle-caret {
+    transform: rotate(-90deg);
 }
 
 .intersecs-analiz-map-frame {
@@ -1191,15 +1383,66 @@ body.has-site-header main.container--wide.intersecs-analiz-container {
     background: #f1f5f9;
 }
 
-.intersecs-analiz-row--expandable.is-open td {
+/* Раскрытая строка подсвечивается цветом своего процентного бейджа. */
+.intersecs-analiz-row--expandable.is-open.pct-ok td {
+    background: #bbf7d0;
+}
+
+.intersecs-analiz-row--expandable.is-open.pct-warn td {
+    background: #fef08a;
+}
+
+.intersecs-analiz-row--expandable.is-open.pct-danger td {
+    background: #fecaca;
+}
+
+.intersecs-analiz-row--expandable.is-open.pct-muted td {
     background: #e2e8f0;
 }
 
+/* Заметный разрыв между группами слоёв: разделитель, белый зазор и шапка группы. */
 .intersecs-analiz-section-row td {
-    background: #f8fafc;
-    border-top: 2px solid #cbd5e1;
-    font-weight: 600;
-    color: #334155;
+    background: #e8eef7;
+    border-top: none;
+    border-bottom: 2px solid #94a3b8;
+    padding: 9px 10px;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #1e293b;
+}
+
+/* Явный разделитель над группой — в потоке ячейки, без наложения на строку выше:
+   белая полоса-зазор на всю ширину с линией снизу. */
+.intersecs-analiz-section-row td::before {
+    content: "";
+    display: block;
+    height: 12px;
+    margin: -9px -10px 9px;
+    background: #fff;
+    border-bottom: 2px solid #94a3b8;
+}
+
+.intersecs-analiz-row-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.intersecs-analiz-caret {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    flex-shrink: 0;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-left: 8px solid #475569;
+    transition: transform 0.15s ease;
+}
+
+.intersecs-analiz-row--expandable.is-open .intersecs-analiz-caret {
+    transform: rotate(90deg);
 }
 
 .intersecs-analiz-count {
@@ -1207,8 +1450,10 @@ body.has-site-header main.container--wide.intersecs-analiz-container {
     font-weight: 500;
 }
 
+/* Одинаковая ширина столбцов во всех вложенных таблицах объектов. */
 .intersecs-analiz-objects {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 12px;
 }
@@ -1218,6 +1463,20 @@ body.has-site-header main.container--wide.intersecs-analiz-container {
     border: 1px solid #e2e8f0;
     padding: 6px 8px;
     text-align: left;
+    vertical-align: middle;
+    overflow-wrap: break-word;
+}
+
+.intersecs-analiz-objects th:nth-child(2) {
+    width: 24%;
+}
+
+.intersecs-analiz-objects th:nth-child(4) {
+    width: 9%;
+}
+
+.intersecs-analiz-objects th:nth-child(5) {
+    width: 13%;
 }
 
 .intersecs-analiz-object-row {

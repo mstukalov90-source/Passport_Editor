@@ -163,6 +163,36 @@
 
 #check-dgi-modal .modal-card {
     max-width: 560px;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    /* Фиксированная высота по самой высокой таблице (З/У) с запасом
+       на субпиксельное округление: модалка не меняет размер при
+       переключении З/У | ОГХ и текстовых состояниях, таблица не скроллится. */
+    height: 560px;
+    max-height: calc(100vh - 48px);
+}
+
+#check-dgi-modal #check-dgi-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+#check-dgi-modal #check-dgi-modal-body.check-dgi-modal-body--ok {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#check-dgi-modal .check-dgi-empty-ok {
+    background: #dcfce7;
+    border: 1px solid #bbf7d0;
+    color: #14532d;
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-size: 13px;
+    font-weight: 500;
 }
 
 #check-dgi-modal .check-dgi-modal-header {
@@ -174,17 +204,34 @@
 
 #check-dgi-modal .check-dgi-modal-close {
     flex-shrink: 0;
+    position: relative;
     width: 30px;
     height: 30px;
+    padding: 0;
     border: none;
     border-radius: 8px;
     background: var(--pv-red, #BA3034);
     color: #fff;
     cursor: pointer;
-    font: inherit;
-    font-size: 18px;
-    line-height: 1;
     transition: background 0.15s ease;
+}
+
+/* Крестик рисуется псевдоэлементами — гарантированно по центру кнопки. */
+#check-dgi-modal .check-dgi-modal-close::before,
+#check-dgi-modal .check-dgi-modal-close::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 12px;
+    height: 2px;
+    border-radius: 1px;
+    background: #fff;
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+#check-dgi-modal .check-dgi-modal-close::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 #check-dgi-modal .check-dgi-modal-close:hover,
@@ -474,10 +521,11 @@
 }
 
 .dgi-check-table__section td {
-    background: #f8fafc;
-    border-top: 2px solid #cbd5e1;
+    background: #e2e8f0;
+    border-top: 2px solid #64748b;
     font-weight: 600;
-    color: #334155;
+    color: #1e293b;
+    letter-spacing: 0.02em;
 }
 
 .dgi-pct--ok {

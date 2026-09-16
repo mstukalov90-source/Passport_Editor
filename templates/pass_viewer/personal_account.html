@@ -6,9 +6,9 @@
 {% block body_class %}personal-account-page{% endblock %}
 
 {% block page_styles %}
-<link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}?v=ogx-groups-1">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}?v=filters-dates-4">
 <link rel="stylesheet" href="{% static 'pass_viewer/css/modal.css' %}">
-<link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}?v=ogx-groups-1">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}?v=modal-fix-2">
 {% endblock %}
 
 {% block container_class %}personal-account{% endblock %}
@@ -64,9 +64,9 @@
         </div>
     </div>
     <div class="personal-filter-panel" id="personal-filter-panel" hidden>
-        <input type="text" data-filter-col="1" placeholder="ID Паспорта">
-        <input type="text" data-filter-col="2" placeholder="ID Заявки">
-        <input type="text" data-filter-col="3" placeholder="Наименование">
+        <select data-filter-col="4" aria-label="Тип создания">
+            <option value="">Тип создания</option>
+        </select>
         <select data-filter-col="8" aria-label="Тип ОГХ">
             <option value="">Тип ОГХ</option>
         </select>
@@ -76,6 +76,18 @@
         <select data-filter-col="10" aria-label="Статус">
             <option value="">Статус</option>
         </select>
+        <div class="personal-filter-daterange" data-date-filter-col="5">
+            <input type="text" placeholder="Дата полевого обследования"
+                   title="Формат: дд.мм.гггг — дд.мм.гггг (сначала дата «от», потом тире, затем дата «до»)"
+                   aria-label="Дата полевого обследования — диапазон дат">
+            <button type="button" class="personal-filter-daterange__clear" hidden aria-label="Сбросить диапазон дат">×</button>
+        </div>
+        <div class="personal-filter-daterange" data-date-filter-col="6">
+            <input type="text" placeholder="Дата утверждения"
+                   title="Формат: дд.мм.гггг — дд.мм.гггг (сначала дата «от», потом тире, затем дата «до»)"
+                   aria-label="Дата утверждения — диапазон дат">
+            <button type="button" class="personal-filter-daterange__clear" hidden aria-label="Сбросить диапазон дат">×</button>
+        </div>
         <button type="button" id="personal-filter-clear">Сброс</button>
     </div>
     <div class="personal-table-wrap">
@@ -247,13 +259,13 @@
                 <div id="personal-detail-map" class="personal-detail-map" role="img" aria-label="Карта объекта"></div>
             </div>
             <div class="personal-modal__footer">
-                <button type="button" class="personal-table-btn is-disabled" id="personal-asu-ods-link" disabled>
-                    <img class="personal-table-btn__icon personal-table-btn__icon--gerb" src="{% static 'pass_viewer/moscow-gerb.svg' %}" alt="" aria-hidden="true">
-                    Перейти в АСУ ОДС
-                </button>
                 <button type="button" class="personal-table-btn personal-draw-open is-disabled" id="personal-modal-draw-open" disabled>
                     <img class="personal-table-btn__icon" src="{% static 'pass_viewer/pencil.svg' %}" alt="" aria-hidden="true">
                     Перейти к отрисовке
+                </button>
+                <button type="button" class="personal-table-btn" id="personal-intersecs-open">
+                    <img class="personal-table-btn__icon" src="{% static 'pass_viewer/intersect-polygons.svg' %}" alt="" aria-hidden="true">
+                    Просмотр пересечений
                 </button>
                 <form method="post" action="{% url 'open_owned_object' %}" id="personal-open-form">
                     {% csrf_token %}
@@ -264,7 +276,7 @@
                     <input type="hidden" name="geometry_detail_mode" value="simplified">
                     <button type="submit" class="personal-table-btn">
                         <img class="personal-table-btn__icon" src="{% static 'pass_viewer/search-loupe.svg' %}" alt="" aria-hidden="true">
-                        Детальный просмотр
+                        Просмотр объекта
                     </button>
                 </form>
             </div>
@@ -290,7 +302,7 @@
     <div class="modal-card">
         <div class="check-dgi-modal-header">
             <h3>Пересечение с З/У и ОГХ</h3>
-            <button type="button" id="check-dgi-modal-close" class="check-dgi-modal-close" aria-label="Закрыть">×</button>
+            <button type="button" id="check-dgi-modal-close" class="check-dgi-modal-close" aria-label="Закрыть"></button>
         </div>
         <div class="check-dgi-mode-toggle" id="check-dgi-mode-toggle">
             <button type="button" class="check-dgi-mode-toggle__btn is-active" data-dgi-mode="zu" aria-pressed="true">З/У</button>
@@ -404,9 +416,9 @@
 {% block page_scripts %}
 {{ page_config|json_script:"page-config" }}
 {% include 'pass_viewer/includes/map_leaflet_vendor.html' %}
-<script src="{% static 'pass_viewer/js/utils.js' %}?v=selective-2"></script>
+<script src="{% static 'pass_viewer/js/utils.js' %}?v=modal-fix-1"></script>
 <script src="{% static 'pass_viewer/js/kind-filters.js' %}"></script>
 <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
 <script src="{% static 'pass_viewer/js/map-tools.js' %}"></script>
-<script src="{% static 'pass_viewer/js/personal-account.js' %}?v=ogx-groups-1"></script>
+<script src="{% static 'pass_viewer/js/personal-account.js' %}?v=intersecs-btn-4"></script>
 {% endblock %}

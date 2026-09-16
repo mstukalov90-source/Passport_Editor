@@ -12,6 +12,8 @@
     const tableWrap = document.getElementById('intersecs-analiz-table-wrap');
     const mapEl = document.getElementById('intersecs-analiz-map');
     const modeToggleEl = document.getElementById('intersecs-analiz-mode-toggle');
+    const legendEl = document.getElementById('intersecs-analiz-legend');
+    const legendToggleEl = document.getElementById('intersecs-analiz-legend-toggle');
 
     // Режим З/У | ОГХ — как переключатель в модалке проверки пересечений.
     let mode = 'zu';
@@ -307,7 +309,9 @@
         if (map) {
             return map;
         }
-        map = L.map(mapEl, { maxZoom: 30, zoomControl: true }).setView([55.75, 37.61], 11);
+        map = L.map(mapEl, { maxZoom: 30, zoomControl: false }).setView([55.75, 37.61], 11);
+        // Левый верхний угол карты занимает легенда-оверлей — зум уводим вниз.
+        L.control.zoom({ position: 'bottomleft' }).addTo(map);
         signalTapeRenderer = L.svg({ padding: 0.5 });
         map.createPane('overlapPane');
         map.getPane('overlapPane').style.zIndex = 650;
@@ -585,6 +589,55 @@
                 cb.checked = allOn;
                 cb.indeterminate = !allOn && !noneOn;
             });
+        syncLegendButton(layerKey, checkedCount > 0);
+    }
+
+    // Легенда: клик по пункту скрывает/показывает объекты слоя — как фильтры легенды на home.
+    function setLegendButtonState(btn, isOn) {
+        btn.classList.toggle('is-off', !isOn);
+        btn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+    }
+
+    function legendLayerButton(layerKey) {
+        return legendEl
+            ? legendEl.querySelector('.intersecs-analiz-legend-btn[data-legend-layer="' + layerKey + '"]')
+            : null;
+    }
+
+    function syncLegendButton(layerKey, isOn) {
+        const btn = legendLayerButton(layerKey);
+        if (btn) {
+            setLegendButtonState(btn, isOn);
+        }
+    }
+
+    function syncLegendFromTable() {
+        if (!legendEl || !tableWrap) {
+            return;
+        }
+        legendEl.querySelectorAll('.intersecs-analiz-legend-btn').forEach((btn) => {
+            const key = btn.getAttribute('data-legend-layer') || '';
+            if (key === '__selected__' || key === '__overlap__') {
+                return;
+            }
+            const checkbox = tableWrap.querySelector(
+                '.intersecs-analiz-layer-toggle[data-layer-key="' + key + '"]',
+            );
+            if (checkbox) {
+                setLegendButtonState(btn, checkbox.checked);
+            }
+        });
+    }
+
+    function toggleMapLayerGroup(group, willOn) {
+        if (!group || !map) {
+            return;
+        }
+        if (willOn) {
+            group.addTo(map);
+        } else if (map.hasLayer(group)) {
+            map.removeLayer(group);
+        }
     }
 
     function applyObjectToggle(checkbox) {
@@ -708,6 +761,8 @@
         const rowClass = [
             row.sum ? 'dgi-check-table__sum' : '',
             expandable ? 'intersecs-analiz-row--expandable is-open' : '',
+            // Цвет подсветки раскрытой строки — как у её процентного бейджа.
+            'pct-' + pctClass(percent, row.pctAlwaysOk, row.pctMuted).replace('dgi-pct--', ''),
         ]
             .filter(Boolean)
             .join(' ');
@@ -715,11 +770,13 @@
             '<tr class="' +
             escapeHtml(rowClass) +
             '"' +
-            (expandable ? ' data-layer-key="' + escapeHtml(row.key) + '"' : '') +
+            (expandable ? ' data-layer-key="' + escapeHtml(row.key) + '" aria-expanded="true"' : '') +
             '>' +
             '<td>' +
             (expandable
-                ? '<label class="intersecs-analiz-layer-label">' +
+                ? '<span class="intersecs-analiz-row-head">' +
+                  '<span class="intersecs-analiz-caret" aria-hidden="true"></span>' +
+                  '<label class="intersecs-analiz-layer-label">' +
                   '<input type="checkbox" class="intersecs-analiz-layer-toggle"' +
                   (row.defaultOff ? '' : ' checked') +
                   ' data-layer-key="' +
@@ -729,7 +786,7 @@
                   escapeHtml(row.label) +
                   ' <span class="intersecs-analiz-count">(' +
                   objects.length +
-                  ')</span></span></label>'
+                  ')</span></span></label></span>'
                 : escapeHtml(row.label)) +
             '</td>' +
             '<td class="dgi-pct ' +
@@ -824,6 +881,7 @@
                 const willHide = !detail.hidden;
                 detail.hidden = willHide;
                 rowEl.classList.toggle('is-open', !willHide);
+                rowEl.setAttribute('aria-expanded', willHide ? 'false' : 'true');
             });
         });
         tableWrap.querySelectorAll('.intersecs-analiz-object-toggle').forEach((checkbox) => {
@@ -845,6 +903,7 @@
                 focusObject(rowEl.getAttribute('data-layer-key'), rowEl.getAttribute('data-object-id'));
             });
         });
+        syncLegendFromTable();
     }
 
     function setModeButtons(value) {
@@ -896,6 +955,27 @@
         });
     }
 
+    legendToggleEl?.addEventListener('click', () => {
+        const collapsed = legendEl.classList.toggle('is-collapsed');
+        legendToggleEl.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    });
+
+    legendEl?.querySelectorAll('.intersecs-analiz-legend-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const key = btn.getAttribute('data-legend-layer') || '';
+            const willOn = btn.classList.contains('is-off');
+            if (key === '__selected__') {
+                toggleMapLayerGroup(selectedLayer, willOn);
+            } else if (key === '__overlap__') {
+                toggleMapLayerGroup(overlapLayer, willOn);
+            } else {
+                setLayerObjectsVisible(key, willOn);
+                applyModeToMap();
+            }
+            setLegendButtonState(btn, willOn);
+        });
+    });
+
     async function boot() {
         const q = queryParams();
         const stored = PV.readIntersecsAnalizPayload ? PV.readIntersecsAnalizPayload(q.sid) : null;
@@ -918,6 +998,21 @@
         }
         if (metaEl) {
             metaEl.textContent = metaParts.join(' · ');
+        }
+
+        // Кнопки «Актуализировать»/«Разделить» открывают редактор с этим объектом.
+        const navField = (id) => document.getElementById(id);
+        if (navField('intersecs-analiz-nav-rootid')) {
+            navField('intersecs-analiz-nav-rootid').value = rootid || '';
+        }
+        if (navField('intersecs-analiz-nav-name')) {
+            navField('intersecs-analiz-nav-name').value = name || '';
+        }
+        if (navField('intersecs-analiz-nav-request-id')) {
+            navField('intersecs-analiz-nav-request-id').value = requestId || '';
+        }
+        if (navField('intersecs-analiz-nav-source')) {
+            navField('intersecs-analiz-nav-source').value = sourceLabel || '';
         }
 
         let geometry = stored && stored.geometry ? stored.geometry : null;

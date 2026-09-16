@@ -7,6 +7,7 @@ from io import BytesIO
 import pytest
 from django.urls import reverse
 from openpyxl import load_workbook
+from pass_viewer import registration_reference, registration_views
 from pass_viewer.models import ExternalUser, RegistrationRequest
 
 VALID_PAYLOAD = {
@@ -22,6 +23,13 @@ VALID_PAYLOAD = {
 def _login_as(client, login, role):
     ExternalUser.objects.create(login=login, password='pass', role=role)
     client.post(reverse('login'), {'username': login, 'password': 'pass'})
+
+
+@pytest.fixture(autouse=True)
+def _no_reference_lookups(monkeypatch):
+    """Тесты страницы заявки не ходят в удалённую БД mggt_asu."""
+    monkeypatch.setattr(registration_views, 'list_executive_authorities', lambda: [])
+    monkeypatch.setattr(registration_views, 'list_institutions', lambda: [])
 
 
 @pytest.mark.django_db
@@ -173,3 +181,97 @@ def test_export_xlsx_matches_template(client):
 def test_export_forbidden_for_non_mggt(client):
     _login_as(client, 'bd_export', role=ExternalUser.ROLE_BD)
     assert client.get(reverse('registration_requests_export')).status_code == 403
+
+
+@pytest.mark.django_db
+def test_form_page_renders_datalist_options(client, monkeypatch):
+    monkeypatch.setattr(
+        registration_views,
+        'list_executive_authorities',
+        lambda: [
+            {'shortname': 'ДФМ', 'fullname': 'Департамент финансов города Москвы'},
+            {'shortname': 'ДЖКХ', 'fullname': 'Департамент жилищно-коммунального хозяйства'},
+        ],
+    )
+    monkeypatch.setattr(
+        registration_views,
+        'list_institutions',
+        lambda: [{'shortname': 'Жилищник', 'fullname': 'ГБУ «Жилищник»'}],
+    )
+    response = client.get(reverse('registration_request'))
+    assert response.status_code == 200
+    content = response.content.decode('utf-8')
+    assert 'list="registration-executive-authority-options"' in content
+    assert 'list="registration-institution-options"' in content
+    assert '<datalist id="registration-executive-authority-options">' in content
+    assert '<datalist id="registration-institution-options">' in content
+    assert '<option value="Департамент финансов города Москвы">ДФМ</option>' in content
+    assert '<option value="ГБУ «Жилищник»">Жилищник</option>' in content
+
+
+@pytest.mark.django_db
+def test_form_page_renders_without_datalist_when_reference_empty(client):
+    response = client.get(reverse('registration_request'))
+    assert response.status_code == 200
+    content = response.content.decode('utf-8')
+    assert '<datalist' not in content
+
+
+def test_fetch_legal_persons_dedupes_and_strips(monkeypatch):
+    rows = [
+        ('  ДФМ  ', ' Департамент финансов города Москвы '),
+        ('ДФМ', 'Другая запись с тем же кратким именем'),
+        ('', 'Пустое краткое имя'),
+        (None, 'Нет краткого имени'),
+        ('Пустое полное', '   '),
+    ]
+
+    class FakeCursor:
+        def execute(self, sql, params=None):
+            pass
+
+        def fetchall(self):
+            return rows
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    class FakeConnection:
+        def cursor(self):
+            return FakeCursor()
+
+    monkeypatch.setattr(registration_reference, 'connections', {'qgis': FakeConnection()})
+    items = registration_reference._fetch_legal_persons('select 1')
+    assert items == [{'shortname': 'ДФМ', 'fullname': 'Департамент финансов города Москвы'}]
+
+
+def test_reference_cache_reuses_result_and_backs_off_on_failure(monkeypatch):
+    registration_reference._cache.clear()
+    calls = {'fetch': 0}
+
+    def fake_fetch(sql):
+        calls['fetch'] += 1
+        return [{'shortname': 'A', 'fullname': 'AAA'}]
+
+    monkeypatch.setattr(registration_reference, '_fetch_legal_persons', fake_fetch)
+    assert registration_reference.list_executive_authorities() == [
+        {'shortname': 'A', 'fullname': 'AAA'}
+    ]
+    assert registration_reference.list_executive_authorities() == [
+        {'shortname': 'A', 'fullname': 'AAA'}
+    ]
+    assert calls['fetch'] == 1
+
+    def failing_fetch(sql):
+        calls['fetch'] += 1
+        raise RuntimeError('db down')
+
+    monkeypatch.setattr(registration_reference, '_fetch_legal_persons', failing_fetch)
+    registration_reference._cache.clear()
+    assert registration_reference.list_executive_authorities() == []
+    assert registration_reference.list_executive_authorities() == []
+    assert calls['fetch'] == 2
+    registration_reference._cache.clear()

@@ -23,11 +23,23 @@ class RegistrationRequestForm(forms.Form):
     executive_authority = forms.CharField(
         label="Орган исполнительной власти",
         max_length=255,
+        widget=forms.TextInput(
+            attrs={
+                "list": "registration-executive-authority-options",
+                "autocomplete": "off",
+            }
+        ),
         error_messages={"required": REQUIRED_ERROR, "max_length": MAX_LENGTH_ERROR},
     )
     institution_name = forms.CharField(
         label="Наименование учреждения",
         max_length=255,
+        widget=forms.TextInput(
+            attrs={
+                "list": "registration-institution-options",
+                "autocomplete": "off",
+            }
+        ),
         error_messages={"required": REQUIRED_ERROR, "max_length": MAX_LENGTH_ERROR},
     )
     representative_name = forms.CharField(
