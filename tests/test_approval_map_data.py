@@ -511,7 +511,7 @@ def test_feature_select_sql_resolves_style_columns_case_insensitively():
     from approval.work_geojson import _feature_select_sql
 
     cursor = MagicMock()
-    cursor.fetchone.return_value = ("dtstype",)
+    cursor.fetchall.return_value = [("fid",), ("geometry",), ("dtstype",)]
 
     sql = _feature_select_sql(
         "DtsPoly",
@@ -524,8 +524,106 @@ def test_feature_select_sql_resolves_style_columns_case_insensitively():
     assert "'DtsType', t.\"dtstype\"::text" in sql
     query = cursor.execute.call_args[0][0]
     params = cursor.execute.call_args[0][1]
-    assert "lower(column_name)" in query
-    assert params == ["topopassport", "DtsPoly", "DtsType"]
+    assert "information_schema.columns" in query
+    assert params == ["topopassport", "DtsPoly"]
+
+
+def test_style_fields_include_qml_alias_fields():
+    from approval.work_geojson import _style_fields_for_table
+
+    manifest = {
+        "tables": {
+            "DtsPoly": {
+                "fields": ["DtsType"],
+                "aliases": [
+                    {"field": "DtsType", "label": "Тип ДТС"},
+                    {"field": "TotalArea", "label": "Площадь"},
+                ],
+            }
+        }
+    }
+
+    assert _style_fields_for_table("DtsPoly", manifest) == ["DtsType", "TotalArea"]
+
+
+def test_feature_select_sql_adds_classifier_display_property():
+    from unittest.mock import MagicMock
+
+    from approval.work_geojson import _feature_select_sql
+
+    cursor = MagicMock()
+    cursor.fetchall.return_value = [("fid",), ("Geometry",), ("DtsType",)]
+    sql = _feature_select_sql(
+        "DtsPoly",
+        ["DtsType"],
+        cursor,
+        schema="work",
+        layer_key="DtsPoly",
+        aliases=[
+            {
+                "field": "DtsType",
+                "label": "Тип ДТС",
+                "lookup": {
+                    "schema": "cls",
+                    "table": "DtsType",
+                    "key": "Code",
+                    "value": "Name",
+                },
+            }
+        ],
+    )
+
+    assert "'DtsType', t.\"DtsType\"::text" in sql
+    assert "'DtsType__display'" in sql
+    assert 'FROM "cls"."DtsType" c' in sql
+    assert 'c."Code"::text = t."DtsType"::text' in sql
+
+
+def test_feature_select_sql_adds_qml_value_map_display_property():
+    from unittest.mock import MagicMock
+
+    from approval.work_geojson import _feature_select_sql
+
+    cursor = MagicMock()
+    cursor.fetchall.return_value = [("fid",), ("Geometry",), ("AuxType",)]
+    sql = _feature_select_sql(
+        "AuxilaryLines",
+        ["AuxType"],
+        cursor,
+        schema="work",
+        layer_key="AuxilaryLines",
+        aliases=[
+            {
+                "field": "AuxType",
+                "label": "Тип вспомогательной линии",
+                "valueMap": {"1": "Замыкание", "2": "Механизированная уборка"},
+            }
+        ],
+    )
+
+    assert "'AuxType__display'" in sql
+    assert "WHEN '1' THEN 'Замыкание'" in sql
+
+
+def test_feature_select_sql_chunks_large_property_sets():
+    from unittest.mock import MagicMock
+
+    from approval.work_geojson import _feature_select_sql
+
+    cursor = MagicMock()
+    fields = [f"Field{index}" for index in range(55)]
+    cursor.fetchall.return_value = [(field,) for field in fields]
+
+    sql = _feature_select_sql(
+        "WideTable",
+        fields,
+        cursor,
+        schema="work",
+        layer_key="WideTable",
+    )
+
+    assert sql.count("jsonb_build_object(") == 2
+    assert " || jsonb_build_object(" in sql
 
 
 def test_build_reference_layer_groups_unchecked_by_default():

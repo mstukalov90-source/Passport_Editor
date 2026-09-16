@@ -94,6 +94,26 @@
       ],
       "defaultRule": 5,
       "qmlFile": "WorkLayers_AbutmentLine.qml",
+      "aliases": [
+        {
+          "field": "AbutmentType",
+          "label": "Тип элемента сопряжения",
+          "lookup": {
+            "schema": "cls",
+            "table": "AbutmentType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Элементы сопряжения поверхностей"
     },
     "AuxilaryLines": {
@@ -115,6 +135,16 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_AuxilaryLines.qml",
+      "aliases": [
+        {
+          "field": "AuxType",
+          "label": "Тип вспомогательной линии",
+          "valueMap": {
+            "1": "Замыкание",
+            "2": "Механизированная уборка"
+          }
+        }
+      ],
       "label": "Вспомогательные линии"
     },
     "AxialLines": {
@@ -138,6 +168,22 @@
       ],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_AxialLines.qml",
+      "aliases": [
+        {
+          "field": "LineType",
+          "label": "Тип осевой линии",
+          "lookup": {
+            "schema": "cls",
+            "table": "AxialLineTypes",
+            "key": "Id",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "AxisName",
+          "label": "Название оси"
+        }
+      ],
       "labeling": {
         "field": "'Ось ' + \"AxisName\"",
         "fontSize": 1.0,
@@ -598,6 +644,34 @@
       ],
       "defaultRule": 10,
       "qmlFile": "WorkLayers_BasePoly.qml",
+      "aliases": [
+        {
+          "field": "ElementType",
+          "label": "Тип элемента",
+          "lookup": {
+            "schema": "cls",
+            "table": "BasePolygonElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "SetManually",
+          "label": "Тип задан вручную"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "NoClean",
+          "label": "Без уборки"
+        },
+        {
+          "field": "IsObjectArea",
+          "label": "Входит в общую площадь"
+        }
+      ],
       "label": "Базовые полигоны для атрибутации"
     },
     "BoardStoneLine": {
@@ -616,6 +690,48 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_BoardStoneLine.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "Distance",
+          "label": "Длина"
+        },
+        {
+          "field": "BoundStoneMark",
+          "label": "Марка бортового камня",
+          "lookup": {
+            "schema": "cls",
+            "table": "BoundStoneMark",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "IsGutterZone",
+          "label": "Признак лотковой зоны"
+        },
+        {
+          "field": "NearRoadway",
+          "label": "Прилегает к ПЧ"
+        },
+        {
+          "field": "Description",
+          "label": "Примечание"
+        }
+      ],
       "label": "Бортовые камни"
     },
     "BuildingPoly": {
@@ -707,6 +823,56 @@
       ],
       "defaultRule": 4,
       "qmlFile": "WorkLayers_BuildingPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "BuildingsType",
+          "label": "Назначение",
+          "lookup": {
+            "schema": "cls",
+            "table": "BuildingsType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "BuildingsTypeSpec",
+          "label": "Уточнение назначения",
+          "lookup": {
+            "schema": "cls",
+            "table": "BuildingsTypeSpec",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Unom",
+          "label": "UNOM"
+        },
+        {
+          "field": "Unad",
+          "label": "UNAD"
+        },
+        {
+          "field": "BuildArea",
+          "label": "Площадь застройки, кв.м."
+        },
+        {
+          "field": "FloorQty",
+          "label": "Этажность"
+        },
+        {
+          "field": "Property",
+          "label": "Характеристика"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Объект капитального строительства"
     },
     "CarriagewayPoly": {
@@ -1076,6 +1242,100 @@
       ],
       "defaultRule": 18,
       "qmlFile": "WorkLayers_CarriagewayPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "FlatElementType",
+          "label": "Тип проезжей части",
+          "lookup": {
+            "schema": "cls",
+            "table": "FlatElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец"
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Группа покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Area",
+          "label": "Площадь"
+        },
+        {
+          "field": "Distance",
+          "label": "Длина"
+        },
+        {
+          "field": "WidthBegin",
+          "label": "Ширина в начале"
+        },
+        {
+          "field": "WidthEnd",
+          "label": "Ширина в конце"
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Площадь уборки мех."
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Площадь уборки руч."
+        },
+        {
+          "field": "NoCleanArea",
+          "label": "Площадь без уборки"
+        },
+        {
+          "field": "Description",
+          "label": "Примечание"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "labeling": {
         "field": "'ГРУНТ'",
         "fontSize": 2.0,
@@ -1097,6 +1357,96 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_CarriagewayPolyAxis.qml",
+      "aliases": [
+        {
+          "field": "FlatElementType",
+          "label": "Тип проезжей части",
+          "lookup": {
+            "schema": "cls",
+            "table": "FlatElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец"
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Группа покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Area",
+          "label": "Площадь"
+        },
+        {
+          "field": "Distance",
+          "label": "Длина"
+        },
+        {
+          "field": "WidthBegin",
+          "label": "Ширина в начале"
+        },
+        {
+          "field": "WidthEnd",
+          "label": "Ширина в конце"
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Площадь уборки мех."
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Площадь уборки руч."
+        },
+        {
+          "field": "NoCleanArea",
+          "label": "Площадь без уборки"
+        },
+        {
+          "field": "Description",
+          "label": "Примечание"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "CarriagewayPolyAxis"
     },
     "ContainerPoint": {
@@ -1213,6 +1563,80 @@
       ],
       "defaultRule": 5,
       "qmlFile": "WorkLayers_ContainerPoint.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ContainerType",
+          "label": "Тип МСО",
+          "lookup": {
+            "schema": "cls",
+            "table": "ContainerType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Группа покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Unom",
+          "label": "UNOM"
+        },
+        {
+          "field": "Unad",
+          "label": "UNAD"
+        },
+        {
+          "field": "Area",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "AbutmentType",
+          "label": "Элемент сопряжения",
+          "lookup": {
+            "schema": "cls",
+            "table": "AbutmentType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "AbutmentDistance",
+          "label": "Количество, п.м."
+        },
+        {
+          "field": "IsSeparateGarbageCollection",
+          "label": "Раздельный сбор мусора"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Места накопления отходов (Точка)"
     },
     "ContainerPoly": {
@@ -1318,6 +1742,80 @@
       ],
       "defaultRule": 5,
       "qmlFile": "WorkLayers_ContainerPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ContainerType",
+          "label": "Тип МСО",
+          "lookup": {
+            "schema": "cls",
+            "table": "ContainerType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Группа покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Unom",
+          "label": "UNOM"
+        },
+        {
+          "field": "Unad",
+          "label": "UNAD"
+        },
+        {
+          "field": "Area",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "AbutmentType",
+          "label": "Элемент сопряжения",
+          "lookup": {
+            "schema": "cls",
+            "table": "AbutmentType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "AbutmentDistance",
+          "label": "Количество, п.м."
+        },
+        {
+          "field": "IsSeparateGarbageCollection",
+          "label": "Раздельный сбор мусора"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Места накопления отходов (Полигон)"
     },
     "CorrectionsPoly": {
@@ -1339,6 +1837,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_CorrectionsPoly.qml",
+      "aliases": [],
       "label": "Полигоны для правок"
     },
     "DtsPoly": {
@@ -1529,6 +2028,66 @@
       ],
       "defaultRule": 11,
       "qmlFile": "WorkLayers_DtsPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "DtsType",
+          "label": "Тип ДТС",
+          "lookup": {
+            "schema": "cls",
+            "table": "DtsType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия, уточнение",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Код  группы покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "TotalArea",
+          "label": "Площадь"
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Площадь механической уборки"
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Площадь ручной уборки"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "IsSmmCleaning",
+          "label": "Уборка с применением СММ"
+        }
+      ],
       "labeling": {
         "field": "'ТВ.'",
         "fontSize": 2.0,
@@ -1731,6 +2290,88 @@
       ],
       "defaultRule": 10,
       "qmlFile": "WorkLayers_EngineerBuildingPoint.qml",
+      "aliases": [
+        {
+          "field": "EngineerBuildingType",
+          "label": "Тип инженерного сооружения",
+          "lookup": {
+            "schema": "cls",
+            "table": "EngineerBuildingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единица измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingFaceType",
+          "label": "Вид покрытия облицовка",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "FaceArea",
+          "label": "Площадь облицовки"
+        },
+        {
+          "field": "CleanType",
+          "label": "Тип уборки",
+          "lookup": {
+            "schema": "cls",
+            "table": "CleanType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "IsSmmCleaning",
+          "label": "Уборка с применением СММ"
+        }
+      ],
       "label": "Инженерные сооружения (Точка)"
     },
     "EngineerBuildingPoly": {
@@ -1916,6 +2557,88 @@
       ],
       "defaultRule": 10,
       "qmlFile": "WorkLayers_EngineerBuildingPoly.qml",
+      "aliases": [
+        {
+          "field": "EngineerBuildingType",
+          "label": "Тип инженерного сооружения",
+          "lookup": {
+            "schema": "cls",
+            "table": "EngineerBuildingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единица измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingFaceType",
+          "label": "Вид покрытия облицовка",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "FaceArea",
+          "label": "Площадь облицовки"
+        },
+        {
+          "field": "CleanType",
+          "label": "Тип уборки",
+          "lookup": {
+            "schema": "cls",
+            "table": "CleanType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "IsSmmCleaning",
+          "label": "Уборка с применением СММ"
+        }
+      ],
       "label": "Инженерные сооружения (Полигон)"
     },
     "FencingLine": {
@@ -2194,6 +2917,46 @@
       ],
       "defaultRule": 15,
       "qmlFile": "WorkLayers_FencingLine.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "EquipmentKind",
+          "label": "Тип ограждения",
+          "lookup": {
+            "schema": "cls",
+            "table": "EquipmentKind",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "QuantityRm",
+          "label": "Протяженность"
+        },
+        {
+          "field": "QuantityPcs",
+          "label": "Количество"
+        },
+        {
+          "field": "Area",
+          "label": "Площадь"
+        },
+        {
+          "field": "GuttersLength",
+          "label": "Двухметровая прилотковая зона"
+        },
+        {
+          "field": "Description",
+          "label": "Примечание"
+        },
+        {
+          "field": "IsTitle",
+          "label": "Включать в ТС"
+        }
+      ],
       "label": "Ограждения (Линия)"
     },
     "FencingPoint": {
@@ -2527,6 +3290,12 @@
       ],
       "defaultRule": 15,
       "qmlFile": "WorkLayers_FencingPoint.qml",
+      "aliases": [
+        {
+          "field": "IsTitle",
+          "label": "Включать в ТС"
+        }
+      ],
       "label": "Ограждения (Точка)"
     },
     "FencingPoly": {
@@ -2835,6 +3604,12 @@
       ],
       "defaultRule": 15,
       "qmlFile": "WorkLayers_FencingPoly.qml",
+      "aliases": [
+        {
+          "field": "IsTitle",
+          "label": "Включать в ТС"
+        }
+      ],
       "label": "Ограждения (Точка)"
     },
     "FencingPolyAxis": {
@@ -2850,6 +3625,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_FencingPolyAxis.qml",
+      "aliases": [],
       "label": "FencingPolyAxis"
     },
     "FlowersGardenPoly": {
@@ -2872,6 +3648,92 @@
       ],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_FlowersGardenPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "SectionNum",
+          "label": "Номер участка"
+        },
+        {
+          "field": "GreenNum",
+          "label": "Номер цветника"
+        },
+        {
+          "field": "TotalArea",
+          "label": "Общая площадь"
+        },
+        {
+          "field": "AnnualsArea",
+          "label": "Однолетники"
+        },
+        {
+          "field": "PerennialsArea",
+          "label": "Многолетники и розы"
+        },
+        {
+          "field": "InertArea",
+          "label": "Инертный материал (отсыпка)"
+        },
+        {
+          "field": "ShrubsArea",
+          "label": "Декоративные кустарники"
+        },
+        {
+          "field": "WithShrubsArea",
+          "label": "С учетом кустарников"
+        },
+        {
+          "field": "SeasonShiftArea",
+          "label": "С учетом сезонной сменности"
+        },
+        {
+          "field": "BulbousArea",
+          "label": "Прочие луковичные"
+        },
+        {
+          "field": "TulipArea",
+          "label": "Тюльпаны, нарциссы"
+        },
+        {
+          "field": "BiennialsArea",
+          "label": "Двулетники (виола)"
+        },
+        {
+          "field": "FlindersArea",
+          "label": "Декорирование щепой"
+        },
+        {
+          "field": "InertStoneChipsArea",
+          "label": "Инертный материал (отсыпка), каменная крошка"
+        },
+        {
+          "field": "InertTreeBarkArea",
+          "label": "Инертный материал (отсыпка), древесная кора (щепа)"
+        },
+        {
+          "field": "InertOtherArea",
+          "label": "Инертный материал (отсыпка), иное"
+        },
+        {
+          "field": "RockeryArea",
+          "label": "Рокарий (многолетние, однолетние)"
+        },
+        {
+          "field": "LawnArea",
+          "label": "Газон (как элемент цветника)"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "labeling": {
         "field": "GreenNum",
         "fontSize": 1.4,
@@ -2964,6 +3826,54 @@
       ],
       "defaultRule": 4,
       "qmlFile": "WorkLayers_FunctionalityLine.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ArrangeElementType",
+          "label": "Тип элемента",
+          "lookup": {
+            "schema": "cls",
+            "table": "ArrangeElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единица измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Системы функционального обеспечения (Линия)"
     },
     "FunctionalityPoint": {
@@ -3063,6 +3973,66 @@
       ],
       "defaultRule": 3,
       "qmlFile": "WorkLayers_FunctionalityPoint.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ArrangeElementType",
+          "label": "Тип элемента",
+          "lookup": {
+            "schema": "cls",
+            "table": "ArrangeElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единицы измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "Svg",
+          "label": "Путь к SVG"
+        },
+        {
+          "field": "Svg_VAPoint",
+          "label": "Вертикальная точка привязки"
+        },
+        {
+          "field": "Svg_HAPoint",
+          "label": "Горизонтальная точка привязки"
+        }
+      ],
       "label": "Системы функционального обеспечения (Точка)"
     },
     "FunctionalityPoly": {
@@ -3155,6 +4125,54 @@
       ],
       "defaultRule": 4,
       "qmlFile": "WorkLayers_FunctionalityPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ArrangeElementType",
+          "label": "Тип элемента",
+          "lookup": {
+            "schema": "cls",
+            "table": "ArrangeElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единица измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Системы функционального обеспечения (Полигон)"
     },
     "IceRinkPoly": {
@@ -3228,6 +4246,66 @@
       ],
       "defaultRule": 3,
       "qmlFile": "WorkLayers_IceRinkPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "IceRinkType",
+          "label": "Тип катка",
+          "lookup": {
+            "schema": "cls",
+            "table": "IceRinkType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Группа покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "TotalArea",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Площадь ручной уборки, кв.м."
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Площадь механической уборки, кв.м."
+        },
+        {
+          "field": "Property",
+          "label": "Характеристика"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Плоскостные сооружения"
     },
     "ImprovementObjectPoly": {
@@ -3248,6 +4326,226 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_ImprovementObjectPoly.qml",
+      "aliases": [
+        {
+          "field": "StartDate",
+          "label": "Дата начала действия"
+        },
+        {
+          "field": "EndDate",
+          "label": "Дата окончания действия"
+        },
+        {
+          "field": "Name",
+          "label": "Название"
+        },
+        {
+          "field": "OwnerLegalPersonId",
+          "label": "Балансодержатель",
+          "lookup": {
+            "schema": "cls",
+            "table": "OwnerLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "OwnerLegalPersonVersionId",
+          "label": "Версия балансодержателя"
+        },
+        {
+          "field": "OwnerStartDate",
+          "label": "Балансодержатель действует с"
+        },
+        {
+          "field": "OwnerEndDate",
+          "label": "Балансодержатель действует по"
+        },
+        {
+          "field": "DepartmentLegalPersonId",
+          "label": "Ведомственный ОИВ",
+          "lookup": {
+            "schema": "cls",
+            "table": "DepartmentLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "DepartmentLegalPersonVersionId",
+          "label": "Версия ведомственного ОИВ"
+        },
+        {
+          "field": "DepartmentStartDate",
+          "label": "Ведомственный ОИВ дествует с"
+        },
+        {
+          "field": "DepartmentEndDate",
+          "label": "Ведомственный ОИВ действует по"
+        },
+        {
+          "field": "CustomerLegalPersonId",
+          "label": "Заказчик",
+          "lookup": {
+            "schema": "cls",
+            "table": "CustomerLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "CustomerLegalPersonVersionId",
+          "label": "Версия заказчика"
+        },
+        {
+          "field": "CustomerStartDate",
+          "label": "Заказчик действует с"
+        },
+        {
+          "field": "CustomertEndDate",
+          "label": "Заказчик действует по"
+        },
+        {
+          "field": "ImprovementCategory",
+          "label": "Категория благоустройства",
+          "lookup": {
+            "schema": "cls",
+            "table": "ImprovementObjectCategory",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "ImprovementObjectCategory",
+          "label": "Категория озеленения",
+          "lookup": {
+            "schema": "cls",
+            "table": "ImprovementObjectCategory",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Unom",
+          "label": "UNOM"
+        },
+        {
+          "field": "Unad",
+          "label": "UNAD"
+        },
+        {
+          "field": "TotalArea",
+          "label": "Площадь"
+        },
+        {
+          "field": "TotalCleanArea",
+          "label": "Уборочная площадь"
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Площадь ручной уборки"
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Площадь механизированной уборки"
+        },
+        {
+          "field": "TotalCoverCleanArea",
+          "label": "Площадь уборки по покрытиям"
+        },
+        {
+          "field": "AsphaltCleanArea",
+          "label": "Асфальтобетонное"
+        },
+        {
+          "field": "SlabCleanArea",
+          "label": "Плиточное"
+        },
+        {
+          "field": "SoilCleanArea",
+          "label": "Грунтовое"
+        },
+        {
+          "field": "RubberCleanArea",
+          "label": "Мягкое из резиновой крошки"
+        },
+        {
+          "field": "SandCleanArea",
+          "label": "Мягкое из песка"
+        },
+        {
+          "field": "GraniteCleanArea",
+          "label": "Мягкое из гранитной высевки"
+        },
+        {
+          "field": "GrassCleanArea",
+          "label": "Мягкое из искусственной травы"
+        },
+        {
+          "field": "PlasticCleanArea",
+          "label": "Пластиковое"
+        },
+        {
+          "field": "GrassPaverCleanArea",
+          "label": "Газонная решетка"
+        },
+        {
+          "field": "TotalLawnArea",
+          "label": "Общая"
+        },
+        {
+          "field": "UsialLawnArea",
+          "label": "Обыкновенный"
+        },
+        {
+          "field": "ParterreLawnArea",
+          "label": "Партерный"
+        },
+        {
+          "field": "LawnGridArea",
+          "label": "На ячеистом основании"
+        },
+        {
+          "field": "LawnLawnArea",
+          "label": "Луговой разнотравный"
+        },
+        {
+          "field": "SlopeLawnArea",
+          "label": "На откосе"
+        },
+        {
+          "field": "LawnOtherArea",
+          "label": "Иного типа"
+        },
+        {
+          "field": "CoverImproveAutoCleanArea",
+          "label": "Территория уборки усов. покрытий"
+        },
+        {
+          "field": "SnowCleanArea",
+          "label": "Площадь вывоза снега"
+        },
+        {
+          "field": "ReservoirArea",
+          "label": "Водоемы"
+        },
+        {
+          "field": "RepairsInfoList",
+          "label": "Перечень ремонтных работ"
+        },
+        {
+          "field": "RepairsInfoListPlan",
+          "label": "Перечень проектных работ"
+        },
+        {
+          "field": "Tree",
+          "label": "Перечень дочерних объектов"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотный ОГХ"
+        }
+      ],
       "label": "Территории общего пользования"
     },
     "LamppostsPoint": {
@@ -3270,6 +4568,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "MasterLayers_LamppostsPoint.qml",
+      "aliases": [],
       "label": "Опоры освещения и контактных сетей"
     },
     "LawnPoly": {
@@ -3411,6 +4710,52 @@
       ],
       "defaultRule": 7,
       "qmlFile": "WorkLayers_LawnPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "SectionNum",
+          "label": "№ участка"
+        },
+        {
+          "field": "TotalLawnArea",
+          "label": "Площадь"
+        },
+        {
+          "field": "LawnType",
+          "label": "Тип газона",
+          "lookup": {
+            "schema": "cls",
+            "table": "LawnType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "StateGardening",
+          "label": "Состояние",
+          "lookup": {
+            "schema": "cls",
+            "table": "StateGardering",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "IsSmmCleaning",
+          "label": "Уборка с применением СММ"
+        }
+      ],
       "labeling": {
         "field": "CASE\n  WHEN \"SectionNum\" < 100 THEN ' ' || \"SectionNum\" || ' '\n  ELSE \"SectionNum\"\nEND",
         "fontSize": 1.0,
@@ -3733,6 +5078,90 @@
       ],
       "defaultRule": 18,
       "qmlFile": "WorkLayers_LittleFormLine.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "MafTypeLevel1",
+          "label": "Тип 1",
+          "lookup": {
+            "schema": "cls",
+            "table": "MafTypeLevel1",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "MafTypeLevel2",
+          "label": "Тип 2",
+          "lookup": {
+            "schema": "cls",
+            "table": "MafTypeLevel2",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "MafTypeLevel3",
+          "label": "Тип 3",
+          "lookup": {
+            "schema": "cls",
+            "table": "MafTypeLevel3",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единицы измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "InstallationDate",
+          "label": "Дата установки"
+        },
+        {
+          "field": "Lifetime",
+          "label": "Срок эксплуатации"
+        },
+        {
+          "field": "GuaranteePeriod",
+          "label": "Гарантийный срок"
+        },
+        {
+          "field": "IdRfid",
+          "label": "RFID"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "labeling": {
         "field": "'К'",
         "fontSize": 0.8,
@@ -3793,6 +5222,102 @@
       ],
       "defaultRule": 1,
       "qmlFile": "WorkLayers_LittleFormPoint.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "MafTypeLevel1",
+          "label": "Тип 1",
+          "lookup": {
+            "schema": "cls",
+            "table": "MafTypeLevel1",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "MafTypeLevel2",
+          "label": "Тип 2",
+          "lookup": {
+            "schema": "cls",
+            "table": "MafTypeLevel2",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "MafTypeLevel3",
+          "label": "Тип 3",
+          "lookup": {
+            "schema": "cls",
+            "table": "MafTypeLevel3",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единицы измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "InstallationDate",
+          "label": "Дата установки"
+        },
+        {
+          "field": "Lifetime",
+          "label": "Срок эксплуатации"
+        },
+        {
+          "field": "GuaranteePeriod",
+          "label": "Гарантийный срок"
+        },
+        {
+          "field": "IdRfid",
+          "label": "RFID"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "Svg",
+          "label": "Иконка SVG"
+        },
+        {
+          "field": "Svg_VAPoint",
+          "label": "Вертикальная точка привязки"
+        },
+        {
+          "field": "Svg_HAPoint",
+          "label": "Горизонтальная точка привязки"
+        }
+      ],
       "label": "Малые архитектурные формы и элементы благоустройства (Точка)"
     },
     "LittleFormPoly": {
@@ -3813,6 +5338,90 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_LittleFormPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "MafTypeLevel1",
+          "label": "Тип 1",
+          "lookup": {
+            "schema": "cls",
+            "table": "MafTypeLevel1",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "MafTypeLevel2",
+          "label": "Тип 2",
+          "lookup": {
+            "schema": "cls",
+            "table": "MafTypeLevel2",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "MafTypeLevel3",
+          "label": "Тип 3",
+          "lookup": {
+            "schema": "cls",
+            "table": "MafTypeLevel3",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единицы измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "InstallationDate",
+          "label": "Дата установки"
+        },
+        {
+          "field": "Lifetime",
+          "label": "Срок эксплуатации"
+        },
+        {
+          "field": "GuaranteePeriod",
+          "label": "Гарантийный срок"
+        },
+        {
+          "field": "IdRfid",
+          "label": "RFID"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Малые архитектурные формы и элементы благоустройства (Полигон)"
     },
     "MafPoint": {
@@ -4082,6 +5691,7 @@
       ],
       "defaultRule": 11,
       "qmlFile": "WorkLayers_MafPoint.qml",
+      "aliases": [],
       "label": "Малые архитектурные формы (Точка)"
     },
     "MafPoly": {
@@ -4196,6 +5806,64 @@
       ],
       "defaultRule": 1,
       "qmlFile": "WorkLayers_MafPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ConvElementType",
+          "label": "Тип МАФ",
+          "lookup": {
+            "schema": "cls",
+            "table": "ConvElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец"
+        },
+        {
+          "field": "Property",
+          "label": "Краткая характеристика"
+        },
+        {
+          "field": "Area",
+          "label": "Площадь"
+        },
+        {
+          "field": "IsObjectArea",
+          "label": "Входит в общую площадь ОДХ"
+        },
+        {
+          "field": "IdRfid",
+          "label": "ID RFID метки"
+        },
+        {
+          "field": "Description",
+          "label": "Примечание"
+        }
+      ],
       "label": "Малые архитектурные формы (Полигон)"
     },
     "MafPolyAxis": {
@@ -4211,6 +5879,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_MafPolyAxis.qml",
+      "aliases": [],
       "label": "MafPolyAxis"
     },
     "ManholesPoint": {
@@ -4455,6 +6124,54 @@
       ],
       "defaultRule": 11,
       "qmlFile": "WorkLayers_ManholesPoint.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ"
+        },
+        {
+          "field": "EngineStructType",
+          "label": "Тип люка и решетки",
+          "lookup": {
+            "schema": "cls",
+            "table": "EngineStructType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "Endwise",
+          "label": "По оси"
+        },
+        {
+          "field": "Accessory",
+          "label": "Принадлежность",
+          "lookup": {
+            "schema": "cls",
+            "table": "Accessory",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Description",
+          "label": "Примечание"
+        }
+      ],
       "label": "Люки смотровых колодцев и решетки водоприемных колодцев"
     },
     "MarginPoly": {
@@ -4576,6 +6293,96 @@
       ],
       "defaultRule": 6,
       "qmlFile": "WorkLayers_MarginPoly.qml",
+      "aliases": [
+        {
+          "field": "FlatElementType",
+          "label": "Тип обочины",
+          "lookup": {
+            "schema": "cls",
+            "table": "FlatElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона оси",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец"
+        },
+        {
+          "field": "MarginStrengType",
+          "label": "Тип укрепления",
+          "lookup": {
+            "schema": "cls",
+            "table": "MarginStrengType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Группа укрепления",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Area",
+          "label": "Площадь"
+        },
+        {
+          "field": "Distance",
+          "label": "Длина"
+        },
+        {
+          "field": "WidthBegin",
+          "label": "Ширина в начале"
+        },
+        {
+          "field": "WidthEnd",
+          "label": "Ширина в конце"
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Площадь уборки механизированная"
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Площадь уборки ручная"
+        },
+        {
+          "field": "NoCleanArea",
+          "label": "Площадь без уборки"
+        },
+        {
+          "field": "Description",
+          "label": "Примечание"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Обочины"
     },
     "MarginPolyAxis": {
@@ -4594,6 +6401,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_MarginPolyAxis.qml",
+      "aliases": [],
       "label": "MarginPolyAxis"
     },
     "OdhPoly": {
@@ -4612,6 +6420,414 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_OdhPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "Name",
+          "label": "Название"
+        },
+        {
+          "field": "OwnerLegalPersonId",
+          "label": "Балансодержатель",
+          "lookup": {
+            "schema": "cls",
+            "table": "OwnerLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "OwnerLegalPersonVersionId",
+          "label": "Версия балансодержателя",
+          "lookup": {
+            "schema": "cls",
+            "table": "OwnerLegalPerson",
+            "key": "VersionId",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "OwnerStartDate",
+          "label": "Действует с"
+        },
+        {
+          "field": "OwnerEndDate",
+          "label": "Действует по"
+        },
+        {
+          "field": "GrbsLegalPersonId",
+          "label": "Учредитель/ГРБС",
+          "lookup": {
+            "schema": "cls",
+            "table": "DepartmentLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "GrbsLegalPersonVersionId",
+          "label": "Версия учредителя/ГРБС",
+          "lookup": {
+            "schema": "cls",
+            "table": "DepartmentLegalPerson",
+            "key": "VersionId",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "GrbsStartDate",
+          "label": "Учредитель/ГРБС действует с"
+        },
+        {
+          "field": "GrbsEndDate",
+          "label": "Учредитель/ГРБС действует по"
+        },
+        {
+          "field": "CustomerLegalPersonId",
+          "label": "Заказчик",
+          "lookup": {
+            "schema": "cls",
+            "table": "CustomerLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "CustomerLegalPersonVersionId",
+          "label": "Версия заказчика",
+          "lookup": {
+            "schema": "cls",
+            "table": "CustomerLegalPerson",
+            "key": "VersionId",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "CustomerStartDate",
+          "label": "Заказчик действует с"
+        },
+        {
+          "field": "CustomertEndDate",
+          "label": "Заказчик действует по"
+        },
+        {
+          "field": "CleanCategory",
+          "label": "Категория по уборке",
+          "lookup": {
+            "schema": "cls",
+            "table": "CleanCategory",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CleanSubcategory",
+          "label": "Подкатегория по уборке",
+          "lookup": {
+            "schema": "cls",
+            "table": "CleanSubCategory",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PassportDraftOrg",
+          "label": "Составитель паспорта"
+        },
+        {
+          "field": "PassportDate",
+          "label": "Дата составления/согласования паспорта"
+        },
+        {
+          "field": "Description",
+          "label": "Примечание"
+        },
+        {
+          "field": "Distance",
+          "label": "Протяженность по оси"
+        },
+        {
+          "field": "LayoutLength",
+          "label": "Протяженность по всем осям"
+        },
+        {
+          "field": "AxisLength",
+          "label": "Протяженность осевой разделительной линии"
+        },
+        {
+          "field": "SnowArea",
+          "label": "Площадь вывоза снега"
+        },
+        {
+          "field": "RotorArea",
+          "label": "Площадь роторной перекидки"
+        },
+        {
+          "field": "ReagentArea",
+          "label": "Площадь обработки реагентами"
+        },
+        {
+          "field": "ActualSchemaDate",
+          "label": "Дата актуализации плана-схемы"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотный ОГХ"
+        },
+        {
+          "field": "InboundArea",
+          "label": "Общая площадь в границах ОДХ"
+        },
+        {
+          "field": "TotalArea",
+          "label": "Общая площадь в ТС"
+        },
+        {
+          "field": "TpuArea",
+          "label": "Общая площадь ТПУ"
+        },
+        {
+          "field": "GuttersLength",
+          "label": "Протяженность лотков"
+        },
+        {
+          "field": "RoadwayArea",
+          "label": "Проезжая часть всего"
+        },
+        {
+          "field": "MarginArea",
+          "label": "Обочины"
+        },
+        {
+          "field": "FootwayArea",
+          "label": "Тротуары"
+        },
+        {
+          "field": "BoundStoneLength",
+          "label": "Бортовой камень"
+        },
+        {
+          "field": "TramRailsLength",
+          "label": "Трамвайные пути"
+        },
+        {
+          "field": "TrafficSignsQty",
+          "label": "Дорожные знаки и указатели"
+        },
+        {
+          "field": "TraffLightQty",
+          "label": "Светофорные объекты"
+        },
+        {
+          "field": "StationQty",
+          "label": "Остановки ОТ"
+        },
+        {
+          "field": "GuidingArea",
+          "label": "Ограждения, кв. м."
+        },
+        {
+          "field": "GuidingLength",
+          "label": "Ограждения, п. м."
+        },
+        {
+          "field": "GuidingQty",
+          "label": "Ограждения, шт."
+        },
+        {
+          "field": "OtherArea",
+          "label": "Прочие территории"
+        },
+        {
+          "field": "EnginQty",
+          "label": "Инженерные сооружения"
+        },
+        {
+          "field": "BicycleArea",
+          "label": "Общая площадь велодорожек"
+        },
+        {
+          "field": "BicycleLength",
+          "label": "Протяженность велодорожек"
+        },
+        {
+          "field": "CleaningArea",
+          "label": "Площадь уборки"
+        },
+        {
+          "field": "RoadwayNoprkgManualCleanArea",
+          "label": "Проезжая часть ручная"
+        },
+        {
+          "field": "RoadwayNoprkgAutoCleanArea",
+          "label": "Проезжая часть механизированная"
+        },
+        {
+          "field": "RoadwayPrkgManualCleanArea",
+          "label": "Парковочное пространство ручная"
+        },
+        {
+          "field": "RoadwayPrkgAutoCleanArea",
+          "label": "Парковочное пространство механизированная"
+        },
+        {
+          "field": "AutoFootwayArea",
+          "label": "Тротуар механизированная"
+        },
+        {
+          "field": "ManualFootwayArea",
+          "label": "Тротуар ручная"
+        },
+        {
+          "field": "StationNumber",
+          "label": "Количество убираемых остановок ОТ"
+        },
+        {
+          "field": "StationArea",
+          "label": "Площадь убираемых остановок ОТ"
+        },
+        {
+          "field": "BarNewJersey",
+          "label": "Стенка Нью-Джерси"
+        },
+        {
+          "field": "Buffer",
+          "label": "Буфер безопасности"
+        },
+        {
+          "field": "Asperity",
+          "label": "ИДН"
+        },
+        {
+          "field": "Sign",
+          "label": "Знаки"
+        },
+        {
+          "field": "Info",
+          "label": "Информационные щиты"
+        },
+        {
+          "field": "CleaningGuidingLength",
+          "label": "Уборка ограждения, п.м."
+        },
+        {
+          "field": "CleaningGuidingArea",
+          "label": "Уборка ограждения, кв.м."
+        },
+        {
+          "field": "CleaningGuidingQty",
+          "label": "Уборка ограждения, шт."
+        },
+        {
+          "field": "BarAntinoise",
+          "label": "Защитная стенка"
+        },
+        {
+          "field": "Pointer",
+          "label": "Дорожные указатели"
+        },
+        {
+          "field": "NavigationPointer",
+          "label": "Навигационный указатель"
+        },
+        {
+          "field": "BarWave",
+          "label": "МБО Волна"
+        },
+        {
+          "field": "BarTrans",
+          "label": "МБО Трансэкострой"
+        },
+        {
+          "field": "BarPipe",
+          "label": "МБО Труба"
+        },
+        {
+          "field": "FootwayPole",
+          "label": "Тротуарные столбики"
+        },
+        {
+          "field": "BarFracasso",
+          "label": "МБО Фракассо"
+        },
+        {
+          "field": "BarConcrete",
+          "label": "Бетонный парапет"
+        },
+        {
+          "field": "BarFoot",
+          "label": "Пешеходные ограждения"
+        },
+        {
+          "field": "MarginAutoCleanArea",
+          "label": "Обочина механизированная"
+        },
+        {
+          "field": "MarginManualCleanArea",
+          "label": "Обочина ручная"
+        },
+        {
+          "field": "RepairsInfoList",
+          "label": "Перечень ремонтных работ"
+        },
+        {
+          "field": "RepairsInfoListPlan",
+          "label": "Перечень проектных работ"
+        },
+        {
+          "field": "Tree",
+          "label": "Перечень дочерних объектов"
+        },
+        {
+          "field": "TrafficCharacterList",
+          "label": "Характеристика движения"
+        },
+        {
+          "field": "CreateType",
+          "label": "Тип создания"
+        },
+        {
+          "field": "CreateDate",
+          "label": "Дата создания"
+        },
+        {
+          "field": "Intensity",
+          "label": "Данные о интенсивности движения"
+        },
+        {
+          "field": "CategorySp",
+          "label": "Код категории по СП 42.13330.2016",
+          "lookup": {
+            "schema": "cls",
+            "table": "CategorySp",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PassDevInitiator",
+          "label": "Инициатор разработки паспота"
+        },
+        {
+          "field": "DateSurvey",
+          "label": "Дата обследования"
+        },
+        {
+          "field": "PassBrId",
+          "label": "Номер заявки"
+        },
+        {
+          "field": "TotalCleaningArea",
+          "label": "Общая площадь уборки"
+        },
+        {
+          "field": "TotalNoCleaningArea",
+          "label": "Общая площадь без уборки"
+        }
+      ],
       "label": "Объект дорожного хозяйства (паспорт)"
     },
     "OtherEnginConstructPoint": {
@@ -4634,6 +6850,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "MasterLayers_OtherEnginConstructPoint.qml",
+      "aliases": [],
       "label": "Инженерные сооружения (Точка)"
     },
     "OtherEnginConstructPoly": {
@@ -4854,6 +7071,82 @@
       ],
       "defaultRule": 5,
       "qmlFile": "WorkLayers_OtherEnginConstructPoly.qml",
+      "aliases": [
+        {
+          "field": "OghObjectType",
+          "label": "Тип тротуара",
+          "lookup": {
+            "schema": "cls",
+            "table": "FlatElementType",
+            "key": "OghObjectTypeName",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "EngineStructType",
+          "label": "Тип сооружения",
+          "lookup": {
+            "schema": "cls",
+            "table": "EngineStructType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало, м"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец, м"
+        },
+        {
+          "field": "Area",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "IsObjectArea",
+          "label": "Входит в общую площадь ОДХ"
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "GuttersLength",
+          "label": "Прилотковая зона"
+        },
+        {
+          "field": "Description",
+          "label": "Примечание"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "IsHided",
+          "label": "Скрыт"
+        }
+      ],
       "label": "Инженерные сооружения (Полигон)"
     },
     "OtherEnginConstructPolyAxis": {
@@ -4869,6 +7162,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_OtherEnginConstructPolyAxis.qml",
+      "aliases": [],
       "label": "OtherEnginConstructPolyAxis"
     },
     "OtherFlatBuildingPoly": {
@@ -5142,6 +7436,102 @@
       ],
       "defaultRule": 13,
       "qmlFile": "WorkLayers_OtherFlatBuildingPoly.qml",
+      "aliases": [
+        {
+          "field": "OghObjectType",
+          "label": "Тип тротуара",
+          "lookup": {
+            "schema": "cls",
+            "table": "FlatElementType",
+            "key": "OghObjectTypeName",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "FlatElementType",
+          "label": "Тип территории",
+          "lookup": {
+            "schema": "cls",
+            "table": "FlatElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало, м"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец, м"
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Тип покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Area",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "IsRoadwayArea",
+          "label": "Относится к проезжей части"
+        },
+        {
+          "field": "IsFootwayArea",
+          "label": "Относится к тротуару"
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Механическая уборка, кв.м."
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Ручная уборка, кв.м."
+        },
+        {
+          "field": "NoCleanArea",
+          "label": "Без уборки, кв.м."
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "labeling": {
         "field": "'ГРУНТ'",
         "fontSize": 2.0,
@@ -5163,6 +7553,98 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_OtherFlatBuildingPolyAxis.qml",
+      "aliases": [
+        {
+          "field": "OghObjectType",
+          "label": "Тип тротуара",
+          "lookup": {
+            "schema": "cls",
+            "table": "FlatElementType",
+            "key": "OghObjectTypeName",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "FlatElementType",
+          "label": "Тип территории",
+          "lookup": {
+            "schema": "cls",
+            "table": "FlatElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало, м"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец, м"
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Тип покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Area",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "IsRoadwayArea",
+          "label": "Относится к проезжей части"
+        },
+        {
+          "field": "IsFootwayArea",
+          "label": "Относится к тротуару"
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Механическая уборка, кв.м."
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Ручная уборка, кв.м."
+        },
+        {
+          "field": "NoCleanArea",
+          "label": "Без уборки, кв.м."
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "OtherFlatBuildingPolyAxis"
     },
     "OtherOksPoly": {
@@ -5220,6 +7702,90 @@
       ],
       "defaultRule": 2,
       "qmlFile": "WorkLayers_OtherOksPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "BuildingsType",
+          "label": "Назначение",
+          "lookup": {
+            "schema": "cls",
+            "table": "BuildingsType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "BuildingsTypeSpec",
+          "label": "Уточнение назначения",
+          "lookup": {
+            "schema": "cls",
+            "table": "BuildingsTypeSpec",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Property",
+          "label": "Характеристика"
+        },
+        {
+          "field": "Area",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Группа покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingFaceType",
+          "label": "Вид покрытия (облицовка)",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Unom",
+          "label": "UNOM"
+        },
+        {
+          "field": "Unad",
+          "label": "UNAD"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "IsSmmCleaning",
+          "label": "Уборка с применением СММ"
+        }
+      ],
       "label": "Иной объект капитального строительства"
     },
     "OtherTechPlacePoly": {
@@ -5254,6 +7820,62 @@
       "fields": [],
       "defaultRule": 1,
       "qmlFile": "WorkLayers_OtherTechPlacePoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "BuildingsType",
+          "label": "Назначение",
+          "lookup": {
+            "schema": "cls",
+            "table": "BuildingsType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "BuildingsTypeSpec",
+          "label": "Уточнение назначения",
+          "lookup": {
+            "schema": "cls",
+            "table": "BuildingsTypeSpec",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Area",
+          "label": "Площадь"
+        },
+        {
+          "field": "Unom",
+          "label": "UNOM"
+        },
+        {
+          "field": "Unad",
+          "label": "UNAD"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Иные некапитальные объекты"
     },
     "OznPoly": {
@@ -5272,6 +7894,286 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_OznPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "StartDate",
+          "label": "Дата начала действия"
+        },
+        {
+          "field": "EndDate",
+          "label": "Дата окончания действия"
+        },
+        {
+          "field": "Name",
+          "label": "Название"
+        },
+        {
+          "field": "OwnerLegalPersonId",
+          "label": "Балансодержатель",
+          "lookup": {
+            "schema": "cls",
+            "table": "OwnerLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "OwnerLegalPersonVersionId",
+          "label": "Версия балансодержателя"
+        },
+        {
+          "field": "OwnerStartDate",
+          "label": "Балансодержатель действует с"
+        },
+        {
+          "field": "OwnerEndDate",
+          "label": "Балансодержатель действует по"
+        },
+        {
+          "field": "DepartmentLegalPersonId",
+          "label": "Ведомственный ОИВ",
+          "lookup": {
+            "schema": "cls",
+            "table": "DepartmentLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "DepartmentLegalPersonVersionId",
+          "label": "Версия ведомственного ОИВ"
+        },
+        {
+          "field": "DepartmentStartDate",
+          "label": "Ведомственный ОИВ дествует с"
+        },
+        {
+          "field": "DepartmentEndDate",
+          "label": "Ведомственный ОИВ действует по"
+        },
+        {
+          "field": "CustomerLegalPersonId",
+          "label": "Заказчик",
+          "lookup": {
+            "schema": "cls",
+            "table": "CustomerLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "CustomerLegalPersonVersionId",
+          "label": "Версия заказчика"
+        },
+        {
+          "field": "CustomerStartDate",
+          "label": "Заказчик действует с"
+        },
+        {
+          "field": "CustomertEndDate",
+          "label": "Заказчик действует по"
+        },
+        {
+          "field": "ImprovementCategory",
+          "label": "Категория благоустройства"
+        },
+        {
+          "field": "ImprovementObjectCategory",
+          "label": "Категория озеленения",
+          "lookup": {
+            "schema": "cls",
+            "table": "ImprovementObjectCategory",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Unom",
+          "label": "UNOM"
+        },
+        {
+          "field": "Unad",
+          "label": "UNAD"
+        },
+        {
+          "field": "TotalArea",
+          "label": "Площадь"
+        },
+        {
+          "field": "TotalCleanArea",
+          "label": "Уборочная площадь"
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Площадь ручной уборки"
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Площадь механизированной уборки"
+        },
+        {
+          "field": "TotalCoverCleanArea",
+          "label": "Площадь уборки по покрытиям"
+        },
+        {
+          "field": "AsphaltCleanArea",
+          "label": "Асфальтобетонное"
+        },
+        {
+          "field": "SlabCleanArea",
+          "label": "Плиточное"
+        },
+        {
+          "field": "SoilCleanArea",
+          "label": "Грунтовое"
+        },
+        {
+          "field": "RubberCleanArea",
+          "label": "Мягкое из резиновой крошки"
+        },
+        {
+          "field": "SandCleanArea",
+          "label": "Мягкое из песка"
+        },
+        {
+          "field": "GraniteCleanArea",
+          "label": "Мягкое из гранитной высевки"
+        },
+        {
+          "field": "GrassCleanArea",
+          "label": "Мягкое из искусственной травы"
+        },
+        {
+          "field": "PlasticCleanArea",
+          "label": "Пластиковое"
+        },
+        {
+          "field": "GrassPaverCleanArea",
+          "label": "Газонная решетка"
+        },
+        {
+          "field": "TotalLawnArea",
+          "label": "Общая"
+        },
+        {
+          "field": "UsialLawnArea",
+          "label": "Обыкновенный"
+        },
+        {
+          "field": "ParterreLawnArea",
+          "label": "Партерный"
+        },
+        {
+          "field": "LawnGridArea",
+          "label": "На ячеистом основании"
+        },
+        {
+          "field": "LawnLawnArea",
+          "label": "Луговой разнотравный"
+        },
+        {
+          "field": "SlopeLawnArea",
+          "label": "На откосе"
+        },
+        {
+          "field": "LawnOtherArea",
+          "label": "Иного типа"
+        },
+        {
+          "field": "CoverImproveAutoCleanArea",
+          "label": "Территория уборки усов. покрытий"
+        },
+        {
+          "field": "SnowCleanArea",
+          "label": "Площадь вывоза снега"
+        },
+        {
+          "field": "ReservoirArea",
+          "label": "Водоемы"
+        },
+        {
+          "field": "RepairsInfoList",
+          "label": "Перечень ремонтных работ"
+        },
+        {
+          "field": "RepairsInfoListPlan",
+          "label": "Перечень проектных работ"
+        },
+        {
+          "field": "Tree",
+          "label": "Перечень дочерних объектов"
+        },
+        {
+          "field": "GreeningAddition",
+          "label": "Требует дополнения по зеленым насаждениям"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотный ОГХ"
+        },
+        {
+          "field": "CreateType",
+          "label": "Тип создания"
+        },
+        {
+          "field": "DateSurvey",
+          "label": "Дата обследования"
+        },
+        {
+          "field": "DateSurveyGreenZones",
+          "label": "Дата обследования ЗН"
+        },
+        {
+          "field": "Okrug",
+          "label": "Округ",
+          "lookup": {
+            "schema": "cls",
+            "table": "Okrug",
+            "key": "Name",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "District",
+          "label": "Район",
+          "lookup": {
+            "schema": "cls",
+            "table": "District",
+            "key": "Name",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PassBrId",
+          "label": "Номер заявки"
+        },
+        {
+          "field": "Landscaping",
+          "label": "Работы по благоустройству"
+        },
+        {
+          "field": "OznType",
+          "label": "Тип ОО",
+          "lookup": {
+            "schema": "cls",
+            "table": "OznType",
+            "key": "Id",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "TotalCleaningArea",
+          "label": "Общая площадь уборки"
+        },
+        {
+          "field": "TotalNoCleaningArea",
+          "label": "Общая площадь без уборки"
+        }
+      ],
       "label": "Объект озеленения"
     },
     "PhotoFixLine": {
@@ -5295,6 +8197,7 @@
       ],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_PhotoFixLine.qml",
+      "aliases": [],
       "labeling": {
         "field": "PhotoName",
         "fontSize": 1.0,
@@ -5331,6 +8234,16 @@
       ],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_PhotoFixPoint.qml",
+      "aliases": [
+        {
+          "field": "PhotoName",
+          "label": "Название фото"
+        },
+        {
+          "field": "TaskName",
+          "label": "Папка задачи"
+        }
+      ],
       "labeling": {
         "field": "PhotoName",
         "fontSize": 0.8,
@@ -5715,6 +8628,88 @@
       ],
       "defaultRule": 22,
       "qmlFile": "WorkLayers_PlanarStructure.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "PlanarStructureType",
+          "label": "Назначение",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlanarStructureType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PlanarStructureTypeRef",
+          "label": "Уточнение назначения",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlanarStructureTypeRef",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Группа покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "TotalArea",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Площадь ручной уборки, кв.м."
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Площадь механической уборки, кв.м."
+        },
+        {
+          "field": "Property",
+          "label": "Характеристика"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "ParkingPlacesQuantity",
+          "label": "Количество машиномест"
+        },
+        {
+          "field": "IceRinkPlanarStructure",
+          "label": "Каток открытый"
+        },
+        {
+          "field": "IsSmmCleaning",
+          "label": "Уборка с применением СММ"
+        }
+      ],
       "labeling": {
         "field": "'ТВ.'",
         "fontSize": 2.0,
@@ -6099,6 +9094,88 @@
       ],
       "defaultRule": 22,
       "qmlFile": "WorkLayers_PlanarStructure.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "PlanarStructureType",
+          "label": "Назначение",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlanarStructureType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PlanarStructureTypeRef",
+          "label": "Уточнение назначения",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlanarStructureTypeRef",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Группа покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "TotalArea",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Площадь ручной уборки, кв.м."
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Площадь механической уборки, кв.м."
+        },
+        {
+          "field": "Property",
+          "label": "Характеристика"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "ParkingPlacesQuantity",
+          "label": "Количество машиномест"
+        },
+        {
+          "field": "IceRinkPlanarStructure",
+          "label": "Каток открытый"
+        },
+        {
+          "field": "IsSmmCleaning",
+          "label": "Уборка с применением СММ"
+        }
+      ],
       "labeling": {
         "field": "'ТВ.'",
         "fontSize": 2.0,
@@ -6186,6 +9263,54 @@
       ],
       "defaultRule": 4,
       "qmlFile": "WorkLayers_PpiLine.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ArrangeElementType",
+          "label": "Тип элемента",
+          "lookup": {
+            "schema": "cls",
+            "table": "ArrangeElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единица измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "labeling": {
         "field": "'ПБ'",
         "fontSize": 0.8,
@@ -6288,6 +9413,54 @@
       ],
       "defaultRule": 4,
       "qmlFile": "WorkLayers_PpiPoint.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ArrangeElementType",
+          "label": "Тип элемента",
+          "lookup": {
+            "schema": "cls",
+            "table": "ArrangeElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единица измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "labeling": {
         "field": "'Пандус'",
         "fontSize": 0.7,
@@ -6384,6 +9557,54 @@
       ],
       "defaultRule": 4,
       "qmlFile": "WorkLayers_PpiPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ArrangeElementType",
+          "label": "Тип элемента",
+          "lookup": {
+            "schema": "cls",
+            "table": "ArrangeElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единица измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Элементы благоустройства для маломобильных групп населения (Полигон)"
     },
     "RedBookPlantPoint": {
@@ -6426,6 +9647,34 @@
       ],
       "defaultRule": 1,
       "qmlFile": "WorkLayers_RedBookPlantPoint.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "RedBookPlant",
+          "label": "Код вида растения",
+          "lookup": {
+            "schema": "cls",
+            "table": "RedBookPlantType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "SectionNum",
+          "label": "Номер участка"
+        },
+        {
+          "field": "GreenNum",
+          "label": "Номер растения"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        }
+      ],
       "label": "Растения Красной книги"
     },
     "ReliefLine": {
@@ -6506,6 +9755,54 @@
       ],
       "defaultRule": 4,
       "qmlFile": "WorkLayers_ReliefLine.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ArrangeElementType",
+          "label": "Тип элемента",
+          "lookup": {
+            "schema": "cls",
+            "table": "ArrangeElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единица измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Элементы организации рельефа (Линия)"
     },
     "ReliefPoint": {
@@ -6601,6 +9898,54 @@
       ],
       "defaultRule": 4,
       "qmlFile": "WorkLayers_ReliefPoint.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ArrangeElementType",
+          "label": "Тип элемента",
+          "lookup": {
+            "schema": "cls",
+            "table": "ArrangeElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единица измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Элементы организации рельефа (Точка)"
     },
     "ReliefPoly": {
@@ -6690,6 +10035,84 @@
       ],
       "defaultRule": 4,
       "qmlFile": "WorkLayers_ReliefPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ArrangeElementType",
+          "label": "Тип элемента",
+          "lookup": {
+            "schema": "cls",
+            "table": "ArrangeElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Unit",
+          "label": "Единица измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Группа покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingFaceType",
+          "label": "Вид покрытия облицовка",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Элементы организации рельефа (Полигон)"
     },
     "RoadSignsLine": {
@@ -6698,6 +10121,84 @@
       "fields": [],
       "defaultRule": null,
       "qmlFile": "WorkLayers_RoadSignsLine.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "EquipmentType",
+          "label": "Тип знака",
+          "lookup": {
+            "schema": "cls",
+            "table": "EquipmentType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Endwise",
+          "label": "По оси"
+        },
+        {
+          "field": "MountingMode",
+          "label": "Тип установки",
+          "lookup": {
+            "schema": "cls",
+            "table": "MountingMode",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "TrafficSignsCode",
+          "label": "Код по ГОСТ",
+          "lookup": {
+            "schema": "cls",
+            "table": "TrafficSigns",
+            "key": "Code",
+            "value": "NameGOST"
+          }
+        },
+        {
+          "field": "TrafficSignsName",
+          "label": "Название по ГОСТ",
+          "lookup": {
+            "schema": "cls",
+            "table": "TrafficSigns",
+            "key": "Name",
+            "value": "NameGOST"
+          }
+        },
+        {
+          "field": "Height",
+          "label": "Высота расположения по низу"
+        },
+        {
+          "field": "Description",
+          "label": "Примечание"
+        },
+        {
+          "field": "SvgMarkerAngle",
+          "label": "Угол поворота SVG маркера знака"
+        },
+        {
+          "field": "SvgMarkerPath",
+          "label": "Относительный путь к SVG знака"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "SignText",
+          "label": "Текст на знаке"
+        },
+        {
+          "field": "OnYellowBack",
+          "label": "На желтом фоне"
+        }
+      ],
       "label": "Знаки, указатели и информационные щиты"
     },
     "RoadSignsLineWithText": {
@@ -6706,6 +10207,84 @@
       "fields": [],
       "defaultRule": null,
       "qmlFile": "WorkLayers_RoadSignsLineWithText.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "EquipmentType",
+          "label": "Тип знака",
+          "lookup": {
+            "schema": "cls",
+            "table": "EquipmentType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Endwise",
+          "label": "По оси"
+        },
+        {
+          "field": "MountingMode",
+          "label": "Тип установки",
+          "lookup": {
+            "schema": "cls",
+            "table": "MountingMode",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "TrafficSignsCode",
+          "label": "Код по ГОСТ",
+          "lookup": {
+            "schema": "cls",
+            "table": "TrafficSigns",
+            "key": "Code",
+            "value": "NameGOST"
+          }
+        },
+        {
+          "field": "TrafficSignsName",
+          "label": "Название по ГОСТ",
+          "lookup": {
+            "schema": "cls",
+            "table": "TrafficSigns",
+            "key": "Name",
+            "value": "NameGOST"
+          }
+        },
+        {
+          "field": "Height",
+          "label": "Высота расположения по низу"
+        },
+        {
+          "field": "Description",
+          "label": "Примечание"
+        },
+        {
+          "field": "SvgMarkerAngle",
+          "label": "Угол поворота SVG маркера знака"
+        },
+        {
+          "field": "SvgMarkerPath",
+          "label": "Относительный путь к SVG знака"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "SignText",
+          "label": "Текст на знаке"
+        },
+        {
+          "field": "OnYellowBack",
+          "label": "На желтом фоне"
+        }
+      ],
       "label": "RoadSignsLineWithText"
     },
     "SidewalksPoly": {
@@ -6962,6 +10541,104 @@
       ],
       "defaultRule": 12,
       "qmlFile": "WorkLayers_SidewalksPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "FlatElementType",
+          "label": "Тип тротуара",
+          "lookup": {
+            "schema": "cls",
+            "table": "FlatElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало, м"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец, м"
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Тип покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Area",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "Distance",
+          "label": "Длина, п.м."
+        },
+        {
+          "field": "WidthBegin",
+          "label": "Ширина в начале, м"
+        },
+        {
+          "field": "WidthEnd",
+          "label": "Ширина в конце, м"
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Механическая уборка, кв.м."
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Ручная уборка, кв.м."
+        },
+        {
+          "field": "NoCleanArea",
+          "label": "Без уборки, кв.м."
+        },
+        {
+          "field": "OotCleanArea",
+          "label": "Остановки, кв.м."
+        },
+        {
+          "field": "UtnArea",
+          "label": "УТН, кв.м."
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "labeling": {
         "field": "'ГРУНТ'",
         "fontSize": 2.0,
@@ -6983,6 +10660,110 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_SidewalksPolyAxis.qml",
+      "aliases": [
+        {
+          "field": "OghObjectType",
+          "label": "Тип тротуара",
+          "lookup": {
+            "schema": "cls",
+            "table": "FlatElementType",
+            "key": "OghObjectTypeName",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "FlatElementType",
+          "label": "Тип тротуара",
+          "lookup": {
+            "schema": "cls",
+            "table": "FlatElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало, м"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец, м"
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Тип покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Area",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "Distance",
+          "label": "Длина, п.м."
+        },
+        {
+          "field": "WidthBegin",
+          "label": "Ширина в начале, м"
+        },
+        {
+          "field": "WidthEnd",
+          "label": "Ширина в конце, м"
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Механическая уборка, кв.м."
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Ручная уборка, кв.м."
+        },
+        {
+          "field": "NoCleanArea",
+          "label": "Без уборки, кв.м."
+        },
+        {
+          "field": "OotCleanArea",
+          "label": "Остановки, кв.м."
+        },
+        {
+          "field": "UtnArea",
+          "label": "УТН, кв.м."
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "SidewalksPolyAxis"
     },
     "SpaPoly": {
@@ -7003,6 +10784,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "MasterLayers_SpaPoly.qml",
+      "aliases": [],
       "label": "Особо охраняемые природные территории"
     },
     "StopsPoly": {
@@ -7060,6 +10842,76 @@
       ],
       "defaultRule": 2,
       "qmlFile": "WorkLayers_StopsPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "ConvElementType",
+          "label": "Тип остановки",
+          "lookup": {
+            "schema": "cls",
+            "table": "ConvElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало, м"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец, м"
+        },
+        {
+          "field": "Name",
+          "label": "Название остановки (адресная привязка)"
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество павильонов, шт"
+        },
+        {
+          "field": "Routes",
+          "label": "Наличие маршрутов"
+        },
+        {
+          "field": "Area",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "StationCleanArea",
+          "label": "Площадь уборки, кв.м."
+        },
+        {
+          "field": "PocketArea",
+          "label": "Площадь уширения типа кармана, кв.м."
+        },
+        {
+          "field": "PavilionArea",
+          "label": "Площадь павильонов, кв.м."
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Остановки общественного транспорта"
     },
     "StopsPolyAxis": {
@@ -7078,6 +10930,72 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_StopsPolyAxis.qml",
+      "aliases": [
+        {
+          "field": "ConvElementType",
+          "label": "Тип остановки",
+          "lookup": {
+            "schema": "cls",
+            "table": "ConvElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало, м"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец, м"
+        },
+        {
+          "field": "Name",
+          "label": "Название остановки (адресная привязка)"
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество павильонов, шт"
+        },
+        {
+          "field": "Routes",
+          "label": "Наличие маршрутов"
+        },
+        {
+          "field": "Area",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "StationCleanArea",
+          "label": "Площадь уборки, кв.м."
+        },
+        {
+          "field": "PocketArea",
+          "label": "Площадь уширения типа кармана, кв.м."
+        },
+        {
+          "field": "PavilionArea",
+          "label": "Площадь павильонов, кв.м."
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "StopsPolyAxis"
     },
     "StoragePlacePoly": {
@@ -7135,6 +11053,82 @@
       ],
       "defaultRule": 2,
       "qmlFile": "WorkLayers_StoragePlacePoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "BikeParkType",
+          "label": "Тип велопарковки",
+          "lookup": {
+            "schema": "cls",
+            "table": "BikeParkType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "BikeRefType",
+          "label": "Уточнение типа велопарковки",
+          "lookup": {
+            "schema": "cls",
+            "table": "BikeRefType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Area",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Код  группы покрытия",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия, уточнение",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Unom",
+          "label": "UNOM"
+        },
+        {
+          "field": "Unad",
+          "label": "UNAD"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Велопарковки"
     },
     "TechPlacePoly": {
@@ -7192,6 +11186,42 @@
       ],
       "defaultRule": 2,
       "qmlFile": "WorkLayers_TechPlacePoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Area",
+          "label": "Площадь, кв.м."
+        },
+        {
+          "field": "Unom",
+          "label": "UNOM"
+        },
+        {
+          "field": "Unad",
+          "label": "UNAD"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Некапитальные объекты для обеспечения производственной деятельности по содержанию и ремонту территорий"
     },
     "TopPoly": {
@@ -7210,6 +11240,280 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_TopPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "StartDate",
+          "label": "Дата начала действия"
+        },
+        {
+          "field": "EndDate",
+          "label": "Дата окончания действия"
+        },
+        {
+          "field": "Name",
+          "label": "Название"
+        },
+        {
+          "field": "OwnerLegalPersonId",
+          "label": "Балансодержатель",
+          "lookup": {
+            "schema": "cls",
+            "table": "OwnerLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "OwnerLegalPersonVersionId",
+          "label": "Версия балансодержателя"
+        },
+        {
+          "field": "OwnerStartDate",
+          "label": "Балансодержатель действует с"
+        },
+        {
+          "field": "OwnerEndDate",
+          "label": "Балансодержатель действует по"
+        },
+        {
+          "field": "DepartmentLegalPersonId",
+          "label": "Ведомственный ОИВ",
+          "lookup": {
+            "schema": "cls",
+            "table": "DepartmentLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "DepartmentLegalPersonVersionId",
+          "label": "Версия ведомственного ОИВ"
+        },
+        {
+          "field": "DepartmentStartDate",
+          "label": "Ведомственный ОИВ дествует с"
+        },
+        {
+          "field": "DepartmentEndDate",
+          "label": "Ведомственный ОИВ действует по"
+        },
+        {
+          "field": "CustomerLegalPersonId",
+          "label": "Заказчик",
+          "lookup": {
+            "schema": "cls",
+            "table": "CustomerLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "CustomerLegalPersonVersionId",
+          "label": "Версия заказчика"
+        },
+        {
+          "field": "CustomerStartDate",
+          "label": "Заказчик действует с"
+        },
+        {
+          "field": "CustomertEndDate",
+          "label": "Заказчик действует по"
+        },
+        {
+          "field": "ImprovementCategory",
+          "label": "Категория благоустройства"
+        },
+        {
+          "field": "ImprovementObjectCategory",
+          "label": "Категория озеленения",
+          "lookup": {
+            "schema": "cls",
+            "table": "ImprovementObjectCategory",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Unom",
+          "label": "UNOM"
+        },
+        {
+          "field": "Unad",
+          "label": "UNAD"
+        },
+        {
+          "field": "TotalArea",
+          "label": "Площадь"
+        },
+        {
+          "field": "TotalCleanArea",
+          "label": "Уборочная площадь"
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Площадь ручной уборки"
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Площадь механизированной уборки"
+        },
+        {
+          "field": "TotalCoverCleanArea",
+          "label": "Площадь уборки по покрытиям"
+        },
+        {
+          "field": "AsphaltCleanArea",
+          "label": "Асфальтобетонное"
+        },
+        {
+          "field": "SlabCleanArea",
+          "label": "Плиточное"
+        },
+        {
+          "field": "SoilCleanArea",
+          "label": "Грунтовое"
+        },
+        {
+          "field": "RubberCleanArea",
+          "label": "Мягкое из резиновой крошки"
+        },
+        {
+          "field": "SandCleanArea",
+          "label": "Мягкое из песка"
+        },
+        {
+          "field": "GraniteCleanArea",
+          "label": "Мягкое из гранитной высевки"
+        },
+        {
+          "field": "GrassCleanArea",
+          "label": "Мягкое из искусственной травы"
+        },
+        {
+          "field": "PlasticCleanArea",
+          "label": "Пластиковое"
+        },
+        {
+          "field": "GrassPaverCleanArea",
+          "label": "Газонная решетка"
+        },
+        {
+          "field": "TotalLawnArea",
+          "label": "Общая"
+        },
+        {
+          "field": "YardLawnAreaWithout",
+          "label": "За вычетом насаждений"
+        },
+        {
+          "field": "UsialLawnArea",
+          "label": "Обыкновенный"
+        },
+        {
+          "field": "ParterreLawnArea",
+          "label": "Партерный"
+        },
+        {
+          "field": "LawnGridArea",
+          "label": "На ячеистом основании"
+        },
+        {
+          "field": "LawnLawnArea",
+          "label": "Луговой разнотравный"
+        },
+        {
+          "field": "SlopeLawnArea",
+          "label": "На откосе"
+        },
+        {
+          "field": "LawnOtherArea",
+          "label": "Иного типа"
+        },
+        {
+          "field": "CoverImproveAutoCleanArea",
+          "label": "Территория уборки усов. покрытий"
+        },
+        {
+          "field": "SnowCleanArea",
+          "label": "Площадь вывоза снега"
+        },
+        {
+          "field": "ReservoirArea",
+          "label": "Водоемы"
+        },
+        {
+          "field": "RepairsInfoList",
+          "label": "Перечень ремонтных работ"
+        },
+        {
+          "field": "RepairsInfoListPlan",
+          "label": "Перечень проектных работ"
+        },
+        {
+          "field": "Tree",
+          "label": "Перечень дочерних объектов"
+        },
+        {
+          "field": "GreeningAddition",
+          "label": "Требует дополнения по зеленым насаждениям"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотный ОГХ"
+        },
+        {
+          "field": "CreateType",
+          "label": "Тип создания"
+        },
+        {
+          "field": "DateSurvey",
+          "label": "Дата обследования"
+        },
+        {
+          "field": "DateSurveyGreenZones",
+          "label": "Дата обследования ЗН"
+        },
+        {
+          "field": "Okrug",
+          "label": "Округ",
+          "lookup": {
+            "schema": "cls",
+            "table": "Okrug",
+            "key": "Name",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "District",
+          "label": "Район",
+          "lookup": {
+            "schema": "cls",
+            "table": "District",
+            "key": "Name",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PassBrId",
+          "label": "Номер заявки"
+        },
+        {
+          "field": "Landscaping",
+          "label": "Работы по благоустройству"
+        },
+        {
+          "field": "TotalCleaningArea",
+          "label": "Общая площадь уборки"
+        },
+        {
+          "field": "TotalNoCleaningArea",
+          "label": "Общая площадь без уборки"
+        }
+      ],
       "label": "TopPoly"
     },
     "TrafficLightPoint": {
@@ -7232,6 +11536,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "MasterLayers_TrafficLightPoint.qml",
+      "aliases": [],
       "label": "Светофорные объекты"
     },
     "TramRailsPoly": {
@@ -7353,6 +11658,108 @@
       ],
       "defaultRule": 6,
       "qmlFile": "WorkLayers_TramRailsPoly.qml",
+      "aliases": [
+        {
+          "field": "NetElementType",
+          "label": "Тип путей",
+          "lookup": {
+            "schema": "cls",
+            "table": "NetElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец"
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество путей"
+        },
+        {
+          "field": "CoatingType",
+          "label": "Вид покрытия на путях",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CoatingGroup",
+          "label": "Группа покрытия на путях",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "RoadCoatingType",
+          "label": "Вид покрытия на сопряжении с ПЧ",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "RoadCoatingGroup",
+          "label": "Группа покрытия на сопряжении с ПЧ",
+          "lookup": {
+            "schema": "cls",
+            "table": "CoatingTypeGroup",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Distance",
+          "label": "Длина путей"
+        },
+        {
+          "field": "Area",
+          "label": "Площадь"
+        },
+        {
+          "field": "SuspHeight",
+          "label": "Высота подвески над проезжей частью"
+        },
+        {
+          "field": "Detached",
+          "label": "Обособленные"
+        },
+        {
+          "field": "IsIsolated",
+          "label": "В одном уровне"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Трамвайные пути"
     },
     "TramRailsPolyAxis": {
@@ -7368,6 +11775,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_TramRailsPolyAxis.qml",
+      "aliases": [],
       "label": "TramRailsPolyAxis"
     },
     "TreeMergeLines": {
@@ -7386,6 +11794,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_TreeMergeLines.qml",
+      "aliases": [],
       "label": "Вспомогательные линии"
     },
     "TreesShrubsLine": {
@@ -7438,6 +11847,149 @@
       ],
       "defaultRule": 2,
       "qmlFile": "WorkLayers_TreesShrubsLine.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "PlantationType",
+          "label": "Тип насаждения",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlantationType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PlantType",
+          "label": "Вид растения",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlantType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "LifeFormType",
+          "label": "Жизненная форма",
+          "lookup": {
+            "schema": "cls",
+            "table": "LifeFormType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Age",
+          "label": "Возраст"
+        },
+        {
+          "field": "Diameter",
+          "label": "Диаметр на высоте 1,3 м"
+        },
+        {
+          "field": "GreenNum",
+          "label": "№ Растения"
+        },
+        {
+          "field": "Height",
+          "label": "Высота"
+        },
+        {
+          "field": "SectionNum",
+          "label": "№ Участка"
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Area",
+          "label": "Площадь"
+        },
+        {
+          "field": "Distance",
+          "label": "Протяженность"
+        },
+        {
+          "field": "BioGgroupNum",
+          "label": "Номер биогруппы"
+        },
+        {
+          "field": "MillionTrees",
+          "label": "Акция «Миллион деревьев»"
+        },
+        {
+          "field": "StateGardening",
+          "label": "Состояние",
+          "lookup": {
+            "schema": "cls",
+            "table": "StateGardering",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "DetailedStateGardening",
+          "label": "Уточнение состояния",
+          "lookup": {
+            "schema": "cls",
+            "table": "DetailedStateGardering",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CharacteristicStateGardening",
+          "label": "Характеристика состояния",
+          "lookup": {
+            "schema": "cls",
+            "table": "CharacteristicStateGardering",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PlantServiceRecomendations",
+          "label": "Рекомендации по уходу",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlantServiceRecomendations",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "ValuablePlants",
+          "label": "Особо ценные",
+          "lookup": {
+            "schema": "cls",
+            "table": "ValuablePlants",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "WoodType",
+          "label": "Порода МГГТ",
+          "valueMap": {
+            "deciduous": "лиственное",
+            "conifer": "хвойное",
+            "bush": "кустарник"
+          }
+        }
+      ],
       "labeling": {
         "field": "CASE\nWHEN \"PlantationType\" = 'hedge' THEN 'ЖИ ' || \"GreenNum\"\nWHEN \"LifeFormType\" = 'tree' THEN 'ГД ' || \"GreenNum\"\nWHEN \"LifeFormType\" = 'bush' THEN 'ГК ' || \"GreenNum\"\nELSE \"GreenNum\"\nEND",
         "fontSize": 1.4,
@@ -7510,6 +12062,149 @@
       ],
       "defaultRule": 2,
       "qmlFile": "WorkLayers_TreesShrubsPoint.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "PlantationType",
+          "label": "Тип насаждения",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlantationType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PlantType",
+          "label": "Вид растения",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlantType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "LifeFormType",
+          "label": "Жизненная форма",
+          "lookup": {
+            "schema": "cls",
+            "table": "LifeFormType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Age",
+          "label": "Возраст"
+        },
+        {
+          "field": "Diameter",
+          "label": "Диаметр на высоте 1,3 м"
+        },
+        {
+          "field": "GreenNum",
+          "label": "№ Растения"
+        },
+        {
+          "field": "Height",
+          "label": "Высота"
+        },
+        {
+          "field": "SectionNum",
+          "label": "№ Участка"
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Area",
+          "label": "Площадь"
+        },
+        {
+          "field": "Distance",
+          "label": "Протяженность"
+        },
+        {
+          "field": "BioGgroupNum",
+          "label": "Номер биогруппы"
+        },
+        {
+          "field": "MillionTrees",
+          "label": "Акция «Миллион деревьев»"
+        },
+        {
+          "field": "StateGardening",
+          "label": "Состояние",
+          "lookup": {
+            "schema": "cls",
+            "table": "StateGardering",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "DetailedStateGardening",
+          "label": "Уточнение состояния",
+          "lookup": {
+            "schema": "cls",
+            "table": "DetailedStateGardering",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CharacteristicStateGardening",
+          "label": "Характеристика состояния",
+          "lookup": {
+            "schema": "cls",
+            "table": "CharacteristicStateGardering",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PlantServiceRecomendations",
+          "label": "Рекомендации по уходу",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlantServiceRecomendations",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "ValuablePlants",
+          "label": "Особо ценные",
+          "lookup": {
+            "schema": "cls",
+            "table": "ValuablePlants",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "WoodType",
+          "label": "Порода МГГТ",
+          "valueMap": {
+            "deciduous": "лиственное",
+            "conifer": "хвойное",
+            "bush": "кустарник"
+          }
+        }
+      ],
       "labeling": {
         "field": "GreenNum",
         "fontSize": 1.4,
@@ -7539,6 +12234,149 @@
       ],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_TreesShrubsPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "PlantationType",
+          "label": "Тип насаждения",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlantationType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PlantType",
+          "label": "Вид растения",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlantType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "LifeFormType",
+          "label": "Жизненная форма",
+          "lookup": {
+            "schema": "cls",
+            "table": "LifeFormType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Age",
+          "label": "Возраст"
+        },
+        {
+          "field": "Diameter",
+          "label": "Диаметр на высоте 1,3 м"
+        },
+        {
+          "field": "GreenNum",
+          "label": "№ Растения"
+        },
+        {
+          "field": "Height",
+          "label": "Высота"
+        },
+        {
+          "field": "SectionNum",
+          "label": "№ Участка"
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "Area",
+          "label": "Площадь"
+        },
+        {
+          "field": "Distance",
+          "label": "Протяженность"
+        },
+        {
+          "field": "BioGgroupNum",
+          "label": "Номер биогруппы"
+        },
+        {
+          "field": "MillionTrees",
+          "label": "Акция «Миллион деревьев»"
+        },
+        {
+          "field": "StateGardening",
+          "label": "Состояние",
+          "lookup": {
+            "schema": "cls",
+            "table": "StateGardering",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "DetailedStateGardening",
+          "label": "Уточнение состояния",
+          "lookup": {
+            "schema": "cls",
+            "table": "DetailedStateGardering",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "CharacteristicStateGardening",
+          "label": "Характеристика состояния",
+          "lookup": {
+            "schema": "cls",
+            "table": "CharacteristicStateGardering",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PlantServiceRecomendations",
+          "label": "Рекомендации по уходу",
+          "lookup": {
+            "schema": "cls",
+            "table": "PlantServiceRecomendations",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "ValuablePlants",
+          "label": "Особо ценные",
+          "lookup": {
+            "schema": "cls",
+            "table": "ValuablePlants",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        },
+        {
+          "field": "WoodType",
+          "label": "Порода МГГТ",
+          "valueMap": {
+            "deciduous": "лиственное",
+            "conifer": "хвойное",
+            "bush": "кустарник"
+          }
+        }
+      ],
       "labeling": {
         "field": "CASE\nWHEN \"PlantationType\" = 'hedge' THEN 'ЖИ ' || \"GreenNum\"\nWHEN \"LifeFormType\" = 'tree' THEN 'ГД ' || \"GreenNum\"\nWHEN \"LifeFormType\" = 'bush' THEN 'ГК ' || \"GreenNum\"\nELSE \"GreenNum\"\nEND",
         "fontSize": 1.4,
@@ -7624,6 +12462,56 @@
       ],
       "defaultRule": 4,
       "qmlFile": "WorkLayers_TrolleybusContactNetworkLine.qml",
+      "aliases": [
+        {
+          "field": "NetElementType",
+          "label": "Тип контактных сетей",
+          "lookup": {
+            "schema": "cls",
+            "table": "NetElementType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhSide",
+          "label": "Сторона",
+          "lookup": {
+            "schema": "cls",
+            "table": "OdhSide",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "OdhAxis",
+          "label": "Ось"
+        },
+        {
+          "field": "BordBegin",
+          "label": "Начало"
+        },
+        {
+          "field": "BordEnd",
+          "label": "Конец"
+        },
+        {
+          "field": "Distance",
+          "label": "Длина контактных сетей"
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество контакных сетей"
+        },
+        {
+          "field": "Description",
+          "label": "Примечание"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Трамвайные и троллейбусные контактные сети"
     },
     "VerticalLandscapingPoint": {
@@ -7678,6 +12566,102 @@
       ],
       "defaultRule": 1,
       "qmlFile": "WorkLayers_VerticalLandscapingPoint.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "VerticalLandscapingType",
+          "label": "Код вида",
+          "lookup": {
+            "schema": "cls",
+            "table": "VerticalLandscapingType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "VerticalLandscapingRefType",
+          "label": "Код типа",
+          "lookup": {
+            "schema": "cls",
+            "table": "VerticalLandscapingRefType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "VerticalLandscapingClassType",
+          "label": "Код детализации",
+          "lookup": {
+            "schema": "cls",
+            "table": "VerticalLandscapingClassType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PlacesQuantity",
+          "label": "Кол-во посадочных мест"
+        },
+        {
+          "field": "PlacesArea",
+          "label": "Площадь посадочных мест"
+        },
+        {
+          "field": "Unit",
+          "label": "Единицы измерения",
+          "lookup": {
+            "schema": "cls",
+            "table": "Units",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Material",
+          "label": "Материал",
+          "lookup": {
+            "schema": "cls",
+            "table": "Material",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Quantity",
+          "label": "Количество"
+        },
+        {
+          "field": "ZoneOghId",
+          "label": "Принадлежность к зоне"
+        },
+        {
+          "field": "IdRfid",
+          "label": "RFID"
+        },
+        {
+          "field": "InstallationDate",
+          "label": "Дата установки"
+        },
+        {
+          "field": "Lifetime",
+          "label": "Срок эксплуатации"
+        },
+        {
+          "field": "GuaranteePeriod",
+          "label": "Гарантийный срок"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Элементы вертикального озеленения"
     },
     "WaterBuildingPoly": {
@@ -7799,6 +12783,34 @@
       ],
       "defaultRule": 6,
       "qmlFile": "WorkLayers_WaterBuildingPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "WaterType",
+          "label": "Тип объекта",
+          "lookup": {
+            "schema": "cls",
+            "table": "WaterType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Area",
+          "label": "Площадь"
+        },
+        {
+          "field": "NoCalc",
+          "label": "Не учитывать"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотные отметки"
+        }
+      ],
       "label": "Водные сооружения"
     },
     "WorkArea": {
@@ -7819,6 +12831,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_WorkArea.qml",
+      "aliases": [],
       "label": "Слой для работы по частям, а не по всей границе задачи"
     },
     "YardPoly": {
@@ -7837,6 +12850,280 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_YardPoly.qml",
+      "aliases": [
+        {
+          "field": "RootId",
+          "label": "Идентификатор ОГХ (RootId)"
+        },
+        {
+          "field": "StartDate",
+          "label": "Дата начала действия"
+        },
+        {
+          "field": "EndDate",
+          "label": "Дата окончания действия"
+        },
+        {
+          "field": "Name",
+          "label": "Название"
+        },
+        {
+          "field": "OwnerLegalPersonId",
+          "label": "Балансодержатель",
+          "lookup": {
+            "schema": "cls",
+            "table": "OwnerLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "OwnerLegalPersonVersionId",
+          "label": "Версия балансодержателя"
+        },
+        {
+          "field": "OwnerStartDate",
+          "label": "Балансодержатель действует с"
+        },
+        {
+          "field": "OwnerEndDate",
+          "label": "Балансодержатель действует по"
+        },
+        {
+          "field": "DepartmentLegalPersonId",
+          "label": "Ведомственный ОИВ",
+          "lookup": {
+            "schema": "cls",
+            "table": "DepartmentLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "DepartmentLegalPersonVersionId",
+          "label": "Версия ведомственного ОИВ"
+        },
+        {
+          "field": "DepartmentStartDate",
+          "label": "Ведомственный ОИВ дествует с"
+        },
+        {
+          "field": "DepartmentEndDate",
+          "label": "Ведомственный ОИВ действует по"
+        },
+        {
+          "field": "CustomerLegalPersonId",
+          "label": "Заказчик",
+          "lookup": {
+            "schema": "cls",
+            "table": "CustomerLegalPerson",
+            "key": "Id",
+            "value": "Shortname"
+          }
+        },
+        {
+          "field": "CustomerLegalPersonVersionId",
+          "label": "Версия заказчика"
+        },
+        {
+          "field": "CustomerStartDate",
+          "label": "Заказчик действует с"
+        },
+        {
+          "field": "CustomertEndDate",
+          "label": "Заказчик действует по"
+        },
+        {
+          "field": "ImprovementCategory",
+          "label": "Категория благоустройства"
+        },
+        {
+          "field": "ImprovementObjectCategory",
+          "label": "Категория озеленения",
+          "lookup": {
+            "schema": "cls",
+            "table": "ImprovementObjectCategory",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "Unom",
+          "label": "UNOM"
+        },
+        {
+          "field": "Unad",
+          "label": "UNAD"
+        },
+        {
+          "field": "TotalArea",
+          "label": "Площадь"
+        },
+        {
+          "field": "TotalCleanArea",
+          "label": "Уборочная площадь"
+        },
+        {
+          "field": "ManualCleanArea",
+          "label": "Площадь ручной уборки"
+        },
+        {
+          "field": "AutoCleanArea",
+          "label": "Площадь механизированной уборки"
+        },
+        {
+          "field": "TotalCoverCleanArea",
+          "label": "Площадь уборки по покрытиям"
+        },
+        {
+          "field": "AsphaltCleanArea",
+          "label": "Асфальтобетонное"
+        },
+        {
+          "field": "SlabCleanArea",
+          "label": "Плиточное"
+        },
+        {
+          "field": "SoilCleanArea",
+          "label": "Грунтовое"
+        },
+        {
+          "field": "RubberCleanArea",
+          "label": "Мягкое из резиновой крошки"
+        },
+        {
+          "field": "SandCleanArea",
+          "label": "Мягкое из песка"
+        },
+        {
+          "field": "GraniteCleanArea",
+          "label": "Мягкое из гранитной высевки"
+        },
+        {
+          "field": "GrassCleanArea",
+          "label": "Мягкое из искусственной травы"
+        },
+        {
+          "field": "PlasticCleanArea",
+          "label": "Пластиковое"
+        },
+        {
+          "field": "GrassPaverCleanArea",
+          "label": "Газонная решетка"
+        },
+        {
+          "field": "TotalLawnArea",
+          "label": "Общая"
+        },
+        {
+          "field": "YardLawnAreaWithout",
+          "label": "За вычетом насаждений"
+        },
+        {
+          "field": "UsialLawnArea",
+          "label": "Обыкновенный"
+        },
+        {
+          "field": "ParterreLawnArea",
+          "label": "Партерный"
+        },
+        {
+          "field": "LawnGridArea",
+          "label": "На ячеистом основании"
+        },
+        {
+          "field": "LawnLawnArea",
+          "label": "Луговой разнотравный"
+        },
+        {
+          "field": "SlopeLawnArea",
+          "label": "На откосе"
+        },
+        {
+          "field": "LawnOtherArea",
+          "label": "Иного типа"
+        },
+        {
+          "field": "CoverImproveAutoCleanArea",
+          "label": "Территория уборки усов. покрытий"
+        },
+        {
+          "field": "SnowCleanArea",
+          "label": "Площадь вывоза снега"
+        },
+        {
+          "field": "ReservoirArea",
+          "label": "Водоемы"
+        },
+        {
+          "field": "RepairsInfoList",
+          "label": "Перечень ремонтных работ"
+        },
+        {
+          "field": "RepairsInfoListPlan",
+          "label": "Перечень проектных работ"
+        },
+        {
+          "field": "Tree",
+          "label": "Перечень дочерних объектов"
+        },
+        {
+          "field": "GreeningAddition",
+          "label": "Требует дополнения по зеленым насаждениям"
+        },
+        {
+          "field": "IsDiffHeightMark",
+          "label": "Разновысотный ОГХ"
+        },
+        {
+          "field": "CreateType",
+          "label": "Тип создания"
+        },
+        {
+          "field": "DateSurvey",
+          "label": "Дата обследования"
+        },
+        {
+          "field": "DateSurveyGreenZones",
+          "label": "Дата обследования ЗН"
+        },
+        {
+          "field": "Okrug",
+          "label": "Округ",
+          "lookup": {
+            "schema": "cls",
+            "table": "Okrug",
+            "key": "Name",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "District",
+          "label": "Район",
+          "lookup": {
+            "schema": "cls",
+            "table": "District",
+            "key": "Name",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "PassBrId",
+          "label": "Номер заявки"
+        },
+        {
+          "field": "Landscaping",
+          "label": "Работы по благоустройству"
+        },
+        {
+          "field": "TotalCleaningArea",
+          "label": "Общая площадь уборки"
+        },
+        {
+          "field": "TotalNoCleaningArea",
+          "label": "Общая площадь без уборки"
+        }
+      ],
       "label": "Дворовая территория"
     },
     "task": {
@@ -7857,6 +13144,7 @@
       "fields": [],
       "defaultRule": 0,
       "qmlFile": "WorkLayers_task.qml",
+      "aliases": [],
       "label": "Таблица для редактирования геометрии задач"
     },
     "topolines": {
@@ -10214,6 +15502,48 @@
       ],
       "defaultRule": 86,
       "qmlFile": "TopographyLayers_polylines.qml+TopographyLayers_lines.qml",
+      "aliases": [
+        {
+          "field": "color",
+          "label": "Цвет линии"
+        },
+        {
+          "field": "layer",
+          "label": "Тип линии",
+          "lookup": {
+            "schema": "cls",
+            "table": "TopographyLineLayerType",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "olinetype",
+          "label": "Стиль линии",
+          "lookup": {
+            "schema": "cls",
+            "table": "TopographyLineLayerLineStyle",
+            "key": "Code",
+            "value": "Name"
+          }
+        },
+        {
+          "field": "BasePolyUsage",
+          "label": "Использовать в опорных полигонах"
+        },
+        {
+          "field": "guid",
+          "label": "GUID"
+        },
+        {
+          "field": "Number",
+          "label": "Номер заказа"
+        },
+        {
+          "field": "datesurvey",
+          "label": "Дата обследования"
+        }
+      ],
       "labeling": {
         "field": "'К'",
         "fontSize": 0.8,
@@ -10961,6 +16291,7 @@
       ],
       "defaultRule": 11,
       "qmlFile": "TopographyLayers_inserts.qml",
+      "aliases": [],
       "labeling": {
         "field": "name",
         "fontSize": 0.5,
@@ -11025,6 +16356,12 @@
       ],
       "defaultRule": 1,
       "qmlFile": "TopographyLayers_texts.qml",
+      "aliases": [
+        {
+          "field": "BasePolyUsage",
+          "label": "Использовать в опорных полигонах"
+        }
+      ],
       "labeling": {
         "field": "text",
         "fontSize": 1.0,

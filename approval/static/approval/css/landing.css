@@ -1606,6 +1606,14 @@ main.container.container--approval {
     max-width: 260px;
 }
 
+.approval-adjacent-popup__title {
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #111827;
+    line-height: 1.35;
+}
+
 .approval-adjacent-popup__row {
     margin-top: 6px;
     font-size: 13px;
@@ -1731,6 +1739,39 @@ main.container.container--approval {
     background: #7c3aed;
     border: 2px solid #fff;
     box-shadow: 0 0 0 1px #7c3aed;
+}
+
+/*
+ * Leaflet normally makes the complete square occupied by an icon clickable,
+ * including transparent SVG pixels.  That square can cover a neighbouring
+ * point.  Keep the artwork click-through and expose only a compact hit target
+ * around the QML/SVG hotspot (the actual feature coordinate).
+ */
+.approval-svg-marker {
+    width: 0;
+    height: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+}
+
+.approval-svg-marker__image {
+    position: absolute;
+    display: block;
+    pointer-events: none;
+    user-select: none;
+}
+
+.approval-svg-marker__hit {
+    position: absolute;
+    left: -5px;
+    top: -5px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    pointer-events: auto;
 }
 
 @media (max-width: 1024px) {

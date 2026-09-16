@@ -62,10 +62,28 @@ def _column_exists(cursor, schema: str, table_name: str, column_name: str) -> bo
     return _resolve_column_name(cursor, schema, table_name, column_name) is not None
 
 
+def _table_column_map(cursor, schema: str, table_name: str) -> dict[str, str]:
+    """Actual columns keyed case-insensitively, loaded once per map layer."""
+    cursor.execute(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = %s
+          AND table_name = %s
+        """,
+        [schema, table_name],
+    )
+    return {str(row[0]).lower(): str(row[0]) for row in cursor.fetchall() if row}
+
+
 def _style_fields_for_table(table_name: str, manifest: dict | None = None) -> list[str]:
     data = manifest or load_manifest()
     table = data.get("tables", {}).get(table_name, {})
     fields = list(table.get("fields") or [])
+    for alias in table.get("aliases") or []:
+        field = str(alias.get("field") or "").strip()
+        if field and field not in fields:
+            fields.append(field)
     geometry = table.get("geometry")
     if geometry == "point":
         for field in _POINT_STYLE_FIELDS:
@@ -98,6 +116,7 @@ def _feature_select_sql(
     schema: str,
     layer_key: str,
     clip_to_work_boundary: bool = False,
+    aliases: list[dict] | None = None,
 ) -> str:
     geom_col = work_geom_column()
     task_col = schema_taskguid_column(schema)
@@ -113,15 +132,33 @@ def _feature_select_sql(
         f"'taskGuid', t.{quoted_task}::text",
         "'fid', t.fid",
     ]
+    aliases_by_field = {
+        str(alias.get("field") or ""): alias
+        for alias in (aliases or [])
+        if alias.get("field")
+    }
+    table_columns = _table_column_map(cursor, schema, table_name)
     for field in style_fields:
-        resolved = _resolve_column_name(cursor, schema, table_name, field)
+        resolved = table_columns.get(str(field).lower())
         if not resolved:
             continue
         # Keep QML/canonical property name so client filter matching stays stable.
         quoted_field = _quote_ident(resolved)
         property_pairs.append(f"'{field}', t.{quoted_field}::text")
+        alias = aliases_by_field.get(field) or {}
+        display_sql = _field_display_sql(alias, f"t.{quoted_field}")
+        if display_sql:
+            property_pairs.append(f"'{field}__display', {display_sql}")
 
-    props_sql = ", ".join(property_pairs)
+    # PostgreSQL functions accept at most 100 arguments. Some work tables have
+    # more than 50 aliased fields, so build properties in safe chunks.
+    property_chunks = [
+        property_pairs[index : index + 40]
+        for index in range(0, len(property_pairs), 40)
+    ]
+    props_sql = " || ".join(
+        f"jsonb_build_object({', '.join(chunk)})" for chunk in property_chunks
+    )
     clip_sql = ""
     if clip_to_work_boundary:
         # Boundary GeoJSON is EPSG:4326 (see load_work_anchor_geometry); reproject to layer SRID.
@@ -138,9 +175,7 @@ def _feature_select_sql(
         SELECT json_build_object(
             'type', 'Feature',
             'geometry', ST_AsGeoJSON({geom_to_wgs84_sql(f't.{quoted_geom}')})::json,
-            'properties', json_build_object(
-                {props_sql}
-            )
+            'properties', {props_sql}
         )
         FROM {quoted_schema}.{quoted_table} t
         WHERE t.{quoted_task} = ANY(%s::uuid[])
@@ -149,6 +184,34 @@ def _feature_select_sql(
           {clip_sql}
           {exclude_sql}
     """
+
+
+def _field_display_sql(alias: dict, field_ref: str) -> str | None:
+    lookup = alias.get("lookup") or {}
+    if lookup:
+        schema = str(lookup.get("schema") or "").strip()
+        table = str(lookup.get("table") or "").strip()
+        key = str(lookup.get("key") or "").strip()
+        value = str(lookup.get("value") or "").strip()
+        if schema.lower() != "cls" or not all((table, key, value)):
+            return None
+        return (
+            f"COALESCE((SELECT c.{_quote_ident(value)}::text "
+            f"FROM {_quote_ident(schema)}.{_quote_ident(table)} c "
+            f"WHERE c.{_quote_ident(key)}::text = {field_ref}::text "
+            f"LIMIT 1), {field_ref}::text)"
+        )
+
+    value_map = alias.get("valueMap") or {}
+    if value_map:
+        clauses = []
+        for raw_value, label in value_map.items():
+            escaped_value = str(raw_value).replace("'", "''")
+            escaped_label = str(label).replace("'", "''")
+            clauses.append(f"WHEN '{escaped_value}' THEN '{escaped_label}'")
+        if clauses:
+            return f"CASE {field_ref}::text {' '.join(clauses)} ELSE {field_ref}::text END"
+    return None
 
 
 def build_schema_feature_collection(
@@ -193,6 +256,7 @@ def build_schema_feature_collection(
                     # No survey polygon → nothing inside the object boundary.
                     continue
                 style_fields = _style_fields_for_table(table_name, manifest)
+                aliases = (manifest.get("tables", {}).get(table_name, {}).get("aliases") or [])
                 layer_key = key_fn(table_name)
                 sql = _feature_select_sql(
                     table_name,
@@ -201,6 +265,7 @@ def build_schema_feature_collection(
                     schema=schema_name,
                     layer_key=layer_key,
                     clip_to_work_boundary=clip_table,
+                    aliases=aliases,
                 )
                 # SQL placeholders: ANY(%s) first, then optional GeomFromGeoJSON(%s).
                 params: list = [normalized_guids]

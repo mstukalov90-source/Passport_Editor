@@ -210,8 +210,19 @@ def _adjacent_select_sql(
     quoted_schema = _quote_ident(schema_name)
     quoted_geom = _quote_ident(geom_col)
     quoted_rootid = _quote_ident(rootid_col)
-    props_sql = ", ".join(
-        _adjacent_property_pairs(cursor, schema_name, table_name, layer_key, style_fields, rootid_col)
+    property_pairs = _adjacent_property_pairs(
+        cursor, schema_name, table_name, layer_key, style_fields, rootid_col
+    )
+    # PostgreSQL functions accept at most 100 arguments.  A QML layer with more
+    # than 50 aliased fields therefore cannot be emitted as one json_build_object
+    # call (each property consumes two arguments).  Build and merge smaller
+    # jsonb objects, as the main task-layer query does.
+    property_chunks = [
+        property_pairs[index : index + 40]
+        for index in range(0, len(property_pairs), 40)
+    ]
+    props_sql = " || ".join(
+        f"jsonb_build_object({', '.join(chunk)})" for chunk in property_chunks
     )
 
     if single_root:
@@ -223,9 +234,7 @@ def _adjacent_select_sql(
         SELECT json_build_object(
             'type', 'Feature',
             'geometry', ST_AsGeoJSON({geom_to_wgs84_sql(f't.{quoted_geom}')})::json,
-            'properties', json_build_object(
-                {props_sql}
-            )
+            'properties', {props_sql}
         )
         FROM {quoted_schema}.{quoted_table} t
         WHERE {root_filter}

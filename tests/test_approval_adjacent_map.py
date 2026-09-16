@@ -465,6 +465,26 @@ def test_adjacent_select_sql_accepts_work_schema():
     assert '"work"."YardPoly"' in sql
 
 
+def test_adjacent_select_sql_chunks_large_property_objects():
+    cursor = MagicMock()
+    property_pairs = [
+        f"'field_{index}', t.\"field_{index}\"::text" for index in range(55)
+    ]
+    with patch("approval.work_adjacent._resolve_rootid_column", return_value="RootId"):
+        with patch("approval.work_adjacent._adjacent_property_pairs", return_value=property_pairs):
+            sql = _adjacent_select_sql(
+                "YardPoly",
+                LAYER_KEY_OBJECTS,
+                [],
+                cursor,
+                single_root=False,
+            )
+
+    assert sql is not None
+    assert sql.count("jsonb_build_object(") == 2
+    assert ") || jsonb_build_object(" in sql
+
+
 @pytest.mark.django_db
 def test_landing_scopes_work_to_selected_approve():
     inspector_login = "inspector_scope"

@@ -194,6 +194,38 @@ def test_build_manifest_includes_labels():
     assert manifest["tables"]["LawnPoly"]["label"] == "Газоны"
 
 
+def test_parse_qml_file_keeps_only_non_empty_aliases_in_qml_order():
+    qml_dir = Path(settings.APPROVAL_LAYER_STYLES_QML_DIR)
+    parsed = parse_qml_file(qml_dir / "WorkLayers_DtsPoly.qml")
+
+    assert parsed["aliases"][0] == {
+        "field": "RootId",
+        "label": "Идентификатор ОГХ (RootId)",
+    }
+    assert {item["field"] for item in parsed["aliases"]}.issuperset(
+        {"DtsType", "CoatingType", "TotalArea"}
+    )
+    assert all(item["label"] for item in parsed["aliases"])
+    dts_type = next(item for item in parsed["aliases"] if item["field"] == "DtsType")
+    assert dts_type["lookup"] == {
+        "schema": "cls",
+        "table": "DtsType",
+        "key": "Code",
+        "value": "Name",
+    }
+
+
+def test_parse_qml_value_map_for_aliased_field():
+    qml_dir = Path(settings.APPROVAL_LAYER_STYLES_QML_DIR)
+    parsed = parse_qml_file(qml_dir / "WorkLayers_AuxilaryLines.qml")
+
+    aux_type = next(item for item in parsed["aliases"] if item["field"] == "AuxType")
+    assert aux_type["valueMap"] == {
+        "1": "Замыкание",
+        "2": "Механизированная уборка",
+    }
+
+
 def test_parse_photo_fix_point_single_symbol():
     qml_dir = Path(settings.APPROVAL_LAYER_STYLES_QML_DIR)
     path = qml_dir / "WorkLayers_PhotoFixPoint.qml"

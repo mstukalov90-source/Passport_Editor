@@ -37,6 +37,10 @@ GEOMETRY_TYPES = {
 
 _FIELD_TOKEN = r'(?:"(?P<qfield>[^"]+)"|(?P<ufield>[A-Za-z_][\w]*))'
 _STRING_LIT = r"'((?:''|[^'])*)'"
+_VALUE_RELATION_TABLE_RE = re.compile(
+    r'table="(?P<schema>[^"]+)"\."(?P<table>[^"]+)"',
+    re.IGNORECASE,
+)
 _FILTER_EQ_RE = re.compile(
     rf"^\s*{_FIELD_TOKEN}\s*=\s*{_STRING_LIT}\s*$",
     re.IGNORECASE,
@@ -662,6 +666,8 @@ def merge_parsed_qml_tables(parsed_list: list[dict[str, Any]]) -> dict[str, Any]
     qml_files: list[str] = []
     geometry: str | None = None
     labeling: dict[str, Any] | None = None
+    aliases: list[dict[str, Any]] = []
+    alias_fields: set[str] = set()
 
     for parsed in parsed_list:
         qml_file = parsed.get("qmlFile")
@@ -671,6 +677,12 @@ def merge_parsed_qml_tables(parsed_list: list[dict[str, Any]]) -> dict[str, Any]
             geometry = str(parsed["geometry"])
         if labeling is None and parsed.get("labeling"):
             labeling = dict(parsed["labeling"])
+        for alias in parsed.get("aliases") or []:
+            field = str(alias.get("field") or "").strip()
+            label = str(alias.get("label") or "").strip()
+            if field and label and field not in alias_fields:
+                aliases.append(dict(alias))
+                alias_fields.add(field)
         for field in parsed.get("fields") or []:
             fields.add(str(field))
         for rule in parsed.get("rules") or []:
@@ -703,10 +715,65 @@ def merge_parsed_qml_tables(parsed_list: list[dict[str, Any]]) -> dict[str, Any]
         "fields": sorted(fields),
         "defaultRule": default_rule_index,
         "qmlFile": "+".join(qml_files),
+        "aliases": aliases,
     }
     if labeling:
         result["labeling"] = labeling
     return result
+
+
+def _option_value(parent: ET.Element, name: str) -> str:
+    option = parent.find(f'.//Option[@name="{name}"]')
+    return (option.get("value") or "").strip() if option is not None else ""
+
+
+def _parse_value_map(edit_widget: ET.Element) -> dict[str, str]:
+    map_option = edit_widget.find('.//Option[@name="map"]')
+    if map_option is None:
+        return {}
+    values: dict[str, str] = {}
+    for entry in map_option.findall("./Option"):
+        item = entry.find("./Option")
+        if item is None:
+            continue
+        label = (item.get("name") or "").strip()
+        value = (item.get("value") or "").strip()
+        if value and label:
+            values[value] = label
+    return values
+
+
+def parse_field_display_rules(root: ET.Element) -> dict[str, dict[str, Any]]:
+    """QML field → read-only classifier/value-map display rule."""
+    rules: dict[str, dict[str, Any]] = {}
+    configuration = root.find("fieldConfiguration")
+    if configuration is None:
+        return rules
+    for field_el in configuration.findall("field"):
+        field = (field_el.get("name") or "").strip()
+        edit_widget = field_el.find("editWidget")
+        if not field or edit_widget is None:
+            continue
+        widget_type = (edit_widget.get("type") or "").strip()
+        if widget_type == "ValueRelation":
+            source = _option_value(edit_widget, "LayerSource")
+            match = _VALUE_RELATION_TABLE_RE.search(source)
+            key = _option_value(edit_widget, "Key")
+            value = _option_value(edit_widget, "Value")
+            if match and match.group("schema").lower() == "cls" and key and value:
+                rules[field] = {
+                    "lookup": {
+                        "schema": match.group("schema"),
+                        "table": match.group("table"),
+                        "key": key,
+                        "value": value,
+                    }
+                }
+        elif widget_type == "ValueMap":
+            values = _parse_value_map(edit_widget)
+            if values:
+                rules[field] = {"valueMap": values}
+    return rules
 
 
 def parse_qml_file(path: Path) -> dict[str, Any]:
@@ -715,6 +782,25 @@ def parse_qml_file(path: Path) -> dict[str, Any]:
     geom_code = root.findtext("layerGeometryType")
     geometry = GEOMETRY_TYPES.get((geom_code or "").strip(), "polygon")
     labeling = parse_labeling(root)
+    display_rules = parse_field_display_rules(root)
+    aliases: list[dict[str, Any]] = []
+    aliases_parent = root.find("aliases")
+    if aliases_parent is not None:
+        alias_elements = list(aliases_parent.findall("alias"))
+
+        def alias_index(element: ET.Element) -> int:
+            try:
+                return int(element.get("index") or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        for alias_el in sorted(alias_elements, key=alias_index):
+            field = (alias_el.get("field") or "").strip()
+            label = (alias_el.get("name") or "").strip()
+            if field and label:
+                alias: dict[str, Any] = {"field": field, "label": label}
+                alias.update(display_rules.get(field) or {})
+                aliases.append(alias)
 
     renderer = root.find("renderer-v2")
     if renderer is None:
@@ -724,6 +810,7 @@ def parse_qml_file(path: Path) -> dict[str, Any]:
             "rules": [],
             "fields": [],
             "qmlFile": path.name,
+            "aliases": aliases,
         }
         if labeling:
             result["labeling"] = labeling
@@ -807,6 +894,7 @@ def parse_qml_file(path: Path) -> dict[str, Any]:
         "fields": sorted(fields),
         "defaultRule": default_rule_index,
         "qmlFile": path.name,
+        "aliases": aliases,
     }
     if labeling:
         result["labeling"] = labeling

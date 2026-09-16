@@ -521,13 +521,76 @@
         };
     }
 
-    function buildSvgIcon(iconUrl, size, anchorFx, anchorFy) {
+    const svgClickMarkers = {};
+    let nextSvgClickMarkerId = 1;
+
+    function buildSvgIcon(iconUrl, size, anchorFx, anchorFy, markerId) {
         const anchored = anchorPixelsFromFractions(size, anchorFx, anchorFy);
-        return L.icon({
-            iconUrl: iconUrl,
-            iconSize: [anchored.size, anchored.size],
-            iconAnchor: [anchored.ax, anchored.ay],
+        return L.divIcon({
+            className: 'approval-svg-marker',
+            html:
+                '<img class="approval-svg-marker__image" style="width:' +
+                anchored.size +
+                'px;height:' +
+                anchored.size +
+                'px;left:' +
+                -anchored.ax +
+                'px;top:' +
+                -anchored.ay +
+                'px" src="' +
+                escapeHtml(iconUrl) +
+                '" alt="" aria-hidden="true">' +
+                '<span class="approval-svg-marker__hit" data-svg-marker-id="' +
+                escapeHtml(markerId || '') +
+                '"></span>',
+            iconSize: [0, 0],
+            iconAnchor: [0, 0],
         });
+    }
+
+    function nearestSvgClickMarker(event) {
+        const originalEvent = event && event.originalEvent;
+        if (!originalEvent) {
+            return null;
+        }
+        // Several compact hit targets can still overlap in a dense cluster.
+        // Choose the feature whose hotspot is closest to the actual click,
+        // instead of whichever marker happens to be above it in markerPane.
+        const stackedHits = document
+            .elementsFromPoint(originalEvent.clientX, originalEvent.clientY)
+            .filter(function (element) {
+                return element.classList && element.classList.contains('approval-svg-marker__hit');
+            });
+        let best = null;
+        stackedHits.forEach(function (hit) {
+            const markerId = hit.getAttribute('data-svg-marker-id') || '';
+            const marker = svgClickMarkers[markerId];
+            if (!marker || !marker._map) {
+                return;
+            }
+            const rect = hit.getBoundingClientRect();
+            const dx = originalEvent.clientX - (rect.left + rect.width / 2);
+            const dy = originalEvent.clientY - (rect.top + rect.height / 2);
+            const distanceSquared = dx * dx + dy * dy;
+            if (!best || distanceSquared < best.distanceSquared) {
+                best = { marker: marker, distanceSquared: distanceSquared };
+            }
+        });
+        return best ? best.marker : null;
+    }
+
+    function handleSvgMarkerClick(event) {
+        const nearest = nearestSvgClickMarker(event);
+        if (!nearest || nearest === event.target) {
+            return;
+        }
+        // Leaflet may still open the popup of the upper DOM marker later in the
+        // same event.  Open the nearest marker on the next tick so it wins.
+        window.setTimeout(function () {
+            if (nearest.getPopup && nearest.getPopup()) {
+                nearest.openPopup();
+            }
+        }, 0);
     }
 
     function applySvgMarkerSize(entry, size) {
@@ -548,20 +611,25 @@
         const ay = anchored.ay;
         const icon = entry.marker.options && entry.marker.options.icon;
         if (icon && icon.options) {
-            icon.options.iconSize = [renderSize, renderSize];
-            icon.options.iconAnchor = [ax, ay];
+            icon.options.iconSize = [0, 0];
+            icon.options.iconAnchor = [0, 0];
         }
         const el = entry.marker._icon;
         if (el) {
-            el.style.width = renderSize + 'px';
-            el.style.height = renderSize + 'px';
-            el.style.marginLeft = -ax + 'px';
-            el.style.marginTop = -ay + 'px';
+            const image = el.querySelector('.approval-svg-marker__image');
+            if (image) {
+                image.style.width = renderSize + 'px';
+                image.style.height = renderSize + 'px';
+                image.style.left = -ax + 'px';
+                image.style.top = -ay + 'px';
+            }
             if (typeof entry.marker.update === 'function' && entry.marker._map) {
                 entry.marker.update();
             }
         } else if (visible) {
-            entry.marker.setIcon(buildSvgIcon(entry.iconUrl, renderSize, fx, fy));
+            entry.marker.setIcon(
+                buildSvgIcon(entry.iconUrl, renderSize, fx, fy, entry.markerId)
+            );
         }
         setLeafletMarkerOpacity(entry.marker, visible ? 1 : 0);
     }
@@ -571,15 +639,20 @@
         const fy = clampFraction(anchorFy, 1);
         const visible = mapUnitMeters != null ? isMapUnitVisible(size) : true;
         const renderSize = visible ? Math.max(1, size) : 1;
+        const markerId = String(nextSvgClickMarkerId);
+        nextSvgClickMarkerId += 1;
         const marker = L.marker(latlng, {
-            icon: buildSvgIcon(iconUrl, renderSize, fx, fy),
+            icon: buildSvgIcon(iconUrl, renderSize, fx, fy, markerId),
             opacity: visible ? 1 : 0,
             zIndexOffset: 600,
         });
+        svgClickMarkers[markerId] = marker;
+        marker.on('click', handleSvgMarkerClick);
         if (mapUnitMeters != null && Number.isFinite(Number(mapUnitMeters))) {
             mapUnitMarkers.push({
                 kind: 'svg',
                 marker: marker,
+                markerId: markerId,
                 iconUrl: iconUrl,
                 meters: Number(mapUnitMeters),
                 lastSize: renderSize,
@@ -2519,6 +2592,13 @@
             );
         }
 
+        // Зеркало ADJACENT_SOURCE_LABELS из approval/work_adjacent.py (панель слоёв).
+        const ADJACENT_SOURCE_LABELS = {
+            YardPoly: 'ДТ',
+            OdhPoly: 'ОДХ',
+            OznPoly: 'ОО',
+        };
+
         function bindAdjacentPopup(layer, feature) {
             const props = feature.properties || {};
             // «Добавить событие» доступна инспектору только для смежных объектов
@@ -2531,6 +2611,11 @@
             const name = String(props.Name || '');
             const ownerId = String(props.OwnerLegalPersonId || '');
             const ownerName = String(props.OwnerLegalPersonName || '');
+            const sourceLabel =
+                ADJACENT_SOURCE_LABELS[props.sourceTable] || props.sourceTable || '';
+            const layerTitle =
+                (props.adjacentRootKind === 'v' ? 'Смежные объекты' : 'Смежный объект для согласования') +
+                (sourceLabel ? ' · ' + sourceLabel : '');
 
             function popupRow(label, value) {
                 return (
@@ -2542,6 +2627,10 @@
                 );
             }
 
+            const titleHtml =
+                '<div class="approval-adjacent-popup__title">' +
+                escapeHtml(layerTitle) +
+                '</div>';
             const rows =
                 (rootId ? popupRow('ID Паспорта', rootId) : '') +
                 (name ? popupRow('Название', name) : '') +
@@ -2569,7 +2658,8 @@
                     geomEncoded +
                     '">Добавить событие</button>';
             }
-            const html = '<div class="approval-adjacent-popup">' + rows + actionHtml + '</div>';
+            const html =
+                '<div class="approval-adjacent-popup">' + titleHtml + rows + actionHtml + '</div>';
 
             layer.bindPopup(html);
             layer.on('popupopen', function () {
@@ -2616,6 +2706,45 @@
             });
         }
 
+        function bindTaskObjectPopup(layer, feature) {
+            const props = feature.properties || {};
+            if (props.sourceSchema !== 'work' || !props.taskGuid) {
+                return;
+            }
+            const tableDef = getTableStyleDef(props.sourceTable || props.layerKey);
+            const aliases = tableDef && Array.isArray(tableDef.aliases) ? tableDef.aliases : [];
+            const rows = aliases.map(function (alias) {
+                const field = String(alias.field || '');
+                const label = String(alias.label || '');
+                if (!field || !label || !Object.prototype.hasOwnProperty.call(props, field)) {
+                    return '';
+                }
+                const displayField = field + '__display';
+                const value = Object.prototype.hasOwnProperty.call(props, displayField)
+                    ? props[displayField]
+                    : props[field];
+                if (value === null || value === undefined || String(value).trim() === '') {
+                    return '';
+                }
+                return (
+                    '<div class="approval-feature-popup__row"><strong>' +
+                    escapeHtml(label) +
+                    ':</strong> ' +
+                    escapeHtml(value) +
+                    '</div>'
+                );
+            }).filter(Boolean);
+            if (!rows.length) {
+                return;
+            }
+            layer.bindPopup('<div class="approval-feature-popup">' + rows.join('') + '</div>');
+            layer.on('popupopen', function () {
+                if (isDrawModeActive() || isMeasureModeActive()) {
+                    layer.closePopup();
+                }
+            });
+        }
+
         function onEachFeature(feature, layer) {
             const props = feature.properties || {};
             const layerKey = props.layerKey || props.sourceTable;
@@ -2626,6 +2755,7 @@
             if (isAdjacentFeature(props)) {
                 bindAdjacentPopup(layer, feature);
             }
+            bindTaskObjectPopup(layer, feature);
         }
 
         function addMapFeatures(features) {
