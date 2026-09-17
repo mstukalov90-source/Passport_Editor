@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="{% static 'pass_viewer/brand-mark.png' %}">
     <link rel="stylesheet" href="{% static 'pass_viewer/css/base.css' %}?v=redesign-2">
     <link rel="stylesheet" href="{% static 'pass_viewer/css/tokens.css' %}?v=redesign-1">
-    <link rel="stylesheet" href="{% static 'pass_viewer/css/header.css' %}?v=redesign-8">
+    <link rel="stylesheet" href="{% static 'pass_viewer/css/header.css' %}?v=redesign-9">
     <link rel="stylesheet" href="{% static 'pass_viewer/css/notifications.css' %}?v=redesign-3">
     <link rel="stylesheet" href="{% static 'pass_viewer/css/feedback.css' %}?v=1">
     <link rel="stylesheet" href="{% static 'pass_viewer/css/owned-lists.css' %}?v=redesign-2">
@@ -28,9 +28,10 @@
 {% include 'includes/approval_notifications_modal.html' %}
 {% include 'includes/feedback_modal.html' %}
 {% include 'pass_viewer/includes/owned_lists_modal.html' %}
+{% include 'pass_viewer/includes/user_guide_modal.html' %}
 {% endif %}
 {% if not view_only %}
-<script src="{% static 'pass_viewer/js/site-header.js' %}?v=redesign-4" defer></script>
+<script src="{% static 'pass_viewer/js/site-header.js' %}?v=redesign-5" defer></script>
 {% endif %}
 {% if request.user.is_authenticated %}
 <script src="{% static 'pass_viewer/js/notifications.js' %}?v=redesign-3" defer></script>

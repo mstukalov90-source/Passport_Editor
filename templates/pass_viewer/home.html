@@ -14,7 +14,7 @@
     {{ hood_work_area_geojson|json_script:"hood-work-area-geojson-data" }}
     {% include 'pass_viewer/includes/map_home_scripts.html' %}
     {% load static %}
-    <script src="{% static 'pass_viewer/js/home.js' %}?v=ogx-mode-1"></script>
+    <script src="{% static 'pass_viewer/js/home.js' %}?v=ogx-mode-2"></script>
 {% endblock %}
 
 {% block container_class %}container--wide{% endblock %}
@@ -559,25 +559,6 @@
                     <button type="button" id="manual-cancel-btn" style="background: #e5e7eb; color: #111;">Отмена</button>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <div
-        id="user-guide-modal"
-        class="user-guide-modal-overlay"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="user-guide-modal-title"
-        hidden
-    >
-        <div class="user-guide-modal-card">
-            <div class="user-guide-modal-header">
-                <h3 id="user-guide-modal-title">Руководство пользователя</h3>
-                <button type="button" id="user-guide-close-btn" class="user-guide-close-btn" aria-label="Закрыть">✕</button>
-            </div>
-            <div id="user-guide-modal-body" class="user-guide-modal-body user-guide-content">
-                {{ user_guide_html|safe }}
-            </div>
         </div>
     </div>
 

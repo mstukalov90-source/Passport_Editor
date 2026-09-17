@@ -67,10 +67,9 @@ def test_user_guide_modal_opens(page, live_server, e2e_credentials):
     page.fill('input[name="username"]', e2e_credentials['username'])
     page.fill('input[name="password"]', e2e_credentials['password'])
     page.get_by_role('button', name='Войти').click()
-    page.wait_for_selector('.owned-home-shell', state='visible')
+    page.wait_for_selector('.personal-account, .owned-home-shell', state='visible')
     page.wait_for_load_state('networkidle')
-    workflow_modal = page.locator('#home-workflow-modal')
-    assert workflow_modal.evaluate('el => el.style.display') != 'flex'
+    page.locator('[data-header-dropdown-toggle][aria-controls="site-header-more-menu"]').click()
     page.locator('#user-guide-open-btn').click()
     guide_modal = page.locator('#user-guide-modal')
     assert guide_modal.evaluate('el => !el.hidden') is True

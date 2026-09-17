@@ -340,6 +340,115 @@
         });
     }
 
+    function bindLayersPanelResize() {
+        const workspace = document.querySelector('.add-object-workspace');
+        const aside = document.querySelector('.add-object-panel--layers');
+        const container = document.querySelector('main.container--add-object');
+        if (!workspace || !aside || !container || aside.querySelector('.add-object-layers-resize')) {
+            return;
+        }
+        if (window.matchMedia && window.matchMedia('(max-width: 1100px)').matches) {
+            return;
+        }
+        const handle = document.createElement('div');
+        handle.className = 'add-object-layers-resize';
+        handle.setAttribute('role', 'separator');
+        handle.setAttribute('aria-orientation', 'vertical');
+        handle.setAttribute('aria-label', 'Изменить ширину панели слоёв');
+        aside.appendChild(handle);
+
+        let unconstrainedNeeded = 280;
+
+        function maxWidthPx() {
+            return Math.max(240, Math.floor(container.clientWidth * 0.25));
+        }
+
+        function clampWidth(px) {
+            return Math.min(maxWidthPx(), Math.max(240, Math.round(px)));
+        }
+
+        function applyWidth(px) {
+            const width = clampWidth(px);
+            workspace.style.setProperty('--layers-panel-width', width + 'px');
+            const panel = document.getElementById('layer-management-panel');
+            if (panel) {
+                panel.classList.toggle('layers-panel-labels-wrap', unconstrainedNeeded > width);
+            }
+        }
+
+        function measureDefaultWidth() {
+            const panel = document.getElementById('layer-management-panel');
+            if (!panel) {
+                unconstrainedNeeded = 280;
+                applyWidth(280);
+                return;
+            }
+            const targets = panel.querySelectorAll(
+                '.layer-panel-row, .layer-management-panel__column-title span'
+            );
+            const previous = [];
+            targets.forEach((el) => {
+                previous.push({
+                    whiteSpace: el.style.whiteSpace,
+                    flexWrap: el.style.flexWrap,
+                });
+                el.style.whiteSpace = 'nowrap';
+                el.style.flexWrap = 'nowrap';
+            });
+            panel.classList.remove('layers-panel-labels-wrap');
+            let maxRow = 0;
+            targets.forEach((el) => {
+                maxRow = Math.max(maxRow, el.scrollWidth);
+            });
+            targets.forEach((el, index) => {
+                el.style.whiteSpace = previous[index].whiteSpace;
+                el.style.flexWrap = previous[index].flexWrap;
+            });
+            unconstrainedNeeded = Math.max(240, maxRow + 56);
+            applyWidth(unconstrainedNeeded);
+        }
+
+        measureDefaultWidth();
+        window.requestAnimationFrame(measureDefaultWidth);
+
+        let dragging = false;
+        let startX = 0;
+        let startW = 0;
+
+        handle.addEventListener('pointerdown', (event) => {
+            if (aside.querySelector('.add-object-layers.is-collapsed')) {
+                return;
+            }
+            dragging = true;
+            handle.classList.add('is-dragging');
+            startX = event.clientX;
+            startW = aside.getBoundingClientRect().width;
+            if (handle.setPointerCapture) {
+                handle.setPointerCapture(event.pointerId);
+            }
+            event.preventDefault();
+        });
+        handle.addEventListener('pointermove', (event) => {
+            if (!dragging) {
+                return;
+            }
+            applyWidth(startW + (event.clientX - startX));
+        });
+        function endDrag() {
+            if (!dragging) {
+                return;
+            }
+            dragging = false;
+            handle.classList.remove('is-dragging');
+            const map = mapRef || PV._editorMap;
+            if (map && typeof map.invalidateSize === 'function') {
+                map.invalidateSize();
+            }
+        }
+        handle.addEventListener('pointerup', endDrag);
+        handle.addEventListener('pointercancel', endDrag);
+    }
+
     PV.LayerPanel = {
         init(opts) {
             mapRef = opts.map || null;
@@ -350,6 +459,7 @@
             }
             bindExpandButtons();
             bindOpacitySlider();
+            bindLayersPanelResize();
             applyAllOpacity();
             rebuildObjectLists();
             window.requestAnimationFrame(applyAllOpacity);

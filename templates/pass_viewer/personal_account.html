@@ -8,7 +8,7 @@
 {% block page_styles %}
 <link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}?v=filters-dates-4">
 <link rel="stylesheet" href="{% static 'pass_viewer/css/modal.css' %}">
-<link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}?v=modal-fix-2">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}?v=modal-fix-3">
 {% endblock %}
 
 {% block container_class %}personal-account{% endblock %}
@@ -340,6 +340,16 @@
                 <button type="button" id="owned-view-object-beskhoz-btn" class="personal-table-btn check-dgi-analiz-btn" hidden>
                     Поиск бесхозов
                 </button>
+                {% if can_write %}
+                <button type="button" id="owned-view-object-split-btn" class="personal-table-btn owned-view-object-modal__action-btn" hidden>
+                    {% include 'pass_viewer/includes/toolbar_icon.html' with name='split' %}
+                    <span>Разделить</span>
+                </button>
+                <button type="button" id="owned-view-object-aktualize-btn" class="personal-table-btn owned-view-object-modal__action-btn" hidden>
+                    {% include 'pass_viewer/includes/toolbar_icon.html' with name='aktualize' %}
+                    <span>Актуализировать</span>
+                </button>
+                {% endif %}
                 <button type="button" id="owned-view-object-close-btn" class="owned-view-object-modal__close" aria-label="Закрыть">×</button>
             </div>
         </div>
@@ -393,7 +403,7 @@
 <div id="personal-draw-request-modal" class="modal-overlay" style="display:none;">
     <div class="modal-card" style="max-width: 460px;" role="dialog" aria-modal="true" aria-labelledby="personal-draw-request-title">
         <h3 id="personal-draw-request-title">Заявка на актуализацию</h3>
-        <p class="note" style="margin-top: 0;">У объекта не указан номер заявки в базе. Введите номер заявки, чтобы продолжить.</p>
+        <p id="personal-draw-request-text" class="note" style="margin-top: 0;">У объекта не указан номер заявки в базе. Введите номер заявки, чтобы продолжить.</p>
         <label class="note" for="personal-draw-request-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер заявки</label>
         <input
             id="personal-draw-request-input"
@@ -405,6 +415,20 @@
             style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
         >
         <p id="personal-draw-request-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+        <fieldset
+            id="personal-draw-geometry-detail-fieldset"
+            style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-top: 12px; margin-bottom: 0;"
+        >
+            <legend class="note" style="font-weight: 600; padding: 0 4px;">Геометрия выбранного паспорта</legend>
+            <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; cursor: pointer;">
+                <input type="radio" name="personal_draw_geometry_detail_ui" value="simplified" id="personal-draw-geometry-detail-simplified" checked style="width: auto; height: auto; margin: 0; flex: 0 0 auto;" />
+                <span style="display: inline-block;">Упрощённая (быстрее редактирование)</span>
+            </label>
+            <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; cursor: pointer;">
+                <input type="radio" name="personal_draw_geometry_detail_ui" value="full" id="personal-draw-geometry-detail-full" style="width: auto; height: auto; margin: 0; flex: 0 0 auto;" />
+                <span style="display: inline-block;">Полная</span>
+            </label>
+        </fieldset>
         <div class="modal-actions">
             <button type="button" class="personal-table-btn" id="personal-draw-request-cancel" style="background:#e5e7eb;color:#111;">Отмена</button>
             <button type="button" class="personal-table-btn" id="personal-draw-request-submit">Продолжить</button>
@@ -420,5 +444,5 @@
 <script src="{% static 'pass_viewer/js/kind-filters.js' %}"></script>
 <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
 <script src="{% static 'pass_viewer/js/map-tools.js' %}"></script>
-<script src="{% static 'pass_viewer/js/personal-account.js' %}?v=intersecs-btn-4"></script>
+<script src="{% static 'pass_viewer/js/personal-account.js' %}?v=intersecs-btn-5"></script>
 {% endblock %}

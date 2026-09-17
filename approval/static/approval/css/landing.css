@@ -1742,10 +1742,9 @@ main.container.container--approval {
 }
 
 /*
- * Leaflet normally makes the complete square occupied by an icon clickable,
- * including transparent SVG pixels.  That square can cover a neighbouring
- * point.  Keep the artwork click-through and expose only a compact hit target
- * around the QML/SVG hotspot (the actual feature coordinate).
+ * Make the complete rectangle occupied by an SVG marker clickable, including
+ * transparent pixels.  A separate hit element lets overlapping markers be
+ * resolved by the object chooser instead of Leaflet's pane order.
  */
 .approval-svg-marker {
     width: 0;
@@ -1764,14 +1763,78 @@ main.container.container--approval {
 
 .approval-svg-marker__hit {
     position: absolute;
-    left: -5px;
-    top: -5px;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
     background: transparent;
     cursor: pointer;
     pointer-events: auto;
+}
+
+.approval-svg-marker--choice-hover .approval-svg-marker__image,
+.approval-svg-marker--choice-active .approval-svg-marker__image {
+    z-index: 1;
+    /* Several zero-blur shadows create a real alpha-contour around the SVG
+       artwork; the final blurred shadows add the outer glow. */
+    filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff)
+        drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff)
+        drop-shadow(2px 0 0 #f59e0b) drop-shadow(-2px 0 0 #f59e0b)
+        drop-shadow(0 2px 0 #f59e0b) drop-shadow(0 -2px 0 #f59e0b)
+        drop-shadow(0 0 7px #f97316);
+    transform: scale(1.22);
+    transform-origin: center;
+    animation: approval-svg-choice-glow 1.15s ease-in-out infinite alternate;
+}
+
+.approval-svg-marker--choice-active .approval-svg-marker__image {
+    filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff)
+        drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff)
+        drop-shadow(2px 0 0 #2563eb) drop-shadow(-2px 0 0 #2563eb)
+        drop-shadow(0 2px 0 #2563eb) drop-shadow(0 -2px 0 #2563eb)
+        drop-shadow(0 0 8px #60a5fa);
+}
+
+@keyframes approval-svg-choice-glow {
+    from {
+        opacity: 0.92;
+        transform: scale(1.16);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1.3);
+    }
+}
+
+.approval-svg-choice {
+    display: grid;
+    min-width: 190px;
+    max-width: 280px;
+    gap: 4px;
+}
+
+.approval-svg-choice__title {
+    padding: 0 2px 4px;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.approval-svg-choice__item {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #dbe3ec;
+    border-radius: 6px;
+    background: #fff;
+    color: #1f2937;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.25;
+    text-align: left;
+    cursor: pointer;
+}
+
+.approval-svg-choice__item:hover,
+.approval-svg-choice__item:focus-visible {
+    border-color: #2563eb;
+    background: #eff6ff;
+    outline: none;
 }
 
 @media (max-width: 1024px) {

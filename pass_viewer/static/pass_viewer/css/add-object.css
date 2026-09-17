@@ -51,7 +51,7 @@ body.has-site-header main.container.container--add-object {
     min-height: 0;
     max-height: 100%;
     display: grid;
-    grid-template-columns: minmax(240px, 15vw) minmax(0, 1fr) minmax(220px, 15vw);
+    grid-template-columns: var(--layers-panel-width, minmax(240px, 15vw)) minmax(0, 1fr) minmax(220px, 15vw);
     grid-template-rows: minmax(0, 1fr);
     gap: 10px;
     align-items: stretch;
@@ -66,6 +66,47 @@ body.has-site-header main.container.container--add-object {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.add-object-panel--layers {
+    position: relative;
+}
+
+.add-object-layers-resize {
+    position: absolute;
+    top: 0;
+    right: -6px;
+    width: 12px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 4;
+    touch-action: none;
+}
+
+.add-object-layers-resize::after {
+    content: "";
+    position: absolute;
+    top: 16px;
+    bottom: 16px;
+    left: 5px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--pv-border, #e3e6ec);
+}
+
+.add-object-layers-resize:hover::after,
+.add-object-layers-resize.is-dragging::after {
+    background: var(--pv-blue, #165391);
+}
+
+.add-object-workspace:has(.add-object-layers.is-collapsed) .add-object-layers-resize {
+    display: none;
+}
+
+@media (max-width: 1100px) {
+    .add-object-layers-resize {
+        display: none;
+    }
 }
 
 /* Просмотр объекта (view_only): без боковых панелей, карта на всю ширину */
@@ -174,7 +215,7 @@ body.has-site-header main.container.container--add-object {
 .add-object-layers__body {
     flex: 1;
     min-height: 0;
-    overflow: auto;
+    overflow: hidden;
     padding: 10px 12px 14px;
 }
 
@@ -183,8 +224,10 @@ body.has-site-header main.container.container--add-object {
     border: none;
     border-radius: 0;
     background: transparent;
-    overflow: visible;
+    overflow: hidden;
     width: 100%;
+    min-height: 0;
+    height: 100%;
 }
 
 .add-object-layers .layer-management-panel__title {
@@ -196,6 +239,9 @@ body.has-site-header main.container.container--add-object {
     flex-direction: column;
     gap: 12px;
     min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
     grid-template-columns: none;
 }
 
@@ -212,8 +258,23 @@ body.has-site-header main.container.container--add-object {
 }
 
 .add-object-layers .layer-panel-row {
+    white-space: nowrap;
+    flex-wrap: nowrap;
+}
+
+.add-object-layers.layers-panel-labels-wrap .layer-panel-row {
     white-space: normal;
     flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.add-object-layers .layer-panel-row__name {
+    white-space: nowrap;
+}
+
+.add-object-layers.layers-panel-labels-wrap .layer-panel-row__name {
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 /* --- Right: DB comments --- */
@@ -780,7 +841,7 @@ body.has-site-header main.container.container--add-object {
 
 /* Expandable layer object list */
 .layer-panel-row {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 .layer-panel-row__expand {
@@ -820,6 +881,8 @@ body.has-site-header main.container.container--add-object {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    max-height: 180px;
+    overflow: auto;
 }
 
 .layer-panel-objects[hidden] {

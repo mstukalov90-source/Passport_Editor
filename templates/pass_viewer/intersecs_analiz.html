@@ -8,7 +8,7 @@
 {% block page_styles %}
 {% include 'pass_viewer/includes/map_vendor_styles.html' %}
 <link rel="stylesheet" href="{% static 'pass_viewer/css/personal.css' %}?v=intersecs-legend-7">
-<link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}?v=modal-fix-3">
 <link rel="stylesheet" href="{% static 'pass_viewer/css/map-toolbar.css' %}">
 <link rel="stylesheet" href="{% static 'pass_viewer/css/home.css' %}">
 {% endblock %}
@@ -25,7 +25,7 @@
     <script src="{% static 'pass_viewer/js/utils.js' %}?v=modal-fix-1"></script>
     <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
     <script src="{% static 'pass_viewer/js/map-tools.js' %}"></script>
-    <script src="{% static 'pass_viewer/js/intersecs-analiz.js' %}?v=legend-12"></script>
+    <script src="{% static 'pass_viewer/js/intersecs-analiz.js' %}?v=legend-13"></script>
 {% endblock %}
 
 {% block content %}
@@ -126,5 +126,38 @@
             <div id="intersecs-analiz-map" class="intersecs-analiz-map"></div>
         </div>
     </section>
+</div>
+
+<div id="intersecs-analiz-aktualize-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width: 460px;" role="dialog" aria-modal="true" aria-labelledby="intersecs-analiz-aktualize-title">
+        <h3 id="intersecs-analiz-aktualize-title">Заявка на актуализацию.</h3>
+        <p class="note" style="margin-top: 0;">Укажите номер заявки и тип геометрии, чтобы открыть объект в редакторе.</p>
+        <label class="note" for="intersecs-analiz-aktualize-request-input" style="display: block; margin-bottom: 6px; font-weight: 600;">Номер заявки</label>
+        <input
+            id="intersecs-analiz-aktualize-request-input"
+            type="text"
+            maxlength="100"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            autocomplete="off"
+            style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1;"
+        >
+        <fieldset style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-top: 12px; margin-bottom: 0;">
+            <legend class="note" style="font-weight: 600; padding: 0 4px;">Геометрия выбранного паспорта</legend>
+            <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; cursor: pointer;">
+                <input type="radio" name="intersecs_analiz_geometry_detail_ui" value="simplified" id="intersecs-analiz-geometry-simplified" checked style="width: auto; height: auto; margin: 0; flex: 0 0 auto;" />
+                <span>Упрощённая (быстрее редактирование)</span>
+            </label>
+            <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; cursor: pointer;">
+                <input type="radio" name="intersecs_analiz_geometry_detail_ui" value="full" id="intersecs-analiz-geometry-full" style="width: auto; height: auto; margin: 0; flex: 0 0 auto;" />
+                <span>Полная</span>
+            </label>
+        </fieldset>
+        <p id="intersecs-analiz-aktualize-error" class="note" style="margin: 8px 0 0; color: #b42318;"></p>
+        <div class="modal-actions" style="margin-top: 14px;">
+            <button type="button" class="intersecs-analiz-nav-btn" id="intersecs-analiz-aktualize-cancel" style="background:#e5e7eb;color:#111;">Отмена</button>
+            <button type="button" class="intersecs-analiz-nav-btn" id="intersecs-analiz-aktualize-submit">Продолжить</button>
+        </div>
+    </div>
 </div>
 {% endblock %}

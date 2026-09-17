@@ -1015,6 +1015,100 @@
             navField('intersecs-analiz-nav-source').value = sourceLabel || '';
         }
 
+        const navForm = document.getElementById('intersecs-analiz-nav-form');
+        const aktualizeModal = document.getElementById('intersecs-analiz-aktualize-modal');
+        const aktualizeInput = document.getElementById('intersecs-analiz-aktualize-request-input');
+        const aktualizeError = document.getElementById('intersecs-analiz-aktualize-error');
+        const aktualizeCancel = document.getElementById('intersecs-analiz-aktualize-cancel');
+        const aktualizeSubmit = document.getElementById('intersecs-analiz-aktualize-submit');
+        const geomSimplified = document.getElementById('intersecs-analiz-geometry-simplified');
+        const geomFull = document.getElementById('intersecs-analiz-geometry-full');
+        const geomModeField = document.getElementById('intersecs-analiz-nav-form')
+            ? navForm.querySelector('input[name="geometry_detail_mode"]')
+            : null;
+
+        function setAktualizeModalOpen(open) {
+            if (!aktualizeModal) {
+                return;
+            }
+            aktualizeModal.style.display = open ? 'flex' : 'none';
+        }
+
+        function closeAktualizeModal() {
+            setAktualizeModalOpen(false);
+            if (aktualizeError) {
+                aktualizeError.textContent = '';
+            }
+        }
+
+        function submitAktualizeModal() {
+            const raw = (aktualizeInput && aktualizeInput.value ? aktualizeInput.value : '').trim();
+            if (!raw) {
+                if (aktualizeError) {
+                    aktualizeError.textContent = 'Введите номер заявки.';
+                }
+                return;
+            }
+            if (!/^\d+$/.test(raw)) {
+                if (aktualizeError) {
+                    aktualizeError.textContent = 'Номер заявки должен содержать только цифры.';
+                }
+                return;
+            }
+            if (navField('intersecs-analiz-nav-request-id')) {
+                navField('intersecs-analiz-nav-request-id').value = raw;
+            }
+            if (geomModeField) {
+                geomModeField.value = geomFull && geomFull.checked ? 'full' : 'simplified';
+            }
+            closeAktualizeModal();
+            if (navForm) {
+                navForm.submit();
+            }
+        }
+
+        if (navForm) {
+            navForm.addEventListener('submit', (event) => {
+                const submitter = event.submitter;
+                const redirectTo = submitter && submitter.getAttribute('name') === 'redirect_to'
+                    ? submitter.value
+                    : '';
+                if (redirectTo === 'split_object') {
+                    return;
+                }
+                event.preventDefault();
+                if (aktualizeError) {
+                    aktualizeError.textContent = '';
+                }
+                if (aktualizeInput) {
+                    aktualizeInput.value = (navField('intersecs-analiz-nav-request-id') && navField('intersecs-analiz-nav-request-id').value) || '';
+                }
+                if (geomSimplified) {
+                    geomSimplified.checked = true;
+                }
+                setAktualizeModalOpen(true);
+                setTimeout(() => aktualizeInput && aktualizeInput.focus(), 0);
+            });
+        }
+        aktualizeCancel?.addEventListener('click', closeAktualizeModal);
+        aktualizeSubmit?.addEventListener('click', submitAktualizeModal);
+        aktualizeInput?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                submitAktualizeModal();
+            }
+        });
+        aktualizeModal?.addEventListener('click', (event) => {
+            if (event.target === aktualizeModal) {
+                closeAktualizeModal();
+            }
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && aktualizeModal && aktualizeModal.style.display === 'flex') {
+                closeAktualizeModal();
+            }
+        });
+
         let geometry = stored && stored.geometry ? stored.geometry : null;
         try {
             if (!geometry) {

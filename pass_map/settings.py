@@ -81,6 +81,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "pass_viewer.context_processors.approval_notifications",
+                "pass_viewer.context_processors.user_guide",
             ],
         },
     },

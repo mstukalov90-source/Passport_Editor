@@ -40,6 +40,7 @@
     let layerStyleIconsBase = '/static/approval/icons/svg/';
     let svgIndex = null;
     let svgHotspots = null;
+    let approvalObjectLayerKeySet = null;
     let layerStackOrder = [];
     const adjacentFeatureRegistry = {};
     let activeAdjacentNRoot = '';
@@ -79,6 +80,7 @@
     const MAP_UNIT_HIDE_BELOW_PX = 3;
     const MAP_UNIT_MARKER_MAX_PX = 10000;
     let mapUnitMarkers = [];
+    let selectablePolygonLayers = [];
     let signalTapeRenderer = null;
     // ~1:200 at Moscow latitude (Web Mercator, 0.28 mm CSS pixel).
     const APPROVAL_MAP_MAX_ZOOM = 20.5;
@@ -97,6 +99,22 @@
         }
         svgHotspots = readJsonScript('approval-svg-hotspots') || {};
         return svgHotspots;
+    }
+
+    function getApprovalObjectLayerKeySet() {
+        if (approvalObjectLayerKeySet) {
+            return approvalObjectLayerKeySet;
+        }
+        const config = readJsonScript('page-config') || {};
+        const layerGroups = config.layerGroups || {};
+        approvalObjectLayerKeySet = new Set(layerGroups.work || []);
+        return approvalObjectLayerKeySet;
+    }
+
+    function isApprovalObjectFeature(feature) {
+        const props = (feature && feature.properties) || {};
+        const layerKey = String(props.layerKey || props.sourceTable || '');
+        return Boolean(layerKey) && getApprovalObjectLayerKeySet().has(layerKey);
     }
 
     function normalizeSvgLookupKey(raw) {
@@ -522,9 +540,10 @@
     }
 
     const svgClickMarkers = {};
+    const svgOpaqueBoundsCache = {};
     let nextSvgClickMarkerId = 1;
 
-    function buildSvgIcon(iconUrl, size, anchorFx, anchorFy, markerId) {
+    function buildSvgIcon(iconUrl, size, anchorFx, anchorFy, markerId, interactive) {
         const anchored = anchorPixelsFromFractions(size, anchorFx, anchorFy);
         return L.divIcon({
             className: 'approval-svg-marker',
@@ -540,56 +559,455 @@
                 'px" src="' +
                 escapeHtml(iconUrl) +
                 '" alt="" aria-hidden="true">' +
-                '<span class="approval-svg-marker__hit" data-svg-marker-id="' +
+                '<span class="approval-svg-marker__hit" style="left:' +
+                -anchored.ax +
+                'px;top:' +
+                -anchored.ay +
+                'px;width:' +
+                anchored.size +
+                'px;height:' +
+                anchored.size +
+                'px;pointer-events:' +
+                (interactive ? 'auto' : 'none') +
+                '" data-svg-marker-id="' +
                 escapeHtml(markerId || '') +
                 '"></span>',
             iconSize: [0, 0],
             iconAnchor: [0, 0],
+            // Keep popup placement stable for both pixel-sized and MapUnit SVGs.
+            // Using the artwork height here can move it thousands of pixels away
+            // at maximum zoom, so position it 50 px above the geometry point.
+            popupAnchor: [0, -50],
         });
     }
 
-    function nearestSvgClickMarker(event) {
-        const originalEvent = event && event.originalEvent;
-        if (!originalEvent) {
+    function svgOpaqueBounds(image) {
+        if (!image || !image.complete || !image.naturalWidth || !image.naturalHeight) {
             return null;
         }
-        // Several compact hit targets can still overlap in a dense cluster.
-        // Choose the feature whose hotspot is closest to the actual click,
-        // instead of whichever marker happens to be above it in markerPane.
-        const stackedHits = document
-            .elementsFromPoint(originalEvent.clientX, originalEvent.clientY)
-            .filter(function (element) {
-                return element.classList && element.classList.contains('approval-svg-marker__hit');
-            });
-        let best = null;
-        stackedHits.forEach(function (hit) {
-            const markerId = hit.getAttribute('data-svg-marker-id') || '';
-            const marker = svgClickMarkers[markerId];
-            if (!marker || !marker._map) {
-                return;
+        const cacheKey = image.currentSrc || image.src || '';
+        if (cacheKey && Object.prototype.hasOwnProperty.call(svgOpaqueBoundsCache, cacheKey)) {
+            return svgOpaqueBoundsCache[cacheKey];
+        }
+        let bounds = null;
+        try {
+            const maxSide = 192;
+            const scale = Math.min(
+                1,
+                maxSide / Math.max(image.naturalWidth, image.naturalHeight)
+            );
+            const width = Math.max(1, Math.round(image.naturalWidth * scale));
+            const height = Math.max(1, Math.round(image.naturalHeight * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d', { willReadFrequently: true });
+            context.drawImage(image, 0, 0, width, height);
+            const pixels = context.getImageData(0, 0, width, height).data;
+            let minX = width;
+            let minY = height;
+            let maxX = -1;
+            let maxY = -1;
+            for (let y = 0; y < height; y += 1) {
+                for (let x = 0; x < width; x += 1) {
+                    if (pixels[(y * width + x) * 4 + 3] <= 16) {
+                        continue;
+                    }
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
             }
-            const rect = hit.getBoundingClientRect();
-            const dx = originalEvent.clientX - (rect.left + rect.width / 2);
-            const dy = originalEvent.clientY - (rect.top + rect.height / 2);
-            const distanceSquared = dx * dx + dy * dy;
-            if (!best || distanceSquared < best.distanceSquared) {
-                best = { marker: marker, distanceSquared: distanceSquared };
+            if (maxX >= minX && maxY >= minY) {
+                bounds = {
+                    left: minX / width,
+                    top: minY / height,
+                    right: (maxX + 1) / width,
+                    bottom: (maxY + 1) / height,
+                };
             }
-        });
-        return best ? best.marker : null;
+        } catch (error) {
+            bounds = null;
+        }
+        if (cacheKey) {
+            svgOpaqueBoundsCache[cacheKey] = bounds;
+        }
+        return bounds;
     }
 
-    function handleSvgMarkerClick(event) {
-        const nearest = nearestSvgClickMarker(event);
-        if (!nearest || nearest === event.target) {
+    function anchorPopupToSvgSilhouette(layer) {
+        const iconElement = layer && layer._icon;
+        const icon = layer && layer.options && layer.options.icon;
+        if (!iconElement || !icon || !icon.options) {
             return;
         }
-        // Leaflet may still open the popup of the upper DOM marker later in the
-        // same event.  Open the nearest marker on the next tick so it wins.
-        window.setTimeout(function () {
-            if (nearest.getPopup && nearest.getPopup()) {
-                nearest.openPopup();
+        const image = iconElement.querySelector('.approval-svg-marker__image');
+        const bounds = svgOpaqueBounds(image);
+        if (!image || !bounds) {
+            icon.options.popupAnchor = [0, -50];
+            return;
+        }
+        const width = parseFloat(image.style.width) || image.getBoundingClientRect().width;
+        const height = parseFloat(image.style.height) || image.getBoundingClientRect().height;
+        const left = parseFloat(image.style.left) || 0;
+        const top = parseFloat(image.style.top) || 0;
+        const silhouetteCenterX = left + ((bounds.left + bounds.right) / 2) * width;
+        const silhouetteTopY = top + bounds.top * height;
+        icon.options.popupAnchor = [
+            Math.round(silhouetteCenterX),
+            Math.round(silhouetteTopY - 8),
+        ];
+    }
+
+    function pointInChoiceRing(point, ring) {
+        if (!Array.isArray(ring) || ring.length < 3) {
+            return false;
+        }
+        let inside = false;
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+            const xi = Number(ring[i] && ring[i][0]);
+            const yi = Number(ring[i] && ring[i][1]);
+            const xj = Number(ring[j] && ring[j][0]);
+            const yj = Number(ring[j] && ring[j][1]);
+            if (![xi, yi, xj, yj].every(Number.isFinite)) {
+                continue;
             }
+            const crosses =
+                yi > point[1] !== yj > point[1] &&
+                point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi;
+            if (crosses) {
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    function pointInChoicePolygon(point, coordinates) {
+        if (!Array.isArray(coordinates) || !coordinates.length) {
+            return false;
+        }
+        if (!pointInChoiceRing(point, coordinates[0])) {
+            return false;
+        }
+        for (let i = 1; i < coordinates.length; i += 1) {
+            if (pointInChoiceRing(point, coordinates[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function choiceGeometryContains(geometry, latlng) {
+        if (!geometry || !latlng) {
+            return false;
+        }
+        const point = [latlng.lng, latlng.lat];
+        if (geometry.type === 'Polygon') {
+            return pointInChoicePolygon(point, geometry.coordinates);
+        }
+        if (geometry.type === 'MultiPolygon') {
+            return (geometry.coordinates || []).some(function (coordinates) {
+                return pointInChoicePolygon(point, coordinates);
+            });
+        }
+        return false;
+    }
+
+    function polygonUnderChoicePoint(latlng, originalEvent) {
+        if (originalEvent) {
+            const stack = document.elementsFromPoint(
+                originalEvent.clientX,
+                originalEvent.clientY
+            );
+            for (let i = 0; i < stack.length; i += 1) {
+                for (let j = 0; j < selectablePolygonLayers.length; j += 1) {
+                    const stackedLayer = selectablePolygonLayers[j];
+                    if (
+                        stackedLayer &&
+                        stackedLayer._map === map &&
+                        stackedLayer.getPopup &&
+                        stackedLayer.getPopup() &&
+                        stackedLayer._path === stack[i]
+                    ) {
+                        return stackedLayer;
+                    }
+                }
+            }
+        }
+        const containing = selectablePolygonLayers.filter(function (layer) {
+            const feature = layer && layer._approvalFeature;
+            return (
+                layer &&
+                layer._map === map &&
+                layer.getPopup &&
+                layer.getPopup() &&
+                feature &&
+                choiceGeometryContains(feature.geometry, latlng)
+            );
+        });
+        if (!containing.length) {
+            return null;
+        }
+        return containing[containing.length - 1];
+    }
+
+    function mapChoiceCandidates(event) {
+        if (!map || !event) {
+            return { candidates: [], latlng: null };
+        }
+        const originalEvent = event.originalEvent;
+        const clickPoint = originalEvent
+            ? map.mouseEventToContainerPoint(originalEvent)
+            : map.latLngToContainerPoint(event.latlng);
+        const clickLatLng = map.containerPointToLatLng(clickPoint);
+        const candidates = [];
+        Object.keys(svgClickMarkers).forEach(function (markerId) {
+            const marker = svgClickMarkers[markerId];
+            if (
+                !marker ||
+                marker._map !== map ||
+                !isApprovalObjectFeature(marker._approvalFeature) ||
+                !marker.getPopup ||
+                !marker.getPopup()
+            ) {
+                return;
+            }
+            const icon = marker._icon;
+            const hit = icon && icon.querySelector('.approval-svg-marker__hit');
+            if (!hit || hit.style.pointerEvents === 'none') {
+                return;
+            }
+            const markerPoint = map.latLngToContainerPoint(marker.getLatLng());
+            const dx = clickPoint.x - markerPoint.x;
+            const dy = clickPoint.y - markerPoint.y;
+            const distanceSquared = dx * dx + dy * dy;
+            if (distanceSquared <= 200 * 200) {
+                candidates.push({ layer: marker, kind: 'svg', distanceSquared: distanceSquared });
+            }
+        });
+        candidates.sort(function (left, right) {
+            return left.distanceSquared - right.distanceSquared;
+        });
+        const nearest = candidates.slice(0, 5);
+        const polygon = polygonUnderChoicePoint(clickLatLng, originalEvent);
+        if (polygon) {
+            nearest.push({ layer: polygon, kind: 'polygon', distanceSquared: 0 });
+        }
+        return { candidates: nearest, latlng: clickLatLng };
+    }
+
+    function mapChoiceLabel(candidate, index) {
+        const layer = candidate && candidate.layer;
+        const feature = layer && layer._approvalFeature;
+        const props = (feature && feature.properties) || {};
+        const tableDef = getTableStyleDef(props.sourceTable || props.layerKey);
+        const aliases = tableDef && Array.isArray(tableDef.aliases) ? tableDef.aliases : [];
+        let label = '';
+        for (let i = 0; i < aliases.length; i += 1) {
+            const field = String(aliases[i].field || '');
+            if (!field || /svg|path|count|nocalc/i.test(field)) {
+                continue;
+            }
+            const displayField = field + '__display';
+            const value = Object.prototype.hasOwnProperty.call(props, displayField)
+                ? props[displayField]
+                : props[field];
+            if (value !== null && value !== undefined && String(value).trim() !== '') {
+                const aliasLabel = String(aliases[i].label || '').trim();
+                label = (aliasLabel ? aliasLabel + ': ' : '') + String(value).trim();
+                break;
+            }
+        }
+        if (!label) {
+            label = String((tableDef && tableDef.label) || props.sourceTable || 'Объект');
+        }
+        const fid = props.fid !== null && props.fid !== undefined ? String(props.fid) : '';
+        const kindLabel = candidate && candidate.kind === 'polygon' ? 'Полигон · ' : '';
+        return kindLabel + label + (fid ? ' · #' + fid : ' · ' + String(index + 1));
+    }
+
+    let activeMapChoiceHighlight = null;
+
+    function clearMapChoiceHighlight(force) {
+        const active = activeMapChoiceHighlight;
+        if (active && active.persistent && !force) {
+            return;
+        }
+        activeMapChoiceHighlight = null;
+        if (!active) {
+            return;
+        }
+        if (active.markerIcon) {
+            active.markerIcon.classList.remove('approval-svg-marker--choice-hover');
+            active.markerIcon.classList.remove('approval-svg-marker--choice-active');
+        }
+        if (active.layer && active.originalStyle && active.layer.setStyle) {
+            active.layer.setStyle(active.originalStyle);
+        }
+    }
+
+    function highlightMapChoice(candidate, persistent) {
+        clearMapChoiceHighlight(true);
+        const layer = candidate && candidate.layer;
+        // Child markers of a GeoJSON MultiPoint can temporarily lose their
+        // private `_map` reference while their parent FeatureGroup is redrawn.
+        // Their icon/coordinate remain valid and are sufficient for highlighting.
+        if (!layer) {
+            return;
+        }
+        const active = {
+            layer: layer,
+            markerIcon: null,
+            originalStyle: null,
+            persistent: Boolean(persistent),
+        };
+        if (candidate.kind === 'svg' && layer.getLatLng) {
+            // Highlight the existing Leaflet marker itself. No duplicate marker is
+            // added to the map, so the visual object and its hit target stay one.
+            active.markerIcon = layer._icon || null;
+            if (active.markerIcon) {
+                active.markerIcon.classList.add('approval-svg-marker--choice-hover');
+                if (persistent) {
+                    active.markerIcon.classList.add('approval-svg-marker--choice-active');
+                }
+            }
+        } else if (candidate.kind === 'polygon' && layer.setStyle) {
+            active.originalStyle = Object.assign({}, layer.options || {});
+            layer.setStyle({ color: '#f59e0b', weight: 5, fillOpacity: 0.45 });
+            if (layer.bringToFront) {
+                layer.bringToFront();
+            }
+        }
+        activeMapChoiceHighlight = active;
+    }
+
+    function focusMapChoiceCandidate(candidate) {
+        const layer = candidate && candidate.layer;
+        if (!map || !layer) {
+            return;
+        }
+        if (candidate.kind === 'svg' && layer.getLatLng) {
+            // Complete the zoom synchronously so the SVG DOM node used for the
+            // persistent highlight is the final one at maximum scale.
+            map.setView(layer.getLatLng(), APPROVAL_MAP_MAX_ZOOM, { animate: false });
+            return;
+        }
+        if (layer.getBounds) {
+            const bounds = layer.getBounds();
+            if (bounds && bounds.isValid && bounds.isValid()) {
+                map.fitBounds(bounds.pad(0.12), { maxZoom: APPROVAL_MAP_MAX_ZOOM });
+            }
+        }
+    }
+
+    function openSelectedMapChoice(candidate) {
+        const layer = candidate && candidate.layer;
+        if (!layer || !layer.openPopup) {
+            return;
+        }
+        focusMapChoiceCandidate(candidate);
+        if (candidate.kind === 'svg') {
+            anchorPopupToSvgSilhouette(layer);
+        }
+        highlightMapChoice(candidate, true);
+        layer.openPopup();
+        function watchSelectedPopup() {
+            if (
+                !activeMapChoiceHighlight ||
+                activeMapChoiceHighlight.layer !== layer
+            ) {
+                return;
+            }
+            if (document.querySelector('.leaflet-popup')) {
+                window.setTimeout(watchSelectedPopup, 250);
+                return;
+            }
+            clearMapChoiceHighlight(true);
+        }
+        // A MultiPoint popup can be handed from its child marker to the parent
+        // FeatureGroup with several delayed close/open events. Observe the final
+        // visible state instead of relying on that noisy event sequence.
+        window.setTimeout(watchSelectedPopup, 5000);
+    }
+
+    function openMapChoicePopup(latlng, candidates) {
+        if (!map || !candidates.length) {
+            return;
+        }
+        clearMapChoiceHighlight();
+        const content = document.createElement('div');
+        content.className = 'approval-svg-choice';
+        const title = document.createElement('div');
+        title.className = 'approval-svg-choice__title';
+        title.textContent = 'Выберите объект';
+        content.appendChild(title);
+
+        candidates.forEach(function (candidate, index) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'approval-svg-choice__item';
+            button.textContent = mapChoiceLabel(candidate, index);
+            button.addEventListener('mouseenter', function () {
+                highlightMapChoice(candidate);
+            });
+            button.addEventListener('mouseleave', function () {
+                clearMapChoiceHighlight(false);
+            });
+            button.addEventListener('focus', function () {
+                highlightMapChoice(candidate);
+            });
+            button.addEventListener('blur', function () {
+                clearMapChoiceHighlight(false);
+            });
+            button.addEventListener('click', function (buttonEvent) {
+                buttonEvent.preventDefault();
+                buttonEvent.stopPropagation();
+                clearMapChoiceHighlight(true);
+                choicePopup.remove();
+                openSelectedMapChoice(candidate);
+            });
+            content.appendChild(button);
+        });
+
+        const choicePopup = L.popup({
+            className: 'approval-svg-choice-popup',
+            closeButton: false,
+            autoPan: false,
+            offset: [0, -8],
+        })
+            .setLatLng(latlng)
+            .setContent(content)
+            .openOn(map);
+        choicePopup.on('remove', function () {
+            clearMapChoiceHighlight(false);
+        });
+    }
+
+    function handleMapObjectChoice(event) {
+        if (!map || !event || isMeasureModeActive()) {
+            return;
+        }
+        if (
+            window.ApprovalEventDraw &&
+            typeof window.ApprovalEventDraw.isDrawMode === 'function' &&
+            window.ApprovalEventDraw.isDrawMode()
+        ) {
+            return;
+        }
+        const originalEvent = event.originalEvent;
+        if (originalEvent && originalEvent._approvalChoiceScheduled) {
+            return;
+        }
+        if (originalEvent) {
+            originalEvent._approvalChoiceScheduled = true;
+        }
+        const selection = mapChoiceCandidates(event);
+        if (!selection.candidates.length) {
+            return;
+        }
+        window.setTimeout(function () {
+            openMapChoicePopup(selection.latlng, selection.candidates);
         }, 0);
     }
 
@@ -613,22 +1031,31 @@
         if (icon && icon.options) {
             icon.options.iconSize = [0, 0];
             icon.options.iconAnchor = [0, 0];
+            icon.options.popupAnchor = [0, -50];
         }
         const el = entry.marker._icon;
         if (el) {
             const image = el.querySelector('.approval-svg-marker__image');
+            const hit = el.querySelector('.approval-svg-marker__hit');
             if (image) {
                 image.style.width = renderSize + 'px';
                 image.style.height = renderSize + 'px';
                 image.style.left = -ax + 'px';
                 image.style.top = -ay + 'px';
             }
+            if (hit) {
+                hit.style.left = -ax + 'px';
+                hit.style.top = -ay + 'px';
+                hit.style.width = renderSize + 'px';
+                hit.style.height = renderSize + 'px';
+                hit.style.pointerEvents = visible ? 'auto' : 'none';
+            }
             if (typeof entry.marker.update === 'function' && entry.marker._map) {
                 entry.marker.update();
             }
         } else if (visible) {
             entry.marker.setIcon(
-                buildSvgIcon(entry.iconUrl, renderSize, fx, fy, entry.markerId)
+                buildSvgIcon(entry.iconUrl, renderSize, fx, fy, entry.markerId, visible)
             );
         }
         setLeafletMarkerOpacity(entry.marker, visible ? 1 : 0);
@@ -642,12 +1069,14 @@
         const markerId = String(nextSvgClickMarkerId);
         nextSvgClickMarkerId += 1;
         const marker = L.marker(latlng, {
-            icon: buildSvgIcon(iconUrl, renderSize, fx, fy, markerId),
+            icon: buildSvgIcon(iconUrl, renderSize, fx, fy, markerId, visible),
             opacity: visible ? 1 : 0,
             zIndexOffset: 600,
         });
         svgClickMarkers[markerId] = marker;
-        marker.on('click', handleSvgMarkerClick);
+        marker._approvalFeature = feature;
+        marker._approvalIsSvgMarker = true;
+        marker.on('click', handleMapObjectChoice);
         if (mapUnitMeters != null && Number.isFinite(Number(mapUnitMeters))) {
             mapUnitMarkers.push({
                 kind: 'svg',
@@ -2540,6 +2969,7 @@
 
         managedLayers = {};
         mapUnitMarkers = [];
+        selectablePolygonLayers = [];
         signalTapeRenderer = L.svg({ padding: 0.5 });
         eventGeometriesGroup = L.featureGroup().addTo(map);
         map.invalidateSize();
@@ -2566,6 +2996,7 @@
         map.on('moveend', function () {
             refreshMapUnitMarkers(map.getZoom());
         });
+        map.on('click', handleMapObjectChoice);
 
         function isInspectorForSelectedApprove() {
             const pageConfig = readJsonScript('page-config') || {};
@@ -2708,7 +3139,7 @@
 
         function bindTaskObjectPopup(layer, feature) {
             const props = feature.properties || {};
-            if (props.sourceSchema !== 'work' || !props.taskGuid) {
+            if (!isApprovalObjectFeature(feature)) {
                 return;
             }
             const tableDef = getTableStyleDef(props.sourceTable || props.layerKey);
@@ -2737,15 +3168,37 @@
             if (!rows.length) {
                 return;
             }
-            layer.bindPopup('<div class="approval-feature-popup">' + rows.join('') + '</div>');
-            layer.on('popupopen', function () {
-                if (isDrawModeActive() || isMeasureModeActive()) {
-                    layer.closePopup();
-                }
+            const popupHtml = '<div class="approval-feature-popup">' + rows.join('') + '</div>';
+            let popupLayers = [layer];
+            // PostGIS point tables are commonly stored as MultiPoint even when each
+            // feature contains one coordinate. Leaflet represents such a feature as
+            // a FeatureGroup, while the SVG registry contains its child Marker. Bind
+            // the popup to those markers so they also participate in radius search.
+            if (
+                feature.geometry &&
+                feature.geometry.type === 'MultiPoint' &&
+                layer.eachLayer
+            ) {
+                popupLayers = [];
+                layer.eachLayer(function (childLayer) {
+                    if (childLayer && childLayer.bindPopup) {
+                        childLayer._approvalFeature = feature;
+                        popupLayers.push(childLayer);
+                    }
+                });
+            }
+            popupLayers.forEach(function (popupLayer) {
+                popupLayer.bindPopup(popupHtml, { autoPan: false });
+                popupLayer.on('popupopen', function () {
+                    if (isDrawModeActive() || isMeasureModeActive()) {
+                        popupLayer.closePopup();
+                    }
+                });
             });
         }
 
         function onEachFeature(feature, layer) {
+            layer._approvalFeature = feature;
             const props = feature.properties || {};
             const layerKey = props.layerKey || props.sourceTable;
             if (isReferenceLayerKey(layerKey)) {
@@ -2756,6 +3209,15 @@
                 bindAdjacentPopup(layer, feature);
             }
             bindTaskObjectPopup(layer, feature);
+            if (
+                feature.geometry &&
+                (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') &&
+                isApprovalObjectFeature(feature) &&
+                layer.getPopup &&
+                layer.getPopup()
+            ) {
+                selectablePolygonLayers.push(layer);
+            }
         }
 
         function addMapFeatures(features) {

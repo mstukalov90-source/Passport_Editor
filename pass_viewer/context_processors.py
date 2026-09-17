@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from approval.events_service import build_home_notification_events
 from pass_viewer.roles import resolve_user_scope
+from pass_viewer.user_guide import load_user_guide_html
 
 
 def approval_notifications(request):
@@ -36,3 +37,13 @@ def approval_notifications(request):
         "notifications_owner_id": owner_id,
         "user_role": role,
     }
+
+
+def user_guide(request):
+    user = getattr(request, "user", None)
+    if user is None or not user.is_authenticated:
+        return {"user_guide_html": ""}
+    try:
+        return {"user_guide_html": load_user_guide_html()}
+    except Exception:
+        return {"user_guide_html": ""}

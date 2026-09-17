@@ -162,21 +162,19 @@
 }
 
 #check-dgi-modal .modal-card {
-    max-width: 560px;
+    max-width: 640px;
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
-    /* Фиксированная высота по самой высокой таблице (З/У) с запасом
-       на субпиксельное округление: модалка не меняет размер при
-       переключении З/У | ОГХ и текстовых состояниях, таблица не скроллится. */
-    height: 560px;
-    max-height: calc(100vh - 48px);
+    height: auto;
+    max-height: none;
+    overflow: visible;
 }
 
 #check-dgi-modal #check-dgi-modal-body {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     min-height: 0;
-    overflow-y: auto;
+    overflow: visible;
 }
 
 #check-dgi-modal #check-dgi-modal-body.check-dgi-modal-body--ok {

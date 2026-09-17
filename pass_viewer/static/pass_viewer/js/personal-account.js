@@ -565,6 +565,8 @@
     const viewObjectCloseBtn = document.getElementById('owned-view-object-close-btn');
     const viewObjectAnalizBtn = document.getElementById('owned-view-object-analiz-btn');
     const viewObjectBeskhozBtn = document.getElementById('owned-view-object-beskhoz-btn');
+    const viewObjectSplitBtn = document.getElementById('owned-view-object-split-btn');
+    const viewObjectAktualizeBtn = document.getElementById('owned-view-object-aktualize-btn');
     const viewObjectLoading = document.getElementById('owned-view-object-loading');
     const field = (id) => document.getElementById(id);
 
@@ -671,8 +673,9 @@
 
     function syncViewObjectAnalizBtn() {
         const p = currentViewObjectProps || {};
+        const rootid = String(p.rootid || '').trim();
         const show = Boolean(
-            String(p.rootid || '').trim() ||
+            rootid ||
             String(p.request_id || '').trim() ||
             String(p.name || '').trim()
         );
@@ -681,6 +684,13 @@
         }
         if (viewObjectBeskhozBtn) {
             viewObjectBeskhozBtn.hidden = !show;
+        }
+        const showWrite = Boolean(rootid && viewObjectSplitBtn);
+        if (viewObjectSplitBtn) {
+            viewObjectSplitBtn.hidden = !showWrite;
+        }
+        if (viewObjectAktualizeBtn) {
+            viewObjectAktualizeBtn.hidden = !showWrite;
         }
     }
 
@@ -1343,7 +1353,41 @@
     const drawRequestModal = document.getElementById('personal-draw-request-modal');
     const drawRequestInput = document.getElementById('personal-draw-request-input');
     const drawRequestError = document.getElementById('personal-draw-request-error');
+    const drawGeometrySimplified = document.getElementById('personal-draw-geometry-detail-simplified');
+    const drawGeometryFull = document.getElementById('personal-draw-geometry-detail-full');
     let pendingDrawPayload = null;
+    let drawRequestReturnToChoice = true;
+
+    function getDrawGeometryMode() {
+        return drawGeometryFull && drawGeometryFull.checked ? 'full' : 'simplified';
+    }
+
+    function openDrawRequestModal(opts) {
+        const options = opts || {};
+        drawRequestReturnToChoice = options.returnToChoice !== false;
+        if (drawRequestError) {
+            drawRequestError.textContent = '';
+        }
+        if (drawRequestInput) {
+            drawRequestInput.value = String(options.prefillRequestId || '').trim();
+        }
+        const titleEl = document.getElementById('personal-draw-request-title');
+        const textEl = document.getElementById('personal-draw-request-text');
+        const hasPrefill = Boolean(String(options.prefillRequestId || '').trim());
+        if (titleEl) {
+            titleEl.textContent = hasPrefill ? 'Геометрия паспорта' : 'Заявка на актуализацию';
+        }
+        if (textEl) {
+            textEl.textContent = hasPrefill
+                ? 'Выберите, какую геометрию загрузить: упрощённую или полную.'
+                : 'У объекта не указан номер заявки в базе. Введите номер заявки и выберите геометрию, чтобы продолжить.';
+        }
+        if (drawGeometrySimplified) {
+            drawGeometrySimplified.checked = true;
+        }
+        setModalOpen(drawRequestModal, true);
+        setTimeout(() => drawRequestInput && drawRequestInput.focus(), 0);
+    }
 
     function setModalOpen(modal, open) {
         if (!modal) {
@@ -1427,26 +1471,21 @@
     });
     document.getElementById('personal-draw-choice-aktualize')?.addEventListener('click', () => {
         closeDrawChoiceModal();
-        if (drawRequestError) {
-            drawRequestError.textContent = '';
-        }
-        if (drawRequestInput) {
-            drawRequestInput.value = '';
-        }
-        setModalOpen(drawRequestModal, true);
-        setTimeout(() => drawRequestInput && drawRequestInput.focus(), 0);
+        openDrawRequestModal({
+            returnToChoice: true,
+            prefillRequestId: (pendingDrawPayload && pendingDrawPayload.requestId) || '',
+        });
     });
     document.getElementById('personal-draw-choice-split')?.addEventListener('click', () => {
-        const payload = pendingDrawPayload;
-        pendingDrawPayload = null;
-        closeDrawChoiceModal();
-        if (!payload) {
+        if (!pendingDrawPayload) {
+            closeDrawChoiceModal();
             return;
         }
-        submitDrawForm({
-            ...payload,
-            geometryMode: 'simplified',
-            redirectTo: 'split_object',
+        pendingDrawPayload.redirectTo = 'split_object';
+        closeDrawChoiceModal();
+        openDrawRequestModal({
+            returnToChoice: true,
+            prefillRequestId: pendingDrawPayload.requestId || '',
         });
     });
 
@@ -1473,14 +1512,16 @@
         submitDrawForm({
             ...payload,
             requestId: raw,
-            geometryMode: 'simplified',
-            redirectTo: '',
+            geometryMode: getDrawGeometryMode(),
+            redirectTo: payload.redirectTo || '',
         });
     }
 
     document.getElementById('personal-draw-request-cancel')?.addEventListener('click', () => {
         closeDrawRequestModal();
-        setModalOpen(drawChoiceModal, true);
+        if (drawRequestReturnToChoice) {
+            setModalOpen(drawChoiceModal, true);
+        }
     });
     document.getElementById('personal-draw-request-submit')?.addEventListener('click', submitDrawRequestModal);
     drawRequestInput?.addEventListener('keydown', (event) => {
@@ -1492,7 +1533,9 @@
     drawRequestModal?.addEventListener('click', (event) => {
         if (event.target === drawRequestModal) {
             closeDrawRequestModal();
-            setModalOpen(drawChoiceModal, true);
+            if (drawRequestReturnToChoice) {
+                setModalOpen(drawChoiceModal, true);
+            }
         }
     });
 
@@ -1500,6 +1543,36 @@
         event.preventDefault();
         closeOwnedViewObjectModal();
     });
+
+    function submitViewObjectOpen(redirectTo) {
+        const p = currentViewObjectProps || {};
+        const payload = {
+            rootid: String(p.rootid || '').trim(),
+            name: String(p.name || '').trim(),
+            requestId: String(p.request_id || '').trim(),
+            sourceLabel: String(p.source_label || p.source || 'ДТ').trim() || 'ДТ',
+        };
+        if (!payload.rootid) {
+            return;
+        }
+        pendingDrawPayload = { ...payload, redirectTo: redirectTo || '' };
+        openDrawRequestModal({
+            returnToChoice: false,
+            prefillRequestId: payload.requestId || '',
+        });
+    }
+
+    viewObjectSplitBtn?.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        submitViewObjectOpen('split_object');
+    });
+    viewObjectAktualizeBtn?.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        submitViewObjectOpen('');
+    });
+
     viewObjectAnalizBtn?.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -1577,7 +1650,9 @@
         }
         if (drawRequestModal && drawRequestModal.style.display === 'flex') {
             closeDrawRequestModal();
-            setModalOpen(drawChoiceModal, true);
+            if (drawRequestReturnToChoice) {
+                setModalOpen(drawChoiceModal, true);
+            }
             return;
         }
         if (drawChoiceModal && drawChoiceModal.style.display === 'flex') {

@@ -1301,6 +1301,58 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             let activeRow = null;
             let hoverKey = '';
             let hoverRow = null;
+            let selectionPulseTimer = 0;
+            let selectionPulseKeys = [];
+
+            function stopSelectionPulse() {
+                if (selectionPulseTimer) {
+                    window.clearInterval(selectionPulseTimer);
+                    selectionPulseTimer = 0;
+                }
+                selectionPulseKeys = [];
+            }
+
+            function restoreFeatureStyle(key) {
+                const layer = featureLayerByKey.get(key);
+                const style = featureStyleByKey.get(key);
+                if (layer && style && typeof layer.setStyle === 'function') {
+                    layer.setStyle(style);
+                }
+            }
+
+            function applySelectedFeatureStyle(key, pulsePhase) {
+                const layer = featureLayerByKey.get(key);
+                if (!layer || typeof layer.setStyle !== 'function') {
+                    return;
+                }
+                const baseStyle = featureStyleByKey.get(key) || {};
+                const fill0 = Math.max(0.28, Number(baseStyle.fillOpacity) || 0.3);
+                const fill1 = Math.min(0.82, fill0 + 0.42);
+                const phase = typeof pulsePhase === 'number' ? pulsePhase : 1;
+                layer.setStyle({
+                    ...baseStyle,
+                    weight: Math.max(5, Number(baseStyle.weight) + 2 || 5),
+                    opacity: 1,
+                    fillOpacity: fill0 + (fill1 - fill0) * phase,
+                });
+                if (typeof layer.bringToFront === 'function') {
+                    layer.bringToFront();
+                }
+            }
+
+            function startSelectionPulse(keys) {
+                stopSelectionPulse();
+                selectionPulseKeys = (keys || []).filter(Boolean);
+                if (!selectionPulseKeys.length) {
+                    return;
+                }
+                let tick = 0;
+                selectionPulseTimer = window.setInterval(() => {
+                    tick += 1;
+                    const phase = (Math.sin(tick / 2) + 1) / 2;
+                    selectionPulseKeys.forEach((key) => applySelectedFeatureStyle(key, phase));
+                }, 90);
+            }
 
             function clearActiveRow() {
                 if (activeRow) {
@@ -1311,13 +1363,12 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
             function clearActiveFeature() {
                 if (!activeKey) {
+                    stopSelectionPulse();
                     return;
                 }
-                const prevLayer = featureLayerByKey.get(activeKey);
-                const prevStyle = featureStyleByKey.get(activeKey);
-                if (prevLayer && prevStyle && typeof prevLayer.setStyle === 'function') {
-                    prevLayer.setStyle(prevStyle);
-                }
+                const keysToRestore = siblingKeysFor(activeKey);
+                stopSelectionPulse();
+                keysToRestore.forEach(restoreFeatureStyle);
                 activeKey = '';
             }
 
@@ -1395,17 +1446,10 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     if (!layerToFocus || typeof layerToFocus.setStyle !== 'function') {
                         return;
                     }
-                    const baseStyle = featureStyleByKey.get(focusKey) || {};
-                    layerToFocus.setStyle({
-                        ...baseStyle,
-                        weight: Math.max(4, Number(baseStyle.weight) + 1 || 4),
-                        fillOpacity: Math.max(0.34, Number(baseStyle.fillOpacity) + 0.12 || 0.34),
-                    });
-                    if (typeof layerToFocus.bringToFront === 'function') {
-                        layerToFocus.bringToFront();
-                    }
+                    applySelectedFeatureStyle(focusKey, 1);
                     layersToFit.push(layerToFocus);
                 });
+                startSelectionPulse(focusKeys);
                 const row = rowByKey.get(key);
                 const foldedOdsBtn =
                     source === 'map' && row && row.classList.contains('owned-passport-row')
@@ -2527,6 +2571,12 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     entryRequestTitle.textContent = 'Заявка на первичную паспортизацию';
                 } else if (mode === 'ods-main') {
                     entryRequestTitle.textContent = 'Открытие карты по заявке ОДС';
+                } else if (
+                    mode === 'owned' &&
+                    options.prefillRequestId != null &&
+                    String(options.prefillRequestId).trim() !== ''
+                ) {
+                    entryRequestTitle.textContent = 'Геометрия паспорта';
                 } else {
                     entryRequestTitle.textContent = 'Заявка на актуализацию.';
                 }
@@ -2542,8 +2592,11 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     entryRequestText.textContent =
                         'Проверьте номер заявки и нажмите «Продолжить», чтобы открыть карту.';
                 } else if (mode === 'owned') {
-                    entryRequestText.textContent =
-                        'У объекта не указан номер заявки в базе. Введите номер заявки, чтобы продолжить.';
+                    const hasPrefill =
+                        options.prefillRequestId != null && String(options.prefillRequestId).trim() !== '';
+                    entryRequestText.textContent = hasPrefill
+                        ? 'Выберите, какую геометрию загрузить: упрощённую или полную.'
+                        : 'У объекта не указан номер заявки в базе. Введите номер заявки и выберите геометрию, чтобы продолжить.';
                 }
             }
             if (mode === 'ods-main' || (mode === 'owned' && options.odsOpenOwned)) {
@@ -2640,7 +2693,12 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             } else if (entryRequestMode === 'owned' && pendingOdsOpenOwned) {
                 const ctx = pendingOdsOpenOwned;
                 pendingOdsOpenOwned = null;
-                fillAndSubmitOdsOpenOwnedForm(ctx, raw, '');
+                fillAndSubmitOdsOpenOwnedForm(
+                    ctx,
+                    raw,
+                    ctx.redirectTo || '',
+                    getEntryGeometryDetailMode()
+                );
             }
             closeEntryRequestModal();
         }
@@ -3043,7 +3101,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
         }
 
-        function fillAndSubmitOdsOpenOwnedForm(ctx, requestIdVal, redirectToValue) {
+        function fillAndSubmitOdsOpenOwnedForm(ctx, requestIdVal, redirectToValue, geomMode) {
             const formOds = document.getElementById('form-ods-open-owned');
             if (!formOds) {
                 return;
@@ -3061,7 +3119,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             nameEl.value = (ctx && ctx.name) || '';
             ridEl.value = (requestIdVal || '').trim();
             srcEl.value = (ctx && ctx.source_label) || 'ДТ';
-            geomEl.value = 'simplified';
+            geomEl.value = (geomMode || getEntryGeometryDetailMode() || 'simplified').trim();
             redEl.value = (redirectToValue || '').trim();
             formOds.submit();
         }
@@ -3071,12 +3129,10 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (!ctx.rootid) {
                 return;
             }
-            const requestId = ctx.request_id;
-            if (!redirectTo && !requestId) {
-                openEntryRequestModal('owned', { odsOpenOwned: ctx });
-                return;
-            }
-            fillAndSubmitOdsOpenOwnedForm(ctx, requestId, redirectTo || '');
+            openEntryRequestModal('owned', {
+                odsOpenOwned: Object.assign({}, ctx, { redirectTo: redirectTo || '' }),
+                prefillRequestId: ctx.request_id || '',
+            });
         }
 
         if (viewObjectSplitBtn) {
@@ -3251,9 +3307,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             });
         }
 
-        const userGuideModal = document.getElementById('user-guide-modal');
-        const userGuideOpenBtn = document.getElementById('user-guide-open-btn');
-        const userGuideCloseBtn = document.getElementById('user-guide-close-btn');
         const dgiIntersectionsTableBtn = document.getElementById('dgi-intersections-table-btn');
         const dgiIntersectionsTableModal = document.getElementById('dgi-intersections-table-modal');
         const dgiIntersectionsTableCloseBtn = document.getElementById('dgi-intersections-table-close-btn');
@@ -3264,7 +3317,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const listDgiIntersectionsUrl = (cfg.urls && cfg.urls.listDgiIntersections) || '';
         let dgiIntersectionsPreviousOverflow = '';
         let dgiIntersectionsRowsById = new Map();
-        let userGuidePreviousOverflow = '';
 
         function dgiPctClass(value, skipped) {
             if (skipped) {
@@ -3501,47 +3553,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
         });
 
-        function openUserGuideModal() {
-            if (!userGuideModal) {
-                return;
-            }
-            userGuidePreviousOverflow = document.body.style.overflow;
-            document.body.style.overflow = 'hidden';
-            userGuideModal.hidden = false;
-            userGuideModal.classList.add('is-open');
-            if (userGuideCloseBtn) {
-                userGuideCloseBtn.focus();
-            }
-        }
-
-        function closeUserGuideModal() {
-            if (!userGuideModal) {
-                return;
-            }
-            userGuideModal.classList.remove('is-open');
-            userGuideModal.hidden = true;
-            document.body.style.overflow = userGuidePreviousOverflow;
-        }
-
-        if (userGuideOpenBtn) {
-            userGuideOpenBtn.addEventListener('click', openUserGuideModal);
-        }
-        if (userGuideCloseBtn) {
-            userGuideCloseBtn.addEventListener('click', closeUserGuideModal);
-        }
-        if (userGuideModal) {
-            userGuideModal.addEventListener('click', (event) => {
-                if (event.target === userGuideModal) {
-                    closeUserGuideModal();
-                }
-            });
-        }
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && userGuideModal && userGuideModal.classList.contains('is-open')) {
-                closeUserGuideModal();
-            }
-        });
-
         const ownedListsModal = document.getElementById('owned-lists-modal');
         const ownedListsModalTitle = document.getElementById('owned-lists-modal-title');
         const ownedListsModalClose = document.getElementById('owned-lists-modal-close');
@@ -3639,9 +3650,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 return;
             }
             if (ownedRecapsModal && ownedRecapsModal.style.display === 'flex') {
-                return;
-            }
-            if (userGuideModal && userGuideModal.classList.contains('is-open')) {
                 return;
             }
             if (viewObjectModal && viewObjectModal.classList.contains('is-open')) {
