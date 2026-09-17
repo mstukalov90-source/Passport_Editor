@@ -814,8 +814,10 @@
                 ? props[displayField]
                 : props[field];
             if (value !== null && value !== undefined && String(value).trim() !== '') {
-                const aliasLabel = String(aliases[i].label || '').trim();
-                label = (aliasLabel ? aliasLabel + ': ' : '') + String(value).trim();
+                const aliasLabel = formatPopupAliasLabel(aliases[i].label);
+                label =
+                    (aliasLabel ? aliasLabel + ': ' : '') +
+                    String(formatPopupDisplayValue(value, field, aliasLabel)).trim();
                 break;
             }
         }
@@ -1431,6 +1433,72 @@
     function isBlankDisplayValue(value) {
         const text = String(value == null ? '' : value).trim();
         return !text || ['null', 'none', '-'].includes(text.toLowerCase());
+    }
+
+    function formatPopupAliasLabel(label) {
+        return String(label || '')
+            .replace(/\s*\(RootId\)\s*/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function isAreaPopupField(field, label) {
+        return /площад/i.test(String(label || '')) || /area/i.test(String(field || ''));
+    }
+
+    function formatPopupNumber(value) {
+        const text = String(value == null ? '' : value).trim().replace(',', '.');
+        const number = Number(text);
+        if (!Number.isFinite(number)) {
+            return value;
+        }
+        return number.toFixed(2);
+    }
+
+    function formatPopupDisplayValue(value, field, label) {
+        if (typeof value === 'boolean') {
+            return value ? 'Да' : 'Нет';
+        }
+        const text = String(value == null ? '' : value).trim();
+        const lower = text.toLowerCase();
+        if (lower === 'true' || lower === 't') {
+            return 'Да';
+        }
+        if (lower === 'false' || lower === 'f') {
+            return 'Нет';
+        }
+        if (isAreaPopupField(field, label)) {
+            return formatPopupNumber(value);
+        }
+        return value;
+    }
+
+    function styleTableNameFromProps(props) {
+        const key = String((props && (props.sourceTable || props.layerKey)) || '');
+        if (key.indexOf('topo:') === 0) {
+            return key.slice(5);
+        }
+        return key;
+    }
+
+    const POPUP_HIDDEN_FIELDS = {
+        svg: true,
+        svg_vapoint: true,
+        svg_hapoint: true,
+    };
+
+    function shouldHidePopupAlias(field, tableName) {
+        const normalized = String(field || '').toLowerCase();
+        if (!normalized) {
+            return true;
+        }
+        if (POPUP_HIDDEN_FIELDS[normalized]) {
+            return true;
+        }
+        if (normalized === 'nocalc' && tableName !== 'AbutmentLine') {
+            return true;
+        }
+        return false;
     }
 
     function formatDgiShortSobstvRr(value) {
@@ -3142,12 +3210,19 @@
             if (!isApprovalObjectFeature(feature)) {
                 return;
             }
+            const tableName = styleTableNameFromProps(props);
             const tableDef = getTableStyleDef(props.sourceTable || props.layerKey);
             const aliases = tableDef && Array.isArray(tableDef.aliases) ? tableDef.aliases : [];
+            const layerTitle = String((tableDef && tableDef.label) || tableName || '').trim();
             const rows = aliases.map(function (alias) {
                 const field = String(alias.field || '');
-                const label = String(alias.label || '');
-                if (!field || !label || !Object.prototype.hasOwnProperty.call(props, field)) {
+                const label = formatPopupAliasLabel(alias.label);
+                if (
+                    !field ||
+                    !label ||
+                    shouldHidePopupAlias(field, tableName) ||
+                    !Object.prototype.hasOwnProperty.call(props, field)
+                ) {
                     return '';
                 }
                 const displayField = field + '__display';
@@ -3161,14 +3236,18 @@
                     '<div class="approval-feature-popup__row"><strong>' +
                     escapeHtml(label) +
                     ':</strong> ' +
-                    escapeHtml(value) +
+                    escapeHtml(formatPopupDisplayValue(value, field, label)) +
                     '</div>'
                 );
             }).filter(Boolean);
-            if (!rows.length) {
+            if (!rows.length && !layerTitle) {
                 return;
             }
-            const popupHtml = '<div class="approval-feature-popup">' + rows.join('') + '</div>';
+            const titleHtml = layerTitle
+                ? '<div class="approval-feature-popup__title">' + escapeHtml(layerTitle) + '</div>'
+                : '';
+            const popupHtml =
+                '<div class="approval-feature-popup">' + titleHtml + rows.join('') + '</div>';
             let popupLayers = [layer];
             // PostGIS point tables are commonly stored as MultiPoint even when each
             // feature contains one coordinate. Leaflet represents such a feature as
