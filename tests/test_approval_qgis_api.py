@@ -30,10 +30,13 @@ def qgis_test_hosts(settings):
 
 @pytest.fixture(autouse=True)
 def mock_task_owner():
-    with patch(
-        "approval.events_service.resolve_task_owner_legal_person_id",
-        return_value="OWNER_TASK",
-    ) as mocked:
+    with (
+        patch(
+            "approval.events_service.resolve_task_owner_legal_person_id",
+            return_value="OWNER_TASK",
+        ) as mocked,
+        patch("approval.events_service.resolve_root_owner_ids", return_value=[]),
+    ):
         yield mocked
 
 
@@ -115,7 +118,11 @@ def test_create_approve_with_events(client):
     assert str(primary.id) == payload["primary_case_id"]
     assert not ApprovalGeometry.objects.filter(case=primary).exists()
 
-    event_cases = Case.objects.filter(approve=approve, is_primary=False).order_by("n_root")
+    event_cases = Case.objects.filter(
+        approve=approve,
+        is_primary=False,
+        event_type=Case.TYPE_STANDARD,
+    ).order_by("n_root")
     assert event_cases.count() == 2
     assert list(event_cases.values_list("n_root", flat=True)) == ["10001260", "12345148"]
     for case in event_cases:
@@ -129,6 +136,12 @@ def test_create_approve_with_events(client):
         assert geometry.case_id == case.id
         assert geometry.approve_id == approve.id
 
+    surface_case = approve.cases.get(event_type=Case.TYPE_SURFACE_JUNCTION)
+    assert str(surface_case.id) == payload["surface_junction_case_id"]
+    assert surface_case.title == "Согласование элементов сопряжения поверхностей"
+    assert surface_case.owners == [TASK_OWNER, "9000022"]
+    assert surface_case.messages.filter(body="Событие создано.").exists()
+
 
 @pytest.mark.django_db
 def test_upsert_via_service_merges_task_owner_with_event_owner():
@@ -138,6 +151,28 @@ def test_upsert_via_service_merges_task_owner_with_event_owner():
     approve = Approve.objects.get(incoming_guid=INCOMING_GUID)
     event_case = approve.cases.get(is_primary=False, n_root="10001260")
     assert event_case.owners == [TASK_OWNER, "9000022"]
+
+
+@pytest.mark.django_db
+def test_surface_junction_event_invites_owners_from_n_and_v_roots():
+    with patch(
+        "approval.events_service.resolve_root_owner_ids",
+        return_value=["OWNER_FROM_N", "OWNER_FROM_V"],
+    ) as resolve_owners:
+        result = upsert_approve_from_qgis(_valid_payload())
+
+    approve = Approve.objects.get(incoming_guid=INCOMING_GUID)
+    surface_case = approve.cases.get(event_type=Case.TYPE_SURFACE_JUNCTION)
+    assert surface_case.owners == [
+        TASK_OWNER,
+        "9000022",
+        "OWNER_FROM_N",
+        "OWNER_FROM_V",
+    ]
+    assert str(surface_case.id) == result["surface_junction_case_id"]
+    resolve_owners.assert_called_once_with(
+        ["10001260", "12345148", "141564", "4066869", "1289566312"]
+    )
 
 
 @pytest.mark.django_db
@@ -240,7 +275,11 @@ def test_upsert_does_not_delete_missing_events(client):
     assert update_response.status_code == 200
 
     approve = Approve.objects.get(incoming_guid=INCOMING_GUID)
-    assert Case.objects.filter(approve=approve, is_primary=False).count() == 3
+    assert Case.objects.filter(
+        approve=approve,
+        is_primary=False,
+        event_type=Case.TYPE_STANDARD,
+    ).count() == 3
     assert Case.objects.filter(approve=approve, is_primary=False, n_root="99999999").exists()
     assert Case.objects.filter(approve=approve, is_primary=False, n_root="10001260").exists()
 
@@ -947,7 +986,10 @@ def test_qgis_delete_secondary_case(client):
     )
     approve = Approve.objects.get(pk=approve_id)
     primary = approve.cases.get(is_primary=True)
-    secondary = approve.cases.filter(is_primary=False).first()
+    secondary = approve.cases.filter(
+        is_primary=False,
+        event_type=Case.TYPE_STANDARD,
+    ).first()
     assert secondary is not None
 
     owner_denied = _qgis_delete(

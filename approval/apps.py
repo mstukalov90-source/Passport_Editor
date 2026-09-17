@@ -13,15 +13,25 @@ class ApprovalConfig(AppConfig):
         def create_primary_case(sender, instance, created, **kwargs):
             if not created:
                 return
-            if instance.cases.filter(is_primary=True).exists():
-                return
-            Case.objects.create(
+            if not instance.cases.filter(is_primary=True).exists():
+                Case.objects.create(
+                    approve=instance,
+                    is_primary=True,
+                    title="Основное событие",
+                    status="в работе",
+                    n_root=None,
+                    owners=[],
+                )
+            Case.objects.get_or_create(
                 approve=instance,
-                is_primary=True,
-                title="Основное событие",
-                status="в работе",
-                n_root=None,
-                owners=[],
+                event_type=Case.TYPE_SURFACE_JUNCTION,
+                defaults={
+                    "is_primary": False,
+                    "title": "Согласование элементов сопряжения поверхностей",
+                    "status": "в работе",
+                    "n_root": None,
+                    "owners": list(instance.owners or []),
+                },
             )
 
         post_save.connect(create_primary_case, sender=Approve)

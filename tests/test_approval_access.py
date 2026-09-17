@@ -84,19 +84,21 @@ def test_get_accessible_approves_for_inspector_without_owner_id(approve_with_ins
 @pytest.mark.django_db
 def test_get_accessible_cases_queryset_for_inspector(approve_with_inspector):
     primary = approve_with_inspector.cases.get(is_primary=True)
+    surface = approve_with_inspector.cases.get(event_type=Case.TYPE_SURFACE_JUNCTION)
     secondary = _secondary_case(approve=approve_with_inspector)
 
     cases = list(get_accessible_cases_queryset(username="inspector_user", approve_id=approve_with_inspector.id))
-    assert {item.id for item in cases} == {primary.id, secondary.id}
+    assert {item.id for item in cases} == {primary.id, surface.id, secondary.id}
 
 
 @pytest.mark.django_db
 def test_get_accessible_cases_queryset_for_owner_only(approve_with_inspector):
     primary = approve_with_inspector.cases.get(is_primary=True)
+    surface = approve_with_inspector.cases.get(event_type=Case.TYPE_SURFACE_JUNCTION)
     secondary = _secondary_case(approve=approve_with_inspector)
 
     cases = list(get_accessible_cases_queryset("OWNER_B", approve_id=approve_with_inspector.id))
-    assert {item.id for item in cases} == {secondary.id}
+    assert {item.id for item in cases} == {surface.id, secondary.id}
     assert primary.id not in {item.id for item in cases}
 
 

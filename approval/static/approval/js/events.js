@@ -1030,6 +1030,9 @@
             renderChatMessages([]);
             updateComposerState(null);
             mapApi().highlightCase(null);
+            if (typeof mapApi().setActiveCaseType === 'function') {
+                mapApi().setActiveCaseType('standard', false);
+            }
             mapApi().renderGeometries(null);
             mapApi().updateAdjacentLayers('');
             clearPendingMessageGeometry();
@@ -1072,6 +1075,13 @@
             'approval-events__status approval-events__status--' + (caseItem.status_class || 'active');
 
         mapApi().highlightCase(caseItem.id);
+        if (typeof mapApi().setActiveCaseType === 'function') {
+            mapApi().setActiveCaseType(
+                caseItem.event_type || 'standard',
+                !caseItem.approved &&
+                    (caseItem.current_user_is_inspector || caseItem.current_user_is_owner)
+            );
+        }
         mapApi().updateAdjacentLayers(caseItem.is_primary ? '' : (caseItem.n_root || ''));
         mapApi().renderGeometries(caseItem);
         const fitMap = !options || options.fitMap !== false;
@@ -1515,6 +1525,40 @@
             state.cases[index] = Object.assign({}, state.cases[index], data.case);
         }
         await openCase(state.activeCaseId, { fitMap: false });
+    }
+
+    async function requestSurfaceJunctionChange(options) {
+        const caseItem = findCase(state.activeCaseId);
+        const geometry = options && options.geometry;
+        const actionText = String((options && options.actionText) || '').trim();
+        if (
+            !caseItem ||
+            caseItem.event_type !== 'surface_junction' ||
+            caseItem.approved ||
+            !geometry ||
+            !actionText
+        ) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('body', 'Прошу ' + actionText);
+        formData.append('geometry', JSON.stringify(geometry));
+        try {
+            const data = await fetchJson(
+                mapApi().apiUrl(state.config.apiUrls.postMessage, { caseId: state.activeCaseId }),
+                { method: 'POST', body: formData }
+            );
+            const index = state.cases.findIndex(function (item) {
+                return item.id === state.activeCaseId;
+            });
+            if (index >= 0) {
+                state.cases[index] = Object.assign({}, state.cases[index], data.case);
+            }
+            await openCase(state.activeCaseId, { fitMap: false });
+        } catch (error) {
+            showError(error);
+        }
     }
 
     async function approveCase() {
@@ -2058,6 +2102,7 @@
     window.ApprovalEvents = {
         openCreateEventFromAdjacent: openCreateEventFromAdjacent,
         openAddParticipantDialog: openAddParticipantDialog,
+        requestSurfaceJunctionChange: requestSurfaceJunctionChange,
     };
 
     window.addEventListener('load', function () {

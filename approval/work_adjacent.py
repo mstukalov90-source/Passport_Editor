@@ -599,6 +599,56 @@ def resolve_root_object_names(root_ids: list[str] | None) -> dict[str, str]:
     return result
 
 
+def resolve_root_owner_ids(root_ids: list[str] | None) -> list[str]:
+    """Resolve distinct balance-holder ids for passports in work/master."""
+    pending = list(dict.fromkeys(
+        str(item or "").strip() for item in (root_ids or []) if str(item or "").strip()
+    ))
+    if not pending:
+        return []
+
+    result: list[str] = []
+    schemas = list(dict.fromkeys(
+        schema for schema in (adjacent_primary_schema_name(), adjacent_schema_name()) if schema
+    ))
+    owner_preferred = getattr(settings, "GIS_OBJECT_OWNER_FIELD", "OwnerLegalPersonId")
+    owner_candidates = (owner_preferred, "OwnerLegalPersonId", "CustomerLegalPersonId", "ownerlegalpersonalid")
+    try:
+        with connections["qgis"].cursor() as cursor:
+            for schema in schemas:
+                for table_name in adjacent_poly_tables():
+                    root_col = _resolve_rootid_column(cursor, schema, table_name)
+                    if not root_col:
+                        continue
+                    owner_col = next(
+                        (
+                            candidate
+                            for candidate in owner_candidates
+                            if _column_exists(cursor, schema, table_name, candidate)
+                        ),
+                        None,
+                    )
+                    if not owner_col:
+                        continue
+                    cursor.execute(
+                        f"""
+                        SELECT DISTINCT t.{_quote_ident(owner_col)}::text
+                        FROM {_quote_ident(schema)}.{_quote_ident(table_name)} t
+                        WHERE t.{_quote_ident(root_col)}::text = ANY(%s::text[])
+                          AND t.{_quote_ident(owner_col)} IS NOT NULL
+                          AND BTRIM(t.{_quote_ident(owner_col)}::text) <> ''
+                        """,
+                        [pending],
+                    )
+                    for row in cursor.fetchall() or []:
+                        owner_id = str(row[0] or "").strip()
+                        if owner_id and owner_id not in result:
+                            result.append(owner_id)
+    except Exception:
+        logger.exception("resolve_root_owner_ids: qgis query failed")
+    return result
+
+
 def build_adjacent_features(
     n_root: list[str] | str | None,
     v_root: list[str] | None,

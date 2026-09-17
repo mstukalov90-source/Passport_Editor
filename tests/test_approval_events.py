@@ -69,6 +69,33 @@ def _event_case(*, approve, n_root="09811", owners=None, title="Событие")
 
 
 @pytest.mark.django_db
+def test_surface_junction_approval_does_not_close_approve(
+    client,
+    owner_a,
+    owner_b_user,
+    inspector_user,
+    approve_with_primary_owner,
+):
+    approve = approve_with_primary_owner
+    surface_case = approve.cases.get(event_type=Case.TYPE_SURFACE_JUNCTION)
+
+    for username in ("owner_a", "owner_b", "inspector_user"):
+        _login(client, username)
+        response = client.post(
+            reverse("approval:api_approve_case", kwargs={"case_id": surface_case.id}),
+            data="{}",
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        client.logout()
+
+    surface_case.refresh_from_db()
+    approve.refresh_from_db()
+    assert surface_case.approved is True
+    assert approve.approved is False
+
+
+@pytest.mark.django_db
 @patch(
     "approval.events_service.lookup_task_poly_meta",
     return_value={"source_label": "", "object_name": "", "table": ""},

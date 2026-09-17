@@ -33,6 +33,8 @@
     let eventGeometriesGroup = null;
     let geometryLayerByKey = {};
     let activeCaseId = null;
+    let activeCaseType = 'standard';
+    let activeCaseCanRequest = false;
     let activeMessageGeometryId = null;
     let pendingGeometryGeoJson = null;
     const PENDING_LAYER_KEY = 'pending:draft';
@@ -2125,6 +2127,17 @@
         // Use bare table name so topo:X and work X share the same hashColor fallback.
         const fallbackKey = styleKey || displayKey;
 
+        if (activeCaseType === 'surface_junction' && styleKey === 'AbutmentLine') {
+            const noCalc = ['true', 't', '1', 'yes', 'да'].includes(
+                String(props.NoCalc == null ? '' : props.NoCalc).trim().toLowerCase()
+            );
+            return {
+                color: noCalc ? '#dc2626' : '#16a34a',
+                weight: 6,
+                opacity: 1,
+            };
+        }
+
         if (type === 'Point' || type === 'MultiPoint') {
             return {};
         }
@@ -2132,6 +2145,30 @@
             return leafletPathStyle(resolveRuleStyle(styleKey, props), fallbackKey, geometryType || 'line');
         }
         return leafletPathStyle(resolveRuleStyle(styleKey, props), fallbackKey, geometryType || 'polygon');
+    }
+
+    function setActiveCaseType(caseType, canRequest) {
+        activeCaseType = String(caseType || 'standard');
+        activeCaseCanRequest = Boolean(canRequest);
+
+        function refreshLayer(layer) {
+            if (!layer) {
+                return;
+            }
+            if (layer._approvalFeature && typeof layer.setStyle === 'function') {
+                layer.setStyle(styleFeature(layer._approvalFeature));
+            }
+            if (!layer._approvalFeature && typeof layer.eachLayer === 'function') {
+                layer.eachLayer(refreshLayer);
+            }
+        }
+
+        Object.keys(managedLayers).forEach(function (key) {
+            refreshLayer(managedLayers[key]);
+        });
+        if (map && map.closePopup) {
+            map.closePopup();
+        }
     }
 
     function buildTextLabelIcon(textHtml, fontPx, color, rotationDeg) {
@@ -3246,8 +3283,26 @@
             const titleHtml = layerTitle
                 ? '<div class="approval-feature-popup__title">' + escapeHtml(layerTitle) + '</div>'
                 : '';
+            let actionHtml = '';
+            if (tableName === 'AbutmentLine' && feature.geometry) {
+                const noCalc = ['true', 't', '1', 'yes', 'да'].includes(
+                    String(props.NoCalc == null ? '' : props.NoCalc).trim().toLowerCase()
+                );
+                const actionText = noCalc
+                    ? 'Учитывать элемент в этом паспорте'
+                    : 'Не учитывать элемент в этом паспорте';
+                actionHtml =
+                    '<button type="button" class="approval-adjacent-popup__action approval-surface-junction-action" style="display:none"' +
+                    ' data-geometry="' +
+                    encodeURIComponent(JSON.stringify(feature.geometry)) +
+                    '" data-request-text="' +
+                    escapeHtml(actionText) +
+                    '">' +
+                    escapeHtml(actionText) +
+                    '</button>';
+            }
             const popupHtml =
-                '<div class="approval-feature-popup">' + titleHtml + rows.join('') + '</div>';
+                '<div class="approval-feature-popup">' + titleHtml + rows.join('') + actionHtml + '</div>';
             let popupLayers = [layer];
             // PostGIS point tables are commonly stored as MultiPoint even when each
             // feature contains one coordinate. Leaflet represents such a feature as
@@ -3271,7 +3326,39 @@
                 popupLayer.on('popupopen', function () {
                     if (isDrawModeActive() || isMeasureModeActive()) {
                         popupLayer.closePopup();
+                        return;
                     }
+                    const popup = popupLayer.getPopup && popupLayer.getPopup();
+                    const container = popup && popup.getElement ? popup.getElement() : null;
+                    const action = container && container.querySelector('.approval-surface-junction-action');
+                    if (!action) {
+                        return;
+                    }
+                    const actionVisible =
+                        activeCaseType === 'surface_junction' && activeCaseCanRequest;
+                    action.hidden = !actionVisible;
+                    action.style.display = actionVisible ? '' : 'none';
+                    if (!actionVisible || action.dataset.bound === '1') {
+                        return;
+                    }
+                    action.dataset.bound = '1';
+                    L.DomEvent.disableClickPropagation(action);
+                    action.addEventListener('click', function () {
+                        let geometry = null;
+                        try {
+                            geometry = JSON.parse(decodeURIComponent(action.dataset.geometry || ''));
+                        } catch (error) {
+                            geometry = null;
+                        }
+                        const eventsApi = window.ApprovalEvents || {};
+                        if (geometry && typeof eventsApi.requestSurfaceJunctionChange === 'function') {
+                            eventsApi.requestSurfaceJunctionChange({
+                                geometry: geometry,
+                                actionText: action.dataset.requestText || action.textContent || '',
+                            });
+                        }
+                        popupLayer.closePopup();
+                    });
                 });
             });
         }
@@ -3586,6 +3673,7 @@
         renderEventGeometries: renderEventGeometries,
         renderGeometries: renderGeometries,
         highlightCase: highlightCase,
+        setActiveCaseType: setActiveCaseType,
         highlightMessageGeometry: highlightMessageGeometry,
         updateAdjacentLayers: updateAdjacentLayers,
         fitCaseGeometry: fitCaseGeometry,

@@ -24,6 +24,13 @@ class Approve(models.Model):
 
 
 class Case(models.Model):
+    TYPE_STANDARD = "standard"
+    TYPE_SURFACE_JUNCTION = "surface_junction"
+    TYPE_CHOICES = (
+        (TYPE_STANDARD, "Обычное событие"),
+        (TYPE_SURFACE_JUNCTION, "Согласование элементов сопряжения поверхностей"),
+    )
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     approve = models.ForeignKey(
         Approve,
@@ -42,6 +49,7 @@ class Case(models.Model):
     n_root = models.TextField(blank=True, null=True)
     owners = ArrayField(models.TextField(), default=list)
     participant_logins = ArrayField(models.TextField(), default=list, blank=True)
+    event_type = models.TextField(choices=TYPE_CHOICES, default=TYPE_STANDARD)
 
     class Meta:
         db_table = '"approval"."cases"'

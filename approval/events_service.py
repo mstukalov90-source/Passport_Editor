@@ -37,7 +37,7 @@ from .models import (
     CaseMessageReaction,
     CaseServiceEvent,
 )
-from .work_adjacent import resolve_root_object_names
+from .work_adjacent import resolve_root_object_names, resolve_root_owner_ids
 from .work_layers import (
     batch_lookup_task_poly_meta,
     lookup_task_poly_meta,
@@ -357,6 +357,8 @@ def delete_case_for_inspector(*, case: Case, username: str | None) -> Case:
         raise ValueError("Удаление доступно только инспектору этого согласования.")
     if case.is_primary:
         raise ValueError("Нельзя удалить основное событие.")
+    if case.event_type == Case.TYPE_SURFACE_JUNCTION:
+        raise ValueError("Нельзя удалить системное событие согласования элементов сопряжения.")
 
     case_id = case.id
     case.delete()
@@ -1009,6 +1011,7 @@ def serialize_case_summary(
         "status_class": _case_status_class(case),
         "approved": case.approved,
         "is_primary": case.is_primary,
+        "event_type": case.event_type,
         "messages_count": getattr(case, "messages_count", None) or case.messages.count(),
         "preview": _case_preview(case),
         "approvals_done": approvals_done,
@@ -1018,7 +1021,12 @@ def serialize_case_summary(
         "current_user_is_inspector": current_user_is_inspector and can_write,
         "current_user_is_owner": current_user_is_owner and can_write,
         "can_manage_participants": current_user_is_inspector and can_write and not case.approved,
-        "can_delete": current_user_is_inspector and can_write and not case.is_primary,
+        "can_delete": (
+            current_user_is_inspector
+            and can_write
+            and not case.is_primary
+            and case.event_type != Case.TYPE_SURFACE_JUNCTION
+        ),
         "inspector_login": inspector_login,
         "inspector_required": inspector_required,
         "inspector_approved": inspector_approved,
@@ -1541,6 +1549,48 @@ def _upsert_qgis_event_cases(
     return results
 
 
+def _sync_surface_junction_case(*, approve: Approve, user: str) -> Case:
+    """Create/update the independent chat for every AbutmentLine in the task."""
+    roots = list(dict.fromkeys(
+        str(item).strip()
+        for item in [*(approve.n_root or []), *(approve.v_root or [])]
+        if str(item).strip()
+    ))
+    owners: list[str] = []
+    for owner in [*(approve.owners or []), *resolve_root_owner_ids(roots)]:
+        owner_text = str(owner or "").strip()
+        if owner_text and owner_text not in owners:
+            owners.append(owner_text)
+
+    case, created = Case.objects.get_or_create(
+        approve=approve,
+        event_type=Case.TYPE_SURFACE_JUNCTION,
+        defaults={
+            "is_primary": False,
+            "title": "Согласование элементов сопряжения поверхностей",
+            "status": "в работе",
+            "created_by_login": user,
+            "n_root": None,
+            "owners": owners,
+        },
+    )
+    if not created:
+        case.title = "Согласование элементов сопряжения поверхностей"
+        case.owners = _merge_case_owners_preserving_extras(
+            _normalized_case_owners(case), owners
+        )
+        case.created_by_login = case.created_by_login or user
+        case.save(update_fields=["title", "owners", "created_by_login", "updated_at"])
+    if created or not case.messages.exists():
+        CaseMessage.objects.create(
+            case=case,
+            author_login=user,
+            author_role="",
+            body="Событие создано.",
+        )
+    return case
+
+
 @transaction.atomic
 def upsert_approve_from_qgis(payload) -> dict:
     data = validate_qgis_approve_payload(payload)
@@ -1595,12 +1645,17 @@ def upsert_approve_from_qgis(payload) -> dict:
         user=data["user"],
         task_owner_id=primary_owner_id,
     )
+    surface_junction_case = _sync_surface_junction_case(
+        approve=approve,
+        user=data["user"],
+    )
 
     return {
         "created": created,
         "approve_id": str(approve.id),
         "incoming_guid": str(incoming_guid),
         "primary_case_id": str(primary_case.id),
+        "surface_junction_case_id": str(surface_junction_case.id),
         "events": event_results,
     }
 
