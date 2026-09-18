@@ -19,8 +19,8 @@
 {% include 'pass_viewer/includes/map_leaflet_vendor.html' %}
 <script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
 <script src="{% static 'pass_viewer/js/map-tools.js' %}"></script>
-<script src="{% static 'pass_viewer/js/qml-renderer.js' %}?v=qml-renderer-5"></script>
-<script src="{% static 'recheck/js/landing.js' %}?v=recheck-style-9"></script>
+<script src="{% static 'pass_viewer/js/qml-renderer.js' %}?v=qml-renderer-6"></script>
+<script src="{% static 'recheck/js/landing.js' %}?v=recheck-style-13"></script>
 {% endblock %}
 
 {% block content %}
@@ -38,7 +38,7 @@
 
         <section class="approval-panel approval-panel--map">
             <div id="recheck-map" aria-label="Карта проверки геоподосновы"></div>
-            <p id="recheck-map-status" class="approval-map-load-status note">Загрузка объектов…</p>
+            <p id="recheck-map-status" class="approval-map-load-status note" hidden></p>
         </section>
 
         <aside class="approval-panel approval-panel--events">
@@ -102,4 +102,18 @@
         </form>
     </div>
 </div>
+{% if selected_event %}
+<div id="db-loading-modal" class="modal-overlay" style="display:flex;">
+    <div class="modal-card modal-card--center">
+        <div class="pv-flip-loader pv-flip-loader--stack" aria-hidden="true">
+            <div class="pv-flip-loader__inner">
+                <div class="pv-flip-loader__face pv-flip-loader__face--front"><img src="{% static 'pass_viewer/cube_red.svg' %}" alt=""></div>
+                <div class="pv-flip-loader__face pv-flip-loader__face--back"></div>
+            </div>
+        </div>
+        <p class="modal-center-text">Выполняется выгрузка объектов. Подождите</p>
+        <p class="modal-detail" id="recheck-db-loading-detail"></p>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

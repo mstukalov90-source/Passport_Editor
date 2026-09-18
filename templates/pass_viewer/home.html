@@ -11,10 +11,11 @@
     {{ page_config|json_script:"page-config" }}
     {{ owned_passports_geojson|json_script:"owned-passports-geojson-data" }}
     {{ owned_approvals_geojson|json_script:"owned-approvals-geojson-data" }}
+    {{ owned_rechecks_geojson|json_script:"owned-rechecks-geojson-data" }}
     {{ hood_work_area_geojson|json_script:"hood-work-area-geojson-data" }}
     {% include 'pass_viewer/includes/map_home_scripts.html' %}
     {% load static %}
-    <script src="{% static 'pass_viewer/js/home.js' %}?v=ogx-mode-2"></script>
+    <script src="{% static 'pass_viewer/js/home.js' %}?v=recheck-lists-1"></script>
 {% endblock %}
 
 {% block container_class %}container--wide{% endblock %}
@@ -143,6 +144,10 @@
                     <button type="button" class="owned-map-legend__item owned-source-filter-btn is-active" data-source-filter="СМЕЖ" aria-pressed="true">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--adjacent" aria-hidden="true"></span>
                         Согласование смежного объекта
+                    </button>
+                    <button type="button" class="owned-map-legend__item owned-source-filter-btn is-active" data-source-filter="ЦГ" aria-pressed="true">
+                        <span class="owned-map-legend__swatch owned-map-legend__swatch--recheck" aria-hidden="true"></span>
+                        Согласование ЦГ
                     </button>
                     <span class="owned-map-legend__item">
                         <span class="owned-map-legend__swatch owned-map-legend__swatch--hood" aria-hidden="true"></span>

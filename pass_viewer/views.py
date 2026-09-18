@@ -5681,7 +5681,7 @@ def _personal_asu_ods_fields(item):
     return rootid, source or "ДТ", enabled
 
 
-def _build_personal_table_items(owned_objects, approval_items):
+def _build_personal_table_items(owned_objects, approval_items, recheck_items=None):
     rows = []
     for item in _merge_personal_ods_into_passports(owned_objects):
         row = dict(item)
@@ -5734,11 +5734,49 @@ def _build_personal_table_items(owned_objects, approval_items):
                 "has_drawn_request": False,
             }
         )
+    for item in recheck_items or []:
+        rows.append(
+            {
+                "row_kind": "recheck",
+                "display_rootid": "",
+                "display_request_id": "",
+                "rootid": "",
+                "request_id": "",
+                "name": item.get("label") or item.get("name") or "",
+                "source_label": "ЦГ",
+                "display_status": item.get("status_label") or "—",
+                "ogh_status_label": "—",
+                "ods_status_label": "—",
+                "status": item.get("status_label") or "—",
+                "recheck_id": item.get("id"),
+                "area_label": "",
+                "passportization_year": "—",
+                "passportization_kind": "",
+                "create_type_label": "—",
+                "approval_date_label": "—",
+                "survey_date_label": "—",
+                "asu_ods_rootid": "",
+                "asu_ods_source": "ЦГ",
+                "asu_ods_enabled": False,
+                "drawn_request_id": "",
+                "drawn_request_name": "",
+                "drawn_source_label": "",
+                "has_drawn_request": False,
+            }
+        )
     return rows
 
 
 def _personal_kind_filter_counts(items):
-    counts = {"all": 0, "approved": 0, "actualization": 0, "primary": 0, "drawn": 0, "approval": 0}
+    counts = {
+        "all": 0,
+        "approved": 0,
+        "actualization": 0,
+        "primary": 0,
+        "drawn": 0,
+        "approval": 0,
+        "recheck": 0,
+    }
     for item in items or []:
         row_kind = str(item.get("row_kind") or "")
         passportization_kind = str(item.get("passportization_kind") or "")
@@ -5755,6 +5793,8 @@ def _personal_kind_filter_counts(items):
             counts["drawn"] += 1
         if row_kind == "approval":
             counts["approval"] += 1
+        if row_kind == "recheck":
+            counts["recheck"] += 1
     return counts
 
 
@@ -5872,6 +5912,7 @@ def home(request):
             "owned_objects": [],
             "owned_passports_geojson": empty_fc,
             "owned_approvals_geojson": empty_fc,
+            "owned_rechecks_geojson": empty_fc,
             "hood_work_area_geojson": empty_fc,
             "owned_objects_error": "Не удалось загрузить данные личного кабинета.",
             "need_entry_request_id": False,
@@ -6009,6 +6050,27 @@ def _empty_personal_metrics():
     }
 
 
+def _serialize_recheck_list_item(event) -> dict:
+    approve = getattr(event, "source_approve", None)
+    approve_name = str(getattr(approve, "name", "") or "").strip()
+    return {
+        "id": str(event.id),
+        "task_guid": str(event.task_guid),
+        "label": approve_name or str(event.title or "").strip(),
+        "status": event.status,
+        "status_label": event.get_status_display(),
+        "due_at": event.due_at,
+    }
+
+
+def _load_accessible_recheck_events(username: str):
+    from recheck.access import accessible_events
+    from recheck.services import expire_due_events
+
+    expire_due_events()
+    return list(accessible_events(username).select_related("source_approve"))
+
+
 def _build_home_page_context(request, form, *, lists_embed=False):
     try:
         scope = resolve_user_scope(request.user.username)
@@ -6020,6 +6082,7 @@ def _build_home_page_context(request, form, *, lists_embed=False):
     owned_objects = []
     owned_passports_geojson = {"type": "FeatureCollection", "features": []}
     owned_approvals_geojson = {"type": "FeatureCollection", "features": []}
+    owned_rechecks_geojson = {"type": "FeatureCollection", "features": []}
     hood_work_area_geojson = {"type": "FeatureCollection", "features": []}
     owned_objects_error = None
     ods_user_brids = []
@@ -6088,32 +6151,29 @@ def _build_home_page_context(request, form, *, lists_embed=False):
         accessible_approves = []
         approval_items = []
 
-    if lists_embed:
-        try:
-            from recheck.access import accessible_events
-            from recheck.services import expire_due_events
-
-            expire_due_events()
-            recheck_items = [
-                {
-                    "id": str(event.id),
-                    "task_guid": str(event.task_guid),
-                    "label": (event.source_approve.name or event.title).strip(),
-                    "status": event.status,
-                    "status_label": event.get_status_display(),
-                    "due_at": event.due_at,
-                }
-                for event in accessible_events(request.user.username).select_related("source_approve")
-            ]
-        except Exception:
-            logger.exception("home: recheck list failed")
-            recheck_items = []
+    recheck_events = []
+    try:
+        recheck_events = _load_accessible_recheck_events(request.user.username)
+        recheck_items = [_serialize_recheck_list_item(event) for event in recheck_events]
+    except Exception:
+        logger.exception("home: recheck list failed")
+        recheck_events = []
+        recheck_items = []
 
     if accessible_approves and needs_map_geojson and not is_personal_account:
         try:
             owned_approvals_geojson = build_home_approval_feature_collection(accessible_approves)
         except Exception:
             owned_approvals_geojson = {"type": "FeatureCollection", "features": []}
+
+    if recheck_events and needs_map_geojson and not is_personal_account:
+        try:
+            from recheck.home_geojson import build_home_recheck_feature_collection
+
+            owned_rechecks_geojson = build_home_recheck_feature_collection(recheck_events)
+        except Exception:
+            logger.exception("home: recheck geojson failed")
+            owned_rechecks_geojson = {"type": "FeatureCollection", "features": []}
 
     need_entry_request_id = bool(request.session.get("pending_entry_point"))
     if lists_embed:
@@ -6129,7 +6189,9 @@ def _build_home_page_context(request, form, *, lists_embed=False):
     personal_table_items = None
     if needs_personal_rows:
         try:
-            personal_table_items = _build_personal_table_items(owned_objects, approval_items)
+            personal_table_items = _build_personal_table_items(
+                owned_objects, approval_items, recheck_items
+            )
         except Exception:
             logger.exception("home: personal table failed")
             personal_table_items = []
@@ -6143,7 +6205,7 @@ def _build_home_page_context(request, form, *, lists_embed=False):
             kind_count_items = (
                 personal_table_items
                 if personal_table_items is not None
-                else _build_personal_table_items(owned_objects, approval_items)
+                else _build_personal_table_items(owned_objects, approval_items, recheck_items)
             )
             personal_kind_counts = _personal_kind_filter_counts(kind_count_items)
         except Exception:
@@ -6205,6 +6267,7 @@ def _build_home_page_context(request, form, *, lists_embed=False):
         "owned_objects": owned_objects,
         "owned_passports_geojson": owned_passports_geojson,
         "owned_approvals_geojson": owned_approvals_geojson,
+        "owned_rechecks_geojson": owned_rechecks_geojson,
         "hood_work_area_geojson": hood_work_area_geojson,
         "owned_objects_error": owned_objects_error,
         "need_entry_request_id": need_entry_request_id,

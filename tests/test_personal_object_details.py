@@ -712,6 +712,7 @@ def test_build_personal_table_items_includes_requests_and_approvals() -> None:
         "primary": 1,
         "drawn": 1,
         "approval": 1,
+        "recheck": 0,
     }
 
 
@@ -817,6 +818,7 @@ def test_annotate_kind_filter_membership_folds_matching_ods() -> None:
         "primary": 1,
         "drawn": 0,
         "approval": 1,
+        "recheck": 0,
     }
 
 
@@ -1080,3 +1082,33 @@ def test_personal_export_xlsx_builds_links_and_skips_action_columns(client) -> N
     assert sheet["D2"].value == "1-й Щипковский"
     assert sheet["E2"].value == "Паспорт"
     assert sheet["F2"].value == "11.11.2025"
+
+
+def test_build_personal_table_items_includes_rechecks() -> None:
+    rows = _build_personal_table_items(
+        [],
+        [],
+        [
+            {
+                "id": "recheck-1",
+                "label": "Согласование заявки из графика паспортизации 46998",
+                "status_label": "На проверке",
+            }
+        ],
+    )
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["row_kind"] == "recheck"
+    assert row["recheck_id"] == "recheck-1"
+    assert row["source_label"] == "ЦГ"
+    assert row["display_status"] == "На проверке"
+    assert row["asu_ods_enabled"] is False
+    assert _personal_kind_filter_counts(rows) == {
+        "all": 1,
+        "approved": 0,
+        "actualization": 0,
+        "primary": 0,
+        "drawn": 0,
+        "approval": 0,
+        "recheck": 1,
+    }

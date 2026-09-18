@@ -114,6 +114,7 @@ def home_page_config(
             "personalObjectDetails": reverse("personal_object_details"),
             "openOwned": reverse("open_owned_object"),
             "approvalLanding": reverse("approval:landing"),
+            "recheckLanding": reverse("recheck:landing"),
             "selectSupHood": reverse("select_sup_hood"),
             "clearSupHood": reverse("clear_sup_hood"),
         },

@@ -3,7 +3,7 @@
 
     const PV = (global.PassViewer = global.PassViewer || {});
     const STORAGE_KEY = 'pv-kind-filters';
-    const VALID_KEYS = new Set(['all', 'approved', 'actualization', 'primary', 'drawn', 'approval']);
+    const VALID_KEYS = new Set(['all', 'approved', 'actualization', 'primary', 'drawn', 'approval', 'recheck']);
     const APPROVED_OGH = new Set(['ДТ', 'ОДХ', 'ОО', 'ТОП']);
 
     function oghTypeFromSource(sourceLabel) {
@@ -72,6 +72,9 @@
             return true;
         }
         if (keys.has('approval') && rowKind === 'approval') {
+            return true;
+        }
+        if (keys.has('recheck') && rowKind === 'recheck') {
             return true;
         }
         return false;
@@ -147,6 +150,9 @@
         }
         if (keys.has('all') || keys.has('approval')) {
             groups.add('approvals');
+        }
+        if (keys.has('all') || keys.has('recheck')) {
+            groups.add('rechecks');
         }
         return groups;
     }

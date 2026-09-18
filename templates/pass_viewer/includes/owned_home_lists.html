@@ -354,7 +354,10 @@
                             data-rootid="{{ item.task_guid|lower }}"
                             data-name="{{ item.label|lower }}"
                             data-recheck-status="{{ item.status }}"
+                            data-recheck-id="{{ item.id }}"
+                            data-source-label="ЦГ"
                             data-row-kind="recheck"
+                            data-map-row-key="recheck:{{ item.id }}"
                         >
                             <a
                                 href="{% url 'recheck:landing' %}?event={{ item.id }}"

@@ -86,6 +86,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const ownedMapEl = document.getElementById('owned-passports-map');
         const ownedGeoDataEl = document.getElementById('owned-passports-geojson-data');
         const ownedApprovalsGeoEl = document.getElementById('owned-approvals-geojson-data');
+        const ownedRechecksGeoEl = document.getElementById('owned-rechecks-geojson-data');
         const hoodWorkAreaGeoEl = document.getElementById('hood-work-area-geojson-data');
         const checkDgiModal = document.getElementById('check-dgi-modal');
         const checkDgiModalBody = document.getElementById('check-dgi-modal-body');
@@ -918,6 +919,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (source === 'СМЕЖ') {
                 return 'СМЕЖ';
             }
+            if (source === 'ЦГ') {
+                return 'ЦГ';
+            }
             if (source === 'ОДХ') {
                 return 'ОДХ';
             }
@@ -935,7 +939,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
         function getOwnedFilterKindFromProps(props) {
             const filterKind = String((props && props.filterKind) || '').trim().toUpperCase();
-            if (filterKind === 'СОГЛ' || filterKind === 'СМЕЖ') {
+            if (filterKind === 'СОГЛ' || filterKind === 'СМЕЖ' || filterKind === 'ЦГ') {
                 return filterKind;
             }
             const sourceLabel = String((props && props.source_label) || 'ДТ').toUpperCase();
@@ -959,6 +963,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (item.classList.contains('owned-approval-row')) {
                 return null;
+            }
+            if (item.classList.contains('owned-recheck-row')) {
+                return 'ЦГ';
             }
             if (!item.dataset.sourceLabel) {
                 return null;
@@ -1000,7 +1007,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
         function getActiveOwnedListTab() {
             const fromBody = document.body.getAttribute('data-owned-lists-tab');
-            if (fromBody === 'requests' || fromBody === 'approvals' || fromBody === 'passports') {
+            if (fromBody === 'requests' || fromBody === 'approvals' || fromBody === 'passports' || fromBody === 'rechecks') {
                 return fromBody;
             }
             const activeBtn = listTabButtons.find((btn) => btn.classList.contains('is-active'));
@@ -1020,7 +1027,13 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
         function setOwnedListTab(tabName) {
             const tab =
-                tabName === 'approvals' ? 'approvals' : tabName === 'passports' ? 'passports' : 'requests';
+                tabName === 'approvals'
+                    ? 'approvals'
+                    : tabName === 'passports'
+                      ? 'passports'
+                      : tabName === 'rechecks'
+                        ? 'rechecks'
+                        : 'requests';
             listTabButtons.forEach((btn) => {
                 btn.classList.toggle('is-active', btn.dataset.ownedListTab === tab);
             });
@@ -1062,6 +1075,21 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             return { type: 'FeatureCollection', features: [] };
         }
 
+        function parseRechecksGeoData() {
+            if (!ownedRechecksGeoEl) {
+                return { type: 'FeatureCollection', features: [] };
+            }
+            try {
+                const parsed = JSON.parse(ownedRechecksGeoEl.textContent || '{}');
+                if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
+                    return parsed;
+                }
+            } catch (e) {
+                // keep map resilient to malformed payload
+            }
+            return { type: 'FeatureCollection', features: [] };
+        }
+
         function styleOwnedFeature(feature) {
             const props = feature?.properties || {};
             const filterKind = String(props.filterKind || '').trim().toUpperCase();
@@ -1070,6 +1098,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (filterKind === 'СМЕЖ') {
                 return { color: '#0f766e', weight: 2.5, fillOpacity: 0.28, fillColor: '#5eead4' };
+            }
+            if (filterKind === 'ЦГ') {
+                return { color: '#1d4ed8', weight: 2.5, fillOpacity: 0.28, fillColor: '#93c5fd' };
             }
             const sourceLabel = String(props.source_label || 'ДТ').toUpperCase();
             const rootid = String(props.rootid || '').trim();
@@ -1158,12 +1189,15 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
             const data = parseOwnedGeoData();
             const approvalData = parseApprovalsGeoData();
+            const recheckData = parseRechecksGeoData();
             const featureLayerByKey = new Map();
             ownedFeatureLayerByKey = featureLayerByKey;
             const featureStyleByKey = new Map();
             const featureMetaByKey = new Map();
             const keysByApproveId = new Map();
+            const keysByRecheckId = new Map();
             const approvalLandingUrl = (cfg.urls && cfg.urls.approvalLanding) || '';
+            const recheckLandingUrl = (cfg.urls && cfg.urls.recheckLanding) || '';
             let activeKey = '';
             let activeRow = null;
             let hoverKey = '';
@@ -1307,6 +1341,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                                 rowTab = 'requests';
                             } else if (row.classList.contains('owned-approval-row')) {
                                 rowTab = 'approvals';
+                            } else if (row.classList.contains('owned-recheck-row')) {
+                                rowTab = 'rechecks';
                             }
                             setOwnedListTab(rowTab);
                             applyOwnedFilters();
@@ -1469,13 +1505,70 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 },
             }).addTo(map);
 
+            const recheckLayer = L.geoJSON(recheckData, {
+                style: styleOwnedFeature,
+                onEachFeature: (feature, featureLayer) => {
+                    const props = feature?.properties || {};
+                    const recheckId = String(props.recheck_id || '').trim();
+                    const key = buildOwnedMapKey(
+                        props.rootid || props.incoming_guid || '',
+                        props.filterKind || 'ЦГ',
+                        '',
+                        props.name || '',
+                        props.map_row_key || ''
+                    );
+                    featureLayerByKey.set(key, featureLayer);
+                    featureStyleByKey.set(key, styleOwnedFeature(feature));
+                    featureMetaByKey.set(key, {
+                        sourceLabel: normalizeOwnedSourceLabel(props.filterKind || 'ЦГ'),
+                        filterKind: getOwnedFilterKindFromProps(props),
+                        rowKind: 'recheck',
+                        passportizationKind: '',
+                    });
+                    if (recheckId) {
+                        const keys = keysByRecheckId.get(recheckId) || [];
+                        keys.push(key);
+                        keysByRecheckId.set(recheckId, keys);
+                    }
+                    featureLayer.on('click', () => focusByKey(key, 'map'));
+                    let popupHtml =
+                        '<div>' +
+                            '<div><strong>Согласование ЦГ</strong></div>' +
+                            '<div><strong>Название:</strong> ' + escapeHtml(props.name || '-') + '</div>';
+                    if (recheckId && recheckLandingUrl) {
+                        const href =
+                            recheckLandingUrl +
+                            (recheckLandingUrl.indexOf('?') >= 0 ? '&' : '?') +
+                            'event=' +
+                            encodeURIComponent(recheckId);
+                        popupHtml +=
+                            '<div style="margin-top:10px;padding-top:8px;border-top:1px solid #e5e7eb;">' +
+                            '<button type="button" class="map-toolbar-btn map-toolbar-btn--primary owned-open-approval-btn" data-approval-href="' +
+                            escapeHtml(href) +
+                            '" style="font-size:12px;padding:6px 10px;width:100%;">' +
+                            'Открыть согласование ЦГ</button></div>';
+                    }
+                    popupHtml += '</div>';
+                    featureLayer.bindPopup(popupHtml);
+                    featureLayer.off('popupopen');
+                    featureLayer.on('popupopen', () => {
+                        window.setTimeout(() => {
+                            bindOwnedOpenApprovalButton(featureLayer);
+                        }, 0);
+                    });
+                },
+            }).addTo(map);
+
             const ownedBounds = layer.getBounds();
             const approvalBounds = approvalLayer.getBounds();
+            const recheckBounds = recheckLayer.getBounds();
             const hoodBounds = hoodWorkAreaLayer && hoodWorkAreaLayer.getBounds ? hoodWorkAreaLayer.getBounds() : null;
             if (ownedBounds.isValid()) {
                 map.fitBounds(ownedBounds.pad(0.04));
             } else if (approvalBounds.isValid()) {
                 map.fitBounds(approvalBounds.pad(0.04));
+            } else if (recheckBounds.isValid()) {
+                map.fitBounds(recheckBounds.pad(0.04));
             } else if (hoodBounds && hoodBounds.isValid && hoodBounds.isValid()) {
                 map.fitBounds(hoodBounds.pad(0.05));
             } else {
@@ -1535,6 +1628,36 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             document.querySelectorAll('.owned-approval-row').forEach((row) => {
                 const approveId = String(row.dataset.approveId || '').trim();
                 const keys = keysByApproveId.get(approveId) || [];
+                keys.forEach((key) => {
+                    if (!rowByKey.has(key)) {
+                        rowByKey.set(key, row);
+                    }
+                });
+                if (keys[0]) {
+                    row.dataset.mapKey = keys[0];
+                }
+                row.addEventListener('mouseenter', () => {
+                    hoverByKey(row.dataset.mapKey || keys[0] || '');
+                });
+                row.addEventListener('mouseleave', () => {
+                    clearHoverFeature();
+                    clearHoverRow();
+                });
+                row.addEventListener('click', (event) => {
+                    if (event.target.closest('a, form, button, input, label')) {
+                        return;
+                    }
+                    const mapKey = row.dataset.mapKey || keys[0] || '';
+                    if (!mapKey) {
+                        return;
+                    }
+                    focusByKey(mapKey, 'list');
+                });
+            });
+
+            document.querySelectorAll('.owned-recheck-row').forEach((row) => {
+                const recheckId = String(row.dataset.recheckId || '').trim();
+                const keys = keysByRecheckId.get(recheckId) || [];
                 keys.forEach((key) => {
                     if (!rowByKey.has(key)) {
                         rowByKey.set(key, row);
@@ -1745,9 +1868,16 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             return filterValue === 'СОГЛ' || filterValue === 'СМЕЖ';
         }
 
+        function isOwnedRecheckFilterKind(filterValue) {
+            return filterValue === 'ЦГ';
+        }
+
         function legendFilterGroup(filterValue) {
             if (isOwnedApprovalFilterKind(filterValue)) {
                 return 'approvals';
+            }
+            if (isOwnedRecheckFilterKind(filterValue)) {
+                return 'rechecks';
             }
             if (isOwnedRequestFilterKind(filterValue)) {
                 return 'requests';
@@ -1777,6 +1907,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (item.classList.contains('owned-approval-row')) {
                 return 'approvals';
+            }
+            if (item.classList.contains('owned-recheck-row')) {
+                return 'rechecks';
             }
             return 'passports';
         }
@@ -3377,6 +3510,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const ownedListsModalTitles = {
             requests: 'Отрисовка границ заявок',
             approvals: 'Согласование границ ОГХ',
+            rechecks: 'Согласование ЦГ',
+            passports: 'Утверждённые паспорта',
         };
 
         function moveOwnedListsModalNodes(open) {
@@ -3402,7 +3537,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         }
 
         function openOwnedListsModal(tabName) {
-            const tab = tabName === 'approvals' ? 'approvals' : 'requests';
+            const tab =
+                tabName === 'approvals'
+                    ? 'approvals'
+                    : tabName === 'passports'
+                      ? 'passports'
+                      : tabName === 'rechecks'
+                        ? 'rechecks'
+                        : 'requests';
             closeHomeWorkflowModal();
             document.body.classList.add('owned-lists-modal-open');
             document.body.setAttribute('data-owned-lists-tab', tab);

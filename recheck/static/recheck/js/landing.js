@@ -10,6 +10,7 @@
     let qmlRenderer = null;
     let selectedFeature = null;
     let selectedLayerKey = '';
+    let selectedObjectKey = '';
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -70,8 +71,6 @@
         if (titleEl) titleEl.textContent = item.title;
         if (summaryEl) {
             summaryEl.innerHTML =
-                '<p><strong>TaskGUID:</strong> ' + escapeHtml(item.task_guid) + '</p>' +
-                '<p><strong>Организация задания:</strong> ' + escapeHtml(item.task_owner_id || 'не назначена') + '</p>' +
                 '<p><strong>Срок:</strong> ' + escapeHtml(new Date(item.due_at).toLocaleString('ru-RU')) + '</p>' +
                 '<p><strong>Согласовали:</strong> ' + escapeHtml(approvals.join(', ') || '—') + '</p>';
         }
@@ -124,9 +123,19 @@
     }
 
     function featureIdentity(feature, fallback) {
-        const properties = feature.properties || {};
-        return properties.rootid ?? properties.RootId ?? properties.objectid ??
-            properties.ObjectId ?? properties.id ?? feature.id ?? fallback;
+        const properties = (feature && feature.properties) || {};
+        const candidates = [
+            properties.fid,
+            properties.objectid,
+            properties.ObjectId,
+            properties.id,
+            feature && feature.id,
+        ];
+        for (let index = 0; index < candidates.length; index += 1) {
+            const value = candidates[index];
+            if (value != null && String(value).trim() !== '') return String(value).trim();
+        }
+        return fallback;
     }
 
     function layerTableKey(layerKey) {
@@ -163,28 +172,51 @@
         return String(label);
     }
 
-    function resolveStoredValue(field, typed, fallback) {
+    function normalizeLookupText(value) {
+        return String(value == null ? '' : value).trim().replace(/\s+/g, ' ').toLowerCase();
+    }
+
+    function findLookupOption(options, typed) {
         const text = String(typed == null ? '' : typed).trim();
+        if (!text || !Array.isArray(options) || !options.length) return null;
+        const normalized = normalizeLookupText(text);
+        return options.find((option) => String(option.value) === text)
+            || options.find((option) => optionLabel(option) === text)
+            || options.find((option) => normalizeLookupText(option.value) === normalized)
+            || options.find((option) => normalizeLookupText(optionLabel(option)) === normalized)
+            || null;
+    }
+
+    function resolveStoredValue(field, typed, fallback) {
         const item = fieldItem(field);
-        const options = (item && item.options) || [];
-        const byLabel = options.find((option) => optionLabel(option) === text);
-        if (byLabel) return String(byLabel.value);
-        const byCode = options.find((option) => String(option.value) === text);
-        if (byCode) return String(byCode.value);
+        const matched = findLookupOption((item && item.options) || [], typed);
+        if (matched) return String(matched.value);
+        const text = String(typed == null ? '' : typed).trim();
         if (text) return text;
         return fallback == null ? '' : String(fallback);
     }
 
+    function resolvedLookupCode(field, fallback) {
+        const item = fieldItem(field);
+        const options = (item && item.options) || [];
+        const control = document.querySelector('#recheck-fields [data-change-value="' + CSS.escape(field) + '"]');
+        const typed = control ? control.value : fallback;
+        const matched = findLookupOption(options, typed) || findLookupOption(options, fallback);
+        return matched ? String(matched.value) : '';
+    }
+
     function currentModalValue(field, fallback) {
+        const resolved = resolvedLookupCode(field, fallback);
+        if (resolved) return resolved;
         const control = document.querySelector('#recheck-fields [data-change-value="' + CSS.escape(field) + '"]');
         if (control) return resolveStoredValue(field, control.value, fallback);
         return fallback == null ? '' : String(fallback);
     }
 
-    function fillComboOptions(input, options, current, currentLabel) {
+    function fillComboOptions(input, options, current, currentLabel, replace) {
         const list = Array.isArray(options) ? options.slice() : [];
         const currentValue = current == null ? '' : String(current);
-        if (currentValue && !list.some((option) => String(option.value) === currentValue)) {
+        if (!replace && currentValue && !list.some((option) => String(option.value) === currentValue)) {
             const extraLabel = currentLabel && String(currentLabel) !== currentValue &&
                 (!input.value || input.value === currentLabel)
                 ? currentLabel
@@ -224,21 +256,23 @@
 
     function parentFilters(item, properties) {
         const filters = {};
-        lookupParents(item).forEach((parent) => {
-            const value = currentModalValue(parent.field, properties[parent.field]);
-            if (value) filters[parent.column] = value;
-        });
+        const parents = lookupParents(item);
+        for (let index = 0; index < parents.length; index += 1) {
+            const parent = parents[index];
+            const code = resolvedLookupCode(parent.field, properties[parent.field]);
+            if (!code) return null;
+            filters[parent.column] = code;
+        }
         return filters;
     }
 
-    async function refreshLookupSelect(item, properties) {
+    async function refreshLookupSelect(item, properties, replace) {
         const input = document.querySelector('#recheck-fields [data-change-value="' + CSS.escape(item.field) + '"]');
         if (!input || !item.lookup || !config.urls.lookupOptions) return;
         const parents = lookupParents(item);
         const filters = parentFilters(item, properties);
         const current = resolveStoredValue(item.field, input.value, item.rawValue);
-        if (parents.length && parents.some((parent) => !filters[parent.column])) {
-            fillComboOptions(input, [], current, item.value);
+        if (parents.length && filters === null) {
             return;
         }
         try {
@@ -249,29 +283,63 @@
                     table: item.lookup.table,
                     key: item.lookup.key || 'Code',
                     value: item.lookup.value || 'Name',
-                    filters: filters,
+                    filters: filters || {},
                 }),
             });
-            fillComboOptions(input, data.options || [], current, item.value);
+            fillComboOptions(input, data.options || [], current, item.value, replace);
         } catch (_error) {
-            fillComboOptions(input, [], current, item.value);
+            fillComboOptions(input, [], current, item.value, replace);
+        }
+    }
+
+    function dependentsOf(field) {
+        return modalFields.filter((item) => {
+            return item.lookup && lookupParents(item).some((parent) => parent.field === field);
+        });
+    }
+
+    async function refreshDependentLookups(field, properties) {
+        const dependents = dependentsOf(field);
+        for (let index = 0; index < dependents.length; index += 1) {
+            await refreshLookupSelect(dependents[index], properties, true);
+            await refreshDependentLookups(dependents[index].field, properties);
+        }
+    }
+
+    async function loadLookupWaves(properties) {
+        const pending = modalFields.filter((item) => item.lookup);
+        const loaded = new Set();
+        while (loaded.size < pending.length) {
+            const wave = pending.filter((item) => {
+                if (loaded.has(item.field)) return false;
+                return lookupParents(item).every((parent) => {
+                    const parentItem = fieldItem(parent.field);
+                    return !parentItem || !parentItem.lookup || loaded.has(parent.field);
+                });
+            });
+            if (!wave.length) {
+                await Promise.all(pending.filter((item) => !loaded.has(item.field)).map((item) => refreshLookupSelect(item, properties)));
+                break;
+            }
+            await Promise.all(wave.map((item) => refreshLookupSelect(item, properties)));
+            wave.forEach((item) => loaded.add(item.field));
         }
     }
 
     function bindDependentLookups(properties) {
         document.querySelectorAll('#recheck-fields [data-change-value]').forEach((control) => {
             let timer = null;
+            let lastCode = resolvedLookupCode(control.dataset.changeValue, properties[control.dataset.changeValue]);
             const onUpdate = () => {
-                modalFields.forEach((item) => {
-                    if (!item.lookup) return;
-                    if (!lookupParents(item).some((parent) => parent.field === control.dataset.changeValue)) return;
-                    void refreshLookupSelect(item, properties);
-                });
+                const code = resolvedLookupCode(control.dataset.changeValue, properties[control.dataset.changeValue]);
+                if (!code || code === lastCode) return;
+                lastCode = code;
+                void refreshDependentLookups(control.dataset.changeValue, properties);
             };
             control.addEventListener('change', onUpdate);
             control.addEventListener('input', () => {
                 window.clearTimeout(timer);
-                timer = window.setTimeout(onUpdate, 300);
+                timer = window.setTimeout(onUpdate, 250);
             });
         });
     }
@@ -289,6 +357,7 @@
     function openChangeModal(feature, layerKey, fallback) {
         selectedFeature = feature;
         selectedLayerKey = layerKey;
+        selectedObjectKey = String(featureIdentity(feature, fallback || geometryKey(feature, layerKey)));
         const properties = feature.properties || {};
         const identity = featureIdentity(feature, fallback);
         const title = qmlRenderer && typeof qmlRenderer.popupTitle === 'function'
@@ -296,7 +365,7 @@
             : '';
         document.getElementById('recheck-object-caption').textContent = title || ('Объект: ' + identity);
         modalFields = qmlRenderer && typeof qmlRenderer.popupFields === 'function'
-            ? qmlRenderer.popupFields(feature)
+            ? qmlRenderer.popupFields(feature, {includeEmptyLookups: true})
             : [];
         const fieldsEl = document.getElementById('recheck-fields');
         if (!modalFields.length) {
@@ -320,9 +389,7 @@
                 });
             });
             bindDependentLookups(properties);
-            modalFields.forEach((item) => {
-                if (item.lookup) void refreshLookupSelect(item, properties);
-            });
+            void loadLookupWaves(properties);
         }
         document.getElementById('recheck-change-error').textContent = '';
         document.getElementById('recheck-change-modal').hidden = false;
@@ -331,6 +398,8 @@
     function closeModal() {
         document.getElementById('recheck-change-modal').hidden = true;
         selectedFeature = null;
+        selectedLayerKey = '';
+        selectedObjectKey = '';
     }
 
     ['recheck-modal-close', 'recheck-modal-cancel'].forEach((id) => {
@@ -348,12 +417,12 @@
                 const oldValue = properties[field];
                 const typed = document.querySelector('[data-change-value="' + CSS.escape(field) + '"]').value;
                 let newValue = resolveStoredValue(field, typed, typed);
-                if (typeof oldValue === 'number' && rawValue.trim() !== '' && Number.isFinite(Number(rawValue))) {
-                    newValue = Number(rawValue);
-                } else if (typeof oldValue === 'boolean' && /^(true|false)$/i.test(rawValue.trim())) {
-                    newValue = rawValue.trim().toLowerCase() === 'true';
+                if (typeof oldValue === 'number' && String(newValue).trim() !== '' && Number.isFinite(Number(newValue))) {
+                    newValue = Number(newValue);
+                } else if (typeof oldValue === 'boolean' && /^(true|false)$/i.test(String(newValue).trim())) {
+                    newValue = String(newValue).trim().toLowerCase() === 'true';
                 } else if (oldValue && typeof oldValue === 'object') {
-                    try { newValue = JSON.parse(rawValue); } catch (ignore) { newValue = rawValue; }
+                    try { newValue = JSON.parse(String(newValue)); } catch (ignore) { /* keep text */ }
                 }
                 return {
                     field_name: field,
@@ -362,7 +431,7 @@
                     new_value: newValue,
                 };
             });
-            const identity = String(featureIdentity(selectedFeature, selectedLayerKey));
+            const identity = selectedObjectKey || String(featureIdentity(selectedFeature, geometryKey(selectedFeature, selectedLayerKey)));
             const payload = {
                 source_layer: selectedLayerKey,
                 object_key: identity,
@@ -422,9 +491,38 @@
         });
     }
 
+    function showDbLoadingModal(detailText) {
+        const modal = document.getElementById('db-loading-modal');
+        const detail = document.getElementById('recheck-db-loading-detail');
+        if (detail) detail.textContent = detailText || '';
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function hideDbLoadingModal() {
+        const modal = document.getElementById('db-loading-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function setMapLoadStatus(text) {
+        const el = document.getElementById('recheck-map-status');
+        if (!el) return;
+        if (!text) {
+            el.hidden = true;
+            el.textContent = '';
+            return;
+        }
+        el.hidden = false;
+        el.textContent = text;
+    }
+
     async function initMap() {
         const mapEl = document.getElementById('recheck-map');
-        if (!mapEl || !eventId || typeof L === 'undefined') return;
+        if (!mapEl || !eventId || typeof L === 'undefined') {
+            hideDbLoadingModal();
+            return;
+        }
+        showDbLoadingModal();
+        try {
         map = L.map(mapEl, {
             zoomControl: true,
             attributionControl: true,
@@ -469,52 +567,57 @@
         bindLayerControls();
         const bounds = L.latLngBounds([]);
         let count = 0;
-        for (const spec of (config.layerOrder || [])) {
-            try {
-                const data = await jsonFetch(config.urls.mapLayer, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
-                    body: JSON.stringify({event_id: eventId, layer: spec.key}),
-                });
-                const features = (data.features || []).map((feature) => {
-                    feature.properties = feature.properties || {};
-                    if (!feature.properties.layerKey) feature.properties.layerKey = spec.key;
-                    return feature;
-                });
-                const group = L.geoJSON({type: 'FeatureCollection', features}, {
-                    style: qmlRenderer ? qmlRenderer.style : {color: '#b7192e', weight: 2, fillColor: '#ef8b98', fillOpacity: 0.28},
-                    pointToLayer: qmlRenderer ? qmlRenderer.pointToLayer : undefined,
-                    onEachFeature: (feature, layer) => {
-                        if (qmlRenderer) {
-                            qmlRenderer.onEachFeature(feature, layer);
-                            return;
-                        }
-                        const key = featureIdentity(feature, geometryKey(feature, spec.key));
-                        let html = '<strong>' + escapeHtml(spec.label) + '</strong><br>Объект: ' + escapeHtml(key);
-                        if (!isPhotoFixLayer(spec.key)) {
-                            html += '<br><button type="button" class="recheck-popup-btn">Запросить изменение</button>';
-                        }
-                        layer.bindPopup(html);
-                        layer.on('popupopen', (popupEvent) => {
-                            const button = popupEvent.popup.getElement().querySelector('.recheck-popup-btn');
-                            if (button) button.onclick = () => openChangeModal(feature, spec.key, key);
-                        });
-                    },
-                });
-                mapLayers.set(spec.key, group);
-                const checkbox = document.querySelector('[data-recheck-layer-key="' + CSS.escape(spec.key) + '"]');
-                if (!checkbox || checkbox.checked) group.addTo(map);
-                if (group.getBounds().isValid()) bounds.extend(group.getBounds());
-                count += features.length;
-            } catch (error) {
-                document.getElementById('recheck-map-status').textContent = error.message;
+            for (const spec of (config.layerOrder || [])) {
+                try {
+                    showDbLoadingModal(spec.label || spec.key);
+                    setMapLoadStatus('Загружаем: ' + (spec.label || spec.key) + '…');
+                    const data = await jsonFetch(config.urls.mapLayer, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
+                        body: JSON.stringify({event_id: eventId, layer: spec.key}),
+                    });
+                    const features = (data.features || []).map((feature) => {
+                        feature.properties = feature.properties || {};
+                        if (!feature.properties.layerKey) feature.properties.layerKey = spec.key;
+                        return feature;
+                    });
+                    const group = L.geoJSON({type: 'FeatureCollection', features}, {
+                        style: qmlRenderer ? qmlRenderer.style : {color: '#b7192e', weight: 2, fillColor: '#ef8b98', fillOpacity: 0.28},
+                        pointToLayer: qmlRenderer ? qmlRenderer.pointToLayer : undefined,
+                        onEachFeature: (feature, layer) => {
+                            if (qmlRenderer) {
+                                qmlRenderer.onEachFeature(feature, layer);
+                                return;
+                            }
+                            const key = featureIdentity(feature, geometryKey(feature, spec.key));
+                            let html = '<strong>' + escapeHtml(spec.label) + '</strong><br>Объект: ' + escapeHtml(key);
+                            if (!isPhotoFixLayer(spec.key)) {
+                                html += '<br><button type="button" class="recheck-popup-btn">Запросить изменение</button>';
+                            }
+                            layer.bindPopup(html);
+                            layer.on('popupopen', (popupEvent) => {
+                                const button = popupEvent.popup.getElement().querySelector('.recheck-popup-btn');
+                                if (button) button.onclick = () => openChangeModal(feature, spec.key, key);
+                            });
+                        },
+                    });
+                    mapLayers.set(spec.key, group);
+                    const checkbox = document.querySelector('[data-recheck-layer-key="' + CSS.escape(spec.key) + '"]');
+                    if (!checkbox || checkbox.checked) group.addTo(map);
+                    if (group.getBounds().isValid()) bounds.extend(group.getBounds());
+                    count += features.length;
+                } catch (error) {
+                    setMapLoadStatus(error.message);
+                }
             }
+            if (bounds.isValid()) map.fitBounds(bounds.pad(0.08));
+            if (qmlRenderer) qmlRenderer.refresh();
+            setMapLoadStatus(count
+                ? 'Загружено объектов: ' + count
+                : 'Для задания объекты не найдены.');
+        } finally {
+            hideDbLoadingModal();
         }
-        if (bounds.isValid()) map.fitBounds(bounds.pad(0.08));
-        if (qmlRenderer) qmlRenderer.refresh();
-        document.getElementById('recheck-map-status').textContent = count
-            ? 'Загружено объектов: ' + count
-            : 'Для задания объекты не найдены.';
     }
 
     loadEvent().catch((error) => window.alert(error.message));

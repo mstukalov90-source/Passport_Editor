@@ -322,3 +322,79 @@ def test_actions_page_shows_all_events_and_modal_link(
     assert "Событие по паспорту" in html
     assert "Нет событий" in html
 
+
+@pytest.mark.django_db
+@patch(
+    "approval.events_service.lookup_task_poly_meta",
+    return_value={"source_label": "", "object_name": "", "table": ""},
+)
+@patch(
+    "approval.events_service.batch_lookup_task_poly_meta",
+    return_value={},
+)
+@patch(
+    "approval.events_service.lookup_task_survey_fields",
+    return_value=("", ""),
+)
+@patch(
+    "approval.events_service.resolve_root_object_names",
+    return_value={},
+)
+def test_build_home_notification_events_includes_recheck(
+    _mock_roots, _mock_survey, _mock_batch, _mock_poly, approve_open, owner_a
+):
+    from recheck.models import RecheckApproval, RecheckEvent, RecheckMessage
+
+    rec = RecheckEvent.objects.create(
+        source_approve=approve_open,
+        task_guid=approve_open.incoming_guid,
+        task_owner_id="OWNER_A",
+        title="Проверка геоподосновы",
+        due_at=timezone.now() + timedelta(days=5),
+    )
+    foreign_message = RecheckMessage.objects.create(
+        event=rec,
+        author_login="inspector_user",
+        body="Нужно уточнить контур",
+    )
+    RecheckMessage.objects.create(
+        event=rec,
+        author_login=owner_a.login,
+        body="Моё сообщение не должно попасть",
+    )
+    foreign_approval = RecheckApproval.objects.create(
+        event=rec,
+        kind=RecheckApproval.KIND_INSPECTOR,
+        actor_login="inspector_user",
+    )
+    RecheckApproval.objects.create(
+        event=rec,
+        kind=RecheckApproval.KIND_REQUESTER,
+        actor_login=owner_a.login,
+    )
+
+    events = build_home_notification_events(
+        owner_id="OWNER_A",
+        username=owner_a.login,
+    )
+    by_id = {item["id"]: item for item in events}
+
+    assert by_id[f"recheck:{rec.id}"]["kind"] == "new_recheck"
+    assert by_id[f"recheck:{rec.id}"]["recheck_id"] == str(rec.id)
+    assert by_id[f"recheck-msg:{foreign_message.id}"]["kind"] == "message"
+    assert "inspector_user" in by_id[f"recheck-msg:{foreign_message.id}"]["subtitle"]
+    assert by_id[f"recheck-svc:{foreign_approval.id}"]["kind"] == "approved"
+
+    own_recheck_messages = [
+        item["id"]
+        for item in events
+        if item["kind"] == "message" and item.get("author") == owner_a.login and item.get("recheck_id")
+    ]
+    assert own_recheck_messages == []
+    own_recheck_approved = [
+        item["id"]
+        for item in events
+        if item["kind"] == "approved" and item.get("author") == owner_a.login and item.get("recheck_id")
+    ]
+    assert own_recheck_approved == []
+

@@ -64,6 +64,22 @@ def _column_exists(cursor, schema: str, table_name: str, column_name: str) -> bo
     return _resolve_column_name(cursor, schema, table_name, column_name) is not None
 
 
+def _resolve_filter_column(cursor, schema: str, table_name: str, column_name: str) -> str | None:
+    cursor.execute(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE lower(table_schema) = lower(%s)
+          AND lower(table_name) = lower(%s)
+          AND lower(column_name) = lower(%s)
+        LIMIT 1
+        """,
+        [schema, table_name, column_name],
+    )
+    row = cursor.fetchone()
+    return str(row[0]) if row else None
+
+
 def _table_column_map(cursor, schema: str, table_name: str) -> dict[str, str]:
     """Actual columns keyed case-insensitively, loaded once per map layer."""
     cursor.execute(
@@ -371,9 +387,10 @@ def list_cls_lookup_options(
                 filter_value = str(raw or "").strip()
                 if not _IDENT_RE.match(column_name) or not filter_value:
                     continue
-                if not _column_exists(cursor, schema, table, column_name):
+                actual_column = _resolve_filter_column(cursor, schema, table, column_name)
+                if not actual_column:
                     continue
-                where.append(f"c.{_quote_ident(column_name)}::text = %s")
+                where.append(f"c.{_quote_ident(actual_column)}::text = %s")
                 params.append(filter_value)
             sql = (
                 f"SELECT c.{_quote_ident(key)}::text, c.{_quote_ident(value)}::text "

@@ -318,6 +318,8 @@
                 return 'Сообщение';
             case 'new_approve':
                 return 'Согласование';
+            case 'new_recheck':
+                return 'Согласование ЦГ';
             case 'new_case':
                 return 'Событие';
             case 'approved':
@@ -399,6 +401,7 @@
         row.dataset.eventKind = event.kind || '';
         row.dataset.approveId = event.approve_id || '';
         row.dataset.caseId = event.case_id || '';
+        row.dataset.recheckId = event.recheck_id || '';
         row.dataset.titleNumbers = event.title || '';
         row.dataset.titleNames = event.title_named || event.title || '';
         row.setAttribute('role', 'button');
@@ -427,17 +430,22 @@
         main.appendChild(meta);
         row.appendChild(main);
 
-        if (event.case_id && (event.kind === 'message' || event.kind === 'new_case' || event.kind === 'approved')) {
+        const isRecheck = Boolean(event.recheck_id);
+        const showChat =
+            (event.kind === 'message' || event.kind === 'new_case' || event.kind === 'approved' || event.kind === 'new_recheck') &&
+            (event.case_id || event.recheck_id);
+        if (showChat) {
             const chatBtn = document.createElement('button');
             chatBtn.type = 'button';
             chatBtn.className = 'approval-notifications-chat-btn';
             chatBtn.dataset.eventId = event.id || '';
             chatBtn.dataset.approveId = event.approve_id || '';
             chatBtn.dataset.caseId = event.case_id || '';
+            chatBtn.dataset.recheckId = event.recheck_id || '';
             chatBtn.dataset.caseTitle = eventDisplayTitle(event);
             chatBtn.dataset.titleNumbers = event.title || '';
             chatBtn.dataset.titleNames = event.title_named || event.title || '';
-            chatBtn.textContent = 'Чат';
+            chatBtn.textContent = isRecheck ? 'Открыть' : 'Чат';
             row.appendChild(chatBtn);
         }
 
@@ -726,7 +734,27 @@
         }
     }
 
-    function openApprovalFromNotifications(approveId, caseId) {
+    function recheckEventUrl(recheckId) {
+        const id = String(recheckId || '').trim();
+        return id ? '/recheck/?event=' + encodeURIComponent(id) : '/recheck/';
+    }
+
+    function openRecheckFromNotifications(recheckId) {
+        const normalized = String(recheckId || '').trim();
+        if (!normalized) {
+            return;
+        }
+        setApprovalChatPreviewOpen(false);
+        setApprovalNotificationsOpen(false);
+        window.location.href = recheckEventUrl(normalized);
+    }
+
+    function openApprovalFromNotifications(approveId, caseId, recheckId) {
+        const normalizedRecheckId = String(recheckId || '').trim();
+        if (normalizedRecheckId) {
+            openRecheckFromNotifications(normalizedRecheckId);
+            return;
+        }
         const normalizedApproveId = String(approveId || '').trim();
         const normalizedCaseId = String(caseId || '').trim();
         if (!normalizedApproveId && !normalizedCaseId) {
@@ -858,6 +886,10 @@
                 markNotificationSeen(chatBtn.dataset.eventId);
                 refreshUnreadNotificationsFeed();
             }
+            if (chatBtn.dataset.recheckId) {
+                openRecheckFromNotifications(chatBtn.dataset.recheckId);
+                return;
+            }
             openApprovalChatPreview(
                 chatBtn.dataset.approveId,
                 chatBtn.dataset.caseId,
@@ -880,7 +912,11 @@
                 markNotificationSeen(caseRow.dataset.eventId);
                 refreshUnreadNotificationsFeed();
             }
-            openApprovalFromNotifications(caseRow.dataset.approveId, caseRow.dataset.caseId);
+            openApprovalFromNotifications(
+                caseRow.dataset.approveId,
+                caseRow.dataset.caseId,
+                caseRow.dataset.recheckId
+            );
         }
     }
 
@@ -897,7 +933,11 @@
             markNotificationSeen(caseRow.dataset.eventId);
             refreshUnreadNotificationsFeed();
         }
-        openApprovalFromNotifications(caseRow.dataset.approveId, caseRow.dataset.caseId);
+        openApprovalFromNotifications(
+            caseRow.dataset.approveId,
+            caseRow.dataset.caseId,
+            caseRow.dataset.recheckId
+        );
     }
 
     if (approvalNotificationsBtn && approvalNotificationsModal) {

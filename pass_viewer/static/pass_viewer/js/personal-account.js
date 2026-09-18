@@ -58,6 +58,9 @@
         if (active.has('approval') && rowKind === 'approval') {
             return true;
         }
+        if (active.has('recheck') && rowKind === 'recheck') {
+            return true;
+        }
         return false;
     }
 

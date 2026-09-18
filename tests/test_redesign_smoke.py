@@ -70,6 +70,8 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "owned-view-object-edit-btn" not in home
     lists_html = (ROOT / "templates/pass_viewer/includes/owned_home_lists.html").read_text(encoding="utf-8")
     assert "data-folded-into-passport" in lists_html
+    assert 'data-source-label="ЦГ"' in lists_html
+    assert "owned-recheck-row" in lists_html
     assert "item.ods_click_scenario" in lists_html
     assert "owned_list_row_actions.html" in lists_html
     assert "owned-split-btn" not in lists_html
@@ -93,6 +95,10 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "window.openOwnedListsModal" in home_js
     assert "lists-embed" not in home_js
     assert "bindKindFilters" in home_js
+    assert "tabName === 'rechecks'" in home_js
+    assert "Согласование ЦГ" in home_js
+    assert "owned-rechecks-geojson-data" in home
+    assert 'data-source-filter="ЦГ"' in home
     assert "foldedOdsBtn" in home_js
     assert "ownedFooterHomeSlot" not in home_js
     header_js = (ROOT / "pass_viewer/static/pass_viewer/js/site-header.js").read_text(encoding="utf-8")
@@ -180,6 +186,8 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert 'data-kind-filter="drawn"' in kind_filters
     assert "Отрисованные заявки" in kind_filters
     assert 'data-kind-filter="approval"' in kind_filters
+    assert 'data-kind-filter="recheck"' in kind_filters
+    assert "Согласование ЦГ" in kind_filters
     assert "personal-kind-filter-count" in kind_filters
     assert "Все паспорта и заявки на паспортизацию" in kind_filters
     assert "Заявки на актуализацию" in kind_filters
@@ -191,6 +199,7 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "moscow-gerb.svg" in personal
     assert "intersect-polygons.svg" in personal
     assert "search-loupe.svg" in personal
+    assert "recheck:landing" in personal
     assert "pencil.svg" in personal
     assert "Проверить пересечения" in personal
     assert "personal-dgi-check" in personal
@@ -235,6 +244,7 @@ def test_redesign_routes_and_templates_are_wired() -> None:
     assert "foldedIntoPassport" in kind_filters_js
     assert "'approved'" in kind_filters_js
     assert "'drawn'" in kind_filters_js
+    assert "'recheck'" in kind_filters_js
     assert "setKindFilterPressed(allKindBtn, false)" in kind_filters_js
     assert "setKindFilterPressed(item, item === btn)" in kind_filters_js
     assert "applyDetailMode" in js
@@ -319,6 +329,7 @@ def test_personal_account_renders_owned_object_without_area() -> None:
                 "primary": 1,
                 "drawn": 0,
                 "approval": 1,
+                "recheck": 0,
             },
             "page_config": {
                 "page": "personal",

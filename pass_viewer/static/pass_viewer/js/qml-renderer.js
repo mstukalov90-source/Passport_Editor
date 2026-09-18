@@ -494,11 +494,12 @@
             }));
         }
 
-        function popupFields(feature) {
+        function popupFields(feature, options) {
             const props = (feature && feature.properties) || {};
             const tableName = styleTableKey(props);
             const definition = tableStyle(tableName);
             const aliases = definition && Array.isArray(definition.aliases) ? definition.aliases : [];
+            const includeEmptyLookups = Boolean(options && options.includeEmptyLookups);
             const fields = [];
             aliases.forEach((alias) => {
                 const field = String(alias.field || '');
@@ -506,11 +507,13 @@
                 if (!field || !label || shouldHideAlias(field, tableName) || !Object.prototype.hasOwnProperty.call(props, field)) return;
                 const displayField = field + '__display';
                 const value = Object.prototype.hasOwnProperty.call(props, displayField) ? props[displayField] : props[field];
-                if (value === null || value === undefined || String(value).trim() === '') return;
+                const hasChoices = Boolean(alias.lookup) || valueMapOptions(alias).length > 0;
+                const empty = value === null || value === undefined || String(value).trim() === '';
+                if (empty && !(includeEmptyLookups && hasChoices)) return;
                 fields.push({
                     field: field,
                     label: label,
-                    value: formatDisplayValue(value, field, label),
+                    value: empty ? '' : formatDisplayValue(value, field, label),
                     rawValue: props[field],
                     options: valueMapOptions(alias),
                     lookup: alias.lookup && typeof alias.lookup === 'object' ? alias.lookup : null,

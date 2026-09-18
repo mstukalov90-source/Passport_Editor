@@ -789,6 +789,8 @@ def build_home_notification_events(
                 if named:
                     event["title_named"] = named
 
+    _append_recheck_home_notification_events(events, username=login, since=since)
+
     events.sort(
         key=lambda item: (item.get("created_at_sort") or "", item.get("id") or ""),
         reverse=True,
@@ -796,6 +798,103 @@ def build_home_notification_events(
     for event in events:
         event.pop("created_at_sort", None)
     return events
+
+
+def _append_recheck_home_notification_events(events: list[dict], *, username: str, since) -> None:
+    """Append recheck create/message/approval events to the home notification feed."""
+    from recheck.access import accessible_events
+    from recheck.models import RecheckApproval, RecheckMessage
+
+    login = (username or "").strip()
+    qs = accessible_events(login or None).select_related("source_approve")
+    recent = list(qs.filter(created_at__gte=since).order_by("-created_at"))
+    event_ids = list(qs.values_list("id", flat=True))
+    event_id_set = {str(eid) for eid in event_ids}
+
+    def _recheck_title(rec) -> str:
+        approve = getattr(rec, "source_approve", None)
+        name = str(getattr(approve, "name", "") or "").strip()
+        if name:
+            return name
+        return str(getattr(rec, "title", "") or "").strip() or "Согласование ЦГ"
+
+    for rec in recent:
+        events.append(
+            {
+                "id": f"recheck:{rec.id}",
+                "kind": "new_recheck",
+                "title": _recheck_title(rec),
+                "subtitle": "Новая проверка геоподосновы",
+                "title_named": None,
+                "created_at": _format_dt(rec.created_at),
+                "created_at_sort": rec.created_at.isoformat() if rec.created_at else "",
+                "approve_id": "",
+                "case_id": "",
+                "recheck_id": str(rec.id),
+            }
+        )
+
+    if not event_ids:
+        return
+
+    messages = (
+        RecheckMessage.objects.filter(event_id__in=event_ids, created_at__gte=since)
+        .select_related("event", "event__source_approve")
+        .order_by("-created_at")
+    )
+    for message in messages:
+        author = (message.author_login or "").strip()
+        if login and author == login:
+            continue
+        rec = message.event
+        if str(rec.id) not in event_id_set:
+            continue
+        body = (message.body or "").strip()
+        if len(body) > 120:
+            body = body[:117] + "…"
+        events.append(
+            {
+                "id": f"recheck-msg:{message.id}",
+                "kind": "message",
+                "title": _recheck_title(rec),
+                "subtitle": (f"{author}: {body}" if author else body) or "Новое сообщение",
+                "title_named": None,
+                "created_at": _format_dt(message.created_at),
+                "created_at_sort": message.created_at.isoformat() if message.created_at else "",
+                "approve_id": "",
+                "case_id": "",
+                "recheck_id": str(rec.id),
+                "author": author,
+            }
+        )
+
+    approvals = (
+        RecheckApproval.objects.filter(event_id__in=event_ids, created_at__gte=since)
+        .select_related("event", "event__source_approve")
+        .order_by("-created_at")
+    )
+    for approval in approvals:
+        actor = (approval.actor_login or "").strip()
+        if login and actor == login:
+            continue
+        rec = approval.event
+        if str(rec.id) not in event_id_set:
+            continue
+        events.append(
+            {
+                "id": f"recheck-svc:{approval.id}",
+                "kind": "approved",
+                "title": _recheck_title(rec),
+                "subtitle": f"{actor} согласовал" if actor else "Проверка согласована",
+                "title_named": None,
+                "created_at": _format_dt(approval.created_at),
+                "created_at_sort": approval.created_at.isoformat() if approval.created_at else "",
+                "approve_id": "",
+                "case_id": "",
+                "recheck_id": str(rec.id),
+                "author": actor,
+            }
+        )
 
 
 def _normalized_case_owners(case: Case) -> list[str]:

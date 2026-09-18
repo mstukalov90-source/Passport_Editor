@@ -104,6 +104,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const ownedMapEl = document.getElementById('owned-passports-map');
         const ownedGeoDataEl = document.getElementById('owned-passports-geojson-data');
         const ownedApprovalsGeoEl = document.getElementById('owned-approvals-geojson-data');
+        const ownedRechecksGeoEl = document.getElementById('owned-rechecks-geojson-data');
         const hoodWorkAreaGeoEl = document.getElementById('hood-work-area-geojson-data');
         const checkDgiModal = document.getElementById('check-dgi-modal');
         const checkDgiModalBody = document.getElementById('check-dgi-modal-body');
@@ -114,15 +115,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         let lastCheckDgiContext = null;
         const checkDgiUrl = (cfg.urls && cfg.urls.checkDgi) || '';
         const intersecsAnalizUrl = (cfg.urls && cfg.urls.intersecsAnaliz) || '';
-        const checkDgiMode = PV.createCheckDgiModeController
-            ? PV.createCheckDgiModeController({
-                  url: (cfg.urls && cfg.urls.checkOgx) || '',
-                  getContext: () => lastCheckDgiContext,
-                  getCsrfToken,
-              })
-            : null;
         const resolveAsuOdsUrl = (cfg.urls && cfg.urls.resolveAsuOdsUrl) || '';
-        const personalObjectDetailsUrl = (cfg.urls && cfg.urls.personalObjectDetails) || '';
         const openOwnedUrl = (cfg.urls && cfg.urls.openOwned) || '';
         const viewObjectModal = document.getElementById('owned-view-object-modal');
         const viewObjectFrame = document.getElementById('owned-view-object-frame');
@@ -139,7 +132,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const listPanels = Array.from(document.querySelectorAll('.owned-list-panel'));
         const sourceFilterButtons = Array.from(document.querySelectorAll('.owned-source-filter-btn'));
         let applyOwnedMapSourceFilters = null;
-        let focusOwnedMapByKey = null;
         let ownedFeatureLayerByKey = null;
 
         function getCsrfToken() {
@@ -413,9 +405,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (checkDgiModal) {
                 checkDgiModal.style.display = 'none';
             }
-            if (checkDgiMode && checkDgiMode.reset) {
-                checkDgiMode.reset();
-            }
             setCheckDgiAnalizContext(null);
             setCheckDgiViewObjectProps(null);
         }
@@ -425,9 +414,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 return;
             }
             if (bodyText != null) {
-                if (checkDgiMode && checkDgiMode.reset) {
-                    checkDgiMode.reset();
-                }
                 checkDgiModalBody.textContent = bodyText;
                 setCheckDgiAnalizContext(null);
                 setCheckDgiViewObjectProps(null);
@@ -460,9 +446,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 setCheckDgiViewObjectProps(null);
             } else {
                 setCheckDgiViewObjectProps(data.view_object);
-            }
-            if (checkDgiMode && checkDgiMode.reset) {
-                checkDgiMode.reset();
             }
             openCheckDgiModalShell();
         }
@@ -690,95 +673,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             } else {
                 btn.addEventListener('click', onClick);
             }
-        }
-
-        function dashDisplay(value) {
-            const text = String(value == null ? '' : value).trim();
-            if (!text || text === '-' || ['null', 'none'].includes(text.toLowerCase())) {
-                return '—';
-            }
-            return text;
-        }
-
-        function setOwnedPopupField(root, field, value) {
-            if (!root) {
-                return;
-            }
-            const el = root.querySelector('[data-owned-popup-field="' + field + '"]');
-            if (el) {
-                el.textContent = dashDisplay(value);
-            }
-        }
-
-        function ownedPopupPlainSpan(field, value) {
-            return (
-                '<span data-owned-popup-field="' +
-                field +
-                '">' +
-                escapeHtml(dashDisplay(value)) +
-                '</span>'
-            );
-        }
-
-        function ownedPopupDateSpan(field, raw) {
-            const formatted = formatPopupDateToDay(raw);
-            return (
-                '<span data-owned-popup-field="' + field + '">' + (formatted || '—') + '</span>'
-            );
-        }
-
-        function fillOwnedPopupExtraFields(featureLayer, feature) {
-            const popupEl = featureLayer && featureLayer.getPopup && featureLayer.getPopup()?.getElement?.();
-            if (!popupEl || !personalObjectDetailsUrl) {
-                return;
-            }
-            const props = (feature && feature.properties) || {};
-            const rootid = String(props.rootid || '').trim();
-            const requestId = String(
-                props.ods_registry_brid || (!props.from_ods_registry && props.request_id) || props.request_id || ''
-            ).trim();
-            const sourceLabel = String(
-                props.matched_source_label || props.source_label || props.source || 'ДТ'
-            ).trim() || 'ДТ';
-            const body = { source_label: sourceLabel };
-            if (rootid) {
-                body.rootid = rootid;
-                if (requestId) {
-                    body.request_id = requestId;
-                }
-            } else if (requestId) {
-                body.request_id = requestId;
-            } else {
-                return;
-            }
-            void fetch(personalObjectDetailsUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-CSRFToken': getCsrfToken(),
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify(body),
-            })
-                .then((response) => response.json().catch(() => null))
-                .then((data) => {
-                    if (!data || !data.ok) {
-                        return;
-                    }
-                    if (data.request_id) {
-                        setOwnedPopupField(popupEl, 'request-id', data.request_id);
-                    }
-                    if (data.source_label && !props.from_ods_registry) {
-                        setOwnedPopupField(popupEl, 'source', data.source_label);
-                    }
-                    setOwnedPopupField(popupEl, 'approval-date', data.approval_date);
-                    setOwnedPopupField(popupEl, 'survey-date', data.survey_date);
-                    setOwnedPopupField(popupEl, 'create-type', data.create_type);
-                    setOwnedPopupField(popupEl, 'area', data.area_label);
-                    setOwnedPopupField(popupEl, 'status', data.status);
-                })
-                .catch(() => {});
         }
 
         function asuOdsPopupMeta(props) {
@@ -1043,6 +937,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (source === 'СМЕЖ') {
                 return 'СМЕЖ';
             }
+            if (source === 'ЦГ') {
+                return 'ЦГ';
+            }
             if (source === 'ОДХ') {
                 return 'ОДХ';
             }
@@ -1060,7 +957,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
         function getOwnedFilterKindFromProps(props) {
             const filterKind = String((props && props.filterKind) || '').trim().toUpperCase();
-            if (filterKind === 'СОГЛ' || filterKind === 'СМЕЖ') {
+            if (filterKind === 'СОГЛ' || filterKind === 'СМЕЖ' || filterKind === 'ЦГ') {
                 return filterKind;
             }
             const sourceLabel = String((props && props.source_label) || 'ДТ').toUpperCase();
@@ -1084,6 +981,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (item.classList.contains('owned-approval-row')) {
                 return null;
+            }
+            if (item.classList.contains('owned-recheck-row')) {
+                return 'ЦГ';
             }
             if (!item.dataset.sourceLabel) {
                 return null;
@@ -1125,7 +1025,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
         function getActiveOwnedListTab() {
             const fromBody = document.body.getAttribute('data-owned-lists-tab');
-            if (fromBody === 'requests' || fromBody === 'approvals' || fromBody === 'passports') {
+            if (fromBody === 'requests' || fromBody === 'approvals' || fromBody === 'passports' || fromBody === 'rechecks') {
                 return fromBody;
             }
             const activeBtn = listTabButtons.find((btn) => btn.classList.contains('is-active'));
@@ -1139,21 +1039,19 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             return new Set(['all']);
         }
 
-        function kindFilterSkipsOdsRequestModal() {
-            const kinds = getActiveKindFilters();
-            if (!kinds || !kinds.size) {
-                return true;
-            }
-            return !kinds.has('actualization') && !kinds.has('drawn');
-        }
-
         function isOwnedListsModalOpen() {
             return document.body.classList.contains('owned-lists-modal-open');
         }
 
         function setOwnedListTab(tabName) {
             const tab =
-                tabName === 'approvals' ? 'approvals' : tabName === 'passports' ? 'passports' : 'requests';
+                tabName === 'approvals'
+                    ? 'approvals'
+                    : tabName === 'passports'
+                      ? 'passports'
+                      : tabName === 'rechecks'
+                        ? 'rechecks'
+                        : 'requests';
             listTabButtons.forEach((btn) => {
                 btn.classList.toggle('is-active', btn.dataset.ownedListTab === tab);
             });
@@ -1195,6 +1093,21 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             return { type: 'FeatureCollection', features: [] };
         }
 
+        function parseRechecksGeoData() {
+            if (!ownedRechecksGeoEl) {
+                return { type: 'FeatureCollection', features: [] };
+            }
+            try {
+                const parsed = JSON.parse(ownedRechecksGeoEl.textContent || '{}');
+                if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
+                    return parsed;
+                }
+            } catch (e) {
+                // keep map resilient to malformed payload
+            }
+            return { type: 'FeatureCollection', features: [] };
+        }
+
         function styleOwnedFeature(feature) {
             const props = feature?.properties || {};
             const filterKind = String(props.filterKind || '').trim().toUpperCase();
@@ -1203,6 +1116,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (filterKind === 'СМЕЖ') {
                 return { color: '#0f766e', weight: 2.5, fillOpacity: 0.28, fillColor: '#5eead4' };
+            }
+            if (filterKind === 'ЦГ') {
+                return { color: '#1d4ed8', weight: 2.5, fillOpacity: 0.28, fillColor: '#93c5fd' };
             }
             const sourceLabel = String(props.source_label || 'ДТ').toUpperCase();
             const rootid = String(props.rootid || '').trim();
@@ -1291,68 +1207,19 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
             const data = parseOwnedGeoData();
             const approvalData = parseApprovalsGeoData();
+            const recheckData = parseRechecksGeoData();
             const featureLayerByKey = new Map();
             ownedFeatureLayerByKey = featureLayerByKey;
             const featureStyleByKey = new Map();
             const featureMetaByKey = new Map();
             const keysByApproveId = new Map();
+            const keysByRecheckId = new Map();
             const approvalLandingUrl = (cfg.urls && cfg.urls.approvalLanding) || '';
+            const recheckLandingUrl = (cfg.urls && cfg.urls.recheckLanding) || '';
             let activeKey = '';
             let activeRow = null;
             let hoverKey = '';
             let hoverRow = null;
-            let selectionPulseTimer = 0;
-            let selectionPulseKeys = [];
-
-            function stopSelectionPulse() {
-                if (selectionPulseTimer) {
-                    window.clearInterval(selectionPulseTimer);
-                    selectionPulseTimer = 0;
-                }
-                selectionPulseKeys = [];
-            }
-
-            function restoreFeatureStyle(key) {
-                const layer = featureLayerByKey.get(key);
-                const style = featureStyleByKey.get(key);
-                if (layer && style && typeof layer.setStyle === 'function') {
-                    layer.setStyle(style);
-                }
-            }
-
-            function applySelectedFeatureStyle(key, pulsePhase) {
-                const layer = featureLayerByKey.get(key);
-                if (!layer || typeof layer.setStyle !== 'function') {
-                    return;
-                }
-                const baseStyle = featureStyleByKey.get(key) || {};
-                const fill0 = Math.max(0.28, Number(baseStyle.fillOpacity) || 0.3);
-                const fill1 = Math.min(0.82, fill0 + 0.42);
-                const phase = typeof pulsePhase === 'number' ? pulsePhase : 1;
-                layer.setStyle({
-                    ...baseStyle,
-                    weight: Math.max(5, Number(baseStyle.weight) + 2 || 5),
-                    opacity: 1,
-                    fillOpacity: fill0 + (fill1 - fill0) * phase,
-                });
-                if (typeof layer.bringToFront === 'function') {
-                    layer.bringToFront();
-                }
-            }
-
-            function startSelectionPulse(keys) {
-                stopSelectionPulse();
-                selectionPulseKeys = (keys || []).filter(Boolean);
-                if (!selectionPulseKeys.length) {
-                    return;
-                }
-                let tick = 0;
-                selectionPulseTimer = window.setInterval(() => {
-                    tick += 1;
-                    const phase = (Math.sin(tick / 2) + 1) / 2;
-                    selectionPulseKeys.forEach((key) => applySelectedFeatureStyle(key, phase));
-                }, 90);
-            }
 
             function clearActiveRow() {
                 if (activeRow) {
@@ -1363,12 +1230,13 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
             function clearActiveFeature() {
                 if (!activeKey) {
-                    stopSelectionPulse();
                     return;
                 }
-                const keysToRestore = siblingKeysFor(activeKey);
-                stopSelectionPulse();
-                keysToRestore.forEach(restoreFeatureStyle);
+                const prevLayer = featureLayerByKey.get(activeKey);
+                const prevStyle = featureStyleByKey.get(activeKey);
+                if (prevLayer && prevStyle && typeof prevLayer.setStyle === 'function') {
+                    prevLayer.setStyle(prevStyle);
+                }
                 activeKey = '';
             }
 
@@ -1446,16 +1314,22 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     if (!layerToFocus || typeof layerToFocus.setStyle !== 'function') {
                         return;
                     }
-                    applySelectedFeatureStyle(focusKey, 1);
+                    const baseStyle = featureStyleByKey.get(focusKey) || {};
+                    layerToFocus.setStyle({
+                        ...baseStyle,
+                        weight: Math.max(4, Number(baseStyle.weight) + 1 || 4),
+                        fillOpacity: Math.max(0.34, Number(baseStyle.fillOpacity) + 0.12 || 0.34),
+                    });
+                    if (typeof layerToFocus.bringToFront === 'function') {
+                        layerToFocus.bringToFront();
+                    }
                     layersToFit.push(layerToFocus);
                 });
-                startSelectionPulse(focusKeys);
                 const row = rowByKey.get(key);
                 const foldedOdsBtn =
                     source === 'map' && row && row.classList.contains('owned-passport-row')
                         ? row.querySelector('.owned-ods-action-btn')
                         : null;
-                const shouldClickFoldedOds = Boolean(foldedOdsBtn) && !kindFilterSkipsOdsRequestModal();
                 const layerToFocus = featureLayerByKey.get(key);
                 if (layerToFocus) {
                     if (source === 'list') {
@@ -1471,7 +1345,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                             }
                         }
                     }
-                    if (!shouldClickFoldedOds && typeof layerToFocus.openPopup === 'function') {
+                    if (!foldedOdsBtn && typeof layerToFocus.openPopup === 'function') {
                         layerToFocus.openPopup();
                     }
                     activeKey = key;
@@ -1485,6 +1359,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                                 rowTab = 'requests';
                             } else if (row.classList.contains('owned-approval-row')) {
                                 rowTab = 'approvals';
+                            } else if (row.classList.contains('owned-recheck-row')) {
+                                rowTab = 'rechecks';
                             }
                             setOwnedListTab(rowTab);
                             applyOwnedFilters();
@@ -1494,7 +1370,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     activeRow = row;
                     if (source === 'map') {
                         row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        if (shouldClickFoldedOds) {
+                        if (foldedOdsBtn) {
                             foldedOdsBtn.click();
                         }
                     }
@@ -1522,11 +1398,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                         foldedIntoPassport: Boolean(props.folded_into_passport),
                     });
                     featureLayer.on('click', () => focusByKey(key, 'map'));
-                    const passportId = String(props.rootid || '').trim();
-                    const popupRequestId = String(
-                        props.ods_registry_brid || (!props.from_ods_registry && props.request_id) || ''
-                    ).trim();
-                    let sourceDisplay = escapeHtml(dashDisplay(props.source_label || 'ДТ'));
+                    const idLabel = props.rootid ? '№ Паспорта' : '№ Заявки';
+                    const idValue = props.rootid || props.request_id || '-';
+                    let sourceDisplay = escapeHtml(props.source_label || 'ДТ');
                     if (props.from_ods_registry) {
                         const brid = String(props.brid || props.request_id || '').trim();
                         const odsLabel = escapeHtml(props.source_label || 'ОДС');
@@ -1534,37 +1408,32 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     }
                     let popupHtml =
                         '<div>' +
-                            '<div><strong>ID паспорта:</strong> ' +
-                            ownedPopupPlainSpan('passport-id', passportId) +
-                            '</div>' +
-                            '<div><strong>ID заявки:</strong> ' +
-                            ownedPopupPlainSpan('request-id', popupRequestId) +
-                            '</div>' +
-                            '<div><strong>Название:</strong> ' +
-                            escapeHtml(dashDisplay(props.name)) +
-                            '</div>' +
-                            '<div><strong>Источник:</strong> <span data-owned-popup-field="source">' +
-                            sourceDisplay +
-                            '</span></div>' +
-                            '<div class="owned-popup-extra-fields">' +
-                            '<div><strong>Дата утверждения:</strong> ' +
-                            ownedPopupDateSpan('approval-date', props.startdate || props.StartDate) +
-                            '</div>' +
-                            '<div><strong>Дата полевого обследования:</strong> ' +
-                            ownedPopupDateSpan('survey-date', props.datesurvey || props.DateSurvey) +
-                            '</div>' +
-                            '<div><strong>Тип создания:</strong> ' +
-                            ownedPopupPlainSpan('create-type', props.createtype || props.CreateType) +
-                            '</div>' +
-                            '<div><strong>Площадь:</strong> ' +
-                            ownedPopupPlainSpan('area', props.area_label || '') +
-                            '</div>' +
-                            '<div><strong>Статус:</strong> ' +
-                            ownedPopupPlainSpan('status', props.display_status || props.status || '') +
-                            '</div>' +
+                            '<div><strong>' + idLabel + ':</strong> ' + escapeHtml(idValue) + '</div>';
+                    const popupRequestId = String(props.ods_registry_brid || (!props.from_ods_registry && props.request_id) || '').trim();
+                    if (props.rootid && popupRequestId) {
+                        popupHtml +=
+                            '<div><strong>№ Заявки:</strong> ' + escapeHtml(popupRequestId) + '</div>';
+                    }
+                    popupHtml +=
+                            '<div><strong>Название:</strong> ' + escapeHtml(props.name || '-') + '</div>' +
+                            '<div><strong>Источник:</strong> ' + sourceDisplay + '</div>';
+                    if (props.from_ods_registry && props.matched_source_label) {
+                        popupHtml +=
+                            '<div><strong>Источник GIS:</strong> ' +
+                            escapeHtml(props.matched_source_label) +
                             '</div>';
+                    }
+                    popupHtml += buildPopupMetaFieldsHtml(props);
                     const asuMeta = asuOdsPopupMeta(props);
                     popupHtml += '<div class="owned-popup-actions">';
+                    popupHtml +=
+                        '<button type="button" class="owned-list-icon-btn owned-view-object-btn" title="Просмотр объекта" aria-label="Просмотр объекта">' +
+                        ownedActionIconImgHtml('view') +
+                        '<span>Просмотр объекта</span></button>';
+                    popupHtml +=
+                        '<button type="button" class="owned-list-icon-btn owned-check-dgi-btn" title="Проверка пересечений" aria-label="Проверка пересечений">' +
+                        ownedActionIconImgHtml('dgi') +
+                        '<span>Проверка пересечений</span></button>';
                     if (asuMeta) {
                         popupHtml +=
                             '<button type="button" class="owned-list-icon-btn owned-asu-ods-btn" title="АСУ ОДС" aria-label="АСУ ОДС"' +
@@ -1576,14 +1445,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                             ownedActionIconImgHtml('asu') +
                             '<span>АСУ ОДС</span></button>';
                     }
-                    popupHtml +=
-                        '<button type="button" class="owned-list-icon-btn owned-check-dgi-btn" title="Проверка пересечений" aria-label="Проверка пересечений">' +
-                        ownedActionIconImgHtml('dgi') +
-                        '<span>Проверка пересечений</span></button>';
-                    popupHtml +=
-                        '<button type="button" class="owned-list-icon-btn owned-view-object-btn" title="Просмотр объекта" aria-label="Просмотр объекта">' +
-                        ownedActionIconImgHtml('view') +
-                        '<span>Просмотр объекта</span></button>';
                     popupHtml += '</div></div>';
                     featureLayer.bindPopup(popupHtml);
                     featureLayer.off('popupopen');
@@ -1594,7 +1455,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                             bindOwnedCheckDgiButton(featureLayer, feature);
                             bindOwnedAsuOdsButton(featureLayer, feature);
                             bindOwnedViewObjectButton(featureLayer, feature);
-                            fillOwnedPopupExtraFields(featureLayer, feature);
                         }, 0);
                     });
                 },
@@ -1663,13 +1523,70 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 },
             }).addTo(map);
 
+            const recheckLayer = L.geoJSON(recheckData, {
+                style: styleOwnedFeature,
+                onEachFeature: (feature, featureLayer) => {
+                    const props = feature?.properties || {};
+                    const recheckId = String(props.recheck_id || '').trim();
+                    const key = buildOwnedMapKey(
+                        props.rootid || props.incoming_guid || '',
+                        props.filterKind || 'ЦГ',
+                        '',
+                        props.name || '',
+                        props.map_row_key || ''
+                    );
+                    featureLayerByKey.set(key, featureLayer);
+                    featureStyleByKey.set(key, styleOwnedFeature(feature));
+                    featureMetaByKey.set(key, {
+                        sourceLabel: normalizeOwnedSourceLabel(props.filterKind || 'ЦГ'),
+                        filterKind: getOwnedFilterKindFromProps(props),
+                        rowKind: 'recheck',
+                        passportizationKind: '',
+                    });
+                    if (recheckId) {
+                        const keys = keysByRecheckId.get(recheckId) || [];
+                        keys.push(key);
+                        keysByRecheckId.set(recheckId, keys);
+                    }
+                    featureLayer.on('click', () => focusByKey(key, 'map'));
+                    let popupHtml =
+                        '<div>' +
+                            '<div><strong>Согласование ЦГ</strong></div>' +
+                            '<div><strong>Название:</strong> ' + escapeHtml(props.name || '-') + '</div>';
+                    if (recheckId && recheckLandingUrl) {
+                        const href =
+                            recheckLandingUrl +
+                            (recheckLandingUrl.indexOf('?') >= 0 ? '&' : '?') +
+                            'event=' +
+                            encodeURIComponent(recheckId);
+                        popupHtml +=
+                            '<div style="margin-top:10px;padding-top:8px;border-top:1px solid #e5e7eb;">' +
+                            '<button type="button" class="map-toolbar-btn map-toolbar-btn--primary owned-open-approval-btn" data-approval-href="' +
+                            escapeHtml(href) +
+                            '" style="font-size:12px;padding:6px 10px;width:100%;">' +
+                            'Открыть согласование ЦГ</button></div>';
+                    }
+                    popupHtml += '</div>';
+                    featureLayer.bindPopup(popupHtml);
+                    featureLayer.off('popupopen');
+                    featureLayer.on('popupopen', () => {
+                        window.setTimeout(() => {
+                            bindOwnedOpenApprovalButton(featureLayer);
+                        }, 0);
+                    });
+                },
+            }).addTo(map);
+
             const ownedBounds = layer.getBounds();
             const approvalBounds = approvalLayer.getBounds();
+            const recheckBounds = recheckLayer.getBounds();
             const hoodBounds = hoodWorkAreaLayer && hoodWorkAreaLayer.getBounds ? hoodWorkAreaLayer.getBounds() : null;
             if (ownedBounds.isValid()) {
                 map.fitBounds(ownedBounds.pad(0.04));
             } else if (approvalBounds.isValid()) {
                 map.fitBounds(approvalBounds.pad(0.04));
+            } else if (recheckBounds.isValid()) {
+                map.fitBounds(recheckBounds.pad(0.04));
             } else if (hoodBounds && hoodBounds.isValid && hoodBounds.isValid()) {
                 map.fitBounds(hoodBounds.pad(0.05));
             } else {
@@ -1729,6 +1646,36 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             document.querySelectorAll('.owned-approval-row').forEach((row) => {
                 const approveId = String(row.dataset.approveId || '').trim();
                 const keys = keysByApproveId.get(approveId) || [];
+                keys.forEach((key) => {
+                    if (!rowByKey.has(key)) {
+                        rowByKey.set(key, row);
+                    }
+                });
+                if (keys[0]) {
+                    row.dataset.mapKey = keys[0];
+                }
+                row.addEventListener('mouseenter', () => {
+                    hoverByKey(row.dataset.mapKey || keys[0] || '');
+                });
+                row.addEventListener('mouseleave', () => {
+                    clearHoverFeature();
+                    clearHoverRow();
+                });
+                row.addEventListener('click', (event) => {
+                    if (event.target.closest('a, form, button, input, label')) {
+                        return;
+                    }
+                    const mapKey = row.dataset.mapKey || keys[0] || '';
+                    if (!mapKey) {
+                        return;
+                    }
+                    focusByKey(mapKey, 'list');
+                });
+            });
+
+            document.querySelectorAll('.owned-recheck-row').forEach((row) => {
+                const recheckId = String(row.dataset.recheckId || '').trim();
+                const keys = keysByRecheckId.get(recheckId) || [];
                 keys.forEach((key) => {
                     if (!rowByKey.has(key)) {
                         rowByKey.set(key, row);
@@ -1823,7 +1770,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
 
             applyOwnedMapSourceFilters = applyMapFilters;
-            focusOwnedMapByKey = focusByKey;
             applyOwnedMapSourceFilters();
 
             const ownedMapWrap = ownedMapEl.closest('.owned-map-wrap');
@@ -1940,9 +1886,16 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             return filterValue === 'СОГЛ' || filterValue === 'СМЕЖ';
         }
 
+        function isOwnedRecheckFilterKind(filterValue) {
+            return filterValue === 'ЦГ';
+        }
+
         function legendFilterGroup(filterValue) {
             if (isOwnedApprovalFilterKind(filterValue)) {
                 return 'approvals';
+            }
+            if (isOwnedRecheckFilterKind(filterValue)) {
+                return 'rechecks';
             }
             if (isOwnedRequestFilterKind(filterValue)) {
                 return 'requests';
@@ -1972,6 +1925,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
             if (item.classList.contains('owned-approval-row')) {
                 return 'approvals';
+            }
+            if (item.classList.contains('owned-recheck-row')) {
+                return 'rechecks';
             }
             return 'passports';
         }
@@ -2571,12 +2527,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     entryRequestTitle.textContent = 'Заявка на первичную паспортизацию';
                 } else if (mode === 'ods-main') {
                     entryRequestTitle.textContent = 'Открытие карты по заявке ОДС';
-                } else if (
-                    mode === 'owned' &&
-                    options.prefillRequestId != null &&
-                    String(options.prefillRequestId).trim() !== ''
-                ) {
-                    entryRequestTitle.textContent = 'Геометрия паспорта';
                 } else {
                     entryRequestTitle.textContent = 'Заявка на актуализацию.';
                 }
@@ -2592,11 +2542,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     entryRequestText.textContent =
                         'Проверьте номер заявки и нажмите «Продолжить», чтобы открыть карту.';
                 } else if (mode === 'owned') {
-                    const hasPrefill =
-                        options.prefillRequestId != null && String(options.prefillRequestId).trim() !== '';
-                    entryRequestText.textContent = hasPrefill
-                        ? 'Выберите, какую геометрию загрузить: упрощённую или полную.'
-                        : 'У объекта не указан номер заявки в базе. Введите номер заявки и выберите геометрию, чтобы продолжить.';
+                    entryRequestText.textContent =
+                        'У объекта не указан номер заявки в базе. Введите номер заявки, чтобы продолжить.';
                 }
             }
             if (mode === 'ods-main' || (mode === 'owned' && options.odsOpenOwned)) {
@@ -2693,12 +2640,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             } else if (entryRequestMode === 'owned' && pendingOdsOpenOwned) {
                 const ctx = pendingOdsOpenOwned;
                 pendingOdsOpenOwned = null;
-                fillAndSubmitOdsOpenOwnedForm(
-                    ctx,
-                    raw,
-                    ctx.redirectTo || '',
-                    getEntryGeometryDetailMode()
-                );
+                fillAndSubmitOdsOpenOwnedForm(ctx, raw, '');
             }
             closeEntryRequestModal();
         }
@@ -2720,7 +2662,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const addObjectEntryBtn = document.getElementById('add-object-entry-btn');
         if (addObjectEntryBtn) {
             addObjectEntryBtn.addEventListener('click', () => {
-                closeOwnedListsModal();
                 openEntryRequestModal('add-object');
             });
         }
@@ -2817,11 +2758,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 document.querySelectorAll('.merge-passport-cb').forEach((cb) => {
                     cb.checked = false;
                 });
-                const homeFooter = document.querySelector('#owned-lists-home-slot > .owned-home-footer');
-                const modalFooter = document.getElementById('owned-lists-modal-footer');
-                if (homeFooter && modalFooter) {
-                    modalFooter.appendChild(homeFooter);
-                }
             }
         }
 
@@ -3036,17 +2972,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
 
         if (mergePassportsBtn && mergePassportsToolbar) {
             mergePassportsBtn.addEventListener('click', () => {
-                const next = !mergePassportsMode;
-                if (next) {
-                    setMergePassportsMode(true);
-                    mergePassportsBtn.classList.add('is-active');
-                    closeOwnedListsModal();
-                    setOwnedListTab('passports');
-                    applyOwnedFilters();
-                } else {
-                    setMergePassportsMode(false);
-                    mergePassportsBtn.classList.remove('is-active');
-                }
+                setMergePassportsMode(!mergePassportsMode);
+                mergePassportsBtn.classList.toggle('is-active', mergePassportsMode);
             });
         }
         if (mergePassportsCancelBtn) {
@@ -3101,7 +3028,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
         }
 
-        function fillAndSubmitOdsOpenOwnedForm(ctx, requestIdVal, redirectToValue, geomMode) {
+        function fillAndSubmitOdsOpenOwnedForm(ctx, requestIdVal, redirectToValue) {
             const formOds = document.getElementById('form-ods-open-owned');
             if (!formOds) {
                 return;
@@ -3119,7 +3046,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             nameEl.value = (ctx && ctx.name) || '';
             ridEl.value = (requestIdVal || '').trim();
             srcEl.value = (ctx && ctx.source_label) || 'ДТ';
-            geomEl.value = (geomMode || getEntryGeometryDetailMode() || 'simplified').trim();
+            geomEl.value = 'simplified';
             redEl.value = (redirectToValue || '').trim();
             formOds.submit();
         }
@@ -3129,10 +3056,12 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             if (!ctx.rootid) {
                 return;
             }
-            openEntryRequestModal('owned', {
-                odsOpenOwned: Object.assign({}, ctx, { redirectTo: redirectTo || '' }),
-                prefillRequestId: ctx.request_id || '',
-            });
+            const requestId = ctx.request_id;
+            if (!redirectTo && !requestId) {
+                openEntryRequestModal('owned', { odsOpenOwned: ctx });
+                return;
+            }
+            fillAndSubmitOdsOpenOwnedForm(ctx, requestId, redirectTo || '');
         }
 
         if (viewObjectSplitBtn) {
@@ -3179,14 +3108,6 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                     return;
                 }
                 if (scenario === 2) {
-                    if (kindFilterSkipsOdsRequestModal()) {
-                        const row = btn.closest('.owned-item');
-                        const mapKey = row && row.dataset.mapKey;
-                        if (typeof focusOwnedMapByKey === 'function' && mapKey) {
-                            focusOwnedMapByKey(mapKey, 'list');
-                        }
-                        return;
-                    }
                     if (!gisReady || !shortRoot) {
                         openOdsGisMissingModal();
                         return;
@@ -3307,6 +3228,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             });
         }
 
+        const userGuideModal = document.getElementById('user-guide-modal');
+        const userGuideOpenBtn = document.getElementById('user-guide-open-btn');
+        const userGuideCloseBtn = document.getElementById('user-guide-close-btn');
         const dgiIntersectionsTableBtn = document.getElementById('dgi-intersections-table-btn');
         const dgiIntersectionsTableModal = document.getElementById('dgi-intersections-table-modal');
         const dgiIntersectionsTableCloseBtn = document.getElementById('dgi-intersections-table-close-btn');
@@ -3317,6 +3241,7 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         const listDgiIntersectionsUrl = (cfg.urls && cfg.urls.listDgiIntersections) || '';
         let dgiIntersectionsPreviousOverflow = '';
         let dgiIntersectionsRowsById = new Map();
+        let userGuidePreviousOverflow = '';
 
         function dgiPctClass(value, skipped) {
             if (skipped) {
@@ -3553,17 +3478,58 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
             }
         });
 
+        function openUserGuideModal() {
+            if (!userGuideModal) {
+                return;
+            }
+            userGuidePreviousOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            userGuideModal.hidden = false;
+            userGuideModal.classList.add('is-open');
+            if (userGuideCloseBtn) {
+                userGuideCloseBtn.focus();
+            }
+        }
+
+        function closeUserGuideModal() {
+            if (!userGuideModal) {
+                return;
+            }
+            userGuideModal.classList.remove('is-open');
+            userGuideModal.hidden = true;
+            document.body.style.overflow = userGuidePreviousOverflow;
+        }
+
+        if (userGuideOpenBtn) {
+            userGuideOpenBtn.addEventListener('click', openUserGuideModal);
+        }
+        if (userGuideCloseBtn) {
+            userGuideCloseBtn.addEventListener('click', closeUserGuideModal);
+        }
+        if (userGuideModal) {
+            userGuideModal.addEventListener('click', (event) => {
+                if (event.target === userGuideModal) {
+                    closeUserGuideModal();
+                }
+            });
+        }
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && userGuideModal && userGuideModal.classList.contains('is-open')) {
+                closeUserGuideModal();
+            }
+        });
+
         const ownedListsModal = document.getElementById('owned-lists-modal');
         const ownedListsModalTitle = document.getElementById('owned-lists-modal-title');
         const ownedListsModalClose = document.getElementById('owned-lists-modal-close');
         const ownedListsModalBody = document.getElementById('owned-lists-modal-body');
-        const ownedListsModalFooter = document.getElementById('owned-lists-modal-footer');
         const ownedListsHomeSlot = document.getElementById('owned-lists-home-slot');
         const ownedListsStackEl = document.querySelector('.owned-home-lists-stack');
-        const ownedListsFooterEl = document.querySelector('.owned-home-footer');
         const ownedListsModalTitles = {
             requests: 'Отрисовка границ заявок',
             approvals: 'Согласование границ ОГХ',
+            rechecks: 'Согласование ЦГ',
+            passports: 'Утверждённые паспорта',
         };
 
         function moveOwnedListsModalNodes(open) {
@@ -3571,26 +3537,8 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 if (ownedListsStackEl && ownedListsModalBody && ownedListsStackEl.parentElement !== ownedListsModalBody) {
                     ownedListsModalBody.appendChild(ownedListsStackEl);
                 }
-                if (ownedListsFooterEl && ownedListsModalFooter && ownedListsFooterEl.parentElement !== ownedListsModalFooter) {
-                    ownedListsModalFooter.appendChild(ownedListsFooterEl);
-                }
-            } else {
-                if (ownedListsStackEl && ownedListsHomeSlot && ownedListsStackEl.parentElement !== ownedListsHomeSlot) {
-                    ownedListsHomeSlot.appendChild(ownedListsStackEl);
-                }
-                if (
-                    document.body.classList.contains('home--merge-passports') &&
-                    ownedListsFooterEl &&
-                    ownedListsHomeSlot
-                ) {
-                    ownedListsHomeSlot.appendChild(ownedListsFooterEl);
-                } else if (
-                    ownedListsFooterEl &&
-                    ownedListsModalFooter &&
-                    ownedListsFooterEl.parentElement !== ownedListsModalFooter
-                ) {
-                    ownedListsModalFooter.appendChild(ownedListsFooterEl);
-                }
+            } else if (ownedListsStackEl && ownedListsHomeSlot && ownedListsStackEl.parentElement !== ownedListsHomeSlot) {
+                ownedListsHomeSlot.appendChild(ownedListsStackEl);
             }
         }
 
@@ -3607,7 +3555,14 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
         }
 
         function openOwnedListsModal(tabName) {
-            const tab = tabName === 'approvals' ? 'approvals' : 'requests';
+            const tab =
+                tabName === 'approvals'
+                    ? 'approvals'
+                    : tabName === 'passports'
+                      ? 'passports'
+                      : tabName === 'rechecks'
+                        ? 'rechecks'
+                        : 'requests';
             closeHomeWorkflowModal();
             document.body.classList.add('owned-lists-modal-open');
             document.body.setAttribute('data-owned-lists-tab', tab);
@@ -3650,6 +3605,9 @@ const HOME_OGH_BOUNDARIES_EDIT_KEY = 'home_ogh_boundaries_edit';
                 return;
             }
             if (ownedRecapsModal && ownedRecapsModal.style.display === 'flex') {
+                return;
+            }
+            if (userGuideModal && userGuideModal.classList.contains('is-open')) {
                 return;
             }
             if (viewObjectModal && viewObjectModal.classList.contains('is-open')) {

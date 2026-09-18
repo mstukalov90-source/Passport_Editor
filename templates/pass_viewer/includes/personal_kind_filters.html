@@ -23,4 +23,8 @@
                 Согласование границ ОГХ
                 <span class="personal-kind-filter-count">{{ personal_kind_counts.approval|default:0 }}</span>
             </button>
+            <button type="button" class="personal-kind-filter-btn" data-kind-filter="recheck" aria-pressed="false">
+                Согласование ЦГ
+                <span class="personal-kind-filter-count">{{ personal_kind_counts.recheck|default:0 }}</span>
+            </button>
         </div>

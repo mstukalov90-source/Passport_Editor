@@ -142,6 +142,8 @@
                         <td>
                             {% if item.row_kind == 'ods' %}
                             —
+                            {% elif item.row_kind == 'recheck' %}
+                            <span class="personal-badge personal-badge--dt">ЦГ</span>
                             {% elif source == 'ОЗН' or source == 'ОО' %}
                             <span class="personal-badge personal-badge--oo">ОО</span>
                             {% elif source == 'ОДХ' %}
@@ -175,7 +177,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if item.row_kind == 'approval' %}
+                            {% if item.row_kind == 'approval' or item.row_kind == 'recheck' %}
                             <button type="button" class="personal-table-btn is-disabled" disabled>
                                 <img class="personal-table-btn__icon" src="{% static 'pass_viewer/intersect-polygons.svg' %}" alt="" aria-hidden="true">
                                 Проверить
@@ -198,6 +200,11 @@
                         <td>
                             {% if item.row_kind == 'approval' and item.approve_id %}
                             <a class="personal-table-btn" href="{% url 'approval:landing' %}?approve={{ item.approve_id }}">
+                                <img class="personal-table-btn__icon" src="{% static 'pass_viewer/search-loupe.svg' %}" alt="" aria-hidden="true">
+                                Просмотр
+                            </a>
+                            {% elif item.row_kind == 'recheck' and item.recheck_id %}
+                            <a class="personal-table-btn" href="{% url 'recheck:landing' %}?event={{ item.recheck_id }}">
                                 <img class="personal-table-btn__icon" src="{% static 'pass_viewer/search-loupe.svg' %}" alt="" aria-hidden="true">
                                 Просмотр
                             </a>
