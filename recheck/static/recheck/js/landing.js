@@ -129,6 +129,153 @@
             properties.ObjectId ?? properties.id ?? feature.id ?? fallback;
     }
 
+    function layerTableKey(layerKey) {
+        const key = String(layerKey || '');
+        return key.indexOf('topo:') === 0 ? key.slice(5) : key;
+    }
+
+    function isPhotoFixLayer(layerKey) {
+        return layerTableKey(layerKey) === 'PhotoFixPoint';
+    }
+
+    let modalFields = [];
+
+    function lookupParents(item) {
+        const lookup = (item && item.lookup) || {};
+        if (Array.isArray(lookup.parents) && lookup.parents.length) return lookup.parents;
+        if (item.field === 'MafTypeLevel2') return [{column: 'ParentCode', field: 'MafTypeLevel1'}];
+        if (item.field === 'MafTypeLevel3') {
+            return [
+                {column: 'ParentLevel1Code', field: 'MafTypeLevel1'},
+                {column: 'ParentLevel2Code', field: 'MafTypeLevel2'},
+            ];
+        }
+        return [];
+    }
+
+    function fieldItem(field) {
+        return modalFields.find((item) => item.field === field) || null;
+    }
+
+    function optionLabel(option) {
+        if (!option) return '';
+        const label = option.label == null || option.label === '' ? option.value : option.label;
+        return String(label);
+    }
+
+    function resolveStoredValue(field, typed, fallback) {
+        const text = String(typed == null ? '' : typed).trim();
+        const item = fieldItem(field);
+        const options = (item && item.options) || [];
+        const byLabel = options.find((option) => optionLabel(option) === text);
+        if (byLabel) return String(byLabel.value);
+        const byCode = options.find((option) => String(option.value) === text);
+        if (byCode) return String(byCode.value);
+        if (text) return text;
+        return fallback == null ? '' : String(fallback);
+    }
+
+    function currentModalValue(field, fallback) {
+        const control = document.querySelector('#recheck-fields [data-change-value="' + CSS.escape(field) + '"]');
+        if (control) return resolveStoredValue(field, control.value, fallback);
+        return fallback == null ? '' : String(fallback);
+    }
+
+    function fillComboOptions(input, options, current, currentLabel) {
+        const list = Array.isArray(options) ? options.slice() : [];
+        const currentValue = current == null ? '' : String(current);
+        if (currentValue && !list.some((option) => String(option.value) === currentValue)) {
+            const extraLabel = currentLabel && String(currentLabel) !== currentValue &&
+                (!input.value || input.value === currentLabel)
+                ? currentLabel
+                : currentValue;
+            list.unshift({value: currentValue, label: extraLabel});
+        }
+        const item = fieldItem(input.dataset.changeValue);
+        if (item) item.options = list;
+        const datalist = document.getElementById('recheck-dl-' + input.dataset.changeValue);
+        if (datalist) {
+            const seenLabels = new Set();
+            datalist.innerHTML = list.map((option) => {
+                let label = optionLabel(option);
+                if (seenLabels.has(label) && String(option.value) && String(option.value) !== label) {
+                    label = label + ' (' + option.value + ')';
+                }
+                seenLabels.add(label);
+                return '<option value="' + escapeHtml(label) + '"></option>';
+            }).join('');
+        }
+        if (!input.value) {
+            const matched = list.find((option) => String(option.value) === currentValue);
+            input.value = matched ? optionLabel(matched) : (currentLabel || currentValue);
+        }
+    }
+
+    function fieldEditorHtml(item) {
+        const field = escapeHtml(item.field);
+        const text = item.value == null ? '' : String(item.value);
+        if ((item.options && item.options.length) || item.lookup) {
+            return '<span class="recheck-combo"><input type="text" list="recheck-dl-' + field +
+                '" data-change-value="' + field + '" value="' + escapeHtml(text) +
+                '" autocomplete="off" disabled><datalist id="recheck-dl-' + field + '"></datalist></span>';
+        }
+        return '<input type="text" data-change-value="' + field + '" value="' + escapeHtml(text) + '" disabled>';
+    }
+
+    function parentFilters(item, properties) {
+        const filters = {};
+        lookupParents(item).forEach((parent) => {
+            const value = currentModalValue(parent.field, properties[parent.field]);
+            if (value) filters[parent.column] = value;
+        });
+        return filters;
+    }
+
+    async function refreshLookupSelect(item, properties) {
+        const input = document.querySelector('#recheck-fields [data-change-value="' + CSS.escape(item.field) + '"]');
+        if (!input || !item.lookup || !config.urls.lookupOptions) return;
+        const parents = lookupParents(item);
+        const filters = parentFilters(item, properties);
+        const current = resolveStoredValue(item.field, input.value, item.rawValue);
+        if (parents.length && parents.some((parent) => !filters[parent.column])) {
+            fillComboOptions(input, [], current, item.value);
+            return;
+        }
+        try {
+            const data = await jsonFetch(config.urls.lookupOptions, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
+                body: JSON.stringify({
+                    table: item.lookup.table,
+                    key: item.lookup.key || 'Code',
+                    value: item.lookup.value || 'Name',
+                    filters: filters,
+                }),
+            });
+            fillComboOptions(input, data.options || [], current, item.value);
+        } catch (_error) {
+            fillComboOptions(input, [], current, item.value);
+        }
+    }
+
+    function bindDependentLookups(properties) {
+        document.querySelectorAll('#recheck-fields [data-change-value]').forEach((control) => {
+            let timer = null;
+            const onUpdate = () => {
+                modalFields.forEach((item) => {
+                    if (!item.lookup) return;
+                    if (!lookupParents(item).some((parent) => parent.field === control.dataset.changeValue)) return;
+                    void refreshLookupSelect(item, properties);
+                });
+            };
+            control.addEventListener('change', onUpdate);
+            control.addEventListener('input', () => {
+                window.clearTimeout(timer);
+                timer = window.setTimeout(onUpdate, 300);
+            });
+        });
+    }
+
     function geometryKey(feature, prefix) {
         const raw = JSON.stringify(feature.geometry || {});
         let hash = 2166136261;
@@ -144,18 +291,39 @@
         selectedLayerKey = layerKey;
         const properties = feature.properties || {};
         const identity = featureIdentity(feature, fallback);
-        document.getElementById('recheck-object-caption').textContent = 'Объект: ' + identity;
-        document.getElementById('recheck-fields').innerHTML = Object.entries(properties).map(([key, value]) => {
-            const text = value == null ? '' : (typeof value === 'object' ? JSON.stringify(value) : String(value));
-            return '<label class="recheck-field"><input type="checkbox" data-change-check="' + escapeHtml(key) + '">' +
-                '<span>' + escapeHtml(key) + '</span><code title="' + escapeHtml(text) + '">' + escapeHtml(text) + '</code>' +
-                '<input type="text" data-change-value="' + escapeHtml(key) + '" value="' + escapeHtml(text) + '" disabled></label>';
-        }).join('');
-        document.querySelectorAll('[data-change-check]').forEach((check) => {
-            check.addEventListener('change', () => {
-                document.querySelector('[data-change-value="' + CSS.escape(check.dataset.changeCheck) + '"]').disabled = !check.checked;
+        const title = qmlRenderer && typeof qmlRenderer.popupTitle === 'function'
+            ? qmlRenderer.popupTitle(feature)
+            : '';
+        document.getElementById('recheck-object-caption').textContent = title || ('Объект: ' + identity);
+        modalFields = qmlRenderer && typeof qmlRenderer.popupFields === 'function'
+            ? qmlRenderer.popupFields(feature)
+            : [];
+        const fieldsEl = document.getElementById('recheck-fields');
+        if (!modalFields.length) {
+            fieldsEl.innerHTML = '<p class="recheck-fields-empty">Нет полей для изменения.</p>';
+        } else {
+            fieldsEl.innerHTML = modalFields.map((item) => {
+                const text = item.value == null ? '' : String(item.value);
+                return '<label class="recheck-field"><input type="checkbox" data-change-check="' + escapeHtml(item.field) +
+                    '" data-change-label="' + escapeHtml(item.label) + '">' +
+                    '<span>' + escapeHtml(item.label) + '</span><code title="' + escapeHtml(text) + '">' + escapeHtml(text) + '</code>' +
+                    fieldEditorHtml(item) + '</label>';
+            }).join('');
+            modalFields.forEach((item) => {
+                const input = document.querySelector('#recheck-fields [data-change-value="' + CSS.escape(item.field) + '"]');
+                if (!input || !((item.options && item.options.length) || item.lookup)) return;
+                fillComboOptions(input, item.options || [], item.rawValue, item.value);
             });
-        });
+            document.querySelectorAll('#recheck-fields [data-change-check]').forEach((check) => {
+                check.addEventListener('change', () => {
+                    document.querySelector('[data-change-value="' + CSS.escape(check.dataset.changeCheck) + '"]').disabled = !check.checked;
+                });
+            });
+            bindDependentLookups(properties);
+            modalFields.forEach((item) => {
+                if (item.lookup) void refreshLookupSelect(item, properties);
+            });
+        }
         document.getElementById('recheck-change-error').textContent = '';
         document.getElementById('recheck-change-modal').hidden = false;
     }
@@ -178,8 +346,8 @@
             const changes = Array.from(document.querySelectorAll('[data-change-check]:checked')).map((check) => {
                 const field = check.dataset.changeCheck;
                 const oldValue = properties[field];
-                const rawValue = document.querySelector('[data-change-value="' + CSS.escape(field) + '"]').value;
-                let newValue = rawValue;
+                const typed = document.querySelector('[data-change-value="' + CSS.escape(field) + '"]').value;
+                let newValue = resolveStoredValue(field, typed, typed);
                 if (typeof oldValue === 'number' && rawValue.trim() !== '' && Number.isFinite(Number(rawValue))) {
                     newValue = Number(rawValue);
                 } else if (typeof oldValue === 'boolean' && /^(true|false)$/i.test(rawValue.trim())) {
@@ -187,7 +355,12 @@
                 } else if (oldValue && typeof oldValue === 'object') {
                     try { newValue = JSON.parse(rawValue); } catch (ignore) { newValue = rawValue; }
                 }
-                return {field_name: field, field_label: field, old_value: oldValue, new_value: newValue};
+                return {
+                    field_name: field,
+                    field_label: check.dataset.changeLabel || field,
+                    old_value: oldValue,
+                    new_value: newValue,
+                };
             });
             const identity = String(featureIdentity(selectedFeature, selectedLayerKey));
             const payload = {
@@ -280,9 +453,14 @@
                 svgIndex: readJsonScript('recheck-svg-index') || {},
                 iconsBase: '/static/approval/icons/svg/',
                 actionLabel: 'Запросить изменение',
+                canAction: (feature) => {
+                    const props = (feature && feature.properties) || {};
+                    return !isPhotoFixLayer(props.layerKey || props.sourceTable || '');
+                },
                 onAction: (feature) => {
                     const props = feature.properties || {};
                     const layerKey = props.layerKey || props.sourceTable || '';
+                    if (isPhotoFixLayer(layerKey)) return;
                     const objectKey = featureIdentity(feature, geometryKey(feature, layerKey));
                     openChangeModal(feature, layerKey, objectKey);
                 },
@@ -312,8 +490,11 @@
                             return;
                         }
                         const key = featureIdentity(feature, geometryKey(feature, spec.key));
-                        layer.bindPopup('<strong>' + escapeHtml(spec.label) + '</strong><br>Объект: ' +
-                            escapeHtml(key) + '<br><button type="button" class="recheck-popup-btn">Запросить изменение</button>');
+                        let html = '<strong>' + escapeHtml(spec.label) + '</strong><br>Объект: ' + escapeHtml(key);
+                        if (!isPhotoFixLayer(spec.key)) {
+                            html += '<br><button type="button" class="recheck-popup-btn">Запросить изменение</button>';
+                        }
+                        layer.bindPopup(html);
                         layer.on('popupopen', (popupEvent) => {
                             const button = popupEvent.popup.getElement().querySelector('.recheck-popup-btn');
                             if (button) button.onclick = () => openChangeModal(feature, spec.key, key);

@@ -125,10 +125,18 @@
     text-overflow: ellipsis;
 }
 
-.recheck-field input[type='text'] {
+.recheck-combo {
+    min-width: 0;
+}
+
+.recheck-field input[type='text'],
+.recheck-combo input[type='text'] {
     padding: 7px 8px;
     border: 1px solid #cbd4e0;
     border-radius: 7px;
+    min-width: 0;
+    width: 100%;
+    background: #fff;
 }
 
 .recheck-error { min-height: 20px; color: #b42318; }
@@ -147,5 +155,6 @@
 @media (max-width: 900px) {
     .recheck-field { grid-template-columns: 24px 1fr; }
     .recheck-field code,
-    .recheck-field input[type='text'] { grid-column: 2; }
+    .recheck-field input[type='text'],
+    .recheck-combo { grid-column: 2; }
 }

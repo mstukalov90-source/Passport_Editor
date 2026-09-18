@@ -478,23 +478,58 @@
             return !normalized || ['svg', 'svg_vapoint', 'svg_hapoint'].includes(normalized) || (normalized === 'nocalc' && tableName !== 'AbutmentLine');
         }
 
-        function bindFeaturePopup(layer, feature) {
-            const props = feature.properties || {};
+        function popupTitle(feature) {
+            const props = (feature && feature.properties) || {};
+            const tableName = styleTableKey(props);
+            const definition = tableStyle(tableName);
+            return String((definition && definition.label) || tableName || '').trim();
+        }
+
+        function valueMapOptions(alias) {
+            const valueMap = alias && alias.valueMap;
+            if (!valueMap || typeof valueMap !== 'object') return [];
+            return Object.keys(valueMap).map((code) => ({
+                value: code,
+                label: valueMap[code] == null || valueMap[code] === '' ? code : String(valueMap[code]),
+            }));
+        }
+
+        function popupFields(feature) {
+            const props = (feature && feature.properties) || {};
             const tableName = styleTableKey(props);
             const definition = tableStyle(tableName);
             const aliases = definition && Array.isArray(definition.aliases) ? definition.aliases : [];
-            const title = String((definition && definition.label) || tableName || '').trim();
-            const rows = aliases.map((alias) => {
+            const fields = [];
+            aliases.forEach((alias) => {
                 const field = String(alias.field || '');
                 const label = formatAliasLabel(alias.label);
-                if (!field || !label || shouldHideAlias(field, tableName) || !Object.prototype.hasOwnProperty.call(props, field)) return '';
+                if (!field || !label || shouldHideAlias(field, tableName) || !Object.prototype.hasOwnProperty.call(props, field)) return;
                 const displayField = field + '__display';
                 const value = Object.prototype.hasOwnProperty.call(props, displayField) ? props[displayField] : props[field];
-                if (value === null || value === undefined || String(value).trim() === '') return '';
-                return '<div class="approval-feature-popup__row"><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(formatDisplayValue(value, field, label)) + '</div>';
-            }).filter(Boolean);
+                if (value === null || value === undefined || String(value).trim() === '') return;
+                fields.push({
+                    field: field,
+                    label: label,
+                    value: formatDisplayValue(value, field, label),
+                    rawValue: props[field],
+                    options: valueMapOptions(alias),
+                    lookup: alias.lookup && typeof alias.lookup === 'object' ? alias.lookup : null,
+                });
+            });
+            return fields;
+        }
+
+        function allowAction(feature) {
+            return typeof opts.onAction === 'function' && (typeof opts.canAction !== 'function' || opts.canAction(feature));
+        }
+
+        function bindFeaturePopup(layer, feature) {
+            const title = popupTitle(feature);
+            const rows = popupFields(feature).map((item) => {
+                return '<div class="approval-feature-popup__row"><strong>' + escapeHtml(item.label) + ':</strong> ' + escapeHtml(item.value) + '</div>';
+            });
             let action = '';
-            if (typeof opts.onAction === 'function') {
+            if (allowAction(feature)) {
                 action = '<button type="button" class="approval-adjacent-popup__action recheck-feature-popup__action">' + escapeHtml(opts.actionLabel || 'Выбрать объект') + '</button>';
             }
             const html = '<div class="approval-feature-popup">' + (title ? '<div class="approval-feature-popup__title">' + escapeHtml(title) + '</div>' : '') + rows.join('') + action + '</div>';
@@ -745,6 +780,8 @@
             refresh,
             resolveRuleStyle,
             tableStyle,
+            popupFields,
+            popupTitle,
         };
     };
 })(window);

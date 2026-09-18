@@ -41,6 +41,9 @@ _VALUE_RELATION_TABLE_RE = re.compile(
     r'table="(?P<schema>[^"]+)"\."(?P<table>[^"]+)"',
     re.IGNORECASE,
 )
+_CURRENT_VALUE_EQ_RE = re.compile(
+    r'"(?P<column>[^"]+)"\s*=\s*current_value\(\'(?P<field>[^\']+)\'\)',
+)
 _FILTER_EQ_RE = re.compile(
     rf"^\s*{_FIELD_TOKEN}\s*=\s*{_STRING_LIT}\s*$",
     re.IGNORECASE,
@@ -727,6 +730,19 @@ def _option_value(parent: ET.Element, name: str) -> str:
     return (option.get("value") or "").strip() if option is not None else ""
 
 
+def _parse_lookup_parents(filter_expression: str) -> list[dict[str, str]]:
+    parents: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for match in _CURRENT_VALUE_EQ_RE.finditer(filter_expression or ""):
+        column = (match.group("column") or "").strip()
+        field = (match.group("field") or "").strip()
+        key = (column, field)
+        if column and field and key not in seen:
+            seen.add(key)
+            parents.append({"column": column, "field": field})
+    return parents
+
+
 def _parse_value_map(edit_widget: ET.Element) -> dict[str, str]:
     map_option = edit_widget.find('.//Option[@name="map"]')
     if map_option is None:
@@ -761,14 +777,16 @@ def parse_field_display_rules(root: ET.Element) -> dict[str, dict[str, Any]]:
             key = _option_value(edit_widget, "Key")
             value = _option_value(edit_widget, "Value")
             if match and match.group("schema").lower() == "cls" and key and value:
-                rules[field] = {
-                    "lookup": {
-                        "schema": match.group("schema"),
-                        "table": match.group("table"),
-                        "key": key,
-                        "value": value,
-                    }
+                lookup: dict[str, Any] = {
+                    "schema": match.group("schema"),
+                    "table": match.group("table"),
+                    "key": key,
+                    "value": value,
                 }
+                parents = _parse_lookup_parents(_option_value(edit_widget, "FilterExpression"))
+                if parents:
+                    lookup["parents"] = parents
+                rules[field] = {"lookup": lookup}
         elif widget_type == "ValueMap":
             values = _parse_value_map(edit_widget)
             if values:

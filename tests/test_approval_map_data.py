@@ -605,6 +605,34 @@ def test_feature_select_sql_adds_qml_value_map_display_property():
     assert "WHEN '1' THEN 'Замыкание'" in sql
 
 
+@patch("approval.work_geojson.connections")
+def test_list_cls_lookup_options_filters_parent_and_dedupes(mock_connections):
+    from approval.work_geojson import list_cls_lookup_options
+
+    cursor = MagicMock()
+    mock_connections.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+    cursor.fetchone.return_value = (1,)
+    cursor.fetchall.return_value = [
+        ("playground", "Детский игровой комплекс"),
+        ("playground", "Детский игровой комплекс"),
+        ("bench", "Скамья"),
+    ]
+
+    options = list_cls_lookup_options(
+        {"schema": "cls", "table": "MafTypeLevel2", "key": "Code", "value": "Name"},
+        filters={"ParentCode": "maf"},
+    )
+
+    assert options == [
+        {"value": "playground", "label": "Детский игровой комплекс"},
+        {"value": "bench", "label": "Скамья"},
+    ]
+    sql = cursor.execute.call_args_list[-1][0][0]
+    assert '"MafTypeLevel2"' in sql
+    assert '"ParentCode"' in sql
+    assert cursor.execute.call_args_list[-1][0][1] == ["maf"]
+
+
 def test_feature_select_sql_chunks_large_property_sets():
     from unittest.mock import MagicMock
 
@@ -754,6 +782,11 @@ def test_format_survey_page_title_full_and_fallback():
     assert format_survey_page_title("Street", "") == "Согласование границ ОГХ"
     assert format_survey_page_title(None, None) == "Согласование границ ОГХ"
     assert format_survey_page_title("  ", "  ") == "Согласование границ ОГХ"
+    assert (
+        format_survey_page_title("Павла Андреева ул. 28", "46998", prefix="Согласование ЦГ")
+        == "Согласование ЦГ Павла Андреева ул. 28 по заявке 46998."
+    )
+    assert format_survey_page_title("", "", prefix="Согласование ЦГ") == "Согласование ЦГ"
 
 
 @patch("approval.work_layers.connections")

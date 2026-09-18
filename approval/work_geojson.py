@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 from django.conf import settings
 from django.db import connections
@@ -27,6 +28,7 @@ from .work_layers import (
 
 logger = logging.getLogger(__name__)
 
+_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _POINT_STYLE_FIELDS = ("Svg", "SvgMarkerPath", "SvgMarkerAngle")
 # topotext often covers a wide CAD extent — keep only labels inside the survey object.
 _TOPO_CLIP_TO_WORK_TABLES = frozenset({"topotext"})
@@ -325,3 +327,76 @@ def build_topopassport_feature_collection(
         tables=tables if tables is not None else list_topopassport_layer_tables(),
         layer_key_for_table=topo_layer_key,
     )
+
+
+def allowed_cls_lookups(manifest: dict | None = None) -> set[tuple[str, str, str]]:
+    data = manifest or load_manifest()
+    allowed: set[tuple[str, str, str]] = set()
+    for spec in (data.get("tables") or {}).values():
+        if not isinstance(spec, dict):
+            continue
+        for alias in spec.get("aliases") or []:
+            if not isinstance(alias, dict):
+                continue
+            lookup = alias.get("lookup") or {}
+            table = str(lookup.get("table") or "").strip()
+            key = str(lookup.get("key") or "").strip()
+            value = str(lookup.get("value") or "").strip()
+            if str(lookup.get("schema") or "").strip().lower() != "cls":
+                continue
+            if table and key and value:
+                allowed.add((table, key, value))
+    return allowed
+
+
+def list_cls_lookup_options(
+    lookup: dict,
+    filters: dict | None = None,
+) -> list[dict[str, str]]:
+    table = str((lookup or {}).get("table") or "").strip()
+    key = str((lookup or {}).get("key") or "").strip()
+    value = str((lookup or {}).get("value") or "").strip()
+    schema = str((lookup or {}).get("schema") or "cls").strip() or "cls"
+    if schema.lower() != "cls" or not all(
+        _IDENT_RE.match(part) for part in (schema, table, key, value)
+    ):
+        raise ValueError("Некорректный справочник.")
+
+    where = []
+    params: list[str] = []
+    try:
+        with connections["qgis"].cursor() as cursor:
+            for column, raw in (filters or {}).items():
+                column_name = str(column or "").strip()
+                filter_value = str(raw or "").strip()
+                if not _IDENT_RE.match(column_name) or not filter_value:
+                    continue
+                if not _column_exists(cursor, schema, table, column_name):
+                    continue
+                where.append(f"c.{_quote_ident(column_name)}::text = %s")
+                params.append(filter_value)
+            sql = (
+                f"SELECT c.{_quote_ident(key)}::text, c.{_quote_ident(value)}::text "
+                f"FROM {_quote_ident(schema)}.{_quote_ident(table)} c"
+            )
+            if where:
+                sql += " WHERE " + " AND ".join(where)
+            sql += f" ORDER BY c.{_quote_ident(value)}::text LIMIT 800"
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+    except ValueError:
+        raise
+    except Exception:
+        logger.exception("list_cls_lookup_options: qgis query failed")
+        raise ValueError("Не удалось загрузить значения справочника.") from None
+
+    options = []
+    seen: set[str] = set()
+    for row in rows:
+        option_value = str(row[0] if row else "").strip()
+        option_label = str(row[1] if row and len(row) > 1 else option_value).strip()
+        if not option_value or option_value in seen:
+            continue
+        seen.add(option_value)
+        options.append({"value": option_value, "label": option_label or option_value})
+    return options

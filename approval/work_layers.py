@@ -226,13 +226,16 @@ def resolve_task_owner_legal_person_id(task_guid: str) -> str:
     )
 
 
-def format_survey_page_title(name: str | None, brid: str | None) -> str:
+def format_survey_page_title(
+    name: str | None, brid: str | None, prefix: str | None = None
+) -> str:
     """Build approval page title from work-layer Name and PassBrId."""
+    title_prefix = str(prefix or "").strip() or _DEFAULT_SURVEY_TITLE
     name_text = str(name or "").strip()
     brid_text = str(brid or "").strip()
     if name_text and brid_text:
-        return f"{_DEFAULT_SURVEY_TITLE} {name_text} по заявке {brid_text}."
-    return _DEFAULT_SURVEY_TITLE
+        return f"{title_prefix} {name_text} по заявке {brid_text}."
+    return title_prefix
 
 
 def lookup_task_survey_fields(task_guid: str) -> tuple[str, str]:
@@ -401,15 +404,16 @@ def batch_lookup_task_poly_meta(task_guids) -> dict[str, dict[str, str]]:
     return result
 
 
-def resolve_task_survey_title(task_guid: str) -> str:
+def resolve_task_survey_title(task_guid: str, prefix: str | None = None) -> str:
     """
     Return landing page title from work YardPoly → OznPoly → OdhPoly for TaskGUID.
 
     Uses the first table that has a matching row with both Name and PassBrId.
-    Falls back to «Согласование границ ОГХ» when nothing is found or the query fails.
+    Falls back to prefix (default «Согласование границ ОГХ») when nothing is found
+    or the query fails.
     """
     name_text, brid_text = lookup_task_survey_fields(task_guid)
-    return format_survey_page_title(name_text, brid_text)
+    return format_survey_page_title(name_text, brid_text, prefix=prefix)
 
 
 def list_schema_layer_tables(schema: str, *, force_refresh: bool = False) -> list[str]:

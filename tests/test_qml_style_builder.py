@@ -268,6 +268,16 @@ def test_parse_little_form_point_mapunit_icon_size():
     assert style.get("iconAnchorY") == "bottom"
 
 
+def test_parse_little_form_point_lookup_parents():
+    qml_dir = Path(settings.APPROVAL_LAYER_STYLES_QML_DIR)
+    parsed = parse_qml_file(qml_dir / "WorkLayers_LittleFormPoint.qml")
+    level1 = next(item for item in parsed["aliases"] if item["field"] == "MafTypeLevel1")
+    level2 = next(item for item in parsed["aliases"] if item["field"] == "MafTypeLevel2")
+    assert level1["lookup"]["table"] == "MafTypeLevel1"
+    assert "parents" not in level1["lookup"]
+    assert level2["lookup"]["parents"] == [{"column": "ParentCode", "field": "MafTypeLevel1"}]
+
+
 def test_sync_svg_static_tree_preserves_subfolders(tmp_path, settings):
     source = tmp_path / "svg"
     nested = source / "Дорожные знаки ОДХ" / "1. Предупреждающие знаки"

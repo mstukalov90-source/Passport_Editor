@@ -10,6 +10,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from approval.map_load import build_map_layer_load_order, resolve_map_layer_features
 from approval.qml_style_builder import load_manifest, load_svg_index
+from approval.work_geojson import allowed_cls_lookups, list_cls_lookup_options
 from approval.work_layers import (
     build_layer_groups,
     build_topopassport_layer_groups,
@@ -119,7 +120,7 @@ def landing(request):
             has_adjacent=False,
             include_reference=False,
         )
-        page_title = resolve_task_survey_title(selected.task_guid)
+        page_title = resolve_task_survey_title(selected.task_guid, prefix="Согласование ЦГ")
     return render(
         request,
         "recheck/landing.html",
@@ -136,6 +137,7 @@ def landing(request):
                 "urls": {
                     "bootstrap": reverse("recheck:api_bootstrap"),
                     "mapLayer": reverse("recheck:api_map_layer"),
+                    "lookupOptions": reverse("recheck:api_lookup_options"),
                     "objectRequests": reverse(
                         "recheck:api_create_object_request", args=[selected.id]
                     ) if selected else "",
@@ -193,6 +195,30 @@ def api_map_layer(request):
     if warning:
         response["warning"] = warning
     return JsonResponse(response)
+
+
+@login_required
+@require_POST
+def api_lookup_options(request):
+    payload = _payload(request)
+    if payload is None:
+        return _error("Некорректный JSON.")
+    table = str(payload.get("table") or "").strip()
+    key = str(payload.get("key") or "Code").strip() or "Code"
+    value = str(payload.get("value") or "Name").strip() or "Name"
+    if (table, key, value) not in allowed_cls_lookups():
+        return _error("Справочник недоступен.")
+    filters = payload.get("filters") or {}
+    if not isinstance(filters, dict):
+        return _error("filters должно быть объектом.")
+    try:
+        options = list_cls_lookup_options(
+            {"schema": "cls", "table": table, "key": key, "value": value},
+            filters={str(column): raw for column, raw in filters.items()},
+        )
+    except ValueError as exc:
+        return _error(str(exc))
+    return JsonResponse({"ok": True, "options": options})
 
 
 @login_required

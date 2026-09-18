@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.landing, name="landing"),
     path("api/bootstrap/", views.api_bootstrap, name="api_bootstrap"),
     path("api/map-layer/", views.api_map_layer, name="api_map_layer"),
+    path("api/lookup-options/", views.api_lookup_options, name="api_lookup_options"),
     path(
         "api/events/<uuid:event_id>/object-requests/",
         views.api_create_object_request,
