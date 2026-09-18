@@ -5,12 +5,13 @@
         {% endif %}
         <button type="button" class="owned-list-tab-btn" data-owned-list-tab="requests">Заявки</button>
         <button type="button" class="owned-list-tab-btn" data-owned-list-tab="approvals">Согласование ОГХ</button>
+        <button type="button" class="owned-list-tab-btn" data-owned-list-tab="rechecks">Согласование ЦГ</button>
     </div>
     {% if owned_objects_error %}
         <div class="owned-home-lists-stack">
             <p class="note" style="color: #b42318;">{{ owned_objects_error }}</p>
         </div>
-    {% elif owned_objects or approval_items %}
+    {% elif owned_objects or approval_items or recheck_items %}
         {% include 'pass_viewer/includes/owned_home_lists.html' %}
     {% else %}
         <div class="owned-home-lists-stack">

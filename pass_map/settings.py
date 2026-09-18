@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "pass_viewer",
     "approval",
+    "recheck.apps.RecheckConfig",
 ]
 
 MIDDLEWARE = [

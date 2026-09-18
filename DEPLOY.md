@@ -368,6 +368,23 @@ tail -20 /var/log/geodb_mggt_sync.log
 
 Прежний cron на 12:00 для `ods_request.json` (`sync_ods_request_if_present`) **заменён** этой задачей. Команда JSON-импорта остаётся как ручной fallback.
 
+## Закрытие просроченных проверок геоподосновы
+
+События `recheck` должны закрываться после пяти рабочих дней независимо от того,
+открывал ли кто-либо страницу. Для этого команда проверки срока запускается каждые
+пять минут:
+
+```cron
+*/5 * * * * TZ=Europe/Moscow /opt/passport_editor_new/scripts/expire_rechecks.sh >> /var/log/expire_rechecks.log 2>&1
+```
+
+После деплоя:
+
+```bash
+chmod +x /opt/passport_editor_new/scripts/expire_rechecks.sh
+/opt/passport_editor_new/scripts/expire_rechecks.sh
+```
+
 ## Ночная уборка (04:20 МСК)
 
 Три задания cron: старые файлы экспорта, «сироты» в GIS-таблицах и точки комментариев без заявки в GIS.

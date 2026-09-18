@@ -2,8 +2,14 @@ main.container.container--approval {
     display: flex;
     flex-direction: column;
     height: calc(100vh - 48px);
-    min-height: calc(100vh - 48px);
+    min-height: 0;
+    max-height: calc(100vh - 48px);
     overflow: hidden;
+}
+
+body.has-site-header main.container.container--approval {
+    height: calc(100vh - 48px - 64px);
+    max-height: calc(100vh - 48px - 64px);
 }
 
 .approval-shell {
@@ -1843,6 +1849,18 @@ main.container.container--approval {
     border-color: #2563eb;
     background: #eff6ff;
     outline: none;
+}
+
+@media (max-width: 768px) {
+    main.container.container--approval {
+        height: calc(100vh - 16px);
+        max-height: calc(100vh - 16px);
+    }
+
+    body.has-site-header main.container.container--approval {
+        height: calc(100vh - 16px - 56px);
+        max-height: calc(100vh - 16px - 56px);
+    }
 }
 
 @media (max-width: 1024px) {

@@ -1,0 +1,151 @@
+.recheck-shell { min-height: 0; }
+
+#recheck-map {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border: 1px solid #e3e6ec;
+    border-radius: 10px;
+    background: #eef2f7;
+}
+
+.approval-panel--map { position: relative; }
+
+#recheck-map-status {
+    position: absolute;
+    z-index: 500;
+    left: 10px;
+    bottom: 8px;
+    max-width: calc(100% - 20px);
+    margin: 0;
+    padding: 6px 9px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.94);
+    font-size: 12px;
+}
+
+#recheck-event-summary {
+    display: grid;
+    gap: 7px;
+    padding: 10px 12px;
+    color: #475569;
+    font-size: 13px;
+}
+
+#recheck-event-summary p { margin: 0; }
+
+.approval-events__section--secondary.is-collapsed #recheck-event-summary {
+    display: none;
+}
+
+.recheck-messages { padding: 8px; }
+
+.recheck-message {
+    margin: 0 0 8px;
+    padding: 9px 10px;
+    border: 1px solid #e3e6ec;
+    border-radius: 9px;
+    background: #f8fafc;
+    color: #1f2937;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+}
+
+.recheck-message strong,
+.recheck-message time {
+    display: block;
+    font-size: 11px;
+}
+
+.recheck-message strong { margin-bottom: 4px; color: #334155; }
+.recheck-message time { margin-top: 5px; color: #94a3b8; }
+
+.recheck-empty {
+    padding: 40px;
+    text-align: center;
+}
+
+.recheck-empty h2 { margin-top: 0; }
+
+.recheck-modal {
+    position: fixed;
+    z-index: 3000;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(16, 24, 40, 0.55);
+}
+
+.recheck-modal[hidden] { display: none; }
+
+.recheck-modal__card {
+    width: min(820px, 94vw);
+    max-height: 88vh;
+    overflow: auto;
+    padding: 20px;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.recheck-modal__head,
+.recheck-modal__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.recheck-modal__head h2 { margin: 0; }
+
+.recheck-modal__head button {
+    border: 0;
+    background: transparent;
+    font-size: 30px;
+    cursor: pointer;
+}
+
+.recheck-fields {
+    display: grid;
+    gap: 8px;
+    margin: 14px 0;
+}
+
+.recheck-field {
+    display: grid;
+    grid-template-columns: 26px minmax(130px, 0.8fr) minmax(130px, 1fr) minmax(160px, 1fr);
+    align-items: center;
+    gap: 8px;
+}
+
+.recheck-field code {
+    overflow: hidden;
+    color: #586477;
+    text-overflow: ellipsis;
+}
+
+.recheck-field input[type='text'] {
+    padding: 7px 8px;
+    border: 1px solid #cbd4e0;
+    border-radius: 7px;
+}
+
+.recheck-error { min-height: 20px; color: #b42318; }
+.recheck-modal__actions { justify-content: flex-end; }
+
+.recheck-modal__actions button[type='submit'],
+.recheck-popup-btn {
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 7px;
+    background: #b7192e;
+    color: #fff;
+    cursor: pointer;
+}
+
+@media (max-width: 900px) {
+    .recheck-field { grid-template-columns: 24px 1fr; }
+    .recheck-field code,
+    .recheck-field input[type='text'] { grid-column: 2; }
+}

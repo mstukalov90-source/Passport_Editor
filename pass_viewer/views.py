@@ -5878,6 +5878,7 @@ def home(request):
             "ods_request_source_label": getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
             "ods_user_brids": [],
             "approval_items": [],
+            "recheck_items": [],
             "personal_metrics": _empty_personal_metrics(),
             "personal_table_items": [],
             "personal_kind_counts": None,
@@ -6023,6 +6024,7 @@ def _build_home_page_context(request, form, *, lists_embed=False):
     owned_objects_error = None
     ods_user_brids = []
     approval_items = []
+    recheck_items = []
     hood_districts = []
     need_sup_hood_modal = False
     sup_hood_gid = (request.session.get(SUP_HOOD_SESSION_GID) or "").strip()
@@ -6086,6 +6088,27 @@ def _build_home_page_context(request, form, *, lists_embed=False):
         accessible_approves = []
         approval_items = []
 
+    if lists_embed:
+        try:
+            from recheck.access import accessible_events
+            from recheck.services import expire_due_events
+
+            expire_due_events()
+            recheck_items = [
+                {
+                    "id": str(event.id),
+                    "task_guid": str(event.task_guid),
+                    "label": (event.source_approve.name or event.title).strip(),
+                    "status": event.status,
+                    "status_label": event.get_status_display(),
+                    "due_at": event.due_at,
+                }
+                for event in accessible_events(request.user.username).select_related("source_approve")
+            ]
+        except Exception:
+            logger.exception("home: recheck list failed")
+            recheck_items = []
+
     if accessible_approves and needs_map_geojson and not is_personal_account:
         try:
             owned_approvals_geojson = build_home_approval_feature_collection(accessible_approves)
@@ -6097,7 +6120,7 @@ def _build_home_page_context(request, form, *, lists_embed=False):
         requested_list_tab = (request.GET.get("open_list") or "requests").strip()
         lists_active_tab = (
             requested_list_tab
-            if requested_list_tab in ("requests", "approvals", "passports")
+            if requested_list_tab in ("requests", "approvals", "passports", "rechecks")
             else "requests"
         )
     else:
@@ -6188,6 +6211,7 @@ def _build_home_page_context(request, form, *, lists_embed=False):
         "ods_request_source_label": getattr(settings, "GIS_ODS_REQUEST_SOURCE_LABEL", "ОДС"),
         "ods_user_brids": ods_user_brids,
         "approval_items": approval_items,
+        "recheck_items": recheck_items,
         "personal_metrics": personal_metrics,
         "personal_table_items": personal_table_items,
         "personal_kind_counts": personal_kind_counts,

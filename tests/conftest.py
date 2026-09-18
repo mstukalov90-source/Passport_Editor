@@ -19,6 +19,7 @@ def _ensure_approval_schema(sender, connection, **kwargs):
         return
     with connection.cursor() as cursor:
         cursor.execute('CREATE SCHEMA IF NOT EXISTS approval')
+        cursor.execute('CREATE SCHEMA IF NOT EXISTS recheck')
 
 
 connection_created.connect(_ensure_approval_schema, dispatch_uid='approval_test_schema')

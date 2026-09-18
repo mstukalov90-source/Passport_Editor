@@ -30,6 +30,7 @@ urlpatterns = [
     ),
     path("accounts/", include("django.contrib.auth.urls")),
     path("approval/", include("approval.urls")),
+    path("recheck/", include("recheck.urls")),
     path("", include("pass_viewer.urls")),
 ]
 

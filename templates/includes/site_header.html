@@ -24,11 +24,15 @@
                    data-header-open-list="requests">Отрисовка границ заявок</a>
             </li>
             <li>
-                <a class="site-header__link{% if route_name == 'landing' %} is-active{% endif %}"
+                <a class="site-header__link{% if request.resolver_match.namespace == 'approval' %} is-active{% endif %}"
                    href="{% url 'owned_lists_partial' %}?open_list=approvals"
                    data-header-open-list="approvals">Согласование границ ОГХ</a>
             </li>
-            <li><span class="site-header__link site-header__link--disabled" aria-disabled="true">Согласование ЦГ</span></li>
+            <li>
+                <a class="site-header__link{% if request.resolver_match.namespace == 'recheck' %} is-active{% endif %}"
+                   href="{% url 'owned_lists_partial' %}?open_list=rechecks"
+                   data-header-open-list="rechecks">Согласование ЦГ</a>
+            </li>
             <li class="site-header__more-wrap">
                 <button type="button" class="site-header__link site-header__more-btn" data-header-dropdown-toggle
                         aria-haspopup="menu" aria-expanded="false" aria-controls="site-header-more-menu">Дополнительно</button>

@@ -8,6 +8,7 @@
     const LISTS_MODAL_TITLES = {
         requests: 'Отрисовка границ заявок',
         approvals: 'Согласование границ ОГХ',
+        rechecks: 'Согласование ЦГ',
     };
 
     const modal = document.getElementById('owned-lists-modal');
@@ -50,7 +51,7 @@
 
     function getActiveOwnedListTab() {
         const fromBody = document.body.getAttribute('data-owned-lists-tab');
-        if (fromBody === 'requests' || fromBody === 'approvals' || fromBody === 'passports') {
+        if (fromBody === 'requests' || fromBody === 'approvals' || fromBody === 'passports' || fromBody === 'rechecks') {
             return fromBody;
         }
         const activeBtn = getModalListButtons().find((btn) => btn.classList.contains('is-active'));
@@ -58,8 +59,13 @@
     }
 
     function setOwnedListTab(tabName) {
-        const tab =
-            tabName === 'approvals' ? 'approvals' : tabName === 'passports' ? 'passports' : 'requests';
+        const tab = tabName === 'approvals'
+            ? 'approvals'
+            : tabName === 'passports'
+                ? 'passports'
+                : tabName === 'rechecks'
+                    ? 'rechecks'
+                    : 'requests';
         getModalListButtons().forEach((btn) => {
             btn.classList.toggle('is-active', btn.dataset.ownedListTab === tab);
         });
@@ -135,7 +141,7 @@
     }
 
     function showModalShell(tab) {
-        const kind = tab === 'approvals' ? 'approvals' : 'requests';
+        const kind = tab === 'approvals' ? 'approvals' : tab === 'rechecks' ? 'rechecks' : 'requests';
         if (modalTitle) {
             modalTitle.textContent = LISTS_MODAL_TITLES[kind] || LISTS_MODAL_TITLES.requests;
         }
@@ -684,7 +690,7 @@
     }
 
     async function openOwnedListsModal(tabName) {
-        const tab = tabName === 'approvals' ? 'approvals' : 'requests';
+        const tab = tabName === 'approvals' ? 'approvals' : tabName === 'rechecks' ? 'rechecks' : 'requests';
         if (modalBody && !fragmentReady) {
             modalBody.innerHTML = '<p class="owned-lists-modal__status note">Загрузка списка…</p>';
         }

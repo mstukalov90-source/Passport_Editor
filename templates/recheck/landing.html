@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title|default:"Проверка геоподосновы" }}{% endblock %}
+{% block container_class %}container--wide container--approval{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{% static 'pass_viewer/css/map-core.css' %}">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/page-header.css' %}">
+<link rel="stylesheet" href="{% static 'pass_viewer/css/modal.css' %}">
+<link rel="stylesheet" href="{% static 'approval/css/landing.css' %}?v=approval-style-36">
+<link rel="stylesheet" href="{% static 'recheck/css/landing.css' %}?v=recheck-style-3">
+{% endblock %}
+
+{% block page_scripts %}
+{{ config|json_script:"recheck-config" }}
+{{ work_layer_styles|json_script:"recheck-work-layer-styles" }}
+{{ svg_index|json_script:"recheck-svg-index" }}
+{% include 'pass_viewer/includes/map_leaflet_vendor.html' %}
+<script src="{% static 'pass_viewer/js/basemap.js' %}"></script>
+<script src="{% static 'pass_viewer/js/map-tools.js' %}"></script>
+<script src="{% static 'pass_viewer/js/qml-renderer.js' %}?v=qml-renderer-3"></script>
+<script src="{% static 'recheck/js/landing.js' %}?v=recheck-style-6"></script>
+{% endblock %}
+
+{% block content %}
+<div class="approval-shell recheck-shell">
+    <header class="approval-header page-header-card">
+        <h1 class="approval-header__title">{{ page_title|default:"Проверка геоподосновы" }}</h1>
+        <a class="approval-header__back" href="{% url 'home' %}">На главную</a>
+    </header>
+
+    {% if selected_event %}
+    <div class="approval-workspace approval-workspace--layers-collapsed" id="recheck-workspace">
+        <aside class="approval-panel approval-panel--layers is-collapsed" id="recheck-panel-layers">
+            {% include 'recheck/includes/layer_panel.html' %}
+        </aside>
+
+        <section class="approval-panel approval-panel--map">
+            <div id="recheck-map" aria-label="Карта проверки геоподосновы"></div>
+            <p id="recheck-map-status" class="approval-map-load-status note">Загрузка объектов…</p>
+        </section>
+
+        <aside class="approval-panel approval-panel--events">
+            <div class="approval-events" aria-label="Проверка геоподосновы">
+                <section class="approval-events__section approval-events__section--secondary is-collapsed" id="recheck-info-section">
+                    <div class="approval-events__section-header">
+                        <div class="approval-events__section-heading">
+                            <h3 class="approval-events__section-title">Проверка геоподосновы</h3>
+                            <p class="approval-events__section-summary" id="recheck-event-progress">Ожидание данных…</p>
+                        </div>
+                        <button type="button" class="approval-events__section-toggle" id="recheck-info-toggle" aria-expanded="false" aria-controls="recheck-event-summary" title="Развернуть информацию о проверке">
+                            <span class="approval-events__section-toggle-icon" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <div class="approval-events__chat-area approval-events__chat-area--list" id="recheck-event-summary"></div>
+                </section>
+
+                <section class="approval-events__section approval-events__section--primary">
+                    <div class="approval-events__event-meta">
+                        <h3 class="approval-events__section-title">Чат события</h3>
+                        <span class="approval-events__status approval-events__status--active" id="recheck-active-status"></span>
+                    </div>
+                    <p class="approval-events__event-name" id="recheck-active-title">Проверка геоподосновы</p>
+                    <div class="approval-events__closed-banner" id="recheck-closed-banner" hidden>Событие закрыто.</div>
+                    <div class="approval-events__chat-area" id="recheck-primary-chat">
+                        <div class="approval-chat-thread recheck-messages" id="recheck-messages"></div>
+                    </div>
+                    <form class="approval-chat-composer" id="recheck-message-form" onsubmit="return false;">
+                        <textarea id="recheck-message-body" class="approval-chat-composer__input" rows="2" placeholder="Введите сообщение..." aria-label="Текст сообщения"></textarea>
+                        <div class="approval-chat-composer__actions">
+                            <button type="submit" class="approval-chat-composer__send">Отправить</button>
+                        </div>
+                    </form>
+                    <button type="button" id="recheck-approve" class="approval-chat-composer__approve" hidden>Согласовать</button>
+                </section>
+            </div>
+        </aside>
+    </div>
+    {% else %}
+    <div class="recheck-empty page-header-card">
+        <h2>Нет доступных проверок</h2>
+        <p>Событие появится автоматически после завершения согласования.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div id="recheck-change-modal" class="recheck-modal" hidden>
+    <div class="recheck-modal__card" role="dialog" aria-modal="true" aria-labelledby="recheck-modal-title">
+        <div class="recheck-modal__head">
+            <h2 id="recheck-modal-title">Запрос изменения объекта</h2>
+            <button type="button" id="recheck-modal-close" aria-label="Закрыть">×</button>
+        </div>
+        <p id="recheck-object-caption"></p>
+        <form id="recheck-change-form">
+            <div id="recheck-fields" class="recheck-fields"></div>
+            <p id="recheck-change-error" class="recheck-error"></p>
+            <div class="recheck-modal__actions">
+                <button type="button" id="recheck-modal-cancel">Отмена</button>
+                <button type="submit">Отправить запрос</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

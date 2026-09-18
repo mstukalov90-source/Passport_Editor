@@ -347,5 +347,29 @@
                         <p class="owned-approval-empty note">Нет доступных согласований.</p>
                     {% endfor %}
                 </div>
+                <div class="owned-list-wrap owned-list-panel{% if lists_active_tab == 'rechecks' %} is-active{% endif %}" data-list-panel="rechecks">
+                    {% for item in recheck_items %}
+                        <div
+                            class="owned-list-item owned-item owned-recheck-row"
+                            data-rootid="{{ item.task_guid|lower }}"
+                            data-name="{{ item.label|lower }}"
+                            data-recheck-status="{{ item.status }}"
+                            data-row-kind="recheck"
+                        >
+                            <a
+                                href="{% url 'recheck:landing' %}?event={{ item.id }}"
+                                class="owned-list-open-btn owned-approval-open-link"
+                            >
+                                <strong>{{ item.label }}</strong><br>
+                                <span class="owned-approval-status{% if item.status == 'agreed' %} owned-approval-status--done{% endif %}">
+                                    {{ item.status_label }} · срок до {{ item.due_at|date:"d.m.Y H:i" }}
+                                </span>
+                            </a>
+                            <span class="source-badge owned-source-badge source-badge--dt">ЦГ</span>
+                        </div>
+                    {% empty %}
+                        <p class="owned-approval-empty note">Нет доступных проверок геоподосновы.</p>
+                    {% endfor %}
+                </div>
                 </div>
             </div>
